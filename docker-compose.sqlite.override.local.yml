@@ -1,0 +1,9 @@
+# Local override:
+# 1) host 8080 is taken by another project (actionow-gateway), remap to 8095.
+# 2) use the locally built image whose frontend has NEXT_PUBLIC_API_BASE_URL=http://localhost:8095
+#    baked in, so the browser calls 8095 instead of falling back to 8080.
+services:
+  app:
+    image: deeix-chat:local
+    ports: !override
+      - "127.0.0.1:8095:8080"

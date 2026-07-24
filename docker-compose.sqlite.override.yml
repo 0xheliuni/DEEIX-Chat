@@ -1,0 +1,7 @@
+# Local dev override: host port 8080 is taken by another stack (actionow),
+# so expose the DEEIX backend on 8095 instead. Container still listens on 8080.
+# `!override` replaces the ports list instead of appending to it.
+services:
+  app:
+    ports: !override
+      - "127.0.0.1:8095:8080"

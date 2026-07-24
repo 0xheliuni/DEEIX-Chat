@@ -1,0 +1,73 @@
+app:
+  name: DEEIX Chat
+  env: dev
+
+server:
+  http_port: "8080"
+  # Allow the local Next.js dev server (:3000) to call this API cross-origin.
+  cors_allow_origin: "http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://127.0.0.1:8080,http://localhost:8095,http://127.0.0.1:8095"
+  trusted_proxies: "127.0.0.1/32,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,::1/128,fc00::/7"
+  public_api_base_url: "http://localhost:8095"
+  # Frontend is served same-origin by the backend on 8095 in this local setup.
+  public_web_base_url: "http://localhost:8095"
+  frontend_dist_dir: "/app/frontend/out"
+  read_header_timeout_seconds: 10
+  read_timeout_seconds: 120
+  idle_timeout_seconds: 120
+  max_header_bytes: 1048576
+
+security:
+  jwt_secret: "5h7H2YpyU6vknNjVqat0cIuR9JDbd8geC3Wwi4FELSQKfsGz"
+  data_encryption_key: "35QP76HxkJZbGcYNXC9ng1o2shfueBWMpUtLaVTvDyER4wjm"
+  ssrf_protection_enabled: false
+  turnstile_siteverify_url: "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+
+branding:
+  title: DEEIX Chat
+  short_name: DEEIX
+  description: DEEIX Chat is a multi-model AI conversation system.
+  logo_url: ""
+  favicon_url: /favicon.ico
+  pwa_icon_192_url: /pwa/icon-192.png
+  pwa_icon_512_url: /pwa/icon-512.png
+  pwa_maskable_icon_512_url: /pwa/icon-maskable-512.png
+  apple_touch_icon_180_url: /pwa/apple-touch-icon.png
+
+database:
+  driver: sqlite
+  sqlite:
+    path: /app/data/deeix.db
+    dsn: ""
+    max_open_conns: 1
+    busy_timeout_ms: 5000
+    cache_size_kb: 20480
+    mmap_size_bytes: 268435456
+    synchronous: NORMAL
+    temp_store: MEMORY
+
+cache:
+  driver: memory
+
+storage:
+  backend: local
+  local:
+    root_dir: /app/storage
+  s3:
+    endpoint: ""
+    region: auto
+    bucket: ""
+    prefix: ""
+    access_key_id: ""
+    secret_access_key: ""
+    force_path_style: true
+
+geoip:
+  provider: ipwhois
+  timeout_ms: 2500
+
+observability:
+  tracing:
+    endpoint: ""
+    headers: ""
+    insecure: false
+    sampling_rate: 1
