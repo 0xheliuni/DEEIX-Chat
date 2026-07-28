@@ -816,7 +816,7 @@ func toBillingAccountResponse(item *domainbilling.BillingAccount) BillingAccount
 		UserID:         item.UserID,
 		Currency:       item.Currency,
 		BalanceNanousd: item.BalanceNanousd,
-		BalanceUSD:     nanousdToUSD(item.BalanceNanousd),
+		BalanceUSD:     signedNanousdToUSD(item.BalanceNanousd),
 		Status:         item.Status,
 		UpdatedAt:      item.UpdatedAt,
 	}
@@ -830,7 +830,7 @@ func toBillingAccountViewResponse(item *appbilling.BillingAccountView) *BillingA
 		UserID:         item.UserID,
 		Currency:       item.Currency,
 		BalanceNanousd: item.BalanceNanousd,
-		BalanceUSD:     nanousdToUSD(item.BalanceNanousd),
+		BalanceUSD:     signedNanousdToUSD(item.BalanceNanousd),
 		Status:         item.Status,
 		UpdatedAt:      item.UpdatedAt,
 	}
@@ -1181,5 +1181,9 @@ func nanousdToUSD(value int64) float64 {
 	if value <= 0 {
 		return 0
 	}
+	return float64(value) / 1000000000
+}
+
+func signedNanousdToUSD(value int64) float64 {
 	return float64(value) / 1000000000
 }
