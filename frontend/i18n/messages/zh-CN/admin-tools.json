@@ -114,6 +114,12 @@
     "confirm": "确认执行",
     "pending": "处理中"
   },
+  "syncConfirm": {
+    "title": "同步 MCP 工具",
+    "description": "MCP 服务「{name}」中存在管理员自定义或升级前来源待确认的工具信息。请选择本次同步的处理方式。",
+    "preserve": "保留修改并同步",
+    "overwrite": "覆盖修改并同步"
+  },
   "serverDialog": {
     "createTitle": "新增 MCP 服务",
     "editTitle": "编辑 MCP 服务",

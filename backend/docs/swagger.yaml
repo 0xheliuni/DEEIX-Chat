@@ -5613,6 +5613,8 @@ definitions:
         x-omitempty: false
       name:
         type: string
+      requiresToolMetadataSyncConfirmation:
+        type: boolean
       sortOrder:
         type: integer
       status:
@@ -5630,6 +5632,7 @@ definitions:
     - lastError
     - lastSyncedAt
     - name
+    - requiresToolMetadataSyncConfirmation
     - sortOrder
     - status
     - toolCount
@@ -10261,6 +10264,10 @@ paths:
         name: id
         required: true
         type: integer
+      - description: 是否用远端元数据覆盖管理员自定义的工具名称和说明
+        in: query
+        name: overwrite_customized_metadata
+        type: boolean
       produces:
       - application/json
       responses:

@@ -114,6 +114,12 @@
     "confirm": "Confirm",
     "pending": "Processing"
   },
+  "syncConfirm": {
+    "title": "Sync MCP tools",
+    "description": "MCP server \"{name}\" contains administrator-edited or pre-upgrade tool metadata that needs confirmation. Choose how to handle it during this sync.",
+    "preserve": "Keep edits and sync",
+    "overwrite": "Overwrite edits and sync"
+  },
   "serverDialog": {
     "createTitle": "Add MCP server",
     "editTitle": "Edit MCP server",
