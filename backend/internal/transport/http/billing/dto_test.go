@@ -3,6 +3,8 @@ package billing
 import (
 	"testing"
 
+	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
+	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	"github.com/gin-gonic/gin/binding"
 )
 
@@ -106,5 +108,29 @@ func TestOptionalBillingCyclesUseServiceDefault(t *testing.T) {
 	}
 	if err := binding.Validator.ValidateStruct(CreateCheckoutRequest{Cycles: &zero}); err == nil {
 		t.Fatal("expected explicit zero checkout cycles to fail validation")
+	}
+}
+
+func TestBillingAccountResponsesPreserveNegativeBalance(t *testing.T) {
+	const balanceNanousd int64 = -1_250_000_000
+	const wantBalanceUSD = -1.25
+
+	account := toBillingAccountResponse(&domainbilling.BillingAccount{BalanceNanousd: balanceNanousd})
+	if account.BalanceUSD != wantBalanceUSD {
+		t.Fatalf("expected account balance %v, got %v", wantBalanceUSD, account.BalanceUSD)
+	}
+
+	accountView := toBillingAccountViewResponse(&appbilling.BillingAccountView{BalanceNanousd: balanceNanousd})
+	if accountView == nil {
+		t.Fatal("expected account view response")
+	}
+	if accountView.BalanceUSD != wantBalanceUSD {
+		t.Fatalf("expected account view balance %v, got %v", wantBalanceUSD, accountView.BalanceUSD)
+	}
+}
+
+func TestNanousdToUSDClampsNegativeNonBalanceAmount(t *testing.T) {
+	if got := nanousdToUSD(-1_250_000_000); got != 0 {
+		t.Fatalf("expected negative non-balance amount to be clamped, got %v", got)
 	}
 }
