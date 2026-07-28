@@ -3224,6 +3224,8 @@ export interface UsageLedgerListResponseDoc {
 export interface UsageLedgerResponse {
   cacheWrite1hTokens: number;
   cacheWrite5mTokens: number;
+  balanceAfterNanousd: number | null;
+  balanceAfterUSD: number | null;
   billedCurrency: string;
   billedNanousd: number;
   billedUSD: number;
@@ -3265,6 +3267,8 @@ export interface UsageLogListResponseDoc {
 export interface UsageLogResponse {
   cacheWrite1hTokens: number;
   cacheWrite5mTokens: number;
+  balanceAfterNanousd: number | null;
+  balanceAfterUSD: number | null;
   billedCurrency: string;
   billedNanousd: number;
   billedUSD: number;
