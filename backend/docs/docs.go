@@ -21503,6 +21503,8 @@ const docTemplate = `{
         "UsageLedgerResponse": {
             "type": "object",
             "required": [
+                "balanceAfterNanousd",
+                "balanceAfterUSD",
                 "billedCurrency",
                 "billedNanousd",
                 "billedUSD",
@@ -21535,6 +21537,16 @@ const docTemplate = `{
                 "userID"
             ],
             "properties": {
+                "balanceAfterNanousd": {
+                    "type": "integer",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "balanceAfterUSD": {
+                    "type": "number",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
                 "billedCurrency": {
                     "type": "string"
                 },
@@ -21660,6 +21672,8 @@ const docTemplate = `{
         "UsageLogResponse": {
             "type": "object",
             "required": [
+                "balanceAfterNanousd",
+                "balanceAfterUSD",
                 "billedCurrency",
                 "billedNanousd",
                 "billedUSD",
@@ -21694,6 +21708,16 @@ const docTemplate = `{
                 "username"
             ],
             "properties": {
+                "balanceAfterNanousd": {
+                    "type": "integer",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "balanceAfterUSD": {
+                    "type": "number",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
                 "billedCurrency": {
                     "type": "string"
                 },
