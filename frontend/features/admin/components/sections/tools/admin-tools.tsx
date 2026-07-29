@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CheckCircle2, FileBraces, ListOrdered, Pencil, Plus, RefreshCw, Save, Trash2, Wrench, XCircle } from "lucide-react";
+import { CheckCircle2, FileBraces, ListOrdered, Pencil, Plus, RefreshCw, Save, Trash2, Wrench, X, XCircle } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -1327,7 +1328,7 @@ export function AdminToolsPage() {
         }}
       />
 
-      <AlertDialog
+      <Dialog
         open={toolSyncConfirmation !== null}
         onOpenChange={(open) => {
           if (!open) {
@@ -1335,34 +1336,55 @@ export function AdminToolsPage() {
           }
         }}
       >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("syncConfirm.title")}</AlertDialogTitle>
-            <AlertDialogDescription>
+        <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[380px]">
+          <DialogClose asChild>
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              className="absolute top-3 right-3 z-10 text-muted-foreground shadow-none"
+              title={tActions("close")}
+              aria-label={tActions("close")}
+            >
+              <X className="size-3.5" />
+            </Button>
+          </DialogClose>
+          <DialogHeader className="px-4 pt-4 pr-11 pb-3">
+            <DialogTitle>{t("syncConfirm.title")}</DialogTitle>
+            <DialogDescription>
               {t("syncConfirm.description", {
                 name: stableToolSyncConfirmation?.serverName ?? "",
               })}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-wrap">
-            <AlertDialogCancel disabled={syncingServerID !== null}>{tActions("cancel")}</AlertDialogCancel>
-            <AlertDialogAction
-              variant="outline"
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mx-4 mb-4 overflow-hidden rounded-md border border-border/60">
+            <button
+              type="button"
+              className="flex min-h-12 w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
               disabled={syncingServerID !== null || !toolSyncConfirmation}
               onClick={() => confirmToolSync(false)}
             >
-              {t("syncConfirm.preserve")}
-            </AlertDialogAction>
-            <AlertDialogAction
-              variant="destructive"
+              <Pencil className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-xs font-medium text-foreground">{t("syncConfirm.preserve")}</span>
+                <span className="block text-xs leading-5 text-muted-foreground">{t("syncConfirm.preserveDescription")}</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              className="flex min-h-12 w-full items-center gap-3 border-t border-border/60 px-3 py-2.5 text-left transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
               disabled={syncingServerID !== null || !toolSyncConfirmation}
               onClick={() => confirmToolSync(true)}
             >
-              {t("syncConfirm.overwrite")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              <RefreshCw className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-xs font-medium text-foreground">{t("syncConfirm.overwrite")}</span>
+                <span className="block text-xs leading-5 text-muted-foreground">{t("syncConfirm.overwriteDescription")}</span>
+              </span>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={serverDeleteTarget !== null}
