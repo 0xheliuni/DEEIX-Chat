@@ -1398,6 +1398,21 @@ export function useChatMessageSubmit({
           },
         }));
         toast.error(t("sendFailed"), { description: errorSummary });
+        if (targetConversationID) {
+          const failedConversationID = targetConversationID;
+          void resolveAccessToken()
+            .then((latestToken) =>
+              latestToken ? getConversation(latestToken, failedConversationID) : null,
+            )
+            .then((latestConversation) => {
+              if (latestConversation) {
+                touchByPublicID(failedConversationID, latestConversation);
+              }
+            })
+            .catch(() => {
+              // The next conversation list load will reconcile a failed refresh.
+            });
+        }
         if (targetConversationID && conversationScopeKeyRef.current === targetConversationScopeKey) {
           reload();
         }
