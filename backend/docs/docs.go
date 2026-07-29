@@ -3784,6 +3784,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "是否用远端元数据覆盖管理员自定义的工具名称和说明",
+                        "name": "overwrite_customized_metadata",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -19217,6 +19223,7 @@ const docTemplate = `{
                 "lastError",
                 "lastSyncedAt",
                 "name",
+                "requiresToolMetadataSyncConfirmation",
                 "sortOrder",
                 "status",
                 "toolCount",
@@ -19248,6 +19255,9 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "requiresToolMetadataSyncConfirmation": {
+                    "type": "boolean"
                 },
                 "sortOrder": {
                     "type": "integer"
