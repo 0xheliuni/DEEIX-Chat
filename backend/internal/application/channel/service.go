@@ -161,6 +161,7 @@ type ResolveRouteInput struct {
 	UserID            uint
 	ConversationID    uint
 	RequestID         string
+	ExcludedRouteIDs  []uint
 }
 
 type routeCandidate struct {
