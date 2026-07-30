@@ -277,6 +277,35 @@ func TestBuildNextStatefulPrefixMessagesKeepsAssistantReasoning(t *testing.T) {
 	}
 }
 
+func TestBuildNextStatefulPrefixMessagesKeepsRebuildableUserImages(t *testing.T) {
+	imageData := []byte("image-data")
+	firstPrompt := []llm.Message{{
+		Role: "user",
+		Parts: []llm.ContentPart{
+			{Kind: llm.ContentPartText, Text: "第一轮"},
+			{Kind: llm.ContentPartImage, MimeType: "image/png", Data: imageData},
+		},
+	}}
+	stored := buildPromptStateFingerprint(promptStateFingerprintInput{
+		Messages: buildNextStatefulPrefixMessages(firstPrompt, "第一轮", "第一轮回答", ""),
+	})
+	secondPrompt := []llm.Message{
+		{
+			Role: "user",
+			Parts: []llm.ContentPart{
+				{Kind: llm.ContentPartText, Text: "第一轮"},
+				{Kind: llm.ContentPartImage, MimeType: "image/png", Data: imageData},
+			},
+		},
+		{Role: "assistant", Content: "第一轮回答"},
+		{Role: "user", Content: "继续"},
+	}
+	prefix := buildPromptStateFingerprint(promptStateFingerprintInput{Messages: promptStatePrefixMessages(secondPrompt)})
+	if stored != prefix {
+		t.Fatal("expected historical user image to preserve previous_response_id fingerprint")
+	}
+}
+
 func TestPromptStateFingerprintUsesRebuildableHistoryWhenCurrentUserHasDynamicContext(t *testing.T) {
 	firstPrompt := []llm.Message{
 		{Role: "system", Content: "<ctx><files><file name=\"A.md\">稳定文件</file></files></ctx>"},

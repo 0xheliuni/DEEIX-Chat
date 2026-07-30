@@ -376,6 +376,7 @@ func (s *Service) sendMessageInternal(
 		userMessage.SourcePublicID = branchState.SourcePublicID
 		assistantMessage.ParentPublicID = userMessage.PublicID
 	}
+	s.persistInitialConversationFallbackTitle(ctx, *conversation, *userMessage)
 	traceRecorder = newMessageTraceRecorder(s, ctx, assistantMessage, input.OnEvent)
 
 	if s.routeResolver == nil || s.llmClient == nil {
@@ -488,6 +489,7 @@ func (s *Service) sendMessageInternal(
 		retErr = err
 		return nil, err
 	}
+	conversationAttachments = bindAttachmentMessageRoles(conversationAttachments, promptMessages)
 	conversationAttachments, err = s.hydrateAttachmentsForSend(ctx, input.UserID, conversationAttachments, input.OnEvent)
 	if err != nil {
 		retErr = err
@@ -502,6 +504,11 @@ func (s *Service) sendMessageInternal(
 	historyMsgs := historyMessagesFromDomain(promptMessages, historyMessageOptions{
 		ReasoningContentPassback: reasoningContentPassback,
 	})
+	historyMsgs, err = s.injectConversationImageContext(ctx, historyMsgs, promptMessages, fileContextPlan.FullAttachments, cfg)
+	if err != nil {
+		retErr = err
+		return nil, err
+	}
 	if len(historyMsgs) == 0 {
 		historyMsgs = append(historyMsgs, llm.Message{
 			Role:    "user",
@@ -545,8 +552,9 @@ func (s *Service) sendMessageInternal(
 		}
 	}
 	llmMessages, _ := assembler.Assemble(historyMsgs)
-	if traceRecorder != nil && shouldShowAttachmentProcessTrace(fileContextPlan.Attachments) {
-		summary, markdown, payload := buildAttachmentProcessTrace(fileMode, fileContextPlan.Attachments)
+	processTraceAttachments := attachmentProcessTraceItems(fileContextPlan.Attachments)
+	if traceRecorder != nil && shouldShowAttachmentProcessTrace(processTraceAttachments) {
+		summary, markdown, payload := buildAttachmentProcessTrace(fileMode, processTraceAttachments)
 		traceRecorder.appendProcessSection(summary, markdown, payload, messageTraceStatusStreaming)
 	}
 

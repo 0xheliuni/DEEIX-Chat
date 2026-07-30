@@ -2468,6 +2468,7 @@ export interface ServerResponse {
   lastError: string;
   lastSyncedAt: string | null;
   name: string;
+  requiresToolMetadataSyncConfirmation: boolean;
   sortOrder: number;
   status: string;
   toolCount: number;
@@ -3224,6 +3225,8 @@ export interface UsageLedgerListResponseDoc {
 export interface UsageLedgerResponse {
   cacheWrite1hTokens: number;
   cacheWrite5mTokens: number;
+  balanceAfterNanousd: number | null;
+  balanceAfterUSD: number | null;
   billedCurrency: string;
   billedNanousd: number;
   billedUSD: number;
@@ -3265,6 +3268,8 @@ export interface UsageLogListResponseDoc {
 export interface UsageLogResponse {
   cacheWrite1hTokens: number;
   cacheWrite5mTokens: number;
+  balanceAfterNanousd: number | null;
+  balanceAfterUSD: number | null;
   billedCurrency: string;
   billedNanousd: number;
   billedUSD: number;
@@ -4786,7 +4791,10 @@ export namespace Admin {
       /** MCP 服务 ID */
       id: number;
     };
-    export type RequestQuery = {};
+    export type RequestQuery = {
+      /** 是否用远端元数据覆盖管理员自定义的工具名称和说明 */
+      overwrite_customized_metadata?: boolean;
+    };
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = ToolListResponseDoc;
