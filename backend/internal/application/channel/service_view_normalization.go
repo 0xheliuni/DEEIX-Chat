@@ -403,12 +403,22 @@ func normalizeUpstreamModelVendor(raw string, candidates ...string) string {
 	return "unknown"
 }
 
+// reasoningContentPassbackVendors 列出 Chat Completions 协议下要求回传 reasoning_content 的厂商。
+// deepseek/moonshot/zhipu 的思考模型均要求历史 assistant 消息原样携带 reasoning_content：
+// Moonshot 缺失时服务端直接返回 400；智谱默认 clear_thinking=false 即保留式思考，
+// 官方明确裁剪或改写历史推理比完全不传更糟。
+var reasoningContentPassbackVendors = map[string]bool{
+	"deepseek": true,
+	"moonshot": true,
+	"zhipu":    true,
+}
+
 func reasoningContentPassbackRequired(protocol string, candidates ...string) bool {
 	switch llm.NormalizeAdapter(protocol) {
 	case llm.AdapterOpenRouterChat:
 		return true
 	case llm.AdapterOpenAIChatCompletions:
-		return detectModelVendor(candidates...) == "deepseek"
+		return reasoningContentPassbackVendors[detectModelVendor(candidates...)]
 	default:
 		return false
 	}

@@ -242,6 +242,51 @@ func TestReasoningContentPassbackRequiredForDeepSeekChatCompletions(t *testing.T
 	}
 }
 
+// Moonshot 与智谱的思考模型同样要求历史 assistant 消息原样携带 reasoning_content，
+// 覆盖显式 vendor 与仅凭模型名推断两种入口。
+func TestReasoningContentPassbackRequiredForMoonshotAndZhipuChatCompletions(t *testing.T) {
+	required := []struct {
+		name       string
+		candidates []string
+	}{
+		{"moonshot vendor", []string{"moonshot", "kimi-k3"}},
+		{"kimi alias", []string{"kimi", "kimi-k2.7-code"}},
+		{"kimi by model name", []string{"", "kimi-k3"}},
+		{"moonshot by model name", []string{"", "moonshot-v1-128k"}},
+		{"zhipu vendor", []string{"zhipu", "glm-4.6"}},
+		{"glm alias", []string{"glm", "glm-4.6"}},
+		{"glm by model name", []string{"", "glm-4.6"}},
+		{"chatglm by model name", []string{"", "chatglm-6b"}},
+	}
+	for _, item := range required {
+		if !reasoningContentPassbackRequired(llm.AdapterOpenAIChatCompletions, item.candidates...) {
+			t.Fatalf("%s: expected Chat Completions route to require reasoning_content passback", item.name)
+		}
+	}
+
+	// 非 Chat Completions 协议不受影响。
+	if reasoningContentPassbackRequired(llm.AdapterOpenAIResponses, "moonshot", "kimi-k3") {
+		t.Fatal("expected Responses route to skip reasoning_content passback for moonshot")
+	}
+	if reasoningContentPassbackRequired(llm.AdapterOpenAIResponses, "zhipu", "glm-4.6") {
+		t.Fatal("expected Responses route to skip reasoning_content passback for zhipu")
+	}
+
+	// 未列入白名单的厂商保持关闭，避免向不接受该字段的上游发送多余入参。
+	for _, item := range []struct {
+		name       string
+		candidates []string
+	}{
+		{"alibaba", []string{"alibaba", "qwen-max"}},
+		{"minimax", []string{"minimax", "abab-6.5"}},
+		{"anthropic", []string{"anthropic", "claude-opus-4-8"}},
+	} {
+		if reasoningContentPassbackRequired(llm.AdapterOpenAIChatCompletions, item.candidates...) {
+			t.Fatalf("%s: expected vendor outside the passback allowlist to skip reasoning_content", item.name)
+		}
+	}
+}
+
 func TestNormalizeModelIconSeparatesVendorAndModelFamily(t *testing.T) {
 	tests := map[string]struct {
 		vendor   string
