@@ -824,15 +824,17 @@ func parseGeminiResponse(body []byte) (*GenerateOutput, error) {
 		return nil, err
 	}
 
+	text := extractGeminiText(parsed)
 	result := &GenerateOutput{
 		ResponseID:          strings.TrimSpace(getString(parsed["responseId"])),
-		Text:                extractGeminiText(parsed),
+		Text:                text,
 		Reasoning:           extractGeminiReasoning(parsed),
 		Usage:               parseGeminiUsage(parsed),
 		ToolCalls:           parseGeminiFunctionCalls(parsed),
 		ServerToolCalls:     parseGeminiServerToolCalls(parsed),
 		ServerSideToolUsage: parseGeminiServerSideToolUsage(parsed),
 		Citations:           parseGeminiCitations(parsed),
+		GeneratedImages:     extractGeminiGeneratedImages(parsed, text),
 		RawJSON:             string(body),
 	}
 	return result, nil
