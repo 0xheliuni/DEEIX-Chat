@@ -383,6 +383,7 @@ func buildResolvedRoute(row repository.ChannelUpstreamRouteRow, apiKey string) *
 		ModelSystemPrompt:               strings.TrimSpace(row.ModelSystemPrompt),
 		UpstreamModel:                   strings.TrimSpace(row.UpstreamModelName),
 		ReasoningContentPassback:        reasoningContentPassbackRequired(row.Protocol, row.ModelVendor, row.PlatformModelName, row.UpstreamModelName, row.UpstreamName),
+		ReasoningPassbackRequestOptions: reasoningPassbackRequestOptions(row.Protocol, row.ModelVendor, row.PlatformModelName, row.UpstreamModelName, row.UpstreamName),
 		UpstreamCbFailureThreshold:      row.UpstreamCbFailureThreshold,
 		UpstreamCbModelThreshold:        row.UpstreamCbModelThreshold,
 		UpstreamCbThresholdLogic:        row.UpstreamCbThresholdLogic,
@@ -575,7 +576,7 @@ func isCircuitFailure(cause error) bool {
 // route. Validation, authorization, billing, and caller cancellation errors
 // must stay on the original request path.
 func ShouldFailoverRoute(cause error) bool {
-	if cause == nil || errors.Is(cause, context.Canceled) {
+	if cause == nil || errors.Is(cause, context.Canceled) || llm.RequestWasAccepted(cause) {
 		return false
 	}
 

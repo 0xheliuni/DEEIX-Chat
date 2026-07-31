@@ -794,7 +794,7 @@ func (c *Client) generateGemini(
 		return nil, err
 	}
 
-	resp, err := c.httpClientForRoute(route).Do(req)
+	resp, err := doGenerationRequest(c.httpClientForRoute(route), req)
 	if err != nil {
 		return nil, err
 	}
@@ -802,6 +802,9 @@ func (c *Client) generateGemini(
 
 	body, err := readUpstreamBody(resp.Body)
 	if err != nil {
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			return nil, MarkRequestAccepted(err)
+		}
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -811,7 +814,7 @@ func (c *Client) generateGemini(
 	debug := upstreamDebugSnapshot(req, payload, resp, body)
 	output, err := parseGeminiResponse(body)
 	if err != nil {
-		return nil, attachUpstreamDebug(err, debug)
+		return nil, MarkRequestAccepted(attachUpstreamDebug(err, debug))
 	}
 	output.Debug = debug
 	return output, nil
@@ -1323,7 +1326,7 @@ func (c *Client) generateGeminiStream(
 	}
 	req.Header.Set("Accept", "text/event-stream")
 
-	resp, err := c.httpClientForRoute(route).Do(req)
+	resp, err := doGenerationRequest(c.httpClientForRoute(route), req)
 	firstByteTimer.Stop()
 	if err != nil {
 		return nil, err
@@ -1342,7 +1345,7 @@ func (c *Client) generateGeminiStream(
 	idleReader := newIdleTimeoutReader(resp.Body, resolveStreamIdleTimeout(route.StreamIdleTimeoutMS))
 	streamBody := newUpstreamBodyRecorder(idleReader)
 	if err = consumeGeminiStream(streamBody, result, onEvent); err != nil {
-		return nil, attachUpstreamDebug(err, upstreamDebugSnapshot(req, payload, resp, streamErrorBody(streamBody, err)))
+		return nil, MarkRequestAccepted(attachUpstreamDebug(err, upstreamDebugSnapshot(req, payload, resp, streamErrorBody(streamBody, err))))
 	}
 	return result, nil
 }

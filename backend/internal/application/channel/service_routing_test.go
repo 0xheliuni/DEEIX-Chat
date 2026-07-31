@@ -110,6 +110,7 @@ func TestShouldFailoverRoute(t *testing.T) {
 		{name: "EOF", cause: io.EOF, want: true},
 		{name: "unexpected EOF", cause: io.ErrUnexpectedEOF, want: true},
 		{name: "network", cause: &net.DNSError{IsTimeout: true}, want: true},
+		{name: "accepted stream failure", cause: llm.MarkRequestAccepted(io.ErrUnexpectedEOF), want: false},
 		{name: "request timeout", cause: &llm.UpstreamError{StatusCode: http.StatusRequestTimeout}, want: true},
 		{name: "rate limited", cause: &llm.UpstreamError{StatusCode: http.StatusTooManyRequests}, want: true},
 		{name: "server error", cause: &llm.UpstreamError{StatusCode: http.StatusBadGateway}, want: true},

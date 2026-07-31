@@ -68,9 +68,10 @@ func messageRouteConfig(route *channel.ResolvedRoute, attributionReferer string,
 	}
 }
 
-func canFailoverMessageRoute(attemptCount int, visibleDeltaCount int, attemptHadSideEffect bool, cause error) bool {
+func canFailoverMessageRoute(attemptCount int, llmRequestCount int, maxLLMCalls int, visibleDeltaCount int, attemptHadSideEffect bool, cause error) bool {
 	return cause != nil &&
 		attemptCount < maxRequestRouteAttempts &&
+		llmRequestCount < maxLLMCalls &&
 		visibleDeltaCount == 0 &&
 		!attemptHadSideEffect &&
 		channel.ShouldFailoverRoute(cause)
@@ -254,7 +255,7 @@ func (s *Service) sendMessageInternal(
 	runState.bind(&userMessage, &assistantMessage, &traceRecorder, &result, ctx)
 	defer func() {
 		if retErr != nil {
-			if errors.Is(retErr, ErrMessageGenerationCanceled) {
+			if errors.Is(retErr, ErrMessageGenerationCanceled) || llm.RequestWasAccepted(retErr) {
 				if usage, ok := s.recoverOpenAIResponsesBackgroundUsage(responsesBackgroundRouteConfig, responsesBackgroundRecovery); ok {
 					responsesBackgroundUsageRecovered = true
 					if delta := diffLLMUsage(usage, responsesBackgroundRecovery.ObservedUsage); delta != (llm.Usage{}) {
@@ -532,34 +533,10 @@ func (s *Service) sendMessageInternal(
 
 	fileContextPlan := buildConversationFileContextPlan(conversationAttachments, fileMode, cfg, route.UpstreamModel, route.ModelCapabilitiesJSON, capability.RAGAvailable)
 
-	// 构建历史消息序列（不含系统注入）
-	historyMsgs := historyMessagesFromDomain(promptMessages, historyMessageOptions{
-		ReasoningContentPassback: reasoningContentPassback,
-	})
-	historyMsgs, err = s.injectConversationImageContext(ctx, historyMsgs, promptMessages, fileContextPlan.FullAttachments, cfg)
-	if err != nil {
-		retErr = err
-		return nil, err
-	}
-	if len(historyMsgs) == 0 {
-		historyMsgs = append(historyMsgs, llm.Message{
-			Role:    "user",
-			Content: input.Content,
-		})
-	}
-
-	// ContextAssembler 只承载真正的系统级行为指令；资料型上下文稍后进入用户 XML。
-	assembler := NewContextAssembler(int64(cfg.ContextMaxInputTokens))
-	systemPrompt := resolveMessageSystemPromptInjection(cfg, route, conversation.ProjectSystemPrompt, input.HTMLVisualPromptEnabled)
-	if systemPrompt.Content != "" {
-		if systemPrompt.InlineToUser {
-			historyMsgs = inlineSystemPromptIntoLatestUserMessage(historyMsgs, systemPrompt.Content)
-		} else {
-			assembler.Add(ContextSlot{Kind: SlotSystemPrompt, Content: systemPrompt.Content, Required: true})
-		}
-	}
+	contextAssembler := NewContextAssembler(int64(cfg.ContextMaxInputTokens))
 	userCtx := userContextInput{}
 	var prefixMemories []domainmemory.UserMemory
+	preferencePrompt := ""
 	if promptScope.Snapshot != nil {
 		if snapshotSummary := strings.TrimSpace(promptScope.Snapshot.SummaryText); snapshotSummary != "" {
 			userCtx.Snapshot = &snapshotContext{
@@ -574,16 +551,13 @@ func (s *Service) sendMessageInternal(
 		prefMems := filterMemoriesByScope(prefetch.userMemories, "preference")
 		if len(prefMems) > 0 {
 			prefixMemories = prefMems
-			if prefContent := buildPreferencePrompt(prefMems, 400); prefContent != "" {
-				assembler.Add(ContextSlot{Kind: SlotPreference, Content: prefContent})
-			}
+			preferencePrompt = buildPreferencePrompt(prefMems, 400)
 		}
 		otherMems := filterMemoriesByScope(prefetch.userMemories, "profile", "custom")
 		if len(otherMems) > 0 {
 			userCtx.Memory = s.selectRelevantUserMemories(ctx, input.UserID, input.Content, otherMems, 5)
 		}
 	}
-	llmMessages, _ := assembler.Assemble(historyMsgs)
 	processTraceAttachments := attachmentProcessTraceItems(fileContextPlan.Attachments)
 	if traceRecorder != nil && shouldShowAttachmentProcessTrace(processTraceAttachments) {
 		summary, markdown, payload := buildAttachmentProcessTrace(fileMode, processTraceAttachments)
@@ -631,7 +605,7 @@ func (s *Service) sendMessageInternal(
 		)
 		ragSpan.End()
 		ragChunksRaw := ragResult.Chunks
-		ragChunks := assembler.DeduplicateRAGChunks(ragChunksRaw)
+		ragChunks := contextAssembler.DeduplicateRAGChunks(ragChunksRaw)
 		if ragErr != nil {
 			s.logger.Warn("rag_retrieval_failed",
 				zap.String("trace_id", traceid.FromContext(ctx)),
@@ -754,16 +728,32 @@ func (s *Service) sendMessageInternal(
 		)
 	}
 	toolRuntime := s.resolveSelectedToolRuntime(ctx, input.SelectedToolIDs)
-	promptPlan := buildPromptPlan(ctx, promptPlanInput{
-		BaseMessages:      llmMessages,
-		StableAttachments: stableFullContextAttachments,
-		DynamicContext:    userCtx,
-		SkillPrompts:      skillPrompts,
-		ToolRuntime:       toolRuntime,
-		Config:            cfg,
-		StoreProvider:     s.storeProvider,
-	})
-	llmMessages = promptPlan.Messages
+	routePromptInput := messageRoutePromptInput{
+		UserContent:             input.Content,
+		ProjectSystemPrompt:     conversation.ProjectSystemPrompt,
+		HTMLVisualPromptEnabled: input.HTMLVisualPromptEnabled,
+		DomainMessages:          promptScope.activeMessages(),
+		StableAttachments:       stableFullContextAttachments,
+		DynamicContext:          userCtx,
+		PreferencePrompt:        preferencePrompt,
+		SkillPrompts:            skillPrompts,
+		ToolRuntime:             toolRuntime,
+		Config:                  cfg,
+	}
+	buildRoutePrompt := func(currentRoute *channel.ResolvedRoute) (PromptPlan, bool, error) {
+		passbackEnabled := s.reasoningContentPassbackEnabled(ctx, input.UserID, currentRoute)
+		currentInput := routePromptInput
+		currentInput.ReasoningContentPassback = passbackEnabled
+		plan, buildErr := s.buildMessageRoutePrompt(ctx, currentRoute, currentInput)
+		return plan, passbackEnabled, buildErr
+	}
+
+	promptPlan, reasoningContentPassback, err := buildRoutePrompt(route)
+	if err != nil {
+		retErr = err
+		return nil, err
+	}
+	llmMessages := promptPlan.Messages
 	estimatedPromptTokens := int64(0)
 
 	attributionReferer, attributionTitle := s.llmAttribution()
@@ -775,6 +765,18 @@ func (s *Service) sendMessageInternal(
 		DeniedPathsJSON:       cfg.ModelOptionDeniedPaths,
 		ModelCapabilitiesJSON: route.ModelCapabilitiesJSON,
 	})
+	if shouldApplyReasoningPassbackRequestOptions(
+		reasoningContentPassback,
+		route.ReasoningPassbackRequestOptions,
+		llmMessages,
+	) {
+		filteredOptions = withReasoningPassbackRequestOptions(
+			filteredOptions,
+			route.ReasoningPassbackRequestOptions,
+			input.Options,
+			route.ModelCapabilitiesJSON,
+		)
+	}
 	generateInput := llm.GenerateInput{
 		RequestID:      strings.TrimSpace(input.RequestID),
 		ConversationID: input.ConversationID,
@@ -843,6 +845,8 @@ func (s *Service) sendMessageInternal(
 	}
 	sendSpan.SetAttributes(promptShapeTraceAttributes("conversation.prompt", initialPromptShape)...)
 
+	maxLLMCalls := s.resolveMaxLLMCallsPerRun()
+	llmRequestCount := 0
 	firstVisibleDeltaLatencyMS := int64(0)
 	visibleDeltaCount := 0
 	attemptHadSideEffect := false
@@ -943,6 +947,7 @@ func (s *Service) sendMessageInternal(
 
 		if !streamRequested || !streamSupported {
 			upstreamCallStarted = true
+			llmRequestCount++
 			output, err := s.llmClient.Generate(generationCtx, routeConfig, currentInput)
 			generateErr = err
 			if err == nil && streamRequested {
@@ -959,6 +964,7 @@ func (s *Service) sendMessageInternal(
 		thinkingRouter := &thinkingDeltaRouter{}
 		callStreamUsage := llm.Usage{}
 		upstreamCallStarted = true
+		llmRequestCount++
 		output, streamErr := s.llmClient.GenerateStream(generationCtx, routeConfig, currentInput, func(event llm.GenerateStreamEvent) error {
 			if currentInput.ResponsesBackground {
 				if responseID := strings.TrimSpace(event.ResponseID); responseID != "" {
@@ -1062,7 +1068,8 @@ func (s *Service) sendMessageInternal(
 				output.Text = callVisibleText.String()
 			}
 		}
-		if generateErr != nil && shouldFallbackToNonStreaming(generateErr) {
+		if generateErr != nil && llmRequestCount < maxLLMCalls && shouldFallbackToNonStreaming(generateErr) {
+			llmRequestCount++
 			output, generateErr = s.llmClient.Generate(generationCtx, routeConfig, currentInput)
 			if generateErr == nil {
 				generateErr = emitNonStreamingOutput(output)
@@ -1084,7 +1091,7 @@ func (s *Service) sendMessageInternal(
 
 	runInitialRouteAttempt := func() (*llm.GenerateOutput, error) {
 		output, attemptErr := runGenerate(generateInput)
-		if attemptErr != nil && generateInput.ResponsesBackground &&
+		if attemptErr != nil && llmRequestCount < maxLLMCalls && generateInput.ResponsesBackground &&
 			strings.TrimSpace(streamedText.String()) == "" &&
 			shouldRetryWithoutResponsesBackground(attemptErr) {
 			if s.logger != nil {
@@ -1100,7 +1107,7 @@ func (s *Service) sendMessageInternal(
 			responsesBackgroundRecovery = openAIResponsesBackgroundRecoveryState{}
 			output, attemptErr = runGenerate(generateInput)
 		}
-		if attemptErr != nil && strings.TrimSpace(generateInput.PreviousResponseID) != "" &&
+		if attemptErr != nil && llmRequestCount < maxLLMCalls && strings.TrimSpace(generateInput.PreviousResponseID) != "" &&
 			strings.TrimSpace(streamedText.String()) == "" &&
 			shouldRetryWithoutPreviousResponseID(attemptErr) {
 			if s.logger != nil {
@@ -1145,7 +1152,7 @@ func (s *Service) sendMessageInternal(
 
 	attemptedRouteIDs := []uint{route.RouteID}
 	routeFailureRecorded := false
-	for canFailoverMessageRoute(len(attemptedRouteIDs), visibleDeltaCount, attemptHadSideEffect, err) {
+	for canFailoverMessageRoute(len(attemptedRouteIDs), llmRequestCount, maxLLMCalls, visibleDeltaCount, attemptHadSideEffect, err) {
 		failedRoute := route
 		failedErr := err
 		s.routeResolver.MarkRouteFailure(ctx, failedRoute, failedErr)
@@ -1169,7 +1176,15 @@ func (s *Service) sendMessageInternal(
 		route = nextRoute
 		attemptedRouteIDs = append(attemptedRouteIDs, route.RouteID)
 		routeFailureRecorded = false
-		reasoningContentPassback = s.reasoningContentPassbackEnabled(ctx, input.UserID, route)
+		nextPromptPlan, nextReasoningContentPassback, buildErr := buildRoutePrompt(route)
+		if buildErr != nil {
+			retErr = buildErr
+			return nil, buildErr
+		}
+		promptPlan = nextPromptPlan
+		reasoningContentPassback = nextReasoningContentPassback
+		llmMessages = promptPlan.Messages
+		fullLLMMessages = llmMessages
 		applyRouteToRun(route)
 		routeConfig = messageRouteConfig(route, attributionReferer, attributionTitle)
 		responsesBackgroundRouteConfig = routeConfig
@@ -1179,10 +1194,17 @@ func (s *Service) sendMessageInternal(
 			DeniedPathsJSON:       cfg.ModelOptionDeniedPaths,
 			ModelCapabilitiesJSON: route.ModelCapabilitiesJSON,
 		})
+		filteredOptions = withMessageRouteReasoningPassbackOptions(
+			filteredOptions,
+			input.Options,
+			route,
+			reasoningContentPassback,
+			llmMessages,
+		)
 		generateInput = llm.GenerateInput{
 			RequestID:      strings.TrimSpace(input.RequestID),
 			ConversationID: input.ConversationID,
-			Messages:       cloneLLMMessages(fullLLMMessages),
+			Messages:       cloneLLMMessages(llmMessages),
 			Tools:          toolRuntime.definitions,
 			Options:        filteredOptions,
 		}
@@ -1257,11 +1279,7 @@ func (s *Service) sendMessageInternal(
 	}
 	totalServerSideToolUsage = addServerSideToolUsage(nil, upstreamOutput.ServerSideToolUsage)
 	remainingToolCalls := s.resolveMaxToolCallsPerRun()
-	maxLLMCalls := s.resolveMaxLLMCallsPerRun()
-	if maxLLMCalls <= 0 {
-		maxLLMCalls = 1
-	}
-	llmCallCount := 1
+	llmCallCount := llmRequestCount
 	toolLedger := newToolExecutionLedger()
 	toolHistoryTrimmedForRun := false
 
@@ -1393,7 +1411,7 @@ func (s *Service) sendMessageInternal(
 		}
 		totalServerSideToolUsage = addServerSideToolUsage(totalServerSideToolUsage, nextOutput.ServerSideToolUsage)
 		upstreamOutput = nextOutput
-		llmCallCount++
+		llmCallCount = llmRequestCount
 		var nextNativeToolRows []model.ToolCall
 		assistantText, nextNativeToolRows = syncUpstreamOutputTrace(traceRecorder, upstreamOutput, runID)
 		toolCallRows = append(toolCallRows, nextNativeToolRows...)

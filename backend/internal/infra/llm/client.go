@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptrace"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 
@@ -698,6 +700,60 @@ type UpstreamError struct {
 	Message    string
 	Body       string
 	Debug      *UpstreamDebugSnapshot
+}
+
+// AcceptedRequestError 表示上游已接受请求，或请求已写出但结果未知。
+// 生成请求不具备跨 Provider 幂等性，此类错误不得自动切换路由重试。
+type AcceptedRequestError struct {
+	cause error
+}
+
+func (e *AcceptedRequestError) Error() string {
+	if e == nil || e.cause == nil {
+		return "upstream request failed after acceptance"
+	}
+	return e.cause.Error()
+}
+
+func (e *AcceptedRequestError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.cause
+}
+
+// MarkRequestAccepted 标记错误发生时请求已被上游接受，或可能已被接受。
+func MarkRequestAccepted(err error) error {
+	if err == nil || RequestWasAccepted(err) {
+		return err
+	}
+	return &AcceptedRequestError{cause: err}
+}
+
+// RequestWasAccepted 判断错误是否发生在请求已被或可能被上游接受之后。
+func RequestWasAccepted(err error) bool {
+	var acceptedErr *AcceptedRequestError
+	return errors.As(err, &acceptedErr)
+}
+
+// doGenerationRequest 记录 POST 请求是否已经写入连接。请求写出后若在响应头
+// 返回前断线，无法判断上游是否已开始生成，因此按已接受处理，避免跨路由重复生成。
+func doGenerationRequest(client *http.Client, req *http.Request) (*http.Response, error) {
+	if client == nil || req == nil {
+		return nil, errors.New("generation request is nil")
+	}
+	var wroteRequest atomic.Bool
+	trace := &httptrace.ClientTrace{
+		WroteRequest: func(httptrace.WroteRequestInfo) {
+			wroteRequest.Store(true)
+		},
+	}
+	tracedRequest := req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
+	resp, err := client.Do(tracedRequest)
+	if err != nil && wroteRequest.Load() {
+		return resp, MarkRequestAccepted(err)
+	}
+	return resp, err
 }
 
 var errStreamDone = errors.New("llm stream done")
