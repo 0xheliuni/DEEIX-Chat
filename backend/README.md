@@ -251,11 +251,46 @@ OCR 引擎配置由后台文件设置管理，当前支持 RapidOCR、Tesseract 
 ```json
 {
   "X-Conversation-Id": "${DEEIX_CONVERSATION_ID}",
+  "X-Session-Id": "${DEEIX_SESSION_ID}",
   "X-Request-Id": "${DEEIX_REQUEST_ID}"
 }
 ```
 
 OpenAI 的 `X-Client-Request-Id` 要求每次请求使用唯一值，应配置为 `${DEEIX_UPSTREAM_REQUEST_ID}`，不要使用稳定的会话或链路标识。
+
+## OpenAI Prompt Cache
+
+官方 OpenAI Responses 与 Chat Completions 请求会使用同一会话上下文键作为服务端受控的 `prompt_cache_key`，以保持跨轮缓存亲和。兼容中转站默认不接收 OpenAI Prompt Cache 新字段；确认中转站支持后，需要在模型能力 JSON 中显式声明：
+
+```json
+{
+  "promptCache": {
+    "enabled": true
+  }
+}
+```
+
+官方 OpenAI 也可以用 `promptCache.enabled=false` 显式关闭。启用显式缓存时，配置必须来自管理员的 `defaultOptions`，并锁定相关路径；用户消息请求中的同名 Options 会被忽略。DEEIX 只会把已标记的稳定 system 前缀保留在输入内容块并序列化为 `prompt_cache_breakpoint`，动态 RAG 与本轮用户内容不会被标成稳定断点：
+
+```json
+{
+  "promptCache": {
+    "enabled": true
+  },
+  "defaultOptions": {
+    "prompt_cache_options": {
+      "mode": "explicit",
+      "ttl": "30m"
+    }
+  },
+  "lockedOptionPaths": [
+    "prompt_cache_options.mode",
+    "prompt_cache_options.ttl"
+  ]
+}
+```
+
+当前只接受 OpenAI 已公开支持的 `mode=explicit` 和 `ttl=30m`。未声明能力的兼容中转站不会收到 `prompt_cache_key`、`prompt_cache_options` 或 `prompt_cache_breakpoint`；DEEIX 不再依赖上游错误文本执行无记忆缓存重试。旧的 `prompt_cache_retention` 不再发送，应迁移到 `prompt_cache_options.ttl`。
 
 ## MCP 工具
 
