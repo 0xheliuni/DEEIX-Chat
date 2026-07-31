@@ -1135,3 +1135,35 @@ func TestBuildGeminiRequestBodyAllowsNestedGenerationConfig(t *testing.T) {
 		t.Fatalf("expected protected systemInstruction to be omitted, got %#v", payload["systemInstruction"])
 	}
 }
+
+// preserve_thinking 是阿里百炼的私有顶层入参，由会话层按厂商自动补发。
+// 这里确认它原样落到请求体顶层，且不会被 stream_options 的复制逻辑顺带吞进去。
+func TestBuildOpenAIChatCompletionsPassesPreserveThinking(t *testing.T) {
+	payload := mustBuildRequestBody(t, AdapterOpenAIChatCompletions, "qwen3.6-plus", EndpointChatCompletions, GenerateInput{
+		Messages: []Message{
+			{Role: "user", Content: "hello"},
+			{Role: "assistant", Content: "hi", ReasoningContent: "thinking"},
+			{Role: "user", Content: "again"},
+		},
+		Options: map[string]interface{}{"preserve_thinking": true},
+	}, true)
+
+	if payload["preserve_thinking"] != true {
+		t.Fatalf("expected preserve_thinking at the top level, got %#v", payload["preserve_thinking"])
+	}
+	streamOptions, ok := payload["stream_options"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected stream_options to remain a map, got %#v", payload["stream_options"])
+	}
+	if _, leaked := streamOptions["preserve_thinking"]; leaked {
+		t.Fatalf("vendor option leaked into stream_options: %#v", streamOptions)
+	}
+
+	messages, ok := payload["messages"].([]map[string]interface{})
+	if !ok || len(messages) != 3 {
+		t.Fatalf("unexpected messages payload: %#v", payload["messages"])
+	}
+	if messages[1]["reasoning_content"] != "thinking" {
+		t.Fatalf("expected assistant reasoning passback, got %#v", messages[1])
+	}
+}
