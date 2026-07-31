@@ -755,6 +755,18 @@ func (s *Service) sendMessageInternal(
 		DeniedPathsJSON:       cfg.ModelOptionDeniedPaths,
 		ModelCapabilitiesJSON: route.ModelCapabilitiesJSON,
 	})
+	if shouldApplyReasoningPassbackRequestOptions(
+		reasoningContentPassback,
+		route.ReasoningPassbackRequestOptions,
+		llmMessages,
+	) {
+		filteredOptions = withReasoningPassbackRequestOptions(
+			filteredOptions,
+			route.ReasoningPassbackRequestOptions,
+			input.Options,
+			route.ModelCapabilitiesJSON,
+		)
+	}
 	generateInput := llm.GenerateInput{
 		RequestID:      strings.TrimSpace(input.RequestID),
 		ConversationID: input.ConversationID,
