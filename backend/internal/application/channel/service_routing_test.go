@@ -2,6 +2,7 @@ package channel
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
@@ -94,6 +95,26 @@ func TestResolveRouteExcludesPreviouslyAttemptedRoutes(t *testing.T) {
 	}
 	if route.RouteID != 2 {
 		t.Fatalf("ResolveRoute() route ID = %d, want 2", route.RouteID)
+	}
+}
+
+func TestMergeHeaderJSONRouteOverridesHeaderCaseInsensitively(t *testing.T) {
+	merged := mergeHeaderJSON(
+		`{"X-Conversation-Id":"upstream","X-Static":"fixed"}`,
+		`{"x-conversation-id":"route"}`,
+	)
+	var headers map[string]string
+	if err := json.Unmarshal([]byte(merged), &headers); err != nil {
+		t.Fatalf("unmarshal merged headers: %v", err)
+	}
+	if len(headers) != 2 {
+		t.Fatalf("expected two merged headers, got %#v", headers)
+	}
+	if got := headers["x-conversation-id"]; got != "route" {
+		t.Fatalf("expected route header to override upstream casing, got %q", got)
+	}
+	if got := headers["X-Static"]; got != "fixed" {
+		t.Fatalf("expected unrelated upstream header to remain, got %q", got)
 	}
 }
 

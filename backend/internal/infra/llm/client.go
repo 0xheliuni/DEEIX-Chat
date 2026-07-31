@@ -18,6 +18,7 @@ import (
 
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
+	"github.com/google/uuid"
 )
 
 const (
@@ -40,6 +41,8 @@ const (
 	defaultStreamIdleTimeoutMS = 60000  // 流式 chunk 间隔超时 60s
 	maxUpstreamBodyBytes       = 64 * 1024 * 1024
 )
+
+const upstreamRequestIDHeaderTemplate = "${DEEIX_UPSTREAM_REQUEST_ID}"
 
 // Client 负责跨厂商共享的 HTTP client、adapter 路由和上游调试能力。
 type Client struct {
@@ -127,9 +130,11 @@ type Message struct {
 
 // GenerateInput 定义上游推理请求入参。
 type GenerateInput struct {
-	RequestID      string
-	ConversationID uint
-	Messages       []Message
+	RequestID              string
+	ConversationID         uint
+	ConversationPublicID   string
+	ConversationSessionKey string
+	Messages               []Message
 	// Instructions 承载可映射到上游原生指令字段的系统/开发者指令。
 	// 不支持原生指令字段的 adapter 应继续通过 messages 承载系统提示。
 	Instructions string
@@ -1052,6 +1057,13 @@ func normalizeMessages(messages []Message) []Message {
 }
 
 func setAdditionalHeaders(req *http.Request, headersJSON string) {
+	setAdditionalHeadersForInput(req, headersJSON, nil)
+}
+
+func setAdditionalHeadersForInput(req *http.Request, headersJSON string, input *GenerateInput) {
+	if req == nil {
+		return
+	}
 	value := strings.TrimSpace(headersJSON)
 	if value == "" {
 		return
@@ -1060,13 +1072,55 @@ func setAdditionalHeaders(req *http.Request, headersJSON string) {
 	if err := json.Unmarshal([]byte(value), &parsed); err != nil {
 		return
 	}
+	dynamicHeaderInput := input
+	if input == nil || (strings.TrimSpace(input.ConversationPublicID) == "" && strings.TrimSpace(input.ConversationSessionKey) == "") {
+		dynamicHeaderInput = nil
+	}
+	upstreamRequestID := ""
+	if dynamicHeaderInput != nil && strings.Contains(value, upstreamRequestIDHeaderTemplate) {
+		upstreamRequestID = uuid.NewString()
+	}
 	for key, rawValue := range parsed {
 		headerKey := strings.TrimSpace(key)
 		if headerKey == "" {
 			continue
 		}
-		req.Header.Set(headerKey, stringify(rawValue))
+		headerValue, ok := expandAdditionalHeaderValue(stringify(rawValue), dynamicHeaderInput, upstreamRequestID)
+		if !ok || strings.TrimSpace(headerValue) == "" {
+			continue
+		}
+		req.Header.Set(headerKey, headerValue)
 	}
+}
+
+func expandAdditionalHeaderValue(value string, input *GenerateInput, upstreamRequestID string) (string, bool) {
+	replacements := []struct {
+		template string
+		value    string
+	}{
+		{template: "${DEEIX_CONVERSATION_ID}"},
+		{template: "${DEEIX_SESSION_ID}"},
+		{template: "${DEEIX_REQUEST_ID}"},
+		{template: upstreamRequestIDHeaderTemplate},
+	}
+	if input != nil {
+		replacements[0].value = strings.TrimSpace(input.ConversationPublicID)
+		replacements[1].value = strings.TrimSpace(input.ConversationSessionKey)
+		replacements[2].value = strings.TrimSpace(input.RequestID)
+		replacements[3].value = strings.TrimSpace(upstreamRequestID)
+	}
+
+	expanded := value
+	for _, replacement := range replacements {
+		if !strings.Contains(expanded, replacement.template) {
+			continue
+		}
+		if replacement.value == "" {
+			return "", false
+		}
+		expanded = strings.ReplaceAll(expanded, replacement.template, replacement.value)
+	}
+	return expanded, true
 }
 
 func readUpstreamBody(reader io.Reader) ([]byte, error) {

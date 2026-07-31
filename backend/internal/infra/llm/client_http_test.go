@@ -10,6 +10,8 @@ import (
 	"net/http/httptrace"
 	"strings"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 func TestHTTPClientForRouteReusesClientByConnectTimeout(t *testing.T) {
@@ -220,6 +222,166 @@ func TestSetOpenRouterAttributionHeadersRespectsConfiguredHeaders(t *testing.T) 
 	}
 	if got := req.Header.Get("X-OpenRouter-Categories"); got != "general-chat" {
 		t.Fatalf("expected default x-openrouter-categories header, got %q", got)
+	}
+}
+
+func TestSetAdditionalHeadersExpandsConversationIdentityTemplates(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "https://relay.example.com/v1/chat/completions", nil)
+	setAdditionalHeadersForInput(req, `{
+		"X-Conversation-Id":"${DEEIX_CONVERSATION_ID}",
+		"X-Session-Id":"session:${DEEIX_SESSION_ID}",
+		"X-Static":"fixed"
+	}`, &GenerateInput{
+		ConversationPublicID:   "conversation-1",
+		ConversationSessionKey: "session-1",
+	})
+
+	if got := req.Header.Get("X-Conversation-Id"); got != "conversation-1" {
+		t.Fatalf("expected public conversation ID header, got %q", got)
+	}
+	if got := req.Header.Get("X-Session-Id"); got != "session:session-1" {
+		t.Fatalf("expected session header template expansion, got %q", got)
+	}
+	if got := req.Header.Get("X-Static"); got != "fixed" {
+		t.Fatalf("expected static header to remain unchanged, got %q", got)
+	}
+}
+
+func TestSetAdditionalHeadersExpandsRequestIdentityTemplates(t *testing.T) {
+	headersJSON := `{
+		"X-Request-Id":"${DEEIX_REQUEST_ID}",
+		"X-Client-Request-Id":"${DEEIX_UPSTREAM_REQUEST_ID}"
+	}`
+	input := &GenerateInput{
+		RequestID:            "request-1",
+		ConversationPublicID: "conversation-1",
+	}
+
+	firstRequest := httptest.NewRequest(http.MethodPost, "https://relay.example.com/v1/chat/completions", nil)
+	setAdditionalHeadersForInput(firstRequest, headersJSON, input)
+	if got := firstRequest.Header.Get("X-Request-Id"); got != "request-1" {
+		t.Fatalf("expected DEEIX request ID header, got %q", got)
+	}
+	firstUpstreamRequestID := firstRequest.Header.Get("X-Client-Request-Id")
+	if _, err := uuid.Parse(firstUpstreamRequestID); err != nil {
+		t.Fatalf("expected valid upstream request UUID, got %q: %v", firstUpstreamRequestID, err)
+	}
+
+	secondRequest := httptest.NewRequest(http.MethodPost, "https://relay.example.com/v1/chat/completions", nil)
+	setAdditionalHeadersForInput(secondRequest, headersJSON, input)
+	secondUpstreamRequestID := secondRequest.Header.Get("X-Client-Request-Id")
+	if firstUpstreamRequestID == secondUpstreamRequestID {
+		t.Fatalf("expected a unique ID for each upstream request, got %q", secondUpstreamRequestID)
+	}
+}
+
+func TestSetAdditionalHeadersOmitsDynamicTemplatesForAuxiliaryTasks(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "https://relay.example.com/v1/chat/completions", nil)
+	setAdditionalHeadersForInput(req, `{
+		"X-Request-Id":"${DEEIX_REQUEST_ID}",
+		"X-Client-Request-Id":"${DEEIX_UPSTREAM_REQUEST_ID}",
+		"X-Static":"fixed"
+	}`, &GenerateInput{RequestID: "request-1"})
+
+	if got := req.Header.Get("X-Request-Id"); got != "" {
+		t.Fatalf("expected request ID header to be omitted outside conversation generation, got %q", got)
+	}
+	if got := req.Header.Get("X-Client-Request-Id"); got != "" {
+		t.Fatalf("expected upstream request ID header to be omitted outside conversation generation, got %q", got)
+	}
+	if got := req.Header.Get("X-Static"); got != "fixed" {
+		t.Fatalf("expected static header to remain available, got %q", got)
+	}
+}
+
+func TestSetAdditionalHeadersOmitsDynamicTemplatesWithoutContext(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "https://relay.example.com/v1/models", nil)
+	setAdditionalHeaders(req, `{
+		"X-Conversation-Id":"${DEEIX_CONVERSATION_ID}",
+		"X-Prefixed-Conversation-Id":"conversation:${DEEIX_CONVERSATION_ID}",
+		"X-Request-Id":"${DEEIX_REQUEST_ID}",
+		"X-Client-Request-Id":"${DEEIX_UPSTREAM_REQUEST_ID}",
+		"X-Static":"fixed"
+	}`)
+
+	if got := req.Header.Get("X-Conversation-Id"); got != "" {
+		t.Fatalf("expected dynamic header to be omitted without conversation context, got %q", got)
+	}
+	if got := req.Header.Get("X-Prefixed-Conversation-Id"); got != "" {
+		t.Fatalf("expected prefixed dynamic header to be omitted without conversation context, got %q", got)
+	}
+	if got := req.Header.Get("X-Request-Id"); got != "" {
+		t.Fatalf("expected request ID header to be omitted without generation context, got %q", got)
+	}
+	if got := req.Header.Get("X-Client-Request-Id"); got != "" {
+		t.Fatalf("expected upstream request ID header to be omitted without generation context, got %q", got)
+	}
+	if got := req.Header.Get("X-Static"); got != "fixed" {
+		t.Fatalf("expected static header to remain available, got %q", got)
+	}
+}
+
+func TestProviderRequestBuildersExpandConversationIdentityHeaders(t *testing.T) {
+	client := NewClient()
+	input := &GenerateInput{
+		ConversationPublicID:   "conversation-1",
+		ConversationSessionKey: "session-1",
+	}
+	route := RouteConfig{HeadersJSON: `{
+		"X-Conversation-Id":"${DEEIX_CONVERSATION_ID}",
+		"X-Session-Id":"${DEEIX_SESSION_ID}"
+	}`}
+
+	requests := make([]*http.Request, 0, 2)
+	anthropicRequest, err := client.newAnthropicRequest(t.Context(), http.MethodPost, "https://api.anthropic.com/v1/messages", nil, route, input)
+	if err != nil {
+		t.Fatalf("new anthropic request: %v", err)
+	}
+	requests = append(requests, anthropicRequest)
+
+	geminiRequest, err := client.newGeminiRequest(t.Context(), http.MethodPost, "https://generativelanguage.googleapis.com/v1beta/models/test:generateContent", nil, route, input)
+	if err != nil {
+		t.Fatalf("new gemini request: %v", err)
+	}
+	requests = append(requests, geminiRequest)
+
+	for _, req := range requests {
+		if got := req.Header.Get("X-Conversation-Id"); got != "conversation-1" {
+			t.Fatalf("expected %s request to include conversation ID, got %q", req.URL.Host, got)
+		}
+		if got := req.Header.Get("X-Session-Id"); got != "session-1" {
+			t.Fatalf("expected %s request to include session ID, got %q", req.URL.Host, got)
+		}
+	}
+}
+
+func TestOpenAIGenerationExpandsConversationIdentityHeader(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("X-Conversation-Id"); got != "conversation-1" {
+			t.Fatalf("expected conversation identity header, got %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"choices":[{"message":{"role":"assistant","content":"ok"}}],
+			"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}
+		}`))
+	}))
+	defer server.Close()
+
+	output, err := NewClient().Generate(t.Context(), RouteConfig{
+		Protocol:      AdapterOpenAIChatCompletions,
+		BaseURL:       server.URL,
+		UpstreamModel: "test-model",
+		HeadersJSON:   `{"X-Conversation-Id":"${DEEIX_CONVERSATION_ID}"}`,
+	}, GenerateInput{
+		ConversationPublicID: "conversation-1",
+		Messages:             []Message{{Role: "user", Content: "hello"}},
+	})
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	if output.Text != "ok" {
+		t.Fatalf("expected generated text, got %q", output.Text)
 	}
 }
 

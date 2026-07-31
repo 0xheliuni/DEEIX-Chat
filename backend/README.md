@@ -237,6 +237,26 @@ OCR 引擎配置由后台文件设置管理，当前支持 RapidOCR、Tesseract 
 
 用户手写 `tools` 时，只有命中 `nativeToolKeys` 的官方原生工具会作为官方工具保留，工具子参数会随该工具透传；普通用户不能通过 JSON 自行启用未被管理员允许的 MCP Tool 或官方原生工具。MCP Tool 仍必须由管理员在工具页配置和启用。
 
+## 上游动态请求头
+
+上游和路由的附加请求头支持动态变量模板。变量仅在真实会话生成请求中展开；模型列表、渠道探测、标题与标签生成、上下文压缩和媒体任务不会携带这些标识。
+
+- `${DEEIX_CONVERSATION_ID}`：公开会话 ID，适合自建网关按会话关联日志、缓存和长期记忆。
+- `${DEEIX_SESSION_ID}`：会话上下文键，适合需要独立会话亲和键的自建网关。
+- `${DEEIX_REQUEST_ID}`：DEEIX 当前请求 ID，同一轮生成、工具调用和路由重试保持一致，适合关联完整请求链路。
+- `${DEEIX_UPSTREAM_REQUEST_ID}`：每次上游 HTTP 请求单独生成的 UUID，适合要求请求级唯一标识的 Provider。
+
+功能默认关闭。管理员可在目标上游或路由的附加请求头中显式配置；未配置的官方 Provider 不会收到额外动态标识：
+
+```json
+{
+  "X-Conversation-Id": "${DEEIX_CONVERSATION_ID}",
+  "X-Request-Id": "${DEEIX_REQUEST_ID}"
+}
+```
+
+OpenAI 的 `X-Client-Request-Id` 要求每次请求使用唯一值，应配置为 `${DEEIX_UPSTREAM_REQUEST_ID}`，不要使用稳定的会话或链路标识。
+
 ## MCP 工具
 
 MCP 能力由后台工具设置管理：
