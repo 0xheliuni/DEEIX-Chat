@@ -729,6 +729,7 @@ func (c *Client) newGeminiRequest(
 	method, requestURL string,
 	body io.Reader,
 	route RouteConfig,
+	input *GenerateInput,
 ) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, method, requestURL, body)
 	if err != nil {
@@ -739,7 +740,7 @@ func (c *Client) newGeminiRequest(
 	if apiKey := strings.TrimSpace(route.APIKey); apiKey != "" {
 		req.Header.Set("x-goog-api-key", apiKey)
 	}
-	setAdditionalHeaders(req, route.HeadersJSON)
+	setAdditionalHeadersForInput(req, route.HeadersJSON, input)
 	return req, nil
 }
 
@@ -789,7 +790,7 @@ func (c *Client) generateGemini(
 	requestCtx, cancel := context.WithTimeout(ctx, resolveReadTimeout(route.ReadTimeoutMS))
 	defer cancel()
 
-	req, err := c.newGeminiRequest(requestCtx, http.MethodPost, requestURL, bytes.NewReader(payload), route)
+	req, err := c.newGeminiRequest(requestCtx, http.MethodPost, requestURL, bytes.NewReader(payload), route, &input)
 	if err != nil {
 		return nil, err
 	}
@@ -1322,7 +1323,7 @@ func (c *Client) generateGeminiStream(
 	firstByteTimer := time.AfterFunc(resolveReadTimeout(route.ReadTimeoutMS), firstByteCancel)
 	defer firstByteTimer.Stop()
 
-	req, err := c.newGeminiRequest(firstByteCtx, http.MethodPost, requestURL, bytes.NewReader(payload), route)
+	req, err := c.newGeminiRequest(firstByteCtx, http.MethodPost, requestURL, bytes.NewReader(payload), route, &input)
 	if err != nil {
 		return nil, err
 	}
@@ -1612,7 +1613,7 @@ func (c *Client) listModelsGemini(ctx context.Context, route RouteConfig) ([]Mod
 	requestCtx, cancel := context.WithTimeout(ctx, resolveReadTimeout(route.ReadTimeoutMS))
 	defer cancel()
 
-	req, err := c.newGeminiRequest(requestCtx, http.MethodGet, requestURL, nil, route)
+	req, err := c.newGeminiRequest(requestCtx, http.MethodGet, requestURL, nil, route, nil)
 	if err != nil {
 		return nil, err
 	}

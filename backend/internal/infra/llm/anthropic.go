@@ -647,6 +647,7 @@ func (c *Client) newAnthropicRequest(
 	method, url string,
 	body io.Reader,
 	route RouteConfig,
+	input *GenerateInput,
 ) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
@@ -657,7 +658,7 @@ func (c *Client) newAnthropicRequest(
 	if apiKey := strings.TrimSpace(route.APIKey); apiKey != "" {
 		req.Header.Set("x-api-key", apiKey)
 	}
-	setAdditionalHeaders(req, route.HeadersJSON)
+	setAdditionalHeadersForInput(req, route.HeadersJSON, input)
 	return req, nil
 }
 
@@ -749,7 +750,7 @@ func (c *Client) generateAnthropic(
 	requestCtx, cancel := context.WithTimeout(ctx, resolveReadTimeout(route.ReadTimeoutMS))
 	defer cancel()
 
-	req, err := c.newAnthropicRequest(requestCtx, http.MethodPost, requestURL, bytes.NewReader(payload), route)
+	req, err := c.newAnthropicRequest(requestCtx, http.MethodPost, requestURL, bytes.NewReader(payload), route, &input)
 	if err != nil {
 		return nil, err
 	}
@@ -1014,7 +1015,7 @@ func (c *Client) generateAnthropicStream(
 	firstByteTimer := time.AfterFunc(resolveReadTimeout(route.ReadTimeoutMS), firstByteCancel)
 	defer firstByteTimer.Stop()
 
-	req, err := c.newAnthropicRequest(firstByteCtx, http.MethodPost, requestURL, bytes.NewReader(payload), route)
+	req, err := c.newAnthropicRequest(firstByteCtx, http.MethodPost, requestURL, bytes.NewReader(payload), route, &input)
 	if err != nil {
 		return nil, err
 	}
@@ -1597,7 +1598,7 @@ func (c *Client) listModelsAnthropic(ctx context.Context, route RouteConfig) ([]
 	requestCtx, cancel := context.WithTimeout(ctx, resolveReadTimeout(route.ReadTimeoutMS))
 	defer cancel()
 
-	req, err := c.newAnthropicRequest(requestCtx, http.MethodGet, requestURL, nil, route)
+	req, err := c.newAnthropicRequest(requestCtx, http.MethodGet, requestURL, nil, route, nil)
 	if err != nil {
 		return nil, err
 	}

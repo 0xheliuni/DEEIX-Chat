@@ -778,11 +778,13 @@ func (s *Service) sendMessageInternal(
 		)
 	}
 	generateInput := llm.GenerateInput{
-		RequestID:      strings.TrimSpace(input.RequestID),
-		ConversationID: input.ConversationID,
-		Messages:       llmMessages,
-		Tools:          toolRuntime.definitions,
-		Options:        filteredOptions,
+		RequestID:              strings.TrimSpace(input.RequestID),
+		ConversationID:         input.ConversationID,
+		ConversationPublicID:   strings.TrimSpace(conversation.PublicID),
+		ConversationSessionKey: strings.TrimSpace(conversation.SessionKey),
+		Messages:               llmMessages,
+		Tools:                  toolRuntime.definitions,
+		Options:                filteredOptions,
 	}
 	if supportsOpenAIResponsesBackgroundMode(route) {
 		generateInput.ResponsesBackground = true
@@ -1202,11 +1204,13 @@ func (s *Service) sendMessageInternal(
 			llmMessages,
 		)
 		generateInput = llm.GenerateInput{
-			RequestID:      strings.TrimSpace(input.RequestID),
-			ConversationID: input.ConversationID,
-			Messages:       cloneLLMMessages(llmMessages),
-			Tools:          toolRuntime.definitions,
-			Options:        filteredOptions,
+			RequestID:              strings.TrimSpace(input.RequestID),
+			ConversationID:         input.ConversationID,
+			ConversationPublicID:   strings.TrimSpace(conversation.PublicID),
+			ConversationSessionKey: strings.TrimSpace(conversation.SessionKey),
+			Messages:               cloneLLMMessages(llmMessages),
+			Tools:                  toolRuntime.definitions,
+			Options:                filteredOptions,
 		}
 		if supportsOpenAIResponsesBackgroundMode(route) {
 			generateInput.ResponsesBackground = true
