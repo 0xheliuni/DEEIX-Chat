@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/accordion";
 import { Marker, MarkerContent } from "@/components/ui/marker";
 import { cn } from "@/lib/utils";
-import { useLatexCopy } from "./use-latex-copy";
+import { useMarkdownCopy } from "./use-markdown-copy";
 
 import {
   CollapsibleCodePre,
@@ -207,6 +207,8 @@ const BASE_MARKDOWN_CLASSNAME = cn(
   "[&_.katex_.mfrac_.frac-line]:!inline-block [&_.katex_.mfrac_.frac-line]:!w-full [&_.katex_.mfrac_.frac-line]:min-h-px [&_.katex_.mfrac_.frac-line]:![border-bottom:0.04em_solid_currentColor]",
   "[&_[data-latex-copyable='true']]:cursor-copy [&_[data-latex-copyable='true']]:rounded-sm [&_[data-latex-copyable='true']]:outline-none [&_[data-latex-copyable='true']]:transition-colors",
   "[&_[data-latex-copyable='true']:hover]:bg-foreground/[0.035] [&_[data-latex-copyable='true']:focus-visible]:bg-foreground/[0.045] [&_[data-latex-copyable='true']:focus-visible]:ring-2 [&_[data-latex-copyable='true']:focus-visible]:ring-ring/25",
+  "[&_[data-inline-code-copyable='true']]:cursor-copy [&_[data-inline-code-copyable='true']]:outline-none [&_[data-inline-code-copyable='true']]:transition-colors",
+  "[&_[data-inline-code-copyable='true']:hover]:bg-foreground/[0.08] [&_[data-inline-code-copyable='true']:focus-visible]:bg-foreground/[0.08] [&_[data-inline-code-copyable='true']:focus-visible]:ring-2 [&_[data-inline-code-copyable='true']:focus-visible]:ring-ring/25",
   "[&_strong]:font-semibold",
 );
 
@@ -536,11 +538,11 @@ export const StreamdownRender = React.memo(function StreamdownRender({
   const plugins = useStreamdownPlugins(normalizedContent);
   const segments = React.useMemo(() => parseStreamdownSegments(normalizedContent), [normalizedContent]);
   const {
-    rootRef: latexRootRef,
-    onClickCapture: handleLatexClickCapture,
-    onKeyDownCapture: handleLatexKeyDownCapture,
-    onPointerDownCapture: handleLatexPointerDownCapture,
-  } = useLatexCopy({
+    rootRef: markdownCopyRootRef,
+    onClickCapture: handleMarkdownCopyClickCapture,
+    onKeyDownCapture: handleMarkdownCopyKeyDownCapture,
+    onPointerDownCapture: handleMarkdownCopyPointerDownCapture,
+  } = useMarkdownCopy({
     contentVersion: normalizedContent,
     renderVersion: plugins,
   });
@@ -570,12 +572,12 @@ export const StreamdownRender = React.memo(function StreamdownRender({
 
   return (
     <div
-      ref={latexRootRef}
+      ref={markdownCopyRootRef}
       className={cn("chat-font-content min-w-0 max-w-full overflow-hidden text-foreground [overflow-wrap:anywhere]", contentSpacingClassName, className)}
       data-chat-markdown-scope=""
-      onClickCapture={handleLatexClickCapture}
-      onKeyDownCapture={handleLatexKeyDownCapture}
-      onPointerDownCapture={handleLatexPointerDownCapture}
+      onClickCapture={handleMarkdownCopyClickCapture}
+      onKeyDownCapture={handleMarkdownCopyKeyDownCapture}
+      onPointerDownCapture={handleMarkdownCopyPointerDownCapture}
     >
       {mergedThinkingContent ? (
         <ThinkingSegmentBlock
