@@ -305,6 +305,7 @@ function CodeBlockActions({
   const artifactCopy = useTranslations("chat.markdown.artifact");
   const artifactActions = React.useContext(MarkdownArtifactActionsContext);
   const artifactKind = React.useMemo(() => resolveArtifactPreviewKind(language, code), [code, language]);
+  const copyCode = code.replace(/\n$/, "");
 
   const handleOpenArtifact = React.useCallback(() => {
     if (!artifactActions || !artifactKind) {
@@ -331,7 +332,7 @@ function CodeBlockActions({
               variant="ghost"
               size="icon-xs"
               className="inline-flex size-6 items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-foreground/[0.04] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35"
-              value={code}
+              value={copyCode}
               messages={{ copied: commonActions("copied"), failed: commonErrors("copyFailed") }}
               iconClassName="size-3.5"
               aria-label={commonActions("copy")}
