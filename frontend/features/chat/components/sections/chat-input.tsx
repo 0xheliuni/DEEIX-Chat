@@ -19,6 +19,10 @@ import type {
   PendingAttachment,
   UploadingAttachment,
 } from "@/features/chat/types/chat-runtime";
+import {
+  formatClipboardMarkdownPaste,
+  resolveClipboardMarkdownPaste,
+} from "@/features/chat/utils/markdown-paste";
 import { useChatSpeechInput } from "@/features/chat/hooks/use-chat-speech-input";
 import {
   useChatMentionMenu,
@@ -759,13 +763,28 @@ function ChatInputComponent({
             onSelect={handleMentionSelectionChange}
             onPaste={(event) => {
               const files = clipboardFilesFromPaste(event);
-              if (files.length === 0) {
-                return;
-              }
-              if (!event.clipboardData.getData("text/plain")) {
+              const markdownPaste = resolveClipboardMarkdownPaste(event.clipboardData);
+              if (markdownPaste) {
                 event.preventDefault();
+                const textarea = event.currentTarget;
+                const formatted = formatClipboardMarkdownPaste(
+                  textarea.value,
+                  textarea.selectionStart,
+                  textarea.selectionEnd,
+                  markdownPaste,
+                );
+                handleMentionChange(formatted.value);
+                window.requestAnimationFrame(() => {
+                  textareaRef.current?.setSelectionRange(formatted.caretIndex, formatted.caretIndex);
+                });
               }
-              void onUploadFiles(files);
+
+              if (files.length > 0) {
+                if (!event.clipboardData.getData("text/plain")) {
+                  event.preventDefault();
+                }
+                void onUploadFiles(files);
+              }
             }}
             onCompositionStart={() => {
               composingRef.current = true;
