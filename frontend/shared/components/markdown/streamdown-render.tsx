@@ -67,7 +67,8 @@ type StreamdownRenderProps = {
   content: unknown;
   className?: string;
   streaming?: boolean;
-  variant?: "default" | "thinking";
+  variant?: "default" | "thinking" | "user";
+  sourcePositions?: boolean;
   imageActions?: MarkdownImageActions;
   artifactActions?: MarkdownArtifactActions;
 };
@@ -131,7 +132,46 @@ type RehypeSanitizeSchema = {
 type StreamdownRehypePlugins = NonNullable<StreamdownProps["rehypePlugins"]>;
 type StreamdownRehypePlugin = StreamdownRehypePlugins[number];
 type RehypeSanitizePlugin = [StreamdownRehypePlugin, RehypeSanitizeSchema];
-function buildStreamdownRehypePlugins(): StreamdownRehypePlugins {
+type RehypeSourceNode = {
+  type?: string;
+  tagName?: string;
+  properties?: Record<string, unknown>;
+  position?: { start?: { line?: number } };
+  children?: RehypeSourceNode[];
+};
+const MARKDOWN_SOURCE_BLOCK_TAGS = new Set([
+  "blockquote",
+  "details",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "hr",
+  "li",
+  "ol",
+  "p",
+  "pre",
+  "table",
+  "ul",
+]);
+
+function markdownSourcePositionRehypePlugin() {
+  return (tree: RehypeSourceNode) => {
+    const visit = (node: RehypeSourceNode) => {
+      const sourceLine = node.position?.start?.line;
+      if (node.type === "element" && node.tagName && MARKDOWN_SOURCE_BLOCK_TAGS.has(node.tagName) && sourceLine) {
+        node.properties ??= {};
+        node.properties["data-markdown-source-line"] = String(sourceLine);
+      }
+      node.children?.forEach(visit);
+    };
+    visit(tree);
+  };
+}
+
+function buildStreamdownRehypePlugins(includeSourcePositions = false): StreamdownRehypePlugins {
   const [sanitizePlugin, sanitizeSchema] = defaultRehypePlugins.sanitize as RehypeSanitizePlugin;
   const extraTagNames = Object.keys(STREAMDOWN_ALLOWED_HTML_TAGS);
   const tagNames = Array.from(new Set([...(sanitizeSchema.tagNames ?? []), ...extraTagNames]));
@@ -150,11 +190,13 @@ function buildStreamdownRehypePlugins(): StreamdownRehypePlugins {
     renderRawHTMLMathRehypePlugin,
     defaultRehypePlugins.raw,
     sanitizeWithAllowedTags,
+    ...(includeSourcePositions ? [markdownSourcePositionRehypePlugin] : []),
     normalizeBareURLRehypePlugin,
     defaultRehypePlugins.harden,
   ];
 }
 const STREAMDOWN_REHYPE_PLUGINS = buildStreamdownRehypePlugins();
+const SOURCE_POSITION_STREAMDOWN_REHYPE_PLUGINS = buildStreamdownRehypePlugins(true);
 const FENCED_CODE_BLOCK_RE = /(?:^|\n)[ \t]*(?:```|~~~)(?!\s*(?:mermaid|mmd)\b)[^\n]*(?:\n|$)/i;
 const MERMAID_CODE_BLOCK_RE = /(?:^|\n)[ \t]*(?:```|~~~)\s*(?:mermaid|mmd)\b/i;
 
@@ -171,6 +213,7 @@ const BASE_MARKDOWN_CLASSNAME = cn(
   "[&_[data-streamdown='mermaid']_svg]:mx-auto [&_[data-streamdown='mermaid']_svg]:block [&_[data-streamdown='mermaid']_svg]:h-auto [&_[data-streamdown='mermaid']_svg]:max-h-[280px] [&_[data-streamdown='mermaid']_svg]:max-w-full [&_[data-streamdown='mermaid']_svg]:bg-transparent",
   "[&_[data-streamdown='mermaid']>div>div:first-child]:!left-0 [&_[data-streamdown='mermaid']>div>div:first-child]:rounded-none [&_[data-streamdown='mermaid']>div>div:first-child]:border-0 [&_[data-streamdown='mermaid']>div>div:first-child]:bg-transparent [&_[data-streamdown='mermaid']>div>div:first-child]:p-0 [&_[data-streamdown='mermaid']>div>div:first-child]:shadow-none [&_[data-streamdown='mermaid']>div>div:first-child]:backdrop-blur-none",
   "[&_[data-streamdown='mermaid-block-actions']]:gap-2 [&_[data-streamdown='mermaid-block-actions']]:border-0 [&_[data-streamdown='mermaid-block-actions']]:rounded-none [&_[data-streamdown='mermaid-block-actions']]:bg-transparent [&_[data-streamdown='mermaid-block-actions']]:p-0 [&_[data-streamdown='mermaid-block-actions']]:shadow-none [&_[data-streamdown='mermaid-block-actions']]:backdrop-blur-none",
+  "[&_[data-streamdown='mermaid-block-actions']_button]:border-0 [&_[data-streamdown='mermaid-block-actions']_button]:bg-transparent [&_[data-streamdown='mermaid-block-actions']_button]:shadow-none [&_[data-streamdown='mermaid-block-actions']_button:hover]:bg-foreground/[0.04] [&_[data-streamdown='mermaid-block-actions']_button:hover]:text-foreground",
   "[&_[data-streamdown='mermaid-block-actions']_svg]:size-3",
   "[&_[data-streamdown='mermaid-block']_button>svg]:size-3",
   "[&_[data-streamdown='table-wrapper']]:my-4 [&_[data-streamdown='table-wrapper']]:!w-full [&_[data-streamdown='table-wrapper']]:min-w-0 [&_[data-streamdown='table-wrapper']]:gap-0 [&_[data-streamdown='table-wrapper']]:border-0 [&_[data-streamdown='table-wrapper']]:rounded-none [&_[data-streamdown='table-wrapper']]:bg-transparent [&_[data-streamdown='table-wrapper']]:p-0 [&_[data-streamdown='table-wrapper']]:shadow-none [&_[data-streamdown='table-wrapper']]:outline-none [&_[data-streamdown='table-wrapper']]:ring-0",
@@ -234,6 +277,24 @@ const THINKING_MARKDOWN_CLASSNAME = cn(
   "[&_td]:py-0.5 [&_td]:text-[11px] [&_td]:text-muted-foreground/78",
 );
 
+const USER_MARKDOWN_CLASSNAME = cn(
+  BASE_MARKDOWN_CLASSNAME,
+  "leading-8",
+  "[&_p]:whitespace-pre-wrap [&_p]:leading-8",
+  "[&_li]:leading-7",
+  "[&_ul]:my-1 [&_ul]:pl-5",
+  "[&_ol]:my-1 [&_ol]:pl-5",
+  "[&_h1]:my-1 [&_h1]:text-[17px] [&_h1]:font-semibold [&_h1]:leading-7",
+  "[&_h2]:my-1 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:leading-7",
+  "[&_h3]:my-1 [&_h3]:text-[15px] [&_h3]:font-semibold [&_h3]:leading-7",
+  "[&_h4]:my-1 [&_h4]:text-[15px] [&_h4]:font-medium [&_h4]:leading-7",
+  "[&_h5]:my-1 [&_h5]:text-[15px] [&_h5]:font-medium [&_h5]:leading-7",
+  "[&_h6]:my-1 [&_h6]:text-[15px] [&_h6]:font-medium [&_h6]:leading-7",
+  "[&_blockquote]:my-1 [&_blockquote]:border-l-2 [&_blockquote]:pl-3",
+  "[&_[data-streamdown='code-block']]:my-2",
+  "[&_[data-streamdown='table-wrapper']]:my-2",
+);
+
 const DEFAULT_STREAMDOWN_COMPONENTS = {
   a: MarkdownLink,
   article: MarkdownHTMLArticle,
@@ -261,18 +322,18 @@ const THINKING_STREAMDOWN_COMPONENTS = {
   h6: ThinkingHeading,
 } as const;
 
-function normalizeStreamdownContent(content: unknown): string {
-  return normalizeHTMLVisualBlankLines(
-    normalizeHTMLVisualMarkdownFences(
-      normalizeMermaidBlocks(
-        normalizeLatexUnicodeSymbols(
-          normalizeMathDelimiters(
-            normalizeCurrencyDollars(normalizeEscapedHTMLAttributeQuotes(normalizeContent(content))),
-          ),
-        ),
-      ),
+function normalizeStreamdownContent(content: unknown, preserveSourceLines = false): string {
+  const escapedContent = normalizeCurrencyDollars(
+    normalizeEscapedHTMLAttributeQuotes(normalizeContent(content)),
+  );
+  const normalizedContent = normalizeMermaidBlocks(
+    normalizeLatexUnicodeSymbols(
+      preserveSourceLines ? escapedContent : normalizeMathDelimiters(escapedContent),
     ),
   );
+  return preserveSourceLines
+    ? normalizedContent
+    : normalizeHTMLVisualBlankLines(normalizeHTMLVisualMarkdownFences(normalizedContent));
 }
 
 function detectStreamdownFeatures(content: string): StreamdownFeatureFlags {
@@ -531,12 +592,23 @@ export const StreamdownRender = React.memo(function StreamdownRender({
   className,
   streaming = false,
   variant = "default",
+  sourcePositions = false,
   imageActions,
   artifactActions,
 }: StreamdownRenderProps) {
-  const normalizedContent = React.useMemo(() => normalizeStreamdownContent(content), [content]);
+  const normalizedContent = React.useMemo(
+    () => normalizeStreamdownContent(content, sourcePositions),
+    [content, sourcePositions],
+  );
   const plugins = useStreamdownPlugins(normalizedContent);
-  const segments = React.useMemo(() => parseStreamdownSegments(normalizedContent), [normalizedContent]);
+  const segments = React.useMemo(
+    () =>
+      parseStreamdownSegments(normalizedContent, {
+        normalizeHTMLVisualFences: !sourcePositions,
+        parseThinking: variant !== "user",
+      }),
+    [normalizedContent, sourcePositions, variant],
+  );
   const {
     rootRef: markdownCopyRootRef,
     onClickCapture: handleMarkdownCopyClickCapture,
@@ -562,9 +634,18 @@ export const StreamdownRender = React.memo(function StreamdownRender({
     () => thinkingSegments.some((segment) => segment.incomplete),
     [thinkingSegments],
   );
-  const contentSpacingClassName = variant === "thinking" ? "space-y-1.5 leading-6" : "space-y-3 leading-8";
-  const activeMarkdownClassName = variant === "thinking" ? THINKING_MARKDOWN_CLASSNAME : BASE_MARKDOWN_CLASSNAME;
+  const contentSpacingClassName =
+    variant === "thinking" ? "space-y-1.5 leading-6" : variant === "user" ? "space-y-2 leading-8" : "space-y-3 leading-8";
+  const activeMarkdownClassName =
+    variant === "thinking"
+      ? THINKING_MARKDOWN_CLASSNAME
+      : variant === "user"
+        ? USER_MARKDOWN_CLASSNAME
+        : BASE_MARKDOWN_CLASSNAME;
   const components = variant === "thinking" ? THINKING_STREAMDOWN_COMPONENTS : DEFAULT_STREAMDOWN_COMPONENTS;
+  const rehypePlugins = sourcePositions
+    ? SOURCE_POSITION_STREAMDOWN_REHYPE_PLUGINS
+    : STREAMDOWN_REHYPE_PLUGINS;
 
   if (segments.length === 0) {
     return null;
@@ -601,7 +682,7 @@ export const StreamdownRender = React.memo(function StreamdownRender({
                 components={components}
                 controls={STREAMDOWN_CONTROLS}
                 plugins={plugins}
-                rehypePlugins={STREAMDOWN_REHYPE_PLUGINS}
+                rehypePlugins={rehypePlugins}
                 remend={STREAMDOWN_REMEND}
                 linkSafety={STREAMDOWN_LINK_SAFETY}
                 caret={streaming ? STREAMDOWN_CARET : undefined}
