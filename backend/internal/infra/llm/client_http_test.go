@@ -3,9 +3,11 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httptrace"
 	"strings"
 	"testing"
 )
@@ -263,4 +265,139 @@ func TestOpenAIChatCompletionsStreamRetriesWhenAutoUsageOptionIsRejected(t *test
 	if len(includeUsageValues) != 2 || includeUsageValues[0] != true || includeUsageValues[1] != false {
 		t.Fatalf("expected retry to disable only auto stream usage, got %#v", includeUsageValues)
 	}
+}
+
+func TestGenerateMarksSuccessfulHTTPParseFailureAsAccepted(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"invalid"`))
+	}))
+	defer server.Close()
+
+	_, err := NewClient().Generate(t.Context(), RouteConfig{
+		Protocol:      AdapterOpenAIChatCompletions,
+		BaseURL:       server.URL,
+		UpstreamModel: "test-model",
+	}, GenerateInput{Messages: []Message{{Role: "user", Content: "hello"}}})
+	if err == nil || !RequestWasAccepted(err) {
+		t.Fatalf("expected accepted parse error, got %v", err)
+	}
+}
+
+func TestGenerateMarksConnectionDropAfterRequestWriteAsAccepted(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		hijacker, ok := w.(http.Hijacker)
+		if !ok {
+			http.Error(w, "hijacking unsupported", http.StatusInternalServerError)
+			return
+		}
+		conn, _, err := hijacker.Hijack()
+		if err != nil {
+			return
+		}
+		_ = conn.Close()
+	}))
+	defer server.Close()
+
+	_, err := NewClient().Generate(t.Context(), RouteConfig{
+		Protocol:      AdapterOpenAIChatCompletions,
+		BaseURL:       server.URL,
+		UpstreamModel: "test-model",
+	}, GenerateInput{Messages: []Message{{Role: "user", Content: "hello"}}})
+	if err == nil || !RequestWasAccepted(err) {
+		t.Fatalf("expected post-write connection drop to be treated as accepted, got %v", err)
+	}
+}
+
+func TestGenerateStreamMarksSuccessfulHTTPStreamFailureAsAccepted(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data: {invalid}\n\n"))
+	}))
+	defer server.Close()
+
+	_, err := NewClient().GenerateStream(t.Context(), RouteConfig{
+		Protocol:      AdapterOpenAIChatCompletions,
+		BaseURL:       server.URL,
+		UpstreamModel: "test-model",
+	}, GenerateInput{Messages: []Message{{Role: "user", Content: "hello"}}}, nil)
+	if err == nil || !RequestWasAccepted(err) {
+		t.Fatalf("expected accepted stream error, got %v", err)
+	}
+}
+
+func TestGenerateStreamPreservesBackgroundResponseIDBeforeAcceptedFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("event: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_background\"}}\n\ndata: {invalid}\n\n"))
+	}))
+	defer server.Close()
+
+	responseID := ""
+	_, err := NewClient().GenerateStream(t.Context(), RouteConfig{
+		Protocol:      AdapterOpenAIResponses,
+		BaseURL:       server.URL,
+		UpstreamModel: "test-model",
+	}, GenerateInput{
+		Messages:            []Message{{Role: "user", Content: "hello"}},
+		ResponsesBackground: true,
+	}, func(event GenerateStreamEvent) error {
+		if event.ResponseID != "" {
+			responseID = event.ResponseID
+		}
+		return nil
+	})
+	if err == nil || !RequestWasAccepted(err) {
+		t.Fatalf("expected accepted background stream error, got %v", err)
+	}
+	if responseID != "resp_background" {
+		t.Fatalf("response ID = %q, want resp_background", responseID)
+	}
+}
+
+func TestDoGenerationRequestMarksPostWriteFailureAsAccepted(t *testing.T) {
+	errAfterWrite := errors.New("connection closed before response headers")
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		trace := httptrace.ContextClientTrace(req.Context())
+		if trace == nil || trace.WroteRequest == nil {
+			t.Fatal("expected request write trace")
+		}
+		trace.WroteRequest(httptrace.WroteRequestInfo{})
+		return nil, errAfterWrite
+	})}
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/v1/chat/completions", strings.NewReader(`{"model":"test"}`))
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+
+	_, err = doGenerationRequest(client, req)
+	if !errors.Is(err, errAfterWrite) || !RequestWasAccepted(err) {
+		t.Fatalf("expected ambiguous post-write failure, got %v", err)
+	}
+}
+
+func TestDoGenerationRequestKeepsPreWriteFailureRetryable(t *testing.T) {
+	errBeforeWrite := errors.New("dial failed")
+	client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return nil, errBeforeWrite
+	})}
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/v1/chat/completions", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+
+	_, err = doGenerationRequest(client, req)
+	if !errors.Is(err, errBeforeWrite) || RequestWasAccepted(err) {
+		t.Fatalf("expected retryable pre-write failure, got %v", err)
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return fn(req)
 }

@@ -755,7 +755,7 @@ func (c *Client) generateAnthropic(
 	}
 	applyAnthropicBetaHeaders(req, requestBody, input.Options)
 
-	resp, err := c.httpClientForRoute(route).Do(req)
+	resp, err := doGenerationRequest(c.httpClientForRoute(route), req)
 	if err != nil {
 		return nil, err
 	}
@@ -763,6 +763,9 @@ func (c *Client) generateAnthropic(
 
 	body, err := readUpstreamBody(resp.Body)
 	if err != nil {
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			return nil, MarkRequestAccepted(err)
+		}
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -772,7 +775,7 @@ func (c *Client) generateAnthropic(
 	debug := upstreamDebugSnapshot(req, payload, resp, body)
 	output, err := parseAnthropicResponse(body, newAnthropicToolClassifier(requestBody, input.Tools))
 	if err != nil {
-		return nil, attachUpstreamDebug(err, debug)
+		return nil, MarkRequestAccepted(attachUpstreamDebug(err, debug))
 	}
 	output.Debug = debug
 	return output, nil
@@ -1018,7 +1021,7 @@ func (c *Client) generateAnthropicStream(
 	req.Header.Set("Accept", "text/event-stream")
 	applyAnthropicBetaHeaders(req, requestBody, input.Options)
 
-	resp, err := c.httpClientForRoute(route).Do(req)
+	resp, err := doGenerationRequest(c.httpClientForRoute(route), req)
 	firstByteTimer.Stop()
 	if err != nil {
 		return nil, err
@@ -1038,7 +1041,7 @@ func (c *Client) generateAnthropicStream(
 	idleReader := newIdleTimeoutReader(resp.Body, resolveStreamIdleTimeout(route.StreamIdleTimeoutMS))
 	streamBody := newUpstreamBodyRecorder(idleReader)
 	if err = consumeAnthropicStream(streamBody, result, onEvent, newAnthropicToolClassifier(requestBody, input.Tools)); err != nil {
-		return nil, attachUpstreamDebug(err, upstreamDebugSnapshot(req, payload, resp, streamErrorBody(streamBody, err)))
+		return nil, MarkRequestAccepted(attachUpstreamDebug(err, upstreamDebugSnapshot(req, payload, resp, streamErrorBody(streamBody, err))))
 	}
 	compactAnthropicStreamToolCalls(result)
 	return result, nil
