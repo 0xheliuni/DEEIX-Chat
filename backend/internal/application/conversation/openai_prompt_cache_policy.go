@@ -47,7 +47,7 @@ func configureOpenAIPromptCacheRequestForRoute(
 	return key, configuredOptions, configuredMessages
 }
 
-// applyOpenAIPromptCacheMessagePolicy 为显式 OpenAI 缓存选择滚动历史断点。
+// applyOpenAIPromptCacheMessagePolicy 为显式 OpenAI 缓存保留累积历史断点。
 // 当前 user 及其动态上下文始终不标记，避免每轮变化的内容成为缓存边界。
 func applyOpenAIPromptCacheMessagePolicy(
 	route *channel.ResolvedRoute,
@@ -87,14 +87,12 @@ func applyOpenAIPromptCacheMessagePolicy(
 		return result
 	}
 
-	historicalBreakpoints := 0
-	for index := currentUserIndex - 1; index >= 0 && historicalBreakpoints < 3; index-- {
+	for index := 0; index < currentUserIndex; index++ {
 		if !strings.EqualFold(strings.TrimSpace(result[index].Role), "user") ||
 			!openAIPromptCacheMessageNonempty(result[index]) {
 			continue
 		}
 		result[index].CacheControl = &llm.CacheControl{Type: "ephemeral"}
-		historicalBreakpoints++
 	}
 	return result
 }

@@ -260,7 +260,7 @@ func TestApplyOpenAIPromptCacheMessagePolicyMarksStableSystemAndHistoricalUsers(
 	}
 }
 
-func TestApplyOpenAIPromptCacheMessagePolicyKeepsLatestThreeHistoricalUsers(t *testing.T) {
+func TestApplyOpenAIPromptCacheMessagePolicyKeepsAllHistoricalUsers(t *testing.T) {
 	route := &channel.ResolvedRoute{
 		Protocol: llm.AdapterOpenAIChatCompletions,
 		BaseURL:  "https://api.openai.com/v1",
@@ -278,12 +278,36 @@ func TestApplyOpenAIPromptCacheMessagePolicyKeepsLatestThreeHistoricalUsers(t *t
 	)
 
 	result := applyOpenAIPromptCacheMessagePolicy(route, explicitOpenAIPromptCacheOptions(), messages)
-	assertOpenAIPromptCacheMessageMarkers(t, result, 0, 5, 7, 9)
-	for _, index := range []int{1, 3, 11, 12} {
+	assertOpenAIPromptCacheMessageMarkers(t, result, 0, 1, 3, 5, 7, 9)
+	for _, index := range []int{11, 12} {
 		if result[index].CacheControl != nil {
 			t.Fatalf("expected message %d to remain unmarked, got %#v", index, result[index].CacheControl)
 		}
 	}
+}
+
+func TestApplyOpenAIPromptCacheMessagePolicyDoesNotRemoveEarlierBreakpointsAsHistoryAdvances(t *testing.T) {
+	route := &channel.ResolvedRoute{
+		Protocol: llm.AdapterOpenAIResponses,
+		BaseURL:  "https://api.openai.com/v1",
+	}
+	firstTurn := []llm.Message{
+		{Role: "system", Content: "stable policy"},
+		{Role: "user", Content: "question one"},
+		{Role: "assistant", Content: "answer one"},
+		{Role: "user", Content: "question two"},
+		{Role: "assistant", Content: "answer two"},
+		{Role: "user", Content: "current question three"},
+	}
+	secondTurn := append(append([]llm.Message{}, firstTurn...),
+		llm.Message{Role: "assistant", Content: "answer three"},
+		llm.Message{Role: "user", Content: "current question four"},
+	)
+
+	firstResult := applyOpenAIPromptCacheMessagePolicy(route, explicitOpenAIPromptCacheOptions(), firstTurn)
+	secondResult := applyOpenAIPromptCacheMessagePolicy(route, explicitOpenAIPromptCacheOptions(), secondTurn)
+	assertOpenAIPromptCacheMessageMarkers(t, firstResult, 0, 1, 3)
+	assertOpenAIPromptCacheMessageMarkers(t, secondResult, 0, 1, 3, 5)
 }
 
 func TestApplyOpenAIPromptCacheMessagePolicyLeavesImplicitMessagesUntouched(t *testing.T) {

@@ -270,7 +270,7 @@ OpenAI 的 `X-Client-Request-Id` 要求每次请求使用唯一值，应配置�
 }
 ```
 
-官方 OpenAI 也可以用 `promptCache.enabled=false` 显式关闭。缓存策略完全由模型能力配置控制，用户消息请求中的同名 Options 会被忽略。启用显式缓存时，DEEIX 会在每轮请求中滚动选择最后一条非空的前导 system 消息和最近三条非空历史 user 消息作为 `prompt_cache_breakpoint`，总数最多为 4；本轮 user、动态 RAG、本轮图片及其他当前轮上下文始终不标记。该滚动历史策略只作用于 explicit 模式，不改变仅使用稳定 `prompt_cache_key` 的 implicit 行为：
+官方 OpenAI 也可以用 `promptCache.enabled=false` 显式关闭。缓存策略完全由模型能力配置控制，用户消息请求中的同名 Options 会被忽略。启用显式缓存时，DEEIX 会把最后一条非空的前导 system 消息和每条非空历史 user 消息保留为 `prompt_cache_breakpoint`；本轮 user、动态 RAG、本轮图片及其他当前轮上下文始终不标记。旧轮次断点必须继续保留，避免删除 marker 后改写后续缓存前缀；正常连续对话每轮只为上一轮 user 新增一个断点。OpenAI 每个请求最多创建 4 个新写入，并从最近 50 个对话断点中读取最长匹配前缀。该历史策略只作用于 explicit 模式，不改变仅使用稳定 `prompt_cache_key` 的 implicit 行为：
 
 ```json
 {
