@@ -14,11 +14,13 @@ const (
 )
 
 type openAIPromptCacheCapabilityConfig struct {
-	Enabled           bool
-	EnabledConfigured bool
-	Mode              string
-	TTL               string
-	Retention         string
+	Enabled                      bool
+	EnabledConfigured            bool
+	MessageBreakpoints           bool
+	MessageBreakpointsConfigured bool
+	Mode                         string
+	TTL                          string
+	Retention                    string
 }
 
 // configureOpenAIPromptCacheForRoute 把路由能力收敛为上游请求所需的缓存键和选项。
@@ -54,13 +56,17 @@ func applyOpenAIPromptCacheMessagePolicy(
 	options map[string]interface{},
 	messages []llm.Message,
 ) []llm.Message {
-	if !supportsOpenAIPromptCacheRoute(route) || !usesExplicitOpenAIPromptCache(options) {
+	config, supported := resolveOpenAIPromptCacheRouteConfig(route)
+	if !supported || !usesExplicitOpenAIPromptCache(options) {
 		return messages
 	}
 
 	result := cloneLLMMessages(messages)
 	for index := range result {
 		result[index].CacheControl = nil
+	}
+	if !config.MessageBreakpoints {
+		return result
 	}
 
 	leadingSystemIndex := -1
@@ -131,6 +137,9 @@ func resolveOpenAIPromptCacheRouteConfig(route *channel.ResolvedRoute) (openAIPr
 	}
 
 	config := openAIPromptCacheCapability(route.ModelCapabilitiesJSON)
+	if !config.MessageBreakpointsConfigured {
+		config.MessageBreakpoints = isOfficialOpenAIBaseURL(route.BaseURL)
+	}
 	if config.EnabledConfigured {
 		return config, config.Enabled
 	}
@@ -149,6 +158,7 @@ func openAIPromptCacheCapability(capabilitiesJSON string) openAIPromptCacheCapab
 		Retention: normalizeOpenAIPromptCacheRetention(modelOptionStringValue(promptCache["retention"])),
 	}
 	config.Enabled, config.EnabledConfigured = promptCache["enabled"].(bool)
+	config.MessageBreakpoints, config.MessageBreakpointsConfigured = promptCache["messageBreakpoints"].(bool)
 	if config.Mode != "explicit" && config.Retention == "" {
 		config.Retention = legacyOpenAIPromptCacheRetention(capabilitiesJSON)
 	}

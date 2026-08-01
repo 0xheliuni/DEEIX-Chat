@@ -188,7 +188,7 @@ func TestConfigureOpenAIPromptCacheRequestForRouteRecomputesAcrossFailover(t *te
 	supportedRoute := &channel.ResolvedRoute{
 		Protocol:              llm.AdapterOpenAIResponses,
 		BaseURL:               "https://relay.example.com/v1",
-		ModelCapabilitiesJSON: `{"promptCache":{"enabled":true,"mode":"explicit","ttl":"30m"}}`,
+		ModelCapabilitiesJSON: `{"promptCache":{"enabled":true,"mode":"explicit","ttl":"30m","messageBreakpoints":true}}`,
 	}
 	unsupportedRoute := &channel.ResolvedRoute{
 		Protocol: llm.AdapterOpenAIResponses,
@@ -236,6 +236,62 @@ func TestConfigureOpenAIPromptCacheRequestForRouteRecomputesAcrossFailover(t *te
 		t.Fatalf("expected supported failover route to restore explicit cache fields, got key=%q options=%#v", key, options)
 	}
 	assertOpenAIPromptCacheMessageMarkers(t, configuredMessages, 0, 1)
+}
+
+func TestConfigureOpenAIPromptCacheRequestForRouteKeepsRelayExplicitOptionsWithoutMessageBreakpoints(t *testing.T) {
+	marker := &llm.CacheControl{Type: "old"}
+	route := &channel.ResolvedRoute{
+		Protocol:              llm.AdapterOpenAIResponses,
+		BaseURL:               "https://relay.example.com/v1",
+		ModelCapabilitiesJSON: `{"promptCache":{"enabled":true,"mode":"explicit","ttl":"30m"}}`,
+	}
+	messages := []llm.Message{
+		{Role: "system", Content: "stable policy", CacheControl: marker},
+		{Role: "user", Content: "historical question"},
+		{Role: "assistant", Content: "historical answer"},
+		{Role: "user", Content: "current question"},
+	}
+
+	key, options, configuredMessages := configureOpenAIPromptCacheRequestForRoute(
+		route,
+		"session-1",
+		nil,
+		messages,
+	)
+
+	if key != "session-1" || !usesExplicitOpenAIPromptCache(options) {
+		t.Fatalf("expected relay to retain top-level explicit cache fields, key=%q options=%#v", key, options)
+	}
+	assertOpenAIPromptCacheMessageMarkers(t, configuredMessages)
+	if messages[0].CacheControl != marker {
+		t.Fatalf("expected caller messages to remain unchanged, got %#v", messages[0].CacheControl)
+	}
+}
+
+func TestConfigureOpenAIPromptCacheRequestForRouteCanDisableOfficialMessageBreakpoints(t *testing.T) {
+	route := &channel.ResolvedRoute{
+		Protocol:              llm.AdapterOpenAIResponses,
+		BaseURL:               "https://api.openai.com/v1",
+		ModelCapabilitiesJSON: `{"promptCache":{"mode":"explicit","ttl":"30m","messageBreakpoints":false}}`,
+	}
+	messages := []llm.Message{
+		{Role: "system", Content: "stable policy"},
+		{Role: "user", Content: "historical question"},
+		{Role: "assistant", Content: "historical answer"},
+		{Role: "user", Content: "current question"},
+	}
+
+	key, options, configuredMessages := configureOpenAIPromptCacheRequestForRoute(
+		route,
+		"session-1",
+		nil,
+		messages,
+	)
+
+	if key != "session-1" || !usesExplicitOpenAIPromptCache(options) {
+		t.Fatalf("expected official route to retain top-level explicit cache fields, key=%q options=%#v", key, options)
+	}
+	assertOpenAIPromptCacheMessageMarkers(t, configuredMessages)
 }
 
 func TestApplyOpenAIPromptCacheMessagePolicyMarksStableSystemAndHistoricalUsers(t *testing.T) {
