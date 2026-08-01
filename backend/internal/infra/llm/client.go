@@ -134,7 +134,9 @@ type GenerateInput struct {
 	ConversationID         uint
 	ConversationPublicID   string
 	ConversationSessionKey string
-	Messages               []Message
+	// PromptCacheKey 是 OpenAI prompt_cache_key 的服务端受控值，用户 Options 不得覆盖。
+	PromptCacheKey string
+	Messages       []Message
 	// Instructions 承载可映射到上游原生指令字段的系统/开发者指令。
 	// 不支持原生指令字段的 adapter 应继续通过 messages 承载系统提示。
 	Instructions string
