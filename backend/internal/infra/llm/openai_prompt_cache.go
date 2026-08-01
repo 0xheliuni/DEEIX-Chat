@@ -5,19 +5,17 @@ import "strings"
 const (
 	openAIPromptCacheModeExplicit = "explicit"
 	openAIPromptCacheTTL30Minutes = "30m"
-	openAIMaxCacheBreakpoints     = 4
 )
 
 type openAIPromptCacheConfig struct {
-	Key             string
-	Options         map[string]interface{}
-	Retention       string
-	Explicit        bool
-	BreakpointsLeft int
+	Key       string
+	Options   map[string]interface{}
+	Retention string
+	Explicit  bool
 }
 
 func resolveOpenAIPromptCacheConfig(adapter string, input GenerateInput) openAIPromptCacheConfig {
-	config := openAIPromptCacheConfig{BreakpointsLeft: openAIMaxCacheBreakpoints}
+	config := openAIPromptCacheConfig{}
 	if !isOpenAITextAdapter(adapter) {
 		return config
 	}
@@ -68,7 +66,7 @@ func applyOpenAIPromptCacheRequestFields(payload map[string]interface{}, config 
 }
 
 func appendOpenAIPromptCacheBreakpoint(block map[string]interface{}, hint *CacheControl, config *openAIPromptCacheConfig) bool {
-	if block == nil || hint == nil || config == nil || !config.Explicit || config.BreakpointsLeft <= 0 ||
+	if block == nil || hint == nil || config == nil || !config.Explicit ||
 		!openAIContentBlockSupportsPromptCacheBreakpoint(block) {
 		return false
 	}
@@ -76,7 +74,6 @@ func appendOpenAIPromptCacheBreakpoint(block map[string]interface{}, hint *Cache
 		return false
 	}
 	block["prompt_cache_breakpoint"] = map[string]interface{}{"mode": openAIPromptCacheModeExplicit}
-	config.BreakpointsLeft--
 	return true
 }
 

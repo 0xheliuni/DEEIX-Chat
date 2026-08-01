@@ -824,19 +824,15 @@ func (s *Service) sendMessageInternal(
 		conversation.LastResponseID,
 		conversation.LastPromptFingerprint,
 		statefulPrefixFingerprint,
+		filteredOptions,
 	)
-	if routeConfig.Endpoint == llm.EndpointResponses && statefulDecision.PreviousResponseID != "" {
-		statefulMessages := buildStatefulResponseMessages(llmMessages)
-		if len(statefulMessages) > 0 && len(statefulMessages) < len(llmMessages) {
-			generateInput.Messages = statefulMessages
-			generateInput.PreviousResponseID = statefulDecision.PreviousResponseID
-			estimatedPromptTokens = estimateGenerateInputTokens(generateInput)
-			sendSpan.SetAttributes(
-				attribute.Bool("conversation.stateful_response", true),
-				attribute.Int("conversation.stateful_full_messages", len(llmMessages)),
-				attribute.Int("conversation.stateful_sent_messages", len(statefulMessages)),
-			)
-		}
+	if applyStatefulResponseContinuation(routeConfig.Endpoint, statefulDecision, &generateInput) {
+		estimatedPromptTokens = estimateGenerateInputTokens(generateInput)
+		sendSpan.SetAttributes(
+			attribute.Bool("conversation.stateful_response", true),
+			attribute.Int("conversation.stateful_full_messages", len(llmMessages)),
+			attribute.Int("conversation.stateful_sent_messages", len(generateInput.Messages)),
+		)
 	} else if strings.TrimSpace(statefulDecision.DisabledReason) != "" {
 		sendSpan.SetAttributes(attribute.String("conversation.stateful_disabled_reason", statefulDecision.DisabledReason))
 	}

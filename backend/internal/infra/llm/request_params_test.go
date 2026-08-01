@@ -563,33 +563,47 @@ func TestBuildOpenAIResponsesUsesConfiguredExplicitPromptCache(t *testing.T) {
 	}
 }
 
-func TestBuildOpenAIResponsesLimitsExplicitPromptCacheBreakpoints(t *testing.T) {
-	messages := make([]Message, 0, 6)
-	for index := 0; index < 6; index++ {
-		messages = append(messages, Message{
-			Role:         "system",
-			Content:      "stable",
-			CacheControl: &CacheControl{Type: "ephemeral"},
-		})
+func TestBuildOpenAIRequestsPreserveAllExplicitPromptCacheBreakpoints(t *testing.T) {
+	tests := []struct {
+		name     string
+		adapter  string
+		endpoint string
+		field    string
+	}{
+		{name: "responses", adapter: AdapterOpenAIResponses, endpoint: EndpointResponses, field: "input"},
+		{name: "chat completions", adapter: AdapterOpenAIChatCompletions, endpoint: EndpointChatCompletions, field: "messages"},
 	}
-	payload := mustBuildRequestBody(t, AdapterOpenAIResponses, "gpt-5.6", EndpointResponses, GenerateInput{
-		PromptCacheKey: "session-789",
-		Messages:       messages,
-		Options: map[string]interface{}{
-			"prompt_cache_options": map[string]interface{}{"mode": "explicit"},
-		},
-	}, false)
 
-	count := 0
-	for _, item := range payload["input"].([]map[string]interface{}) {
-		for _, block := range item["content"].([]map[string]interface{}) {
-			if _, ok := block["prompt_cache_breakpoint"]; ok {
-				count++
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			messages := make([]Message, 0, 6)
+			for index := 0; index < 6; index++ {
+				messages = append(messages, Message{
+					Role:         "system",
+					Content:      "stable",
+					CacheControl: &CacheControl{Type: "ephemeral"},
+				})
 			}
-		}
-	}
-	if count != openAIMaxCacheBreakpoints {
-		t.Fatalf("expected at most %d explicit breakpoints, got %d", openAIMaxCacheBreakpoints, count)
+			payload := mustBuildRequestBody(t, test.adapter, "gpt-5.6", test.endpoint, GenerateInput{
+				PromptCacheKey: "session-789",
+				Messages:       messages,
+				Options: map[string]interface{}{
+					"prompt_cache_options": map[string]interface{}{"mode": "explicit"},
+				},
+			}, false)
+
+			count := 0
+			for _, item := range payload[test.field].([]map[string]interface{}) {
+				for _, block := range item["content"].([]map[string]interface{}) {
+					if _, ok := block["prompt_cache_breakpoint"]; ok {
+						count++
+					}
+				}
+			}
+			if count != len(messages) {
+				t.Fatalf("expected all %d explicit breakpoints, got %d", len(messages), count)
+			}
+		})
 	}
 }
 
