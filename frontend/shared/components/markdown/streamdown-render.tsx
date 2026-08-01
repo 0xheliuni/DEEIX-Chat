@@ -192,7 +192,6 @@ function buildStreamdownRehypePlugins(includeSourcePositions = false): Streamdow
     sanitizeWithAllowedTags,
     ...(includeSourcePositions ? [markdownSourcePositionRehypePlugin] : []),
     normalizeBareURLRehypePlugin,
-    defaultRehypePlugins.harden,
   ];
 }
 const STREAMDOWN_REHYPE_PLUGINS = buildStreamdownRehypePlugins();
