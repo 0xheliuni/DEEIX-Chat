@@ -296,6 +296,8 @@ func TestBuildOpenAIChatCompletionsUsesConfiguredGPT56PromptCachePrefix(t *testi
 		PromptCacheKey: "session-123",
 		Messages: []Message{
 			{Role: "system", Content: "stable policy", CacheControl: &CacheControl{Type: "ephemeral"}},
+			{Role: "user", Content: "historical question", CacheControl: &CacheControl{Type: "ephemeral"}},
+			{Role: "assistant", Content: "historical answer"},
 			{Role: "user", Content: "dynamic rag context"},
 		},
 		Options: map[string]interface{}{
@@ -319,8 +321,15 @@ func TestBuildOpenAIChatCompletionsUsesConfiguredGPT56PromptCachePrefix(t *testi
 	if !ok || breakpoint["mode"] != "explicit" {
 		t.Fatalf("expected explicit breakpoint on stable prefix, got %#v", stableContent[0])
 	}
-	if _, ok := messages[1]["content"].(string); !ok {
-		t.Fatalf("expected dynamic user content to remain unmarked string, got %#v", messages[1]["content"])
+	historicalContent, ok := messages[1]["content"].([]map[string]interface{})
+	if !ok || len(historicalContent) != 1 {
+		t.Fatalf("expected cacheable historical user content block, got %#v", messages[1]["content"])
+	}
+	if _, ok := historicalContent[0]["prompt_cache_breakpoint"].(map[string]interface{}); !ok {
+		t.Fatalf("expected explicit breakpoint on historical user, got %#v", historicalContent[0])
+	}
+	if _, ok := messages[3]["content"].(string); !ok {
+		t.Fatalf("expected current user content to remain unmarked string, got %#v", messages[3]["content"])
 	}
 }
 
@@ -518,6 +527,8 @@ func TestBuildOpenAIResponsesUsesConfiguredExplicitPromptCache(t *testing.T) {
 		PromptCacheKey: "session-456",
 		Messages: []Message{
 			{Role: "system", Content: "stable policy", CacheControl: &CacheControl{Type: "ephemeral"}},
+			{Role: "user", Content: "historical question", CacheControl: &CacheControl{Type: "ephemeral"}},
+			{Role: "assistant", Content: "historical answer"},
 			{Role: "user", Content: "dynamic rag context"},
 		},
 		Options: map[string]interface{}{
@@ -542,9 +553,13 @@ func TestBuildOpenAIResponsesUsesConfiguredExplicitPromptCache(t *testing.T) {
 	if !ok || breakpoint["mode"] != "explicit" {
 		t.Fatalf("expected explicit Responses breakpoint, got %#v", stableContent[0])
 	}
-	dynamicContent := items[1]["content"].([]map[string]interface{})
+	historicalContent := items[1]["content"].([]map[string]interface{})
+	if _, ok := historicalContent[0]["prompt_cache_breakpoint"].(map[string]interface{}); !ok {
+		t.Fatalf("expected explicit Responses breakpoint on historical user, got %#v", historicalContent[0])
+	}
+	dynamicContent := items[3]["content"].([]map[string]interface{})
 	if _, ok := dynamicContent[0]["prompt_cache_breakpoint"]; ok {
-		t.Fatalf("expected dynamic user content to remain outside explicit cache prefix, got %#v", dynamicContent[0])
+		t.Fatalf("expected current user content to remain outside explicit cache prefix, got %#v", dynamicContent[0])
 	}
 }
 

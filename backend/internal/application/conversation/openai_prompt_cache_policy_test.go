@@ -183,3 +183,199 @@ func TestConfigureOpenAIPromptCacheDoesNotDependOnModelOptionAllowlist(t *testin
 		t.Fatalf("expected server cache policy to bypass the legacy user allowlist, key=%q options=%#v", key, options)
 	}
 }
+
+func TestConfigureOpenAIPromptCacheRequestForRouteRecomputesAcrossFailover(t *testing.T) {
+	supportedRoute := &channel.ResolvedRoute{
+		Protocol:              llm.AdapterOpenAIResponses,
+		BaseURL:               "https://relay.example.com/v1",
+		ModelCapabilitiesJSON: `{"promptCache":{"enabled":true,"mode":"explicit","ttl":"30m"}}`,
+	}
+	unsupportedRoute := &channel.ResolvedRoute{
+		Protocol: llm.AdapterOpenAIResponses,
+		BaseURL:  "https://legacy-relay.example.com/v1",
+	}
+	messages := []llm.Message{
+		{Role: "system", Content: "stable policy"},
+		{Role: "user", Content: "historical question"},
+		{Role: "assistant", Content: "historical answer"},
+		{Role: "user", Content: "current question"},
+	}
+
+	key, options, configuredMessages := configureOpenAIPromptCacheRequestForRoute(
+		supportedRoute,
+		"session-1",
+		explicitOpenAIPromptCacheOptions(),
+		messages,
+	)
+	if key != "session-1" || !usesExplicitOpenAIPromptCache(options) {
+		t.Fatalf("expected supported route explicit cache fields, got key=%q options=%#v", key, options)
+	}
+	assertOpenAIPromptCacheMessageMarkers(t, configuredMessages, 0, 1)
+
+	key, options, configuredMessages = configureOpenAIPromptCacheRequestForRoute(
+		unsupportedRoute,
+		"session-1",
+		options,
+		messages,
+	)
+	if key != "" {
+		t.Fatalf("expected unsupported failover route to clear cache key, got %q", key)
+	}
+	if _, exists := options[openAIPromptCacheOptionKey]; exists {
+		t.Fatalf("expected unsupported failover route to drop cache options, got %#v", options)
+	}
+	assertOpenAIPromptCacheMessageMarkers(t, configuredMessages)
+
+	key, options, configuredMessages = configureOpenAIPromptCacheRequestForRoute(
+		supportedRoute,
+		"session-1",
+		explicitOpenAIPromptCacheOptions(),
+		messages,
+	)
+	if key != "session-1" || !usesExplicitOpenAIPromptCache(options) {
+		t.Fatalf("expected supported failover route to restore explicit cache fields, got key=%q options=%#v", key, options)
+	}
+	assertOpenAIPromptCacheMessageMarkers(t, configuredMessages, 0, 1)
+}
+
+func TestApplyOpenAIPromptCacheMessagePolicyMarksStableSystemAndHistoricalUsers(t *testing.T) {
+	route := &channel.ResolvedRoute{
+		Protocol: llm.AdapterOpenAIResponses,
+		BaseURL:  "https://api.openai.com/v1",
+	}
+	messages := []llm.Message{
+		{Role: "system", Content: "platform policy"},
+		{Role: "system", Content: "stable tool policy"},
+		{Role: "user", Content: "question one"},
+		{Role: "assistant", Content: "answer one"},
+		{Role: "user", Content: "question two"},
+		{Role: "assistant", Content: "answer two"},
+		{Role: "user", Content: "current question with dynamic RAG"},
+	}
+
+	result := applyOpenAIPromptCacheMessagePolicy(route, explicitOpenAIPromptCacheOptions(), messages)
+	assertOpenAIPromptCacheMessageMarkers(t, result, 1, 2, 4)
+	if result[6].CacheControl != nil {
+		t.Fatalf("expected current user to remain unmarked, got %#v", result[6].CacheControl)
+	}
+}
+
+func TestApplyOpenAIPromptCacheMessagePolicyKeepsLatestThreeHistoricalUsers(t *testing.T) {
+	route := &channel.ResolvedRoute{
+		Protocol: llm.AdapterOpenAIChatCompletions,
+		BaseURL:  "https://api.openai.com/v1",
+	}
+	messages := []llm.Message{{Role: "system", Content: "stable policy"}}
+	for index := 1; index <= 5; index++ {
+		messages = append(messages,
+			llm.Message{Role: "user", Content: "historical question"},
+			llm.Message{Role: "assistant", Content: "historical answer"},
+		)
+	}
+	messages = append(messages,
+		llm.Message{Role: "user", Parts: []llm.ContentPart{{Kind: llm.ContentPartText, Text: " "}}},
+		llm.Message{Role: "user", Content: "current question"},
+	)
+
+	result := applyOpenAIPromptCacheMessagePolicy(route, explicitOpenAIPromptCacheOptions(), messages)
+	assertOpenAIPromptCacheMessageMarkers(t, result, 0, 5, 7, 9)
+	for _, index := range []int{1, 3, 11, 12} {
+		if result[index].CacheControl != nil {
+			t.Fatalf("expected message %d to remain unmarked, got %#v", index, result[index].CacheControl)
+		}
+	}
+}
+
+func TestApplyOpenAIPromptCacheMessagePolicyLeavesImplicitMessagesUntouched(t *testing.T) {
+	route := &channel.ResolvedRoute{
+		Protocol: llm.AdapterOpenAIResponses,
+		BaseURL:  "https://api.openai.com/v1",
+	}
+	marker := &llm.CacheControl{Type: "ephemeral"}
+	messages := []llm.Message{
+		{Role: "system", Content: "stable policy", CacheControl: marker},
+		{Role: "user", Content: "current question"},
+	}
+	key, options := configureOpenAIPromptCacheForRoute(route, "session-implicit", map[string]interface{}{"temperature": 0.2})
+
+	result := applyOpenAIPromptCacheMessagePolicy(route, options, messages)
+	if key != "session-implicit" {
+		t.Fatalf("expected implicit route to retain stable cache key, got %q", key)
+	}
+	if &result[0] != &messages[0] || result[0].CacheControl != marker {
+		t.Fatalf("expected implicit policy to leave caller messages untouched, got %#v", result)
+	}
+}
+
+func TestApplyOpenAIPromptCacheMessagePolicyLeavesUnsupportedRouteUntouched(t *testing.T) {
+	route := &channel.ResolvedRoute{
+		Protocol: llm.AdapterOpenAIResponses,
+		BaseURL:  "https://relay.example.com/v1",
+	}
+	marker := &llm.CacheControl{Type: "ephemeral"}
+	messages := []llm.Message{
+		{Role: "system", Content: "stable policy", CacheControl: marker},
+		{Role: "user", Content: "current question"},
+	}
+	key, options := configureOpenAIPromptCacheForRoute(route, "session-1", explicitOpenAIPromptCacheOptions())
+
+	result := applyOpenAIPromptCacheMessagePolicy(route, options, messages)
+	if key != "" {
+		t.Fatalf("expected unsupported route not to send cache key, got %q", key)
+	}
+	if _, exists := options[openAIPromptCacheOptionKey]; exists {
+		t.Fatalf("expected unsupported route not to send cache options, got %#v", options)
+	}
+	if &result[0] != &messages[0] || result[0].CacheControl != marker {
+		t.Fatalf("expected unsupported route policy to leave messages untouched, got %#v", result)
+	}
+}
+
+func TestApplyOpenAIPromptCacheMessagePolicyDoesNotMutateCallerMessages(t *testing.T) {
+	route := &channel.ResolvedRoute{
+		Protocol: llm.AdapterOpenAIResponses,
+		BaseURL:  "https://api.openai.com/v1",
+	}
+	oldSystemMarker := &llm.CacheControl{Type: "old-system"}
+	oldCurrentMarker := &llm.CacheControl{Type: "old-current"}
+	messages := []llm.Message{
+		{Role: "system", Content: "first system", CacheControl: oldSystemMarker},
+		{Role: "system", Content: "last system"},
+		{Role: "user", Content: "historical question"},
+		{Role: "assistant", Content: "historical answer"},
+		{Role: "user", Content: "current question", CacheControl: oldCurrentMarker},
+	}
+
+	result := applyOpenAIPromptCacheMessagePolicy(route, explicitOpenAIPromptCacheOptions(), messages)
+	if &result[0] == &messages[0] {
+		t.Fatal("expected explicit policy to clone the caller slice")
+	}
+	if messages[0].CacheControl != oldSystemMarker || messages[1].CacheControl != nil ||
+		messages[2].CacheControl != nil || messages[4].CacheControl != oldCurrentMarker {
+		t.Fatalf("expected caller messages to remain unchanged, got %#v", messages)
+	}
+	assertOpenAIPromptCacheMessageMarkers(t, result, 1, 2)
+	if result[0].CacheControl != nil || result[4].CacheControl != nil {
+		t.Fatalf("expected obsolete and current-user markers to be cleared, got %#v", result)
+	}
+}
+
+func explicitOpenAIPromptCacheOptions() map[string]interface{} {
+	return map[string]interface{}{
+		openAIPromptCacheOptionKey: map[string]interface{}{"mode": "explicit"},
+	}
+}
+
+func assertOpenAIPromptCacheMessageMarkers(t *testing.T, messages []llm.Message, expected ...int) {
+	t.Helper()
+	want := make(map[int]struct{}, len(expected))
+	for _, index := range expected {
+		want[index] = struct{}{}
+	}
+	for index := range messages {
+		_, marked := want[index]
+		if (messages[index].CacheControl != nil) != marked {
+			t.Fatalf("expected message %d marked=%v, got %#v", index, marked, messages[index].CacheControl)
+		}
+	}
+}

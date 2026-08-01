@@ -36,6 +36,87 @@ func configureOpenAIPromptCacheForRoute(
 	return "", filtered
 }
 
+func configureOpenAIPromptCacheRequestForRoute(
+	route *channel.ResolvedRoute,
+	sessionID string,
+	options map[string]interface{},
+	messages []llm.Message,
+) (string, map[string]interface{}, []llm.Message) {
+	key, configuredOptions := configureOpenAIPromptCacheForRoute(route, sessionID, options)
+	configuredMessages := applyOpenAIPromptCacheMessagePolicy(route, configuredOptions, messages)
+	return key, configuredOptions, configuredMessages
+}
+
+// applyOpenAIPromptCacheMessagePolicy 为显式 OpenAI 缓存选择滚动历史断点。
+// 当前 user 及其动态上下文始终不标记，避免每轮变化的内容成为缓存边界。
+func applyOpenAIPromptCacheMessagePolicy(
+	route *channel.ResolvedRoute,
+	options map[string]interface{},
+	messages []llm.Message,
+) []llm.Message {
+	if !supportsOpenAIPromptCacheRoute(route) || !usesExplicitOpenAIPromptCache(options) {
+		return messages
+	}
+
+	result := cloneLLMMessages(messages)
+	for index := range result {
+		result[index].CacheControl = nil
+	}
+
+	leadingSystemIndex := -1
+	for index := range result {
+		if !strings.EqualFold(strings.TrimSpace(result[index].Role), "system") {
+			break
+		}
+		if openAIPromptCacheMessageNonempty(result[index]) {
+			leadingSystemIndex = index
+		}
+	}
+	if leadingSystemIndex >= 0 {
+		result[leadingSystemIndex].CacheControl = &llm.CacheControl{Type: "ephemeral"}
+	}
+
+	currentUserIndex := -1
+	for index := len(result) - 1; index >= 0; index-- {
+		if strings.EqualFold(strings.TrimSpace(result[index].Role), "user") {
+			currentUserIndex = index
+			break
+		}
+	}
+	if currentUserIndex < 0 {
+		return result
+	}
+
+	historicalBreakpoints := 0
+	for index := currentUserIndex - 1; index >= 0 && historicalBreakpoints < 3; index-- {
+		if !strings.EqualFold(strings.TrimSpace(result[index].Role), "user") ||
+			!openAIPromptCacheMessageNonempty(result[index]) {
+			continue
+		}
+		result[index].CacheControl = &llm.CacheControl{Type: "ephemeral"}
+		historicalBreakpoints++
+	}
+	return result
+}
+
+func openAIPromptCacheMessageNonempty(message llm.Message) bool {
+	if strings.TrimSpace(message.Content) != "" {
+		return true
+	}
+	for _, part := range message.Parts {
+		if part.Kind == llm.ContentPartImage {
+			if len(part.Data) > 0 {
+				return true
+			}
+			continue
+		}
+		if strings.TrimSpace(part.Text) != "" {
+			return true
+		}
+	}
+	return false
+}
+
 func supportsOpenAIPromptCacheRoute(route *channel.ResolvedRoute) bool {
 	_, supported := resolveOpenAIPromptCacheRouteConfig(route)
 	return supported

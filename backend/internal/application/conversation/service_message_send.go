@@ -781,7 +781,12 @@ func (s *Service) sendMessageInternal(
 	if promptCacheSessionKey == "" {
 		promptCacheSessionKey = strings.TrimSpace(conversation.PublicID)
 	}
-	promptCacheKey, filteredOptions := configureOpenAIPromptCacheForRoute(route, promptCacheSessionKey, filteredOptions)
+	promptCacheKey, filteredOptions, llmMessages := configureOpenAIPromptCacheRequestForRoute(
+		route,
+		promptCacheSessionKey,
+		filteredOptions,
+		llmMessages,
+	)
 	generateInput := llm.GenerateInput{
 		RequestID:              strings.TrimSpace(input.RequestID),
 		ConversationID:         input.ConversationID,
@@ -1214,7 +1219,6 @@ func (s *Service) sendMessageInternal(
 		promptPlan = nextPromptPlan
 		reasoningContentPassback = nextReasoningContentPassback
 		llmMessages = promptPlan.Messages
-		fullLLMMessages = llmMessages
 		applyRouteToRun(route)
 		routeConfig = messageRouteConfig(route, attributionReferer, attributionTitle)
 		responsesBackgroundRouteConfig = routeConfig
@@ -1231,11 +1235,13 @@ func (s *Service) sendMessageInternal(
 			reasoningContentPassback,
 			llmMessages,
 		)
-		promptCacheKey, filteredOptions = configureOpenAIPromptCacheForRoute(
+		promptCacheKey, filteredOptions, llmMessages = configureOpenAIPromptCacheRequestForRoute(
 			route,
 			promptCacheSessionKey,
 			filteredOptions,
+			llmMessages,
 		)
+		fullLLMMessages = llmMessages
 		generateInput = llm.GenerateInput{
 			RequestID:              strings.TrimSpace(input.RequestID),
 			ConversationID:         input.ConversationID,

@@ -260,7 +260,7 @@ OpenAI 的 `X-Client-Request-Id` 要求每次请求使用唯一值，应配置�
 
 ## OpenAI Prompt Cache
 
-官方 OpenAI Responses 与 Chat Completions 请求会使用同一会话上下文键作为服务端受控的 `prompt_cache_key`，以保持跨轮缓存亲和。兼容中转站默认不接收 OpenAI Prompt Cache 新字段；确认中转站支持后，需要在模型能力 JSON 中显式声明：
+官方 OpenAI Responses 与 Chat Completions 请求会使用同一会话上下文键作为服务端受控的 `prompt_cache_key`，以保持跨轮缓存亲和；未启用显式模式时仍使用 OpenAI 默认的 implicit breakpoint 行为。兼容中转站默认不接收 OpenAI Prompt Cache 新字段；确认中转站支持后，需要在模型能力 JSON 中显式声明：
 
 ```json
 {
@@ -270,7 +270,7 @@ OpenAI 的 `X-Client-Request-Id` 要求每次请求使用唯一值，应配置�
 }
 ```
 
-官方 OpenAI 也可以用 `promptCache.enabled=false` 显式关闭。缓存策略完全由模型能力配置控制，用户消息请求中的同名 Options 会被忽略。启用显式缓存时，DEEIX 只会把已标记的稳定 system 前缀保留在输入内容块并序列化为 `prompt_cache_breakpoint`，动态 RAG 与本轮用户内容不会被标成稳定断点：
+官方 OpenAI 也可以用 `promptCache.enabled=false` 显式关闭。缓存策略完全由模型能力配置控制，用户消息请求中的同名 Options 会被忽略。启用显式缓存时，DEEIX 会在每轮请求中滚动选择最后一条非空的前导 system 消息和最近三条非空历史 user 消息作为 `prompt_cache_breakpoint`，总数最多为 4；本轮 user、动态 RAG、本轮图片及其他当前轮上下文始终不标记。该滚动历史策略只作用于 explicit 模式，不改变仅使用稳定 `prompt_cache_key` 的 implicit 行为：
 
 ```json
 {
