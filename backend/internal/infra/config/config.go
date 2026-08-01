@@ -63,8 +63,6 @@ func DefaultModelOptionAllowedPathsJSON() string {
     "reasoning_effort",
     "verbosity",
     "thinking.type",
-    "prompt_cache_options.mode",
-    "prompt_cache_options.ttl",
     "stream_options.include_usage"
   ],
   "openrouter_chat_completions": [
@@ -79,8 +77,6 @@ func DefaultModelOptionAllowedPathsJSON() string {
   ],
   "openai_responses": [
     "service_tier",
-    "prompt_cache_options.mode",
-    "prompt_cache_options.ttl",
     "reasoning.effort",
     "reasoning.summary",
     "text.verbosity"
@@ -142,7 +138,11 @@ func DefaultModelOptionAllowedPathsJSON() string {
     "thinking.budget_tokens"
   ],
   "xai_responses": [
-    "reasoning.effort"
+    "reasoning.effort",
+    "min_p",
+    "parallel_tool_calls",
+    "store",
+    "top_k"
   ],
   "xai_image": [
     "aspect_ratio",

@@ -238,67 +238,25 @@ func TestFilterModelOptionsRejectsUnsupportedOpenAIServiceTier(t *testing.T) {
 	}
 }
 
-func TestFilterModelOptionsUsesLockedAdminOpenAIPromptCacheOptions(t *testing.T) {
-	filtered := filterModelOptions(map[string]interface{}{
-		"prompt_cache_options": map[string]interface{}{
-			"mode": "implicit",
-			"ttl":  "24h",
-		},
-		"prompt_cache_key": "user-controlled-key",
-	}, llm.AdapterOpenAIResponses, modelOptionPolicyConfig{
-		Mode:             modelOptionPolicyAllowlist,
-		AllowedPathsJSON: config.DefaultModelOptionAllowedPathsJSON(),
-		DeniedPathsJSON:  config.DefaultModelOptionDeniedPathsJSON(),
-		ModelCapabilitiesJSON: `{
-			"defaultOptions": {
-				"prompt_cache_options": {"mode": "EXPLICIT", "ttl": "30M"}
-			},
-			"lockedOptionPaths": [
-				"prompt_cache_options.mode",
-				"prompt_cache_options.ttl"
-			]
-		}`,
-	})
-
-	cacheOptions, ok := filtered["prompt_cache_options"].(map[string]interface{})
-	if !ok || cacheOptions["mode"] != "explicit" || cacheOptions["ttl"] != "30m" {
-		t.Fatalf("expected normalized OpenAI prompt cache options, got %#v", filtered)
-	}
-	if _, ok := filtered["prompt_cache_key"]; ok {
-		t.Fatalf("expected prompt_cache_key to remain server-controlled, got %#v", filtered)
-	}
-}
-
-func TestFilterModelOptionsRejectsUserOpenAIPromptCacheOptionsWithoutLockedAdminDefault(t *testing.T) {
-	filtered := filterModelOptions(map[string]interface{}{
-		"prompt_cache_options": map[string]interface{}{"mode": "explicit", "ttl": "30m"},
-	}, llm.AdapterOpenAIResponses, modelOptionPolicyConfig{
-		Mode:             modelOptionPolicyAllowlist,
-		AllowedPathsJSON: config.DefaultModelOptionAllowedPathsJSON(),
-		DeniedPathsJSON:  config.DefaultModelOptionDeniedPathsJSON(),
-	})
-	if _, ok := filtered["prompt_cache_options"]; ok {
-		t.Fatalf("expected user prompt cache options to be removed, got %#v", filtered)
-	}
-}
-
-func TestFilterModelOptionsRejectsInvalidAdminOpenAIPromptCacheOptions(t *testing.T) {
-	for _, capabilitiesJSON := range []string{
-		`{"defaultOptions":{"prompt_cache_options":{"mode":"implicit"}},"lockedOptionPaths":["prompt_cache_options.mode"]}`,
-		`{"defaultOptions":{"prompt_cache_options":{"mode":"explicit","ttl":"24h"}},"lockedOptionPaths":["prompt_cache_options.mode","prompt_cache_options.ttl"]}`,
-		`{"defaultOptions":{"prompt_cache_options":{"mode":"explicit"}}}`,
-		`{"defaultOptions":{"prompt_cache_options":{"mode":"explicit","ttl":"30m"}},"lockedOptionPaths":["prompt_cache_options.mode"]}`,
-	} {
+func TestFilterModelOptionsRejectsUserOpenAIPromptCacheFields(t *testing.T) {
+	for _, mode := range []string{modelOptionPolicyAllowlist, modelOptionPolicyDenylist} {
 		filtered := filterModelOptions(map[string]interface{}{
-			"prompt_cache_options": map[string]interface{}{"mode": "explicit", "ttl": "30m"},
-		}, llm.AdapterOpenAIChatCompletions, modelOptionPolicyConfig{
-			Mode:                  modelOptionPolicyAllowlist,
-			AllowedPathsJSON:      config.DefaultModelOptionAllowedPathsJSON(),
-			DeniedPathsJSON:       config.DefaultModelOptionDeniedPathsJSON(),
-			ModelCapabilitiesJSON: capabilitiesJSON,
+			"temperature":             0.2,
+			"prompt_cache_key":        "user-controlled-key",
+			"prompt_cache_options":    map[string]interface{}{"mode": "explicit", "ttl": "30m"},
+			"prompt_cache_breakpoint": map[string]interface{}{"mode": "explicit"},
+			"prompt_cache_retention":  "24h",
+		}, llm.AdapterOpenAIResponses, modelOptionPolicyConfig{
+			Mode:             mode,
+			AllowedPathsJSON: `{"default":["temperature","prompt_cache_key","prompt_cache_options.mode","prompt_cache_options.ttl","prompt_cache_breakpoint","prompt_cache_retention"]}`,
 		})
-		if _, ok := filtered["prompt_cache_options"]; ok {
-			t.Fatalf("expected invalid admin prompt cache options to be removed, capabilities=%s filtered=%#v", capabilitiesJSON, filtered)
+		for _, key := range []string{"prompt_cache_key", "prompt_cache_options", "prompt_cache_breakpoint", "prompt_cache_retention"} {
+			if _, ok := filtered[key]; ok {
+				t.Fatalf("expected %s to remain server-controlled in %s mode, got %#v", key, mode, filtered)
+			}
+		}
+		if filtered["temperature"] != 0.2 {
+			t.Fatalf("expected unrelated options to remain in %s mode, got %#v", mode, filtered)
 		}
 	}
 }

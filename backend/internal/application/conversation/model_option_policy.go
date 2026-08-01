@@ -30,6 +30,7 @@ var hardDeniedModelOptionPaths = [][]string{
 	{"stream"},
 	{"previous_response_id"},
 	{"prompt_cache_key"},
+	{"prompt_cache_options"},
 	{"prompt_cache_breakpoint"},
 	{"prompt_cache_retention"},
 }
@@ -79,7 +80,7 @@ func filterModelOptions(options map[string]interface{}, protocol string, cfg mod
 	for _, path := range denied {
 		deleteModelOptionPath(filtered, path)
 	}
-	sanitizeModelOptionValues(filtered, protocolKey, cfg.ModelCapabilitiesJSON)
+	sanitizeModelOptionValues(filtered, protocolKey)
 	if len(nativeTools) > 0 {
 		if filtered == nil {
 			filtered = make(map[string]interface{})
@@ -489,16 +490,13 @@ func providerToolOptionPayloads(raw interface{}) []map[string]interface{} {
 	}
 }
 
-func sanitizeModelOptionValues(options map[string]interface{}, protocolKey string, capabilitiesJSON string) {
+func sanitizeModelOptionValues(options map[string]interface{}, protocolKey string) {
 	if len(options) == 0 {
 		return
 	}
 	switch protocolKey {
 	case "openai_chat_completions", "openai_responses", "openrouter_responses":
 		sanitizeOpenAIServiceTier(options)
-		if protocolKey == "openai_chat_completions" || protocolKey == "openai_responses" {
-			sanitizeOpenAIPromptCacheOptions(options, capabilitiesJSON)
-		}
 	case "openai_image_generations", "openai_image_edits":
 		value, ok := modelParamIntFromOption(options["partial_images"])
 		if !ok {

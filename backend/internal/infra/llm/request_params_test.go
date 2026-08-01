@@ -244,7 +244,7 @@ func mapKeys(items map[string]struct{}) []string {
 	return keys
 }
 
-func TestBuildOpenAIChatCompletionsRequestBodyDropsLegacyPromptCacheRetention(t *testing.T) {
+func TestBuildOpenAIChatCompletionsRequestBodyKeepsPromptCacheRetention(t *testing.T) {
 	payload := mustBuildRequestBody(t, AdapterOpenAIChatCompletions, "gpt-5", EndpointChatCompletions, GenerateInput{
 		Messages: []Message{{Role: "user", Content: "hello"}},
 		Options: map[string]interface{}{
@@ -278,8 +278,8 @@ func TestBuildOpenAIChatCompletionsRequestBodyDropsLegacyPromptCacheRetention(t 
 	if payload["seed"] != 1234 {
 		t.Fatalf("expected seed=1234, got %#v", payload["seed"])
 	}
-	if _, exists := payload["prompt_cache_retention"]; exists {
-		t.Fatalf("expected legacy prompt_cache_retention to be omitted, got %#v", payload["prompt_cache_retention"])
+	if payload["prompt_cache_retention"] != "24h" {
+		t.Fatalf("expected prompt_cache_retention=24h, got %#v", payload["prompt_cache_retention"])
 	}
 	stops, ok := payload["stop"].([]string)
 	if !ok || len(stops) != 2 || stops[0] != "END" || stops[1] != "STOP" {
@@ -466,7 +466,7 @@ func TestBuildOpenAIChatCompletionsNativeToolOptions(t *testing.T) {
 	}
 }
 
-func TestBuildOpenAIResponsesRequestBodyWebSearchDropsLegacyPromptCacheRetention(t *testing.T) {
+func TestBuildOpenAIResponsesRequestBodyWebSearchKeepsPromptCacheRetention(t *testing.T) {
 	payload := mustBuildRequestBody(t, AdapterOpenAIResponses, "gpt-5", EndpointResponses, GenerateInput{
 		Messages: []Message{{Role: "user", Content: "hello"}},
 		Options: map[string]interface{}{
@@ -508,8 +508,8 @@ func TestBuildOpenAIResponsesRequestBodyWebSearchDropsLegacyPromptCacheRetention
 	if !ok || len(include) != 2 || include[0] != "reasoning.encrypted_content" || include[1] != "web_search_call.action.sources" {
 		t.Fatalf("expected web search sources include, got %#v", payload["include"])
 	}
-	if _, exists := payload["prompt_cache_retention"]; exists {
-		t.Fatalf("expected legacy prompt_cache_retention to be omitted, got %#v", payload["prompt_cache_retention"])
+	if payload["prompt_cache_retention"] != "in_memory" {
+		t.Fatalf("expected prompt_cache_retention=in_memory, got %#v", payload["prompt_cache_retention"])
 	}
 }
 
@@ -521,7 +521,8 @@ func TestBuildOpenAIResponsesUsesConfiguredExplicitPromptCache(t *testing.T) {
 			{Role: "user", Content: "dynamic rag context"},
 		},
 		Options: map[string]interface{}{
-			"prompt_cache_options": map[string]interface{}{"mode": "explicit", "ttl": "30m"},
+			"prompt_cache_options":   map[string]interface{}{"mode": "explicit", "ttl": "30m"},
+			"prompt_cache_retention": "24h",
 		},
 	}, false)
 
@@ -531,6 +532,9 @@ func TestBuildOpenAIResponsesUsesConfiguredExplicitPromptCache(t *testing.T) {
 	cacheOptions, ok := payload["prompt_cache_options"].(map[string]interface{})
 	if !ok || cacheOptions["mode"] != "explicit" || cacheOptions["ttl"] != "30m" {
 		t.Fatalf("expected configured explicit cache options, got %#v", payload["prompt_cache_options"])
+	}
+	if _, ok := payload["prompt_cache_retention"]; ok {
+		t.Fatalf("expected explicit cache mode to omit implicit retention, got %#v", payload["prompt_cache_retention"])
 	}
 	items := payload["input"].([]map[string]interface{})
 	stableContent := items[0]["content"].([]map[string]interface{})
