@@ -22,6 +22,10 @@ import {
 } from "@/components/ui/accordion";
 import { Marker, MarkerContent } from "@/components/ui/marker";
 import { cn } from "@/lib/utils";
+import {
+  AdaptiveMarkdownTable,
+  MarkdownTableStreamingContext,
+} from "./adaptive-markdown-table";
 import { useMarkdownCopy } from "./use-markdown-copy";
 
 import {
@@ -215,19 +219,6 @@ const BASE_MARKDOWN_CLASSNAME = cn(
   "[&_[data-streamdown='mermaid-block-actions']_button]:border-0 [&_[data-streamdown='mermaid-block-actions']_button]:bg-transparent [&_[data-streamdown='mermaid-block-actions']_button]:shadow-none [&_[data-streamdown='mermaid-block-actions']_button:hover]:bg-foreground/[0.04] [&_[data-streamdown='mermaid-block-actions']_button:hover]:text-foreground",
   "[&_[data-streamdown='mermaid-block-actions']_svg]:size-3",
   "[&_[data-streamdown='mermaid-block']_button>svg]:size-3",
-  "[&_[data-streamdown='table-wrapper']]:my-4 [&_[data-streamdown='table-wrapper']]:!w-full [&_[data-streamdown='table-wrapper']]:min-w-0 [&_[data-streamdown='table-wrapper']]:gap-0 [&_[data-streamdown='table-wrapper']]:border-0 [&_[data-streamdown='table-wrapper']]:rounded-none [&_[data-streamdown='table-wrapper']]:bg-transparent [&_[data-streamdown='table-wrapper']]:p-0 [&_[data-streamdown='table-wrapper']]:shadow-none [&_[data-streamdown='table-wrapper']]:outline-none [&_[data-streamdown='table-wrapper']]:ring-0",
-  "[&_[data-streamdown='table-wrapper']>div:last-child]:!w-full [&_[data-streamdown='table-wrapper']>div:last-child]:min-w-0 [&_[data-streamdown='table-wrapper']>div:last-child]:overflow-x-auto [&_[data-streamdown='table-wrapper']>div:last-child]:overflow-y-hidden [&_[data-streamdown='table-wrapper']>div:last-child]:border-0 [&_[data-streamdown='table-wrapper']>div:last-child]:rounded-none [&_[data-streamdown='table-wrapper']>div:last-child]:bg-transparent [&_[data-streamdown='table-wrapper']>div:last-child]:p-0 [&_[data-streamdown='table-wrapper']>div:last-child]:shadow-none [&_[data-streamdown='table-wrapper']>div:last-child]:outline-none [&_[data-streamdown='table-wrapper']>div:last-child]:ring-0",
-  "[&_table]:my-2 [&_table]:!min-w-full [&_table]:!w-full [&_table]:border-collapse [&_table]:table-auto [&_table]:border-0 [&_table]:outline-none [&_table]:shadow-none [&_table]:ring-0 [&_table]:bg-transparent",
-  "[&_table]:max-w-none [&_table]:rounded-none",
-  "[&_thead]:border-table-border [&_tbody]:border-table-border [&_tfoot]:border-table-border",
-  "[&_tr]:border-table-border/50 [&_thead_tr]:border-table-border/50 [&_tbody_tr]:border-table-border/50",
-  "[&_th]:px-0 [&_th]:py-2 [&_th]:pr-8 [&_th]:text-left [&_th]:align-bottom [&_th]:font-semibold [&_th]:tracking-[-0.01em] [&_th]:text-foreground",
-  "[&_td]:px-0 [&_td]:py-1 [&_td]:pr-8 [&_td]:align-middle [&_td]:leading-8 [&_td]:text-foreground/90",
-  "[&_th]:border-0 [&_td]:border-0",
-  "[&_th:last-child]:pr-0 [&_td:last-child]:pr-0",
-  "[&_thead]:bg-transparent [&_tbody]:bg-transparent [&_tr]:bg-transparent",
-  "[&_div:has(>table)]:border-0 [&_div:has(>table)]:outline-none [&_div:has(>table)]:ring-0 [&_div:has(>table)]:rounded-none [&_div:has(>table)]:bg-transparent [&_div:has(>table)]:shadow-none",
-  "[&_table_*]:outline-none [&_table_*]:ring-0",
   "[&_code:not(pre_code)]:rounded-md [&_code:not(pre_code)]:bg-foreground/[0.05] [&_code:not(pre_code)]:px-1.5 [&_code:not(pre_code)]:py-0.5 [&_code:not(pre_code)]:font-mono [&_code:not(pre_code)]:text-[0.85em] [&_code:not(pre_code)]:text-primary [&_code:not(pre_code)]:whitespace-pre-wrap [&_code:not(pre_code)]:break-words [&_code:not(pre_code)]:[overflow-wrap:anywhere]",
   "[&_[data-streamdown='code-block']]:my-4 [&_[data-streamdown='code-block']]:!w-full [&_[data-streamdown='code-block']]:min-w-0 [&_[data-streamdown='code-block']]:gap-0 [&_[data-streamdown='code-block']]:border-0 [&_[data-streamdown='code-block']]:rounded-none [&_[data-streamdown='code-block']]:bg-transparent [&_[data-streamdown='code-block']]:p-0 [&_[data-streamdown='code-block']]:shadow-none [&_[data-streamdown='code-block']]:outline-none [&_[data-streamdown='code-block']]:ring-0",
   "[&_[data-streamdown='code-block']>div:first-child]:min-h-0 [&_[data-streamdown='code-block']>div:first-child]:justify-between [&_[data-streamdown='code-block']>div:first-child]:gap-2 [&_[data-streamdown='code-block']>div:first-child]:border-0 [&_[data-streamdown='code-block']>div:first-child]:bg-transparent [&_[data-streamdown='code-block']>div:first-child]:mt-2 [&_[data-streamdown='code-block']>div:first-child]:pb-6 [&_[data-streamdown='code-block']>div:first-child]:text-[11px] [&_[data-streamdown='code-block']>div:first-child]:font-medium [&_[data-streamdown='code-block']>div:first-child]:tracking-[0.06em] [&_[data-streamdown='code-block']>div:first-child]:text-muted-foreground/85 [&_[data-streamdown='code-block']>div:first-child]:shadow-none",
@@ -309,6 +300,7 @@ const DEFAULT_STREAMDOWN_COMPONENTS = {
   span: MarkdownHTMLSpan,
   strong: MarkdownStrong,
   summary: MarkdownHTMLSummary,
+  table: AdaptiveMarkdownTable,
 } as const;
 
 const THINKING_STREAMDOWN_COMPONENTS = {
@@ -659,14 +651,15 @@ export const StreamdownRender = React.memo(function StreamdownRender({
       onKeyDownCapture={handleMarkdownCopyKeyDownCapture}
       onPointerDownCapture={handleMarkdownCopyPointerDownCapture}
     >
-      {mergedThinkingContent ? (
-        <ThinkingSegmentBlock
-          content={mergedThinkingContent}
-          incomplete={hasIncompleteThinking}
-          plugins={plugins}
-          streaming={streaming}
-        />
-      ) : null}
+      <MarkdownTableStreamingContext.Provider value={streaming}>
+        {mergedThinkingContent ? (
+          <ThinkingSegmentBlock
+            content={mergedThinkingContent}
+            incomplete={hasIncompleteThinking}
+            plugins={plugins}
+            streaming={streaming}
+          />
+        ) : null}
       {markdownSegments.map((segment, index) => (
         <MarkdownArtifactActionsContext.Provider key={`markdown-${index}`} value={artifactActions ?? null}>
           <MarkdownImageActionsContext.Provider value={imageActions ?? null}>
@@ -696,7 +689,8 @@ export const StreamdownRender = React.memo(function StreamdownRender({
             </HTMLMarkdownRenderProvider>
           </MarkdownImageActionsContext.Provider>
         </MarkdownArtifactActionsContext.Provider>
-      ))}
+        ))}
+      </MarkdownTableStreamingContext.Provider>
     </div>
   );
 });

@@ -122,6 +122,8 @@
     "previewImage": "Preview image",
     "editImage": "Edit image",
     "downloadImage": "Download image",
+    "scrollableTable": "Scrollable data table",
+    "scrollableTableHint": "Scroll horizontally to view more columns.",
     "copyLatex": "Copy formula source",
     "latexCopied": "Formula source copied",
     "latexCopyFailed": "Could not copy formula source",
