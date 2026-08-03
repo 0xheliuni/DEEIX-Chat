@@ -781,7 +781,12 @@ func (s *Service) sendMessageInternal(
 	if promptCacheSessionKey == "" {
 		promptCacheSessionKey = strings.TrimSpace(conversation.PublicID)
 	}
-	promptCacheKey, filteredOptions := configureOpenAIPromptCacheForRoute(route, promptCacheSessionKey, filteredOptions)
+	promptCacheKey, filteredOptions, llmMessages := configureOpenAIPromptCacheRequestForRoute(
+		route,
+		promptCacheSessionKey,
+		filteredOptions,
+		llmMessages,
+	)
 	generateInput := llm.GenerateInput{
 		RequestID:              strings.TrimSpace(input.RequestID),
 		ConversationID:         input.ConversationID,
@@ -819,19 +824,15 @@ func (s *Service) sendMessageInternal(
 		conversation.LastResponseID,
 		conversation.LastPromptFingerprint,
 		statefulPrefixFingerprint,
+		filteredOptions,
 	)
-	if routeConfig.Endpoint == llm.EndpointResponses && statefulDecision.PreviousResponseID != "" {
-		statefulMessages := buildStatefulResponseMessages(llmMessages)
-		if len(statefulMessages) > 0 && len(statefulMessages) < len(llmMessages) {
-			generateInput.Messages = statefulMessages
-			generateInput.PreviousResponseID = statefulDecision.PreviousResponseID
-			estimatedPromptTokens = estimateGenerateInputTokens(generateInput)
-			sendSpan.SetAttributes(
-				attribute.Bool("conversation.stateful_response", true),
-				attribute.Int("conversation.stateful_full_messages", len(llmMessages)),
-				attribute.Int("conversation.stateful_sent_messages", len(statefulMessages)),
-			)
-		}
+	if applyStatefulResponseContinuation(routeConfig.Endpoint, statefulDecision, &generateInput) {
+		estimatedPromptTokens = estimateGenerateInputTokens(generateInput)
+		sendSpan.SetAttributes(
+			attribute.Bool("conversation.stateful_response", true),
+			attribute.Int("conversation.stateful_full_messages", len(llmMessages)),
+			attribute.Int("conversation.stateful_sent_messages", len(generateInput.Messages)),
+		)
 	} else if strings.TrimSpace(statefulDecision.DisabledReason) != "" {
 		sendSpan.SetAttributes(attribute.String("conversation.stateful_disabled_reason", statefulDecision.DisabledReason))
 	}
@@ -1214,7 +1215,6 @@ func (s *Service) sendMessageInternal(
 		promptPlan = nextPromptPlan
 		reasoningContentPassback = nextReasoningContentPassback
 		llmMessages = promptPlan.Messages
-		fullLLMMessages = llmMessages
 		applyRouteToRun(route)
 		routeConfig = messageRouteConfig(route, attributionReferer, attributionTitle)
 		responsesBackgroundRouteConfig = routeConfig
@@ -1231,11 +1231,13 @@ func (s *Service) sendMessageInternal(
 			reasoningContentPassback,
 			llmMessages,
 		)
-		promptCacheKey, filteredOptions = configureOpenAIPromptCacheForRoute(
+		promptCacheKey, filteredOptions, llmMessages = configureOpenAIPromptCacheRequestForRoute(
 			route,
 			promptCacheSessionKey,
 			filteredOptions,
+			llmMessages,
 		)
+		fullLLMMessages = llmMessages
 		generateInput = llm.GenerateInput{
 			RequestID:              strings.TrimSpace(input.RequestID),
 			ConversationID:         input.ConversationID,
