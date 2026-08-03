@@ -147,6 +147,20 @@ func TestBuildMessageProcessTraceDTOIncludesOrderedEvents(t *testing.T) {
 	}
 }
 
+func TestTracePayloadJSONBoundsOversizedPayload(t *testing.T) {
+	secret := strings.Repeat("x", maxTracePayloadBytes+1)
+	serialized := tracePayloadJSON(map[string]interface{}{"upstream_debug": secret})
+	if len(serialized) >= maxTracePayloadBytes {
+		t.Fatalf("expected bounded trace payload, got %d bytes", len(serialized))
+	}
+	if strings.Contains(serialized, secret[:1024]) {
+		t.Fatal("oversized trace payload must not retain original content")
+	}
+	if !strings.Contains(serialized, `"payloadOmitted":true`) {
+		t.Fatalf("expected payload omission marker, got %s", serialized)
+	}
+}
+
 func TestProcessTraceStaysStreamingUntilNextVisiblePhase(t *testing.T) {
 	recorder := &messageTraceRecorder{
 		cfg: config.Config{

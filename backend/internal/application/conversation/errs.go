@@ -5,6 +5,8 @@ import "errors"
 var (
 	// ErrConversationNotFound 会话不存在或无权限。
 	ErrConversationNotFound = errors.New("conversation not found")
+	// ErrConversationEventNotFound 对话事件日志不存在。
+	ErrConversationEventNotFound = errors.New("conversation event not found")
 	// ErrConversationShareNotFound 会话分享不存在、已关闭或原会话已删除。
 	ErrConversationShareNotFound = errors.New("conversation share not found")
 	// ErrInvalidConversationShare 会话分享请求不合法。

@@ -279,13 +279,19 @@ func sanitizeUpstreamDebugSnapshot(debug *llm.UpstreamDebugSnapshot) *llm.Upstre
 	}
 	return &llm.UpstreamDebugSnapshot{
 		Request: llm.UpstreamDebugRequest{
-			Method: debug.Request.Method,
-			Path:   debug.Request.Path,
-			Body:   sanitizeUpstreamNameJSON(debug.Request.Body),
+			Method:        debug.Request.Method,
+			Path:          debug.Request.Path,
+			Body:          sanitizeUpstreamNameJSON(llm.SanitizeUpstreamDebugBody(debug.Request.Body)),
+			BodyBytes:     debug.Request.BodyBytes,
+			BodyTruncated: debug.Request.BodyTruncated,
+			RedactedParts: debug.Request.RedactedParts,
 		},
 		Response: llm.UpstreamDebugResponse{
-			StatusCode: debug.Response.StatusCode,
-			Body:       sanitizeUpstreamNameJSON(debug.Response.Body),
+			StatusCode:    debug.Response.StatusCode,
+			Body:          sanitizeUpstreamNameJSON(llm.SanitizeUpstreamDebugBody(debug.Response.Body)),
+			BodyBytes:     debug.Response.BodyBytes,
+			BodyTruncated: debug.Response.BodyTruncated,
+			RedactedParts: debug.Response.RedactedParts,
 		},
 	}
 }
