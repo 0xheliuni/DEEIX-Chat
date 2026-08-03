@@ -296,6 +296,8 @@ func TestBuildOpenAIChatCompletionsUsesConfiguredGPT56PromptCachePrefix(t *testi
 		PromptCacheKey: "session-123",
 		Messages: []Message{
 			{Role: "system", Content: "stable policy", CacheControl: &CacheControl{Type: "ephemeral"}},
+			{Role: "user", Content: "historical question", CacheControl: &CacheControl{Type: "ephemeral"}},
+			{Role: "assistant", Content: "historical answer"},
 			{Role: "user", Content: "dynamic rag context"},
 		},
 		Options: map[string]interface{}{
@@ -319,8 +321,15 @@ func TestBuildOpenAIChatCompletionsUsesConfiguredGPT56PromptCachePrefix(t *testi
 	if !ok || breakpoint["mode"] != "explicit" {
 		t.Fatalf("expected explicit breakpoint on stable prefix, got %#v", stableContent[0])
 	}
-	if _, ok := messages[1]["content"].(string); !ok {
-		t.Fatalf("expected dynamic user content to remain unmarked string, got %#v", messages[1]["content"])
+	historicalContent, ok := messages[1]["content"].([]map[string]interface{})
+	if !ok || len(historicalContent) != 1 {
+		t.Fatalf("expected cacheable historical user content block, got %#v", messages[1]["content"])
+	}
+	if _, ok := historicalContent[0]["prompt_cache_breakpoint"].(map[string]interface{}); !ok {
+		t.Fatalf("expected explicit breakpoint on historical user, got %#v", historicalContent[0])
+	}
+	if _, ok := messages[3]["content"].(string); !ok {
+		t.Fatalf("expected current user content to remain unmarked string, got %#v", messages[3]["content"])
 	}
 }
 
@@ -518,6 +527,8 @@ func TestBuildOpenAIResponsesUsesConfiguredExplicitPromptCache(t *testing.T) {
 		PromptCacheKey: "session-456",
 		Messages: []Message{
 			{Role: "system", Content: "stable policy", CacheControl: &CacheControl{Type: "ephemeral"}},
+			{Role: "user", Content: "historical question", CacheControl: &CacheControl{Type: "ephemeral"}},
+			{Role: "assistant", Content: "historical answer"},
 			{Role: "user", Content: "dynamic rag context"},
 		},
 		Options: map[string]interface{}{
@@ -542,39 +553,57 @@ func TestBuildOpenAIResponsesUsesConfiguredExplicitPromptCache(t *testing.T) {
 	if !ok || breakpoint["mode"] != "explicit" {
 		t.Fatalf("expected explicit Responses breakpoint, got %#v", stableContent[0])
 	}
-	dynamicContent := items[1]["content"].([]map[string]interface{})
+	historicalContent := items[1]["content"].([]map[string]interface{})
+	if _, ok := historicalContent[0]["prompt_cache_breakpoint"].(map[string]interface{}); !ok {
+		t.Fatalf("expected explicit Responses breakpoint on historical user, got %#v", historicalContent[0])
+	}
+	dynamicContent := items[3]["content"].([]map[string]interface{})
 	if _, ok := dynamicContent[0]["prompt_cache_breakpoint"]; ok {
-		t.Fatalf("expected dynamic user content to remain outside explicit cache prefix, got %#v", dynamicContent[0])
+		t.Fatalf("expected current user content to remain outside explicit cache prefix, got %#v", dynamicContent[0])
 	}
 }
 
-func TestBuildOpenAIResponsesLimitsExplicitPromptCacheBreakpoints(t *testing.T) {
-	messages := make([]Message, 0, 6)
-	for index := 0; index < 6; index++ {
-		messages = append(messages, Message{
-			Role:         "system",
-			Content:      "stable",
-			CacheControl: &CacheControl{Type: "ephemeral"},
-		})
+func TestBuildOpenAIRequestsPreserveAllExplicitPromptCacheBreakpoints(t *testing.T) {
+	tests := []struct {
+		name     string
+		adapter  string
+		endpoint string
+		field    string
+	}{
+		{name: "responses", adapter: AdapterOpenAIResponses, endpoint: EndpointResponses, field: "input"},
+		{name: "chat completions", adapter: AdapterOpenAIChatCompletions, endpoint: EndpointChatCompletions, field: "messages"},
 	}
-	payload := mustBuildRequestBody(t, AdapterOpenAIResponses, "gpt-5.6", EndpointResponses, GenerateInput{
-		PromptCacheKey: "session-789",
-		Messages:       messages,
-		Options: map[string]interface{}{
-			"prompt_cache_options": map[string]interface{}{"mode": "explicit"},
-		},
-	}, false)
 
-	count := 0
-	for _, item := range payload["input"].([]map[string]interface{}) {
-		for _, block := range item["content"].([]map[string]interface{}) {
-			if _, ok := block["prompt_cache_breakpoint"]; ok {
-				count++
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			messages := make([]Message, 0, 6)
+			for index := 0; index < 6; index++ {
+				messages = append(messages, Message{
+					Role:         "system",
+					Content:      "stable",
+					CacheControl: &CacheControl{Type: "ephemeral"},
+				})
 			}
-		}
-	}
-	if count != openAIMaxCacheBreakpoints {
-		t.Fatalf("expected at most %d explicit breakpoints, got %d", openAIMaxCacheBreakpoints, count)
+			payload := mustBuildRequestBody(t, test.adapter, "gpt-5.6", test.endpoint, GenerateInput{
+				PromptCacheKey: "session-789",
+				Messages:       messages,
+				Options: map[string]interface{}{
+					"prompt_cache_options": map[string]interface{}{"mode": "explicit"},
+				},
+			}, false)
+
+			count := 0
+			for _, item := range payload[test.field].([]map[string]interface{}) {
+				for _, block := range item["content"].([]map[string]interface{}) {
+					if _, ok := block["prompt_cache_breakpoint"]; ok {
+						count++
+					}
+				}
+			}
+			if count != len(messages) {
+				t.Fatalf("expected all %d explicit breakpoints, got %d", len(messages), count)
+			}
+		})
 	}
 }
 
