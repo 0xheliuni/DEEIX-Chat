@@ -88,6 +88,25 @@ func TestMessageErrorSummaryIncludesUpstreamBody(t *testing.T) {
 	}
 }
 
+func TestMessageErrorDebugSanitizesRawBinarySnapshot(t *testing.T) {
+	err := wrapUpstreamRequestError(&llm.UpstreamError{
+		StatusCode: 400,
+		Message:    "unsupported image",
+		Debug: &llm.UpstreamDebugSnapshot{
+			Request: llm.UpstreamDebugRequest{
+				Method: "POST",
+				Path:   "/v1/chat/completions",
+				Body:   `{"messages":[{"content":[{"image_url":{"url":"data:image/png;base64,eA=="}}]}]}`,
+			},
+		},
+	})
+
+	debug := MessageErrorDebug(err)
+	if debug == nil || strings.Contains(debug.Request.Body, "data:image/png;base64,eA==") {
+		t.Fatalf("expected raw binary snapshot to be sanitized, got %#v", debug)
+	}
+}
+
 func TestMessageErrorSummaryHidesRawSSEForSuccessfulHTTPStatus(t *testing.T) {
 	err := wrapUpstreamRequestError(&llm.UpstreamError{
 		StatusCode: 200,

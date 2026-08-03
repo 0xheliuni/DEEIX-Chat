@@ -774,17 +774,23 @@ type UpstreamDebugSnapshot struct {
 
 // UpstreamDebugRequest 表示上游请求侧的调试信息。
 type UpstreamDebugRequest struct {
-	Method  string            `json:"method"`
-	Path    string            `json:"path"`
-	Headers map[string]string `json:"headers,omitempty"`
-	Body    string            `json:"body"`
+	Method        string            `json:"method"`
+	Path          string            `json:"path"`
+	Headers       map[string]string `json:"headers,omitempty"`
+	Body          string            `json:"body"`
+	BodyBytes     int               `json:"bodyBytes,omitempty"`
+	BodyTruncated bool              `json:"bodyTruncated,omitempty"`
+	RedactedParts int               `json:"redactedParts,omitempty"`
 }
 
 // UpstreamDebugResponse 表示上游响应侧的调试信息。
 type UpstreamDebugResponse struct {
-	StatusCode int               `json:"statusCode"`
-	Headers    map[string]string `json:"headers,omitempty"`
-	Body       string            `json:"body"`
+	StatusCode    int               `json:"statusCode"`
+	Headers       map[string]string `json:"headers,omitempty"`
+	Body          string            `json:"body"`
+	BodyBytes     int               `json:"bodyBytes,omitempty"`
+	BodyTruncated bool              `json:"bodyTruncated,omitempty"`
+	RedactedParts int               `json:"redactedParts,omitempty"`
 }
 
 func (e *UpstreamError) Error() string {
@@ -1193,17 +1199,25 @@ func upstreamDebugSnapshot(req *http.Request, requestBody []byte, resp *http.Res
 			path += "?" + req.URL.RawQuery
 		}
 	}
+	requestDebugBody := sanitizeUpstreamDebugBody(requestBody)
+	responseDebugBody := sanitizeUpstreamDebugBody(responseBody)
 	return &UpstreamDebugSnapshot{
 		Request: UpstreamDebugRequest{
-			Method:  req.Method,
-			Path:    path,
-			Headers: redactHeaders(req.Header),
-			Body:    string(requestBody),
+			Method:        req.Method,
+			Path:          path,
+			Headers:       redactHeaders(req.Header),
+			Body:          requestDebugBody.Body,
+			BodyBytes:     requestDebugBody.OriginalBytes,
+			BodyTruncated: requestDebugBody.Truncated,
+			RedactedParts: requestDebugBody.RedactedParts,
 		},
 		Response: UpstreamDebugResponse{
-			StatusCode: responseStatusCode(resp),
-			Headers:    responseHeaders(resp),
-			Body:       string(responseBody),
+			StatusCode:    responseStatusCode(resp),
+			Headers:       responseHeaders(resp),
+			Body:          responseDebugBody.Body,
+			BodyBytes:     responseDebugBody.OriginalBytes,
+			BodyTruncated: responseDebugBody.Truncated,
+			RedactedParts: responseDebugBody.RedactedParts,
 		},
 	}
 }

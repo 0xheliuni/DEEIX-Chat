@@ -554,6 +554,24 @@ export interface CircuitResetResponse {
   reset: boolean;
 }
 
+export interface CleanupConversationRunsRequest {
+  /**
+   * @maxItems 100
+   * @minItems 1
+   */
+  runIDs: string[];
+}
+
+export interface CleanupConversationRunsResponse {
+  deletedCount: number;
+  runCount: number;
+}
+
+export interface CleanupConversationRunsResponseDoc {
+  data: CleanupConversationRunsResponse;
+  errorMsg: string;
+}
+
 export interface CleanupLogsRequest {
   before: string;
   type: string;
@@ -626,6 +644,11 @@ export interface ConversationErrorDoc {
   requestId?: string;
 }
 
+export interface ConversationEventDetailResponseDoc {
+  data: ConversationEventResponse;
+  errorMsg: string;
+}
+
 export interface ConversationEventListResponseDoc {
   data: {
     results: ConversationEventResponse[];
@@ -650,6 +673,8 @@ export interface ConversationEventResponse {
   outputJSON: string;
   parentEventID: string;
   payloadJSON: string;
+  payloadOmitted: boolean;
+  payloadSizeBytes: number;
   phase: string;
   platformModelName: string;
   providerProtocol: string;
@@ -4006,6 +4031,41 @@ export namespace Admin {
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = ConversationEventListResponseDoc;
+  }
+
+  /**
+   * @description 物理删除指定运行的全部对话事件；保留消息、附件、调用与计费记录
+   * @tags admin
+   * @name ConversationEventsCleanupCreate
+   * @summary 管理员按运行清理对话事件
+   * @request POST:/admin/conversation-events/cleanup
+   * @secure
+   */
+  export namespace ConversationEventsCleanupCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = CleanupConversationRunsRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = CleanupConversationRunsResponseDoc;
+  }
+
+  /**
+   * @description 管理员按事件 ID 查看单条对话运行事件详情；超大历史负载会被安全省略
+   * @tags admin
+   * @name ConversationEventsDetail
+   * @summary 管理员查询对话事件详情
+   * @request GET:/admin/conversation-events/{id}
+   * @secure
+   */
+  export namespace ConversationEventsDetail {
+    export type RequestParams = {
+      /** 事件 ID */
+      id: number;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = ConversationEventDetailResponseDoc;
   }
 
   /**

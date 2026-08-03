@@ -247,8 +247,8 @@
     "retry": "请重试。",
     "policy": {
       "mimeNotAllowed": "当前文件类型不在后台允许的 MIME 白名单内。",
-      "fullContextLimitExceeded": "当前未启用向量检索，只允许上传可走全文注入的小文件。当前文件超过 {limit} KB 上限。",
-      "sizeLimitExceeded": "当前文件超过 {limit} KB 上限。"
+      "fullContextLimitExceeded": "当前未启用向量检索，只允许上传可走全文注入的小文件。当前文件超过 {limit} 上限。",
+      "sizeLimitExceeded": "当前文件超过 {limit} 上限。"
     }
   },
   "submit": {

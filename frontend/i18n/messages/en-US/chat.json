@@ -247,8 +247,8 @@
     "retry": "Please try again.",
     "policy": {
       "mimeNotAllowed": "This file type is not included in the admin MIME allowlist.",
-      "fullContextLimitExceeded": "Vector retrieval is disabled. Only small files that fit full-context injection can be uploaded, and this file exceeds the {limit} KB limit.",
-      "sizeLimitExceeded": "This file exceeds the {limit} KB limit."
+      "fullContextLimitExceeded": "Vector retrieval is disabled. Only small files that fit full-context injection can be uploaded, and this file exceeds the {limit} limit.",
+      "sizeLimitExceeded": "This file exceeds the {limit} limit."
     }
   },
   "submit": {
