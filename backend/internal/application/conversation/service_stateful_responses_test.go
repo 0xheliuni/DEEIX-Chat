@@ -283,6 +283,43 @@ func TestExplicitPromptCacheSecondResponsesTurnKeepsHistoricalUserBreakpoint(t *
 	}
 }
 
+func TestExplicitPromptCacheWithoutMessageBreakpointsKeepsStatefulResponses(t *testing.T) {
+	route := &channel.ResolvedRoute{
+		Protocol:              llm.AdapterOpenAIResponses,
+		BaseURL:               "https://api.openai.com/v1",
+		ModelCapabilitiesJSON: `{"promptCache":{"mode":"explicit","ttl":"30m","messageBreakpoints":false}}`,
+	}
+	secondTurn := []llm.Message{
+		{Role: "system", Content: "stable policy"},
+		{Role: "user", Content: "first question"},
+		{Role: "assistant", Content: "first answer"},
+		{Role: "user", Content: "second question"},
+	}
+	_, options, configuredMessages := configureOpenAIPromptCacheRequestForRoute(route, "session-1", nil, secondTurn)
+	input := llm.GenerateInput{Messages: configuredMessages, Options: options}
+	applyOpenAIResponsesInstructions(route, llm.EndpointResponses, &input)
+
+	if input.Instructions != "stable policy" {
+		t.Fatalf("expected instructions to remain available for stateful continuation, got %q", input.Instructions)
+	}
+	for index, message := range input.Messages {
+		if message.CacheControl != nil {
+			t.Fatalf("expected message %d to remain unmarked, got %#v", index, message.CacheControl)
+		}
+	}
+
+	decision := resolveStatefulPreviousResponseID(route, "default", "resp_123", "fp_a", "fp_a", options)
+	if decision.PreviousResponseID != "resp_123" || decision.DisabledReason != "" {
+		t.Fatalf("expected stateful continuation without message breakpoints, got %#v", decision)
+	}
+	if !applyStatefulResponseContinuation(llm.EndpointResponses, decision, &input) {
+		t.Fatal("expected stateful continuation to be applied")
+	}
+	if input.PreviousResponseID != "resp_123" || len(input.Messages) != 1 || input.Messages[0].Content != "second question" {
+		t.Fatalf("expected latest user message with previous_response_id, got %#v", input)
+	}
+}
+
 func TestPromptStateFingerprintMatchesPrefixAfterAssistantAppend(t *testing.T) {
 	firstPrompt := []llm.Message{
 		{Role: "system", Content: "policy"},

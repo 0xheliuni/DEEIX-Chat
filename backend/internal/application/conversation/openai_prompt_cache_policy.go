@@ -217,6 +217,17 @@ func usesExplicitOpenAIPromptCache(options map[string]interface{}) bool {
 	return ok && strings.EqualFold(strings.TrimSpace(mode), "explicit")
 }
 
+func usesExplicitOpenAIPromptCacheMessageBreakpoints(
+	route *channel.ResolvedRoute,
+	options map[string]interface{},
+) bool {
+	if !usesExplicitOpenAIPromptCache(options) {
+		return false
+	}
+	config, supported := resolveOpenAIPromptCacheRouteConfig(route)
+	return supported && config.MessageBreakpoints
+}
+
 func normalizeOpenAIPromptCacheRetention(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "in-memory", "in_memory":

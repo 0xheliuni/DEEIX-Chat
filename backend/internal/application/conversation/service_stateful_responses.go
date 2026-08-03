@@ -23,7 +23,7 @@ func resolveStatefulPreviousResponseID(
 	currentPrefixFingerprint string,
 	options map[string]interface{},
 ) statefulResponseDecision {
-	if usesExplicitOpenAIPromptCache(options) {
+	if usesExplicitOpenAIPromptCacheMessageBreakpoints(route, options) {
 		return statefulResponseDecision{DisabledReason: "explicit_prompt_cache"}
 	}
 	responseID := resolvePreviousResponseID(route, branchReason, lastResponseID)
@@ -141,8 +141,8 @@ func applyOpenAIResponsesInstructions(route *channel.ResolvedRoute, endpoint str
 		return
 	}
 	// Responses 的显式缓存断点只能位于 input 内容块。保留完整已标记前缀，
-	// 使其 CacheControl 能序列化；显式缓存请求也会绕过 previous_response_id。
-	if usesExplicitOpenAIPromptCache(input.Options) {
+	// 使其 CacheControl 能序列化；启用消息断点时也会绕过 previous_response_id。
+	if usesExplicitOpenAIPromptCacheMessageBreakpoints(route, input.Options) {
 		return
 	}
 	instructions, messages := extractOpenAIResponsesInstructions(input.Messages)
