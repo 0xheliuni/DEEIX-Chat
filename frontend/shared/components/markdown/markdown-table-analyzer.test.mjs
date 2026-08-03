@@ -60,6 +60,28 @@ test("recognizes all-numeric values including money and percentages", () => {
   );
 });
 
+test("keeps long structured-column fallback text wrap-safe", () => {
+  assert.equal(
+    classifyColumn("Amount", [
+      "1",
+      "2",
+      "3",
+      "This value could not be calculated because the upstream response omitted pricing metadata.",
+    ]),
+    "normal",
+  );
+  assert.equal(
+    classifyColumn("Date", [
+      "2026-03-20",
+      "2026-03-21",
+      "2026-03-22",
+      "The date is unavailable because this record predates the migration.",
+    ]),
+    "normal",
+  );
+  assert.equal(classifyColumn("Amount", ["1", "2", "3", "N/A"]), "numeric");
+});
+
 test("classifies URLs and long unbroken identifiers as code", () => {
   assert.deepEqual(
     classifyTableColumns(

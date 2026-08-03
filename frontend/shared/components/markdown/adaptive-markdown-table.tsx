@@ -26,7 +26,6 @@ type MarkdownTableProps = React.TableHTMLAttributes<HTMLTableElement> & {
 type TableSnapshot = {
   headers: string[];
   rows: string[][];
-  columnCount: number;
 };
 
 type ElementWithChildren = React.ReactElement<{
@@ -40,46 +39,36 @@ export function AdaptiveMarkdownTable({ children, className, node: _node, ...pro
   const t = useTranslations("chat.markdown");
   const streaming = React.useContext(MarkdownTableStreamingContext);
   const analyzerOptions = React.useContext(MarkdownTableAnalyzerOptionsContext);
-  const snapshot = React.useMemo(() => getTableSnapshot(children), [children]);
-  const candidateTypes = React.useMemo(
-    () => classifyTableColumns(snapshot.headers, snapshot.rows, analyzerOptions),
-    [analyzerOptions, snapshot],
-  );
-  const columnTypes = useStableColumnTypes(candidateTypes, snapshot.rows.length, streaming);
+  const columnTypes = useStableColumnTypes(children, analyzerOptions, streaming);
   const contentColumnCount = columnTypes.filter((type) => type === "content").length;
   const contentColumnBucket = contentColumnCount >= 3 ? "many" : String(contentColumnCount);
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const hintID = React.useId();
   const [hasHorizontalOverflow, setHasHorizontalOverflow] = React.useState(false);
-  const [showOverflowHint, setShowOverflowHint] = React.useState(false);
 
-  const updateOverflowHint = React.useCallback(() => {
+  const updateOverflowState = React.useCallback(() => {
     const scrollElement = scrollRef.current;
     if (!scrollElement) {
       return;
     }
     const hasHiddenContent = scrollElement.scrollWidth - scrollElement.clientWidth > 2;
-    const direction = window.getComputedStyle(scrollElement).direction;
-    const inlineProgress = direction === "rtl" ? Math.abs(scrollElement.scrollLeft) : scrollElement.scrollLeft;
-    const isAtInlineEnd = inlineProgress + scrollElement.clientWidth >= scrollElement.scrollWidth - 2;
     setHasHorizontalOverflow(hasHiddenContent);
-    setShowOverflowHint(hasHiddenContent && !isAtInlineEnd);
   }, []);
 
   React.useLayoutEffect(() => {
-    updateOverflowHint();
+    updateOverflowState();
     const scrollElement = scrollRef.current;
     if (!scrollElement || typeof ResizeObserver === "undefined") {
       return;
     }
-    const observer = new ResizeObserver(updateOverflowHint);
+    const observer = new ResizeObserver(updateOverflowState);
     observer.observe(scrollElement);
     const table = scrollElement.querySelector("table");
     if (table) {
       observer.observe(table);
     }
     return () => observer.disconnect();
-  }, [columnTypes, updateOverflowHint]);
+  }, [columnTypes, updateOverflowState]);
 
   const decoratedChildren = React.useMemo(
     () => decorateTableChildren(children, columnTypes),
@@ -90,17 +79,15 @@ export function AdaptiveMarkdownTable({ children, className, node: _node, ...pro
     <div
       className="markdown-table-shell"
       data-content-columns={contentColumnBucket}
-      data-overflow-hint={showOverflowHint ? "visible" : "hidden"}
     >
       {/* Keyboard users need to focus the horizontal scroll region itself. */}
       <div
         ref={scrollRef}
         aria-describedby={hasHorizontalOverflow ? hintID : undefined}
         aria-label={t("scrollableTable")}
-        className="markdown-table-scroll"
+        className="markdown-table-scroll scroll-fade-x scroll-fade-12"
         role="region"
         tabIndex={hasHorizontalOverflow ? 0 : undefined}
-        onScroll={updateOverflowHint}
       >
         <table {...props} className={cn("markdown-table", className)} data-streamdown="table">
           <colgroup>
@@ -124,62 +111,113 @@ export function AdaptiveMarkdownTable({ children, className, node: _node, ...pro
 }
 
 function useStableColumnTypes(
-  candidateTypes: readonly ColumnType[],
-  rowCount: number,
+  children: React.ReactNode,
+  analyzerOptions: ColumnAnalyzerOptions | undefined,
   streaming: boolean,
 ): ColumnType[] {
-  const [streamingTypes, setStreamingTypes] = React.useState<ColumnType[]>(() =>
-    Array.from({ length: candidateTypes.length }, () => "normal"),
-  );
-  const classifiedRef = React.useRef(false);
+  const latestChildrenRef = React.useRef(children);
+  const latestAnalyzerOptionsRef = React.useRef(analyzerOptions);
+  const streamingRef = React.useRef(streaming);
+  const analysisTimeoutRef = React.useRef<number | null>(null);
+  const analyzedCurrentStreamRef = React.useRef(false);
   const hasStreamedRef = React.useRef(streaming);
+  const [streamingTypes, setStreamingTypes] = React.useState<ColumnType[]>([]);
+
+  latestChildrenRef.current = children;
+  latestAnalyzerOptionsRef.current = analyzerOptions;
+  streamingRef.current = streaming;
+
+  const staticTypes = React.useMemo(() => {
+    if (streaming) {
+      return null;
+    }
+    const snapshot = getTableSnapshot(children);
+    return classifyTableColumns(snapshot.headers, snapshot.rows, analyzerOptions);
+  }, [analyzerOptions, children, streaming]);
+
+  const resolvedStaticTypes = React.useMemo(
+    () => staticTypes === null
+      ? null
+      : hasStreamedRef.current
+        ? mergeColumnTypes(streamingTypes, staticTypes)
+        : staticTypes,
+    [staticTypes, streamingTypes],
+  );
+
   React.useEffect(() => {
     if (!streaming) {
-      if (hasStreamedRef.current) {
+      if (analysisTimeoutRef.current !== null) {
+        window.clearTimeout(analysisTimeoutRef.current);
+        analysisTimeoutRef.current = null;
+      }
+      analyzedCurrentStreamRef.current = false;
+      if (resolvedStaticTypes !== null) {
         setStreamingTypes((previousTypes) =>
-          candidateTypes.map((nextType, index) =>
-            mergeColumnType(previousTypes[index] ?? "normal", nextType),
-          ),
+          areColumnTypesEqual(previousTypes, resolvedStaticTypes)
+            ? previousTypes
+            : resolvedStaticTypes,
         );
       }
       return;
     }
 
-    if (candidateTypes.length !== streamingTypes.length) {
-      classifiedRef.current = false;
-      setStreamingTypes(Array.from({ length: candidateTypes.length }, () => "normal"));
-    }
-    if (rowCount < INITIAL_STREAMING_ROWS) {
+    hasStreamedRef.current = true;
+    if (analysisTimeoutRef.current !== null) {
       return;
     }
 
-    const delay = classifiedRef.current ? REANALYSIS_DEBOUNCE_MS : INITIAL_ANALYSIS_DELAY_MS;
-    const timeout = window.setTimeout(() => {
+    const delay = analyzedCurrentStreamRef.current
+      ? REANALYSIS_DEBOUNCE_MS
+      : INITIAL_ANALYSIS_DELAY_MS;
+    analysisTimeoutRef.current = window.setTimeout(() => {
+      analysisTimeoutRef.current = null;
+      if (!streamingRef.current) {
+        return;
+      }
+      const snapshot = getTableSnapshot(latestChildrenRef.current);
+      if (snapshot.rows.length < INITIAL_STREAMING_ROWS) {
+        return;
+      }
+      const candidateTypes = classifyTableColumns(
+        snapshot.headers,
+        snapshot.rows,
+        latestAnalyzerOptionsRef.current,
+      );
       setStreamingTypes((previousTypes) => {
-        if (!classifiedRef.current || previousTypes.length !== candidateTypes.length) {
-          return [...candidateTypes];
-        }
-        return candidateTypes.map((nextType, index) =>
-          mergeColumnType(previousTypes[index] ?? "normal", nextType),
-        );
+        const mergedTypes = mergeColumnTypes(previousTypes, candidateTypes);
+        return areColumnTypesEqual(previousTypes, mergedTypes) ? previousTypes : mergedTypes;
       });
-      classifiedRef.current = true;
+      analyzedCurrentStreamRef.current = true;
     }, delay);
+  }, [analyzerOptions, children, resolvedStaticTypes, streaming]);
 
-    return () => window.clearTimeout(timeout);
-  }, [candidateTypes, rowCount, streaming, streamingTypes.length]);
-
-  if (!streaming) {
-    if (!hasStreamedRef.current) {
-      return [...candidateTypes];
+  React.useEffect(() => () => {
+    if (analysisTimeoutRef.current !== null) {
+      window.clearTimeout(analysisTimeoutRef.current);
     }
-    return candidateTypes.map((nextType, index) =>
-      mergeColumnType(streamingTypes[index] ?? "normal", nextType),
-    );
-  }
-  return streamingTypes.length === candidateTypes.length
-    ? streamingTypes
-    : Array.from({ length: candidateTypes.length }, () => "normal");
+  }, []);
+
+  return streaming ? streamingTypes : (resolvedStaticTypes ?? []);
+}
+
+function mergeColumnTypes(
+  previousTypes: readonly ColumnType[],
+  candidateTypes: readonly ColumnType[],
+): ColumnType[] {
+  return candidateTypes.map((nextType, index) => {
+    const previousType = previousTypes[index];
+    return previousType === undefined
+      ? nextType
+      : mergeColumnType(previousType, nextType);
+  });
+}
+
+function areColumnTypesEqual(
+  leftTypes: readonly ColumnType[],
+  rightTypes: readonly ColumnType[],
+): boolean {
+  return leftTypes.length === rightTypes.length
+    && leftTypes.every((type, index) => type === rightTypes[index]);
 }
 
 function getTableSnapshot(children: React.ReactNode): TableSnapshot {
@@ -204,7 +242,7 @@ function getTableSnapshot(children: React.ReactNode): TableSnapshot {
   if (headers.length < columnCount) {
     headers = [...headers, ...Array.from({ length: columnCount - headers.length }, () => "")];
   }
-  return { headers, rows, columnCount };
+  return { headers, rows };
 }
 
 function decorateTableChildren(children: React.ReactNode, columnTypes: readonly ColumnType[]): React.ReactNode {

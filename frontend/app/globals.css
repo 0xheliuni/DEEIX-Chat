@@ -1097,11 +1097,9 @@ html[data-branding-pending] body {
   }
 
   .markdown-table-shell {
-    position: relative;
     width: 100%;
     max-width: 100%;
     margin-block: 1rem;
-    isolation: isolate;
   }
 
   .markdown-table-scroll {
@@ -1109,11 +1107,7 @@ html[data-branding-pending] body {
     max-width: 100%;
     overflow-x: auto;
     overflow-y: hidden;
-    border: 1px solid color-mix(in oklch, var(--border) 78%, transparent);
-    border-radius: 0.75rem;
-    background: color-mix(in oklch, var(--background) 94%, var(--muted));
     overscroll-behavior-inline: contain;
-    scrollbar-width: thin;
     touch-action: pan-x pan-y;
     -webkit-overflow-scrolling: touch;
   }
@@ -1123,34 +1117,11 @@ html[data-branding-pending] body {
     outline-offset: 2px;
   }
 
-  .markdown-table-shell::after {
-    position: absolute;
-    z-index: 2;
-    inset-block: 1px;
-    inset-inline-end: 1px;
-    width: 1.5rem;
-    border-start-end-radius: 0.7rem;
-    border-end-end-radius: 0.7rem;
-    background: linear-gradient(to left, color-mix(in oklch, var(--foreground) 9%, transparent), transparent);
-    content: "";
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 160ms ease;
-  }
-
-  :dir(rtl) .markdown-table-shell::after {
-    background: linear-gradient(to right, color-mix(in oklch, var(--foreground) 9%, transparent), transparent);
-  }
-
-  .markdown-table-shell[data-overflow-hint="visible"]::after {
-    opacity: 1;
-  }
-
   .markdown-table {
     width: max-content !important;
     min-width: 100% !important;
     max-width: none !important;
-    margin: 0 !important;
+    margin: 0.5rem 0 !important;
     table-layout: auto !important;
     border-collapse: collapse;
     background: transparent;
@@ -1158,23 +1129,41 @@ html[data-branding-pending] body {
 
   .markdown-table th,
   .markdown-table td {
-    padding: 0.625rem 0.75rem !important;
+    padding: 0 !important;
     border: 0 !important;
-    border-block-end: 1px solid color-mix(in oklch, var(--border) 64%, transparent) !important;
-    line-height: 1.55 !important;
-    vertical-align: top;
+    line-height: inherit !important;
     text-align: start;
     overflow-wrap: normal;
     word-break: normal;
   }
 
+  .markdown-table th,
+  .markdown-table td {
+    border-block-end: 1px solid color-mix(in oklch, var(--border) 54%, transparent) !important;
+  }
+
+  .markdown-table thead,
+  .markdown-table tbody,
+  .markdown-table tfoot,
+  .markdown-table tr {
+    border: 0 !important;
+    background: transparent !important;
+  }
+
   .markdown-table th {
-    background: color-mix(in oklch, var(--muted) 68%, var(--background));
-    color: var(--foreground);
+    padding: 0.5rem 2rem 0.5rem 0 !important;
+    vertical-align: bottom;
     font-weight: 600;
   }
 
-  .markdown-table tbody tr:last-child td {
+  .markdown-table td {
+    padding: 0.25rem 2rem 0.25rem 0 !important;
+    vertical-align: middle;
+    line-height: 2rem !important;
+  }
+
+  .markdown-table tbody tr:last-child td,
+  .markdown-table tfoot tr:last-child td {
     border-block-end: 0 !important;
   }
 
@@ -1216,14 +1205,9 @@ html[data-branding-pending] body {
     max-width: 30rem;
   }
 
-  .markdown-table-col--normal {
-    min-width: 6.25rem;
-    max-width: 13.75rem;
-  }
-
-  .markdown-table-col--content {
-    min-width: 17rem;
-    max-width: 30rem;
+  .markdown-table-cell--normal {
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   .markdown-table-shell[data-content-columns="2"] .markdown-table-col--content,
@@ -1266,11 +1250,6 @@ html[data-branding-pending] body {
   }
 
   @media (max-width: 30rem) {
-    .markdown-table th,
-    .markdown-table td {
-      padding: 0.5rem 0.625rem !important;
-    }
-
     .markdown-table-col--content,
     .markdown-table-cell--content {
       min-width: 16rem;
@@ -1287,11 +1266,6 @@ html[data-branding-pending] body {
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .markdown-table-shell::after {
-      transition: none;
-    }
-  }
 }
 
 :root[data-chat-font="default"] {

@@ -18,6 +18,7 @@ export type ColumnAnalyzerThresholds = {
   contentMaximumLength: number;
   strongContentAverageLength: number;
   longUnbrokenLength: number;
+  structuredOutlierMaximumLength: number;
 };
 
 export type ColumnAnalyzerPatterns = {
@@ -55,7 +56,9 @@ export type ColumnMetrics = {
   maximumVisualLength: number;
   compactRatio: number;
   numericRatio: number;
+  numericOutlierMaximumVisualLength: number;
   dateRatio: number;
+  dateOutlierMaximumVisualLength: number;
   codeRatio: number;
   sentenceRatio: number;
   longUnbrokenRatio: number;
@@ -78,6 +81,7 @@ export const DEFAULT_COLUMN_ANALYZER_THRESHOLDS: Readonly<ColumnAnalyzerThreshol
   contentMaximumLength: 44,
   strongContentAverageLength: 38,
   longUnbrokenLength: 22,
+  structuredOutlierMaximumLength: 16,
 };
 
 export const DEFAULT_COLUMN_ANALYZER_PATTERNS: Readonly<ColumnAnalyzerPatterns> = {
@@ -142,6 +146,11 @@ export function analyzeColumnValues(
   const lengths = nonEmpty.map(getVisualLength);
   const countMatches = (predicate: (value: string) => boolean) =>
     nonEmpty.reduce((count, value) => count + (predicate(value) ? 1 : 0), 0);
+  const maximumNonMatchingVisualLength = (predicate: (value: string) => boolean) =>
+    nonEmpty.reduce(
+      (maximum, value) => predicate(value) ? maximum : Math.max(maximum, getVisualLength(value)),
+      0,
+    );
   const ratio = (matches: number) => (nonEmpty.length > 0 ? matches / nonEmpty.length : 0);
   const isCode = (value: string) =>
     config.patterns.url.test(value) ||
@@ -164,7 +173,13 @@ export function analyzeColumnValues(
       ),
     ),
     numericRatio: ratio(countMatches((value) => config.patterns.numeric.test(value))),
+    numericOutlierMaximumVisualLength: maximumNonMatchingVisualLength(
+      (value) => config.patterns.numeric.test(value),
+    ),
     dateRatio: ratio(countMatches((value) => config.patterns.date.test(value))),
+    dateOutlierMaximumVisualLength: maximumNonMatchingVisualLength(
+      (value) => config.patterns.date.test(value),
+    ),
     codeRatio: ratio(countMatches(isCode)),
     sentenceRatio: ratio(countMatches((value) => config.patterns.sentence.test(value))),
     longUnbrokenRatio: ratio(
@@ -222,10 +237,16 @@ export function classifyColumn(
   ) {
     return "code";
   }
-  if (metrics.dateRatio + hintBoost("date") >= thresholds.dateRatio) {
+  if (
+    metrics.dateRatio + hintBoost("date") >= thresholds.dateRatio
+    && metrics.dateOutlierMaximumVisualLength <= thresholds.structuredOutlierMaximumLength
+  ) {
     return "date";
   }
-  if (metrics.numericRatio + hintBoost("numeric") >= thresholds.numericRatio) {
+  if (
+    metrics.numericRatio + hintBoost("numeric") >= thresholds.numericRatio
+    && metrics.numericOutlierMaximumVisualLength <= thresholds.structuredOutlierMaximumLength
+  ) {
     return "numeric";
   }
 
