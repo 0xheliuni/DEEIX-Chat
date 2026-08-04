@@ -432,14 +432,10 @@ func (s *Service) normalizeServerInput(input ServerInput, requireToken bool) (Se
 }
 
 func (s *Service) validateServerBaseURL(raw string) error {
-	env := ""
-	ssrfProtectionEnabled := false
-	if s != nil && s.cfg != nil {
-		cfg := s.cfg.Snapshot()
-		env = cfg.Env
-		ssrfProtectionEnabled = cfg.SSRFProtectionEnabled
+	if s == nil || s.cfg == nil {
+		return ErrInvalidServerBaseURL
 	}
-	return security.ValidateOutboundHTTPURL(raw, env, ssrfProtectionEnabled)
+	return security.ValidateOutboundHTTPURL(raw, s.cfg.Snapshot().TrustedOutboundPolicy())
 }
 
 func normalizeToolInput(input ToolInput) (repository.UpdateMCPToolInput, error) {

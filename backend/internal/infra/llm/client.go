@@ -46,11 +46,10 @@ const upstreamRequestIDHeaderTemplate = "${DEEIX_UPSTREAM_REQUEST_ID}"
 
 // Client 负责跨厂商共享的 HTTP client、adapter 路由和上游调试能力。
 type Client struct {
-	baseTransport         *http.Transport
-	httpClients           sync.Map
-	adapters              map[string]transportAdapter
-	env                   string
-	ssrfProtectionEnabled bool
+	baseTransport  *http.Transport
+	httpClients    sync.Map
+	adapters       map[string]transportAdapter
+	outboundPolicy security.OutboundPolicy
 }
 
 // RouteConfig 定义渠道路由调用参数。
@@ -800,13 +799,8 @@ func (e *UpstreamError) Error() string {
 	return fmt.Sprintf("upstream request failed: status=%d message=%s", e.StatusCode, e.Message)
 }
 
-// NewClient 创建上游调用客户端。
-func NewClient() *Client {
-	return NewClientWithEnv("", false)
-}
-
-// NewClientWithEnv 创建带运行环境的上游调用客户端。
-func NewClientWithEnv(env string, ssrfProtectionEnabled bool) *Client {
+// NewClient 创建带出站安全策略的上游调用客户端。
+func NewClient(outboundPolicy security.OutboundPolicy) *Client {
 	transport := &http.Transport{
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 20,
@@ -814,9 +808,8 @@ func NewClientWithEnv(env string, ssrfProtectionEnabled bool) *Client {
 		ForceAttemptHTTP2:   true,
 	}
 	client := &Client{
-		baseTransport:         transport,
-		env:                   strings.TrimSpace(env),
-		ssrfProtectionEnabled: ssrfProtectionEnabled,
+		baseTransport:  transport,
+		outboundPolicy: outboundPolicy,
 	}
 	client.adapters = map[string]transportAdapter{
 		AdapterOpenAIResponses:        &openAIResponsesAdapter{client: client},
@@ -866,7 +859,7 @@ func (c *Client) httpClientForRoute(route RouteConfig) *http.Client {
 
 func (c *Client) newHTTPClient(connectTimeoutMS int) *http.Client {
 	transport := c.baseTransport.Clone()
-	transport.DialContext = security.NewOutboundDialContext(c.env, c.ssrfProtectionEnabled, time.Duration(connectTimeoutMS)*time.Millisecond, 30*time.Second)
+	transport.DialContext = security.NewOutboundDialContext(c.outboundPolicy, time.Duration(connectTimeoutMS)*time.Millisecond, 30*time.Second)
 
 	return &http.Client{
 		Timeout:   0,

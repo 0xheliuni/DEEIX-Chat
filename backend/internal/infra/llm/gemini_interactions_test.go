@@ -443,7 +443,7 @@ func TestGenerateGeminiInteractionPostsInteractionsRequest(t *testing.T) {
 	}))
 	defer server.Close()
 
-	output, err := NewClient().generateGeminiInteraction(context.Background(), RouteConfig{
+	output, err := newTestClient().generateGeminiInteraction(context.Background(), RouteConfig{
 		BaseURL:       server.URL,
 		APIKey:        "test-key",
 		UpstreamModel: "gemini-omni-flash-preview",
@@ -494,7 +494,7 @@ data: {"type":"done"}
 
 	var deltas []string
 	var usageEvents []Usage
-	output, err := NewClient().GenerateStream(context.Background(), RouteConfig{
+	output, err := newTestClient().GenerateStream(context.Background(), RouteConfig{
 		Protocol:      AdapterGeminiInteractions,
 		BaseURL:       server.URL,
 		APIKey:        "test-key",
@@ -528,7 +528,7 @@ data: {"type":"done"}
 }
 
 func TestNewGeminiRequestUsesOnlyGoogleAPIKeyForOfficialHost(t *testing.T) {
-	req, err := NewClient().newGeminiRequest(context.Background(), http.MethodPost, "https://generativelanguage.googleapis.com/v1beta/interactions", nil, RouteConfig{
+	req, err := newTestClient().newGeminiRequest(context.Background(), http.MethodPost, "https://generativelanguage.googleapis.com/v1beta/interactions", nil, RouteConfig{
 		APIKey: "test-key",
 	}, nil)
 	if err != nil {
