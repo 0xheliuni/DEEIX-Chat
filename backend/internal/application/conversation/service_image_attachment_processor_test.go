@@ -21,6 +21,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/objectstore"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
 func TestProcessImageAttachmentsRoutesOnlyTextToMainModelContext(t *testing.T) {
@@ -75,7 +76,7 @@ func TestProcessImageAttachmentsRoutesOnlyTextToMainModelContext(t *testing.T) {
 	}
 	service := &Service{
 		cfg:           config.NewRuntime(config.Config{MCPMaxToolCallsPerRun: 8, MCPMaxConcurrentCalls: 8}),
-		mcpClient:     mcp.NewClient(),
+		mcpClient:     mcp.NewClient(security.OutboundPolicy{}),
 		storeProvider: &conversationTestStoreProvider{store: store},
 	}
 	runtime := selectedToolRuntime{
