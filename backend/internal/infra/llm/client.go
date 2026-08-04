@@ -11,12 +11,12 @@ import (
 	"net/http/httptrace"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 	"unicode"
 
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/outboundhttp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 	"github.com/google/uuid"
 )
@@ -46,10 +46,8 @@ const upstreamRequestIDHeaderTemplate = "${DEEIX_UPSTREAM_REQUEST_ID}"
 
 // Client 负责跨厂商共享的 HTTP client、adapter 路由和上游调试能力。
 type Client struct {
-	baseTransport  *http.Transport
-	httpClients    sync.Map
-	adapters       map[string]transportAdapter
-	outboundPolicy security.OutboundPolicy
+	httpClients *outboundhttp.Pool
+	adapters    map[string]transportAdapter
 }
 
 // RouteConfig 定义渠道路由调用参数。
@@ -744,8 +742,8 @@ func RequestWasAccepted(err error) bool {
 
 // doGenerationRequest 记录 POST 请求是否已经写入连接。请求写出后若在响应头
 // 返回前断线，无法判断上游是否已开始生成，因此按已接受处理，避免跨路由重复生成。
-func doGenerationRequest(client *http.Client, req *http.Request) (*http.Response, error) {
-	if client == nil || req == nil {
+func doGenerationRequest(do func(*http.Request) (*http.Response, error), req *http.Request) (*http.Response, error) {
+	if do == nil || req == nil {
 		return nil, errors.New("generation request is nil")
 	}
 	var wroteRequest atomic.Bool
@@ -755,7 +753,7 @@ func doGenerationRequest(client *http.Client, req *http.Request) (*http.Response
 		},
 	}
 	tracedRequest := req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
-	resp, err := client.Do(tracedRequest)
+	resp, err := do(tracedRequest)
 	if err != nil && wroteRequest.Load() {
 		return resp, MarkRequestAccepted(err)
 	}
@@ -801,16 +799,10 @@ func (e *UpstreamError) Error() string {
 
 // NewClient 创建带出站安全策略的上游调用客户端。
 func NewClient(outboundPolicy security.OutboundPolicy) *Client {
-	transport := &http.Transport{
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 20,
-		IdleConnTimeout:     90 * time.Second,
-		ForceAttemptHTTP2:   true,
-	}
-	client := &Client{
-		baseTransport:  transport,
-		outboundPolicy: outboundPolicy,
-	}
+	client := &Client{}
+	client.httpClients = outboundhttp.NewPool(outboundPolicy, outboundhttp.DefaultCacheLimit, func(policy security.OutboundPolicy, trustedOrigin string, variant string) (outboundhttp.ManagedClient, error) {
+		return newRouteHTTPClient(policy, outboundPolicy, trustedOrigin, variant)
+	})
 	client.adapters = map[string]transportAdapter{
 		AdapterOpenAIResponses:        &openAIResponsesAdapter{client: client},
 		AdapterOpenRouterChat:         &openRouterChatCompletionsAdapter{client: client},
@@ -841,29 +833,49 @@ func (c *Client) adapterFor(route RouteConfig) (transportAdapter, error) {
 	return adapter, nil
 }
 
-func (c *Client) httpClientForRoute(route RouteConfig) *http.Client {
-	connectTimeoutMS := normalizeConnectTimeoutMS(route.ConnectTimeoutMS)
-	if value, ok := c.httpClients.Load(connectTimeoutMS); ok {
-		if client, castOK := value.(*http.Client); castOK {
-			return client
-		}
+func newRouteHTTPClient(policy security.OutboundPolicy, redirectPolicy security.OutboundPolicy, trustedOrigin string, variant string) (outboundhttp.ManagedClient, error) {
+	connectTimeoutMS, err := strconv.Atoi(variant)
+	if err != nil || connectTimeoutMS <= 0 {
+		return outboundhttp.ManagedClient{}, fmt.Errorf("invalid LLM connect timeout %q", variant)
 	}
+	transport := security.NewOutboundHTTPTransport(policy, time.Duration(connectTimeoutMS)*time.Millisecond)
+	transport.MaxIdleConns = 100
+	transport.MaxIdleConnsPerHost = 20
+	transport.IdleConnTimeout = 90 * time.Second
+	transport.ForceAttemptHTTP2 = true
 
-	created := c.newHTTPClient(connectTimeoutMS)
-	actual, _ := c.httpClients.LoadOrStore(connectTimeoutMS, created)
-	if client, ok := actual.(*http.Client); ok {
-		return client
-	}
-	return created
-}
-
-func (c *Client) newHTTPClient(connectTimeoutMS int) *http.Client {
-	transport := c.baseTransport.Clone()
-	transport.DialContext = security.NewOutboundDialContext(c.outboundPolicy, time.Duration(connectTimeoutMS)*time.Millisecond, 30*time.Second)
-
-	return &http.Client{
+	client := &http.Client{
 		Timeout:   0,
 		Transport: platformtracing.NewHTTPTransport(transport),
+	}
+	if trustedOrigin != "" {
+		client.CheckRedirect = outboundhttp.NewRedirectPolicy(redirectPolicy, trustedOrigin, "model provider")
+	}
+	return outboundhttp.ManagedClient{Client: client, CloseIdleConnections: transport.CloseIdleConnections}, nil
+}
+
+func (c *Client) doRouteRequest(route RouteConfig, request *http.Request) (*http.Response, error) {
+	if request == nil || request.URL == nil {
+		return nil, fmt.Errorf("model provider request is nil")
+	}
+	connectTimeoutMS := normalizeConnectTimeoutMS(route.ConnectTimeoutMS)
+	return c.httpClients.Do(request, route.BaseURL, strconv.Itoa(connectTimeoutMS))
+}
+
+func (c *Client) doRouteGenerationRequest(route RouteConfig, request *http.Request) (*http.Response, error) {
+	if request == nil || request.URL == nil {
+		return nil, fmt.Errorf("model provider request is nil")
+	}
+	connectTimeoutMS := normalizeConnectTimeoutMS(route.ConnectTimeoutMS)
+	return doGenerationRequest(func(tracedRequest *http.Request) (*http.Response, error) {
+		return c.httpClients.Do(tracedRequest, route.BaseURL, strconv.Itoa(connectTimeoutMS))
+	}, request)
+}
+
+// CloseIdleConnections 释放所有模型 origin 客户端的空闲连接。
+func (c *Client) CloseIdleConnections() {
+	if c != nil && c.httpClients != nil {
+		c.httpClients.CloseIdleConnections()
 	}
 }
 

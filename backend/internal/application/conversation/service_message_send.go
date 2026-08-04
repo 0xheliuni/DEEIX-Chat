@@ -1530,6 +1530,7 @@ func (s *Service) sendMessageInternal(
 		StatefulPromptFingerprint: statefulPromptFingerprint,
 		ToolCallRows:              toolCallRows,
 		PersistedToolCallKeys:     persistedToolCallKeys,
+		Route:                     resolvedRoute,
 		ReuseUserMessage:          reuseUserMessage,
 	})
 	platformtracing.RecordError(persistSpan, err)

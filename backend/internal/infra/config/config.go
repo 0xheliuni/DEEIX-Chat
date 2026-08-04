@@ -767,6 +767,9 @@ func (c Config) Validate() error {
 	if _, err := sharedsecurity.NewOutboundPolicy(c.ssrfProtectionEnforced(), splitCommaSeparated(c.SSRFAllowedHosts), splitCommaSeparated(c.SSRFAllowedCIDRs)); err != nil {
 		return fmt.Errorf("invalid config: SSRF allowlist: %w", err)
 	}
+	if err := validateHTTPIntegrationURL(c.TurnstileSiteverifyURL, "TURNSTILE_SITEVERIFY_URL"); err != nil {
+		return err
+	}
 	if env != "prod" {
 		return nil
 	}
@@ -843,6 +846,17 @@ func (c Config) validateStorage() error {
 	default:
 		return fmt.Errorf("invalid storage config: unsupported STORAGE_BACKEND %q", c.StorageBackend)
 	}
+}
+
+func validateHTTPIntegrationURL(raw string, label string) error {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return nil
+	}
+	if err := sharedsecurity.ValidateTrustedOutboundHTTPURL(value); err != nil {
+		return fmt.Errorf("invalid config: %s must be an http(s) URL without credentials; metadata and link-local targets are not allowed", label)
+	}
+	return nil
 }
 
 func validatePublicURL(raw string, label string) error {
@@ -1113,7 +1127,9 @@ func (c Config) TrustedProxyList() []string {
 	return splitCommaSeparated(c.TrustedProxies)
 }
 
-// TrustedOutboundPolicy 返回管理员配置服务端点使用的 SSRF 策略。
+// TrustedOutboundPolicy 返回部署级集成和可信私网重定向使用的全局 SSRF 白名单策略。
+// 管理员保存的模型、MCP、Embedding 和身份源 endpoint 由对应适配器按精确 origin 局部授权；
+// 只有跨 origin 的私网重定向目标需要显式进入全局白名单。
 // 非法白名单在 Config.Validate 阶段阻止启动；此处保守回退为无白名单严格策略。
 func (c Config) TrustedOutboundPolicy() sharedsecurity.OutboundPolicy {
 	policy, err := sharedsecurity.NewOutboundPolicy(

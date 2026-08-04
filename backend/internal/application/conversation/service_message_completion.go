@@ -32,6 +32,7 @@ type persistMessageGenerationInput struct {
 	StatefulPromptFingerprint string
 	ToolCallRows              []model.ToolCall
 	PersistedToolCallKeys     map[string]struct{}
+	Route                     *channel.ResolvedRoute
 	ReuseUserMessage          bool
 }
 
@@ -167,12 +168,17 @@ func (s *Service) persistAssistantImagePayloadIfPresent(ctx context.Context, inp
 	var normalized *assistantImageContentNormalization
 	var err error
 	if len(input.GeneratedImages) > 0 {
+		trustedProviderEndpoint := ""
+		if input.Route != nil {
+			trustedProviderEndpoint = input.Route.BaseURL
+		}
 		normalized, err = s.normalizeAssistantGeneratedImages(
 			ctx,
 			input.SendInput.UserID,
 			input.SendInput.ConversationID,
 			input.AssistantMessage.ID,
 			successfulMessageGenerationModelName(input),
+			trustedProviderEndpoint,
 			input.GeneratedImages,
 		)
 	} else {

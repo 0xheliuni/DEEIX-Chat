@@ -152,7 +152,6 @@ func (s *Service) resolveSelectedToolRuntime(ctx context.Context, toolIDs []uint
 	}
 
 	cfg := s.cfg.Snapshot()
-	outboundPolicy := cfg.TrustedOutboundPolicy()
 	result := selectedToolRuntime{
 		definitions: make([]llm.ToolDefinition, 0, len(tools)),
 		nameMap:     map[string]string{},
@@ -178,7 +177,7 @@ func (s *Service) resolveSelectedToolRuntime(ctx context.Context, toolIDs []uint
 				}
 				continue
 			}
-			if validateErr := security.ValidateOutboundHTTPURL(server.BaseURL, outboundPolicy); validateErr != nil {
+			if validateErr := security.ValidateTrustedOutboundHTTPURL(server.BaseURL); validateErr != nil {
 				if isAttachmentProcessor {
 					return selectedToolRuntime{}, fmt.Errorf("%w: processor server URL is not allowed", ErrImageAttachmentProcessingFailed)
 				}

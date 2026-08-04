@@ -336,8 +336,8 @@ Static configuration environment variables:
 | Security | `JWT_SECRET` | JWT signing secret. |
 | Security | `DATA_ENCRYPTION_KEY` | Key material for upstream API keys, SSO secrets, MCP tokens, sensitive settings, and TOTP secrets. |
 | Security | `SSRF_PROTECTION_ENABLED` | Enables outbound SSRF protection. |
-| Security | `SSRF_ALLOWED_HOSTS` | Exact trusted integration hostnames, comma-separated; no schemes, ports, IPs, or wildcards. |
-| Security | `SSRF_ALLOWED_CIDRS` | Trusted integration CIDRs, comma-separated. |
+| Security | `SSRF_ALLOWED_HOSTS` | Exact hostnames for deployment-level integrations or trusted private redirect targets, comma-separated. |
+| Security | `SSRF_ALLOWED_CIDRS` | Trusted deployment-level integration or private redirect CIDRs, comma-separated. |
 | Security | `TURNSTILE_SITEVERIFY_URL` | Cloudflare Turnstile siteverify endpoint. |
 | Database | `DATABASE_DRIVER` | `postgres` or `sqlite`. |
 | PostgreSQL | `POSTGRES_DSN` | PostgreSQL DSN. |
@@ -386,7 +386,7 @@ Static configuration environment variables:
 
 Authentication, registration, conversation settings, model option policies, file processing, RAG, embedding, MCP, billing, payments, and announcements are runtime business settings, not static YAML configuration. Their defaults are seeded by the backend and maintained in the admin console.
 
-When SSRF protection is enabled in production, the allowlist applies only to administrator-configured service integrations such as model upstreams, MCP, embedding, authentication providers, and GeoIP. The two allowlist settings are independent: configure `SSRF_ALLOWED_HOSTS` for exact hostname/container-name targets, `SSRF_ALLOWED_CIDRS` only for trusted IP ranges, or both when both forms are needed. Downloads derived from model/provider responses and public catalog downloads keep the strict public-network policy. Host entries are exact and case-insensitive; CIDRs should be as narrow as possible. Link-local, multicast, unspecified, and known metadata targets remain blocked even if a broad CIDR or trusted hostname resolves to them. Invalid allowlist entries stop backend startup, and configuration changes require a restart.
+When SSRF protection is enabled in production, administrator-saved model, MCP, Embedding, OIDC/OAuth2, and custom Turnstile endpoints are authorized locally by exact origin (`scheme + host + port`) and do not require entries in the global allowlist. Model, MCP, and Embedding redirects retain standard compatibility: public cross-origin targets are allowed, while private cross-origin targets must match `SSRF_ALLOWED_HOSTS` or `SSRF_ALLOWED_CIDRS`; OIDC/OAuth2 and Turnstile keep their stricter identity boundary. Generated media is downloaded, validated, and stored by the backend: a private artifact URL inherits trust only when it has the same origin as the selected model endpoint; public cross-origin artifact URLs remain subject to the strict public-network policy, and private cross-origin artifact URLs are blocked. The global allowlist also remains available for deployment-level integrations that cannot be tied to an administrator-saved endpoint, such as selected GeoIP or extraction deployments. Link-local, multicast, unspecified, and known metadata targets always remain blocked. Invalid allowlist entries stop backend startup, and global allowlist changes require a restart.
 
 ## Feature Guides
 
