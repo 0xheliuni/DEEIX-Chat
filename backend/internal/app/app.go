@@ -38,6 +38,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/identityprovider"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/mcp"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/mediaartifact"
 	openrouterpricing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/modelpricing/openrouter"
 	platformlogger "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/logger"
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
@@ -88,6 +89,7 @@ type App struct {
 	redis                  *redis.Client
 	geoResolver            *geoip.Client
 	identityProviderClient *identityprovider.Client
+	mediaArtifactClient    *mediaartifact.Client
 	backgroundCancel       context.CancelFunc
 }
 
@@ -236,6 +238,7 @@ func NewApp() (*App, error) {
 	trustedOutboundPolicy := cfg.TrustedOutboundPolicy()
 	llmClient := llm.NewClient(trustedOutboundPolicy)
 	mcpClient := mcp.NewClient(trustedOutboundPolicy)
+	mediaArtifactClient := mediaartifact.New(cfg.StrictOutboundPolicy())
 	channelService := channel.NewServiceWithRuntime(runtimeCfg, channelRepo, channelCache, llmClient)
 	channelService.SetLogger(log)
 	channelService.SetBillingModelPricingFilter(billingService)
@@ -270,6 +273,7 @@ func NewApp() (*App, error) {
 		channelService,
 		memoryService,
 		llmClient,
+		mediaArtifactClient,
 		mcpClient,
 		embedClient,
 		nil,
@@ -374,6 +378,7 @@ func NewApp() (*App, error) {
 		redis:                  redisClient,
 		geoResolver:            geoResolver,
 		identityProviderClient: identityProviderClient,
+		mediaArtifactClient:    mediaArtifactClient,
 		backgroundCancel:       backgroundCancel,
 	}, nil
 }
@@ -449,6 +454,9 @@ func (a *App) Close() {
 	}
 	if a.identityProviderClient != nil {
 		a.identityProviderClient.CloseIdleConnections()
+	}
+	if a.mediaArtifactClient != nil {
+		a.mediaArtifactClient.CloseIdleConnections()
 	}
 	if a.db != nil {
 		if sqlDB, err := a.db.DB(); err == nil {
