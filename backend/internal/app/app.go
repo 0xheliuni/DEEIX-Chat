@@ -89,6 +89,9 @@ type App struct {
 	redis                  *redis.Client
 	geoResolver            *geoip.Client
 	identityProviderClient *identityprovider.Client
+	llmClient              *llm.Client
+	mcpClient              *mcp.Client
+	embeddingClient        *embedding.Client
 	mediaArtifactClient    *mediaartifact.Client
 	backgroundCancel       context.CancelFunc
 }
@@ -236,9 +239,10 @@ func NewApp() (*App, error) {
 	channelRepo := channelrepo.NewRepo(db)
 	channelCache := buildChannelCache(cfg, redisClient, memoryCache)
 	trustedOutboundPolicy := cfg.TrustedOutboundPolicy()
+	strictOutboundPolicy := cfg.StrictOutboundPolicy()
 	llmClient := llm.NewClient(trustedOutboundPolicy)
 	mcpClient := mcp.NewClient(trustedOutboundPolicy)
-	mediaArtifactClient := mediaartifact.New(cfg.StrictOutboundPolicy())
+	mediaArtifactClient := mediaartifact.New(strictOutboundPolicy)
 	channelService := channel.NewServiceWithRuntime(runtimeCfg, channelRepo, channelCache, llmClient)
 	channelService.SetLogger(log)
 	channelService.SetBillingModelPricingFilter(billingService)
@@ -378,6 +382,9 @@ func NewApp() (*App, error) {
 		redis:                  redisClient,
 		geoResolver:            geoResolver,
 		identityProviderClient: identityProviderClient,
+		llmClient:              llmClient,
+		mcpClient:              mcpClient,
+		embeddingClient:        embedClient,
 		mediaArtifactClient:    mediaArtifactClient,
 		backgroundCancel:       backgroundCancel,
 	}, nil
@@ -454,6 +461,15 @@ func (a *App) Close() {
 	}
 	if a.identityProviderClient != nil {
 		a.identityProviderClient.CloseIdleConnections()
+	}
+	if a.llmClient != nil {
+		a.llmClient.CloseIdleConnections()
+	}
+	if a.mcpClient != nil {
+		a.mcpClient.CloseIdleConnections()
+	}
+	if a.embeddingClient != nil {
+		a.embeddingClient.CloseIdleConnections()
 	}
 	if a.mediaArtifactClient != nil {
 		a.mediaArtifactClient.CloseIdleConnections()

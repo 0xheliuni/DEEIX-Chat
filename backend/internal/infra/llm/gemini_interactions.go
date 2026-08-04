@@ -56,7 +56,7 @@ func (c *Client) generateGeminiInteraction(ctx context.Context, route RouteConfi
 	if err != nil {
 		return nil, err
 	}
-	resp, err := doGenerationRequest(c.httpClientForRoute(route), req)
+	resp, err := c.doRouteGenerationRequest(route, req)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ func (c *Client) generateGeminiInteractionStream(
 	}
 	req.Header.Set("Accept", "text/event-stream")
 
-	resp, err := doGenerationRequest(c.httpClientForRoute(route), req)
+	resp, err := c.doRouteGenerationRequest(route, req)
 	firstByteTimer.Stop()
 	if err != nil {
 		return nil, err

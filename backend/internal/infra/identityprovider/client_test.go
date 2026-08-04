@@ -11,76 +11,30 @@ import (
 )
 
 func TestClientSelectsTrustedClientOnlyForConfiguredOrigin(t *testing.T) {
-	client := New(security.NewStrictOutboundPolicy(true))
-	trustedClient, err := client.clientFor(
+	trustedEndpoint, err := trustedEndpointFor(
 		"http://localhost:8080/token",
 		[]string{"http://localhost:8080/issuer"},
 	)
 	if err != nil {
 		t.Fatalf("select configured private origin: %v", err)
 	}
-	if trustedClient == client.strictClient.client {
-		t.Fatal("configured origin should use its locally trusted client")
+	if trustedEndpoint != "http://localhost:8080/issuer" {
+		t.Fatalf("unexpected trusted endpoint %q", trustedEndpoint)
 	}
 
-	strictClient, err := client.clientFor(
+	strictEndpoint, err := trustedEndpointFor(
 		"http://localhost:8081/token",
 		[]string{"http://localhost:8080/issuer"},
 	)
 	if err != nil {
 		t.Fatalf("select unrelated origin: %v", err)
 	}
-	if strictClient != client.strictClient.client {
+	if strictEndpoint != "" {
 		t.Fatal("different port must not inherit the configured origin trust")
 	}
 }
 
-func TestTrustedClientCacheUsesBoundedLRUAndClosesEvictedClient(t *testing.T) {
-	client := New(security.NewStrictOutboundPolicy(true))
-	origins := make([]string, 0, trustedClientCacheLimit)
-	for index := 0; index < trustedClientCacheLimit; index++ {
-		endpoint := fmt.Sprintf("http://localhost:%d/issuer", 10000+index)
-		if _, err := client.clientFor(endpoint, []string{endpoint}); err != nil {
-			t.Fatalf("cache trusted origin %d: %v", index, err)
-		}
-		origin, err := httpOrigin(endpoint)
-		if err != nil {
-			t.Fatalf("normalize trusted origin %d: %v", index, err)
-		}
-		origins = append(origins, origin)
-	}
-
-	if _, err := client.clientFor(origins[0]+"/token", []string{origins[0] + "/issuer"}); err != nil {
-		t.Fatalf("refresh least-recently-used origin: %v", err)
-	}
-	evictedClosed := false
-	evictedElement := client.trustedClients[origins[1]]
-	if evictedElement == nil {
-		t.Fatal("expected least-recently-used origin to be cached before eviction")
-	}
-	evictedEntry := evictedElement.Value.(*trustedClientCacheEntry)
-	evictedEntry.client.closeIdleConnections = func() { evictedClosed = true }
-
-	newEndpoint := "http://localhost:20000/issuer"
-	if _, err := client.clientFor(newEndpoint, []string{newEndpoint}); err != nil {
-		t.Fatalf("cache replacement trusted origin: %v", err)
-	}
-	if len(client.trustedClients) != trustedClientCacheLimit || client.trustedLRU.Len() != trustedClientCacheLimit {
-		t.Fatalf("trusted client cache exceeded limit: map=%d lru=%d", len(client.trustedClients), client.trustedLRU.Len())
-	}
-	if client.trustedClients[origins[0]] == nil {
-		t.Fatal("recently used origin should remain cached")
-	}
-	if client.trustedClients[origins[1]] != nil {
-		t.Fatal("least-recently-used origin should be evicted")
-	}
-	if !evictedClosed {
-		t.Fatal("evicted trusted client must close its idle connections")
-	}
-}
-
-func TestTrustedClientCacheIsSafeUnderConcurrentAccess(t *testing.T) {
-	client := New(security.NewStrictOutboundPolicy(true))
+func TestTrustedEndpointSelectionIsSafeUnderConcurrentAccess(t *testing.T) {
 	const workers = 256
 	errorsCh := make(chan error, workers)
 	var waitGroup sync.WaitGroup
@@ -89,7 +43,7 @@ func TestTrustedClientCacheIsSafeUnderConcurrentAccess(t *testing.T) {
 		go func(index int) {
 			defer waitGroup.Done()
 			endpoint := fmt.Sprintf("http://localhost:%d/issuer", 10000+(index%80))
-			_, err := client.clientFor(endpoint, []string{endpoint})
+			_, err := trustedEndpointFor(endpoint, []string{endpoint})
 			errorsCh <- err
 		}(index)
 	}
@@ -100,32 +54,28 @@ func TestTrustedClientCacheIsSafeUnderConcurrentAccess(t *testing.T) {
 			t.Fatalf("concurrent trusted origin lookup: %v", err)
 		}
 	}
-	if len(client.trustedClients) > trustedClientCacheLimit || client.trustedLRU.Len() > trustedClientCacheLimit {
-		t.Fatalf("concurrent access exceeded cache limit: map=%d lru=%d", len(client.trustedClients), client.trustedLRU.Len())
-	}
 }
 
 func TestTrustedClientRejectsCrossOriginRedirect(t *testing.T) {
-	client := New(security.NewStrictOutboundPolicy(true))
-	trustedClient, err := client.clientFor(
-		"http://localhost:8080/token",
-		[]string{"http://localhost:8080/issuer"},
+	managed, err := newIdentityProviderHTTPClient(
+		security.NewStrictOutboundPolicy(true),
+		"http://localhost:8080",
+		"",
 	)
 	if err != nil {
-		t.Fatalf("select configured private origin: %v", err)
+		t.Fatalf("create configured private origin client: %v", err)
 	}
 	request, err := http.NewRequest(http.MethodGet, "http://localhost:8081/redirected", nil)
 	if err != nil {
 		t.Fatalf("build redirect request: %v", err)
 	}
-	if err = trustedClient.CheckRedirect(request, nil); err == nil {
+	if err = managed.Client.CheckRedirect(request, nil); err == nil {
 		t.Fatal("expected cross-origin redirect to be rejected")
 	}
 }
 
 func TestClientCannotTrustMetadataEndpoint(t *testing.T) {
-	client := New(security.NewStrictOutboundPolicy(true))
-	_, err := client.clientFor(
+	_, err := trustedEndpointFor(
 		"http://169.254.169.254/latest/meta-data",
 		[]string{"http://169.254.169.254/latest/meta-data"},
 	)
@@ -135,7 +85,7 @@ func TestClientCannotTrustMetadataEndpoint(t *testing.T) {
 }
 
 func TestHTTPOriginNormalizesHostAndPreservesPort(t *testing.T) {
-	origin, err := httpOrigin("HTTPS://Example.COM.:8443/path?query=1")
+	origin, err := security.HTTPOrigin("HTTPS://Example.COM.:8443/path?query=1")
 	if err != nil {
 		t.Fatalf("normalize origin: %v", err)
 	}
@@ -145,11 +95,11 @@ func TestHTTPOriginNormalizesHostAndPreservesPort(t *testing.T) {
 }
 
 func TestHTTPOriginNormalizesDefaultPort(t *testing.T) {
-	withPort, err := httpOrigin("https://example.com:443/issuer")
+	withPort, err := security.HTTPOrigin("https://example.com:443/issuer")
 	if err != nil {
 		t.Fatalf("normalize origin with default port: %v", err)
 	}
-	withoutPort, err := httpOrigin("https://example.com/token")
+	withoutPort, err := security.HTTPOrigin("https://example.com/token")
 	if err != nil {
 		t.Fatalf("normalize origin without port: %v", err)
 	}

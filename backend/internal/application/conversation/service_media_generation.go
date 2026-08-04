@@ -409,7 +409,7 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 	attachmentRows := make([]model.Attachment, 0, len(output.GeneratedImages))
 	now := time.Now()
 	for i, image := range output.GeneratedImages {
-		data, mimeType, readErr := s.readGeneratedImage(ctx, image)
+		data, mimeType, readErr := s.readGeneratedImage(ctx, image, route.BaseURL)
 		if readErr != nil {
 			retErr = s.finalizeGeneratedMediaArtifactFailure(ctx, run, assistantMessage.ID, i+1, len(output.GeneratedImages), readErr)
 			return buildBillableFailure(retErr, output.Usage), retErr
@@ -714,7 +714,7 @@ func mediaImageStreamExplicitlyDisabled(capabilitiesJSON string) bool {
 
 // readGeneratedImage 读取上游图片结果，并统一校验为可保存的图片字节。
 // 上游临时 URL 只用于服务端下载，最终不会直接写入消息内容，避免长期依赖外部地址。
-func (s *Service) readGeneratedImage(ctx context.Context, image llm.GeneratedImage) ([]byte, string, error) {
+func (s *Service) readGeneratedImage(ctx context.Context, image llm.GeneratedImage, trustedProviderEndpoint string) ([]byte, string, error) {
 	mimeType := strings.TrimSpace(image.MIMEType)
 	if mimeType == "" {
 		mimeType = "image/png"
@@ -742,7 +742,7 @@ func (s *Service) readGeneratedImage(ctx context.Context, image llm.GeneratedIma
 	if limit <= 0 {
 		limit = 20 * 1024 * 1024
 	}
-	data, downloadedMIME, err := s.mediaDownloader.DownloadImage(ctx, url, limit)
+	data, downloadedMIME, err := s.mediaDownloader.DownloadImage(ctx, url, trustedProviderEndpoint, limit)
 	if err != nil {
 		if isMediaArtifactResponseTooLarge(err) {
 			return nil, mimeType, ErrFileTooLarge

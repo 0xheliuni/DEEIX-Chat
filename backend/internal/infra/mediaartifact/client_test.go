@@ -4,10 +4,12 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/outboundhttp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
@@ -18,9 +20,11 @@ func (fn roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error)
 }
 
 func TestNewClientDoesNotTraceSignedArtifactURLs(t *testing.T) {
-	client := New(security.NewStrictOutboundPolicy(true))
-	if _, ok := client.httpClient.Transport.(*http.Transport); !ok {
-		t.Fatalf("media artifact transport must avoid generic URL tracing, got %T", client.httpClient.Transport)
+	policy := security.NewStrictOutboundPolicy(true)
+	managed := newMediaArtifactHTTPClient(policy, policy, "")
+	httpClient := managed.Client
+	if _, ok := httpClient.Transport.(*http.Transport); !ok {
+		t.Fatalf("media artifact transport must avoid generic URL tracing, got %T", httpClient.Transport)
 	}
 }
 
@@ -33,7 +37,7 @@ func TestDownloadImageReturnsBoundedArtifact(t *testing.T) {
 		return response(http.StatusOK, "image/png; charset=binary", pngHeader), nil
 	}))
 
-	data, mimeType, err := client.DownloadImage(t.Context(), "https://cdn.example.test/generated/image", int64(len(pngHeader)))
+	data, mimeType, err := client.DownloadImage(t.Context(), "https://cdn.example.test/generated/image", "", int64(len(pngHeader)))
 	if err != nil {
 		t.Fatalf("download image: %v", err)
 	}
@@ -47,7 +51,7 @@ func TestDownloadImageRejectsOversizedArtifact(t *testing.T) {
 		return response(http.StatusOK, "image/png", []byte("1234")), nil
 	}))
 
-	_, _, err := client.DownloadImage(t.Context(), "https://cdn.example.test/generated/image", 3)
+	_, _, err := client.DownloadImage(t.Context(), "https://cdn.example.test/generated/image", "", 3)
 	if !errors.Is(err, ErrResponseTooLarge) {
 		t.Fatalf("expected size limit error, got %v", err)
 	}
@@ -59,7 +63,7 @@ func TestDownloadImageRejectsGeminiFilesURI(t *testing.T) {
 		return nil, nil
 	}))
 
-	_, _, err := client.DownloadImage(t.Context(), "https://generativelanguage.googleapis.com/v1beta/files/image_123", 1024)
+	_, _, err := client.DownloadImage(t.Context(), "https://generativelanguage.googleapis.com/v1beta/files/image_123", "", 1024)
 	if err == nil || !strings.Contains(err.Error(), "not supported") {
 		t.Fatalf("expected unsupported Gemini image error, got %v", err)
 	}
@@ -90,6 +94,7 @@ func TestDownloadVideoPollsGeminiFileAndUsesResolvedMIME(t *testing.T) {
 	data, mimeType, err := client.DownloadVideo(
 		t.Context(),
 		"https://generativelanguage.googleapis.com/v1beta/files/video_123:download?alt=media&key=discarded",
+		"",
 		"secret",
 		1024,
 	)
@@ -119,7 +124,7 @@ func TestDownloadErrorDoesNotExposeSignedSourceURL(t *testing.T) {
 		return nil, errors.New("dial failed")
 	}))
 
-	_, _, err := client.DownloadImage(t.Context(), "https://cdn.example.test/image?token=secret", 1024)
+	_, _, err := client.DownloadImage(t.Context(), "https://cdn.example.test/image?token=secret", "", 1024)
 	if err == nil {
 		t.Fatal("expected download failure")
 	}
@@ -141,6 +146,7 @@ func TestDownloadVideoRequiresGeminiAPIKeyBeforeRequest(t *testing.T) {
 		t.Context(),
 		"https://generativelanguage.googleapis.com/v1beta/files/video_123",
 		"",
+		"",
 		1024,
 	)
 	if err == nil || !strings.Contains(err.Error(), "requires an API key") {
@@ -156,6 +162,7 @@ func TestGeminiMetadataErrorDoesNotExposeResponseBody(t *testing.T) {
 	_, _, err := client.DownloadVideo(
 		t.Context(),
 		"https://generativelanguage.googleapis.com/v1beta/files/video_123",
+		"",
 		"api-key",
 		1024,
 	)
@@ -193,6 +200,18 @@ func TestRedirectPolicyStripsGeminiKeyAcrossOrigins(t *testing.T) {
 	if sameOriginRedirect.Header.Get(geminiAPIKeyHeader) != "secret" {
 		t.Fatal("same-origin redirect unexpectedly removed Gemini API key")
 	}
+
+	canonicalURL, err := url.Parse("https://GENERATIVELANGUAGE.googleapis.com:443/v1beta/files/video_123:download")
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonicalRedirect := &http.Request{URL: canonicalURL, Header: original.Header.Clone()}
+	if err = stripCredentialOnCrossOriginRedirect(canonicalRedirect, []*http.Request{original}); err != nil {
+		t.Fatalf("check canonical same-origin redirect: %v", err)
+	}
+	if canonicalRedirect.Header.Get(geminiAPIKeyHeader) != "secret" {
+		t.Fatal("canonical same-origin redirect unexpectedly removed Gemini API key")
+	}
 }
 
 func TestRedirectPolicyStopsAfterLimit(t *testing.T) {
@@ -210,11 +229,82 @@ func TestRedirectPolicyStopsAfterLimit(t *testing.T) {
 	}
 }
 
+func TestTrustedArtifactRedirectAllowsPublicButRejectsPrivateCrossOrigin(t *testing.T) {
+	strictPolicy := security.NewStrictOutboundPolicy(true)
+	trustedPolicy, err := strictPolicy.WithTrustedHTTPURLs("http://model.internal:8080/v1")
+	if err != nil {
+		t.Fatalf("trusted artifact policy: %v", err)
+	}
+	httpClient := newMediaArtifactHTTPClient(trustedPolicy, strictPolicy, "http://model.internal:8080").Client
+	originalURL, err := url.Parse("http://model.internal:8080/artifacts/image.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	original := &http.Request{URL: originalURL, Header: make(http.Header)}
+
+	publicURL, err := url.Parse("https://cdn.example.test/generated/image.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	publicRedirect := &http.Request{URL: publicURL, Header: make(http.Header)}
+	if err = httpClient.CheckRedirect(publicRedirect, []*http.Request{original}); err != nil {
+		t.Fatalf("public artifact redirect rejected: %v", err)
+	}
+
+	privateURL, err := url.Parse("http://model.internal:9090/generated/image.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	privateRedirect := &http.Request{URL: privateURL, Header: make(http.Header)}
+	if err = httpClient.CheckRedirect(privateRedirect, []*http.Request{original}); !errors.Is(err, security.ErrUnsafeOutboundURL) {
+		t.Fatalf("expected private cross-origin redirect rejection, got %v", err)
+	}
+}
+
 func TestStrictClientRejectsPrivateArtifactURL(t *testing.T) {
 	client := New(security.NewStrictOutboundPolicy(true))
-	_, _, err := client.DownloadImage(t.Context(), "http://127.0.0.1:8080/image.png", 1024)
+	_, _, err := client.DownloadImage(t.Context(), "http://127.0.0.1:8080/image.png", "", 1024)
 	if !errors.Is(err, security.ErrUnsafeOutboundURL) {
 		t.Fatalf("expected strict SSRF rejection, got %v", err)
+	}
+}
+
+func TestDownloadImageTrustsPrivateArtifactFromConfiguredProviderOrigin(t *testing.T) {
+	pngHeader := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/artifacts/image.png" {
+			t.Fatalf("unexpected artifact path: %s", request.URL.Path)
+		}
+		responseWriter.Header().Set("Content-Type", "image/png")
+		_, _ = responseWriter.Write(pngHeader)
+	}))
+	defer server.Close()
+
+	client := New(security.NewStrictOutboundPolicy(true))
+	data, mimeType, err := client.DownloadImage(
+		t.Context(),
+		server.URL+"/artifacts/image.png",
+		server.URL+"/v1",
+		1024,
+	)
+	if err != nil {
+		t.Fatalf("download trusted private artifact: %v", err)
+	}
+	if string(data) != string(pngHeader) || mimeType != "image/png" {
+		t.Fatalf("unexpected trusted artifact: data=%q MIME=%q", data, mimeType)
+	}
+}
+
+func TestDownloadImageDoesNotTrustCrossOriginPrivateArtifact(t *testing.T) {
+	client := New(security.NewStrictOutboundPolicy(true))
+	_, _, err := client.DownloadImage(
+		t.Context(),
+		"http://127.0.0.1:18081/artifacts/image.png",
+		"http://127.0.0.1:18080/v1",
+		1024,
+	)
+	if !errors.Is(err, security.ErrUnsafeOutboundURL) {
+		t.Fatalf("expected cross-origin private artifact rejection, got %v", err)
 	}
 }
 
@@ -224,7 +314,7 @@ func TestDownloadRejectsURLUserInfoBeforeRequest(t *testing.T) {
 		return nil, nil
 	}))
 
-	_, _, err := client.DownloadImage(t.Context(), "https://user:password@cdn.example.test/image", 1024)
+	_, _, err := client.DownloadImage(t.Context(), "https://user:password@cdn.example.test/image", "", 1024)
 	if !errors.Is(err, security.ErrUnsafeOutboundURL) {
 		t.Fatalf("expected URL user info rejection, got %v", err)
 	}
@@ -232,7 +322,22 @@ func TestDownloadRejectsURLUserInfoBeforeRequest(t *testing.T) {
 
 func TestCloseIdleConnectionsUsesOwnedTransport(t *testing.T) {
 	closed := false
-	client := &Client{closeIdleConnections: func() { closed = true }}
+	pool := outboundhttp.NewPool(security.OutboundPolicy{}, 1, func(_ security.OutboundPolicy, _ string, _ string) (outboundhttp.ManagedClient, error) {
+		return outboundhttp.ManagedClient{
+			Client: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				return response(http.StatusOK, "application/octet-stream", nil), nil
+			})},
+			CloseIdleConnections: func() { closed = true },
+		}, nil
+	})
+	request, err := http.NewRequest(http.MethodGet, "https://example.test/artifact", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Do(request, "", ""); err != nil {
+		t.Fatalf("use pooled client: %v", err)
+	}
+	client := &Client{httpClients: pool}
 	client.CloseIdleConnections()
 	if !closed {
 		t.Fatal("expected idle connections to be closed")
@@ -240,11 +345,12 @@ func TestCloseIdleConnectionsUsesOwnedTransport(t *testing.T) {
 }
 
 func testClient(transport http.RoundTripper) *Client {
+	policy := security.OutboundPolicy{}
 	return &Client{
-		httpClient: &http.Client{
-			Transport:     transport,
-			CheckRedirect: stripCredentialOnCrossOriginRedirect,
-		},
+		basePolicy: policy,
+		httpClients: outboundhttp.NewPool(policy, outboundhttp.DefaultCacheLimit, func(_ security.OutboundPolicy, _ string, _ string) (outboundhttp.ManagedClient, error) {
+			return outboundhttp.ManagedClient{Client: &http.Client{Transport: transport, CheckRedirect: mediaArtifactRedirectPolicy(policy, "")}}, nil
+		}),
 		pollAttempts: 1,
 		pollInterval: 0,
 	}

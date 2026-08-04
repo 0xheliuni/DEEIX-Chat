@@ -16,16 +16,16 @@ import (
 )
 
 type generatedMediaDownloaderStub struct {
-	downloadImage func(context.Context, string, int64) ([]byte, string, error)
-	downloadVideo func(context.Context, string, string, int64) ([]byte, string, error)
+	downloadImage func(context.Context, string, string, int64) ([]byte, string, error)
+	downloadVideo func(context.Context, string, string, string, int64) ([]byte, string, error)
 }
 
-func (s generatedMediaDownloaderStub) DownloadImage(ctx context.Context, sourceURL string, maxBytes int64) ([]byte, string, error) {
-	return s.downloadImage(ctx, sourceURL, maxBytes)
+func (s generatedMediaDownloaderStub) DownloadImage(ctx context.Context, sourceURL string, trustedProviderEndpoint string, maxBytes int64) ([]byte, string, error) {
+	return s.downloadImage(ctx, sourceURL, trustedProviderEndpoint, maxBytes)
 }
 
-func (s generatedMediaDownloaderStub) DownloadVideo(ctx context.Context, sourceURL string, apiKey string, maxBytes int64) ([]byte, string, error) {
-	return s.downloadVideo(ctx, sourceURL, apiKey, maxBytes)
+func (s generatedMediaDownloaderStub) DownloadVideo(ctx context.Context, sourceURL string, trustedProviderEndpoint string, apiKey string, maxBytes int64) ([]byte, string, error) {
+	return s.downloadVideo(ctx, sourceURL, trustedProviderEndpoint, apiKey, maxBytes)
 }
 
 type generatedMediaTooLargeError struct{}
@@ -55,9 +55,9 @@ func TestReadGeneratedImageDelegatesURLDownloadAndValidatesBytes(t *testing.T) {
 	service := &Service{
 		cfg: config.NewRuntime(config.Config{MaxUploadFileBytes: 1024}),
 		mediaDownloader: generatedMediaDownloaderStub{
-			downloadImage: func(_ context.Context, sourceURL string, maxBytes int64) ([]byte, string, error) {
-				if sourceURL != "https://cdn.example.test/image" || maxBytes != 1024 {
-					t.Fatalf("unexpected download input: URL=%q maxBytes=%d", sourceURL, maxBytes)
+			downloadImage: func(_ context.Context, sourceURL string, trustedProviderEndpoint string, maxBytes int64) ([]byte, string, error) {
+				if sourceURL != "https://cdn.example.test/image" || trustedProviderEndpoint != "http://model.internal:8080/v1" || maxBytes != 1024 {
+					t.Fatalf("unexpected download input: URL=%q trustedEndpoint=%q maxBytes=%d", sourceURL, trustedProviderEndpoint, maxBytes)
 				}
 				return pngHeader, "image/png", nil
 			},
@@ -67,7 +67,7 @@ func TestReadGeneratedImageDelegatesURLDownloadAndValidatesBytes(t *testing.T) {
 	data, mimeType, err := service.readGeneratedImage(t.Context(), llm.GeneratedImage{
 		URL:      "https://cdn.example.test/image",
 		MIMEType: "application/octet-stream",
-	})
+	}, "http://model.internal:8080/v1")
 	if err != nil {
 		t.Fatalf("read generated image: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestReadGeneratedVideoMapsAdapterSizeLimit(t *testing.T) {
 	service := &Service{
 		cfg: config.NewRuntime(config.Config{MaxUploadFileBytes: 1024}),
 		mediaDownloader: generatedMediaDownloaderStub{
-			downloadVideo: func(context.Context, string, string, int64) ([]byte, string, error) {
+			downloadVideo: func(context.Context, string, string, string, int64) ([]byte, string, error) {
 				return nil, "", generatedMediaTooLargeError{}
 			},
 		},
@@ -88,7 +88,7 @@ func TestReadGeneratedVideoMapsAdapterSizeLimit(t *testing.T) {
 
 	_, _, err := service.readGeneratedVideo(t.Context(), llm.GeneratedVideo{
 		URL: "https://cdn.example.test/video",
-	}, "")
+	}, "", "")
 	if !errors.Is(err, ErrFileTooLarge) {
 		t.Fatalf("expected application file size error, got %v", err)
 	}
@@ -99,7 +99,7 @@ func TestReadGeneratedImageHidesAdapterSecurityDetails(t *testing.T) {
 	service := &Service{
 		cfg: config.NewRuntime(config.Config{MaxUploadFileBytes: 1024}),
 		mediaDownloader: generatedMediaDownloaderStub{
-			downloadImage: func(context.Context, string, int64) ([]byte, string, error) {
+			downloadImage: func(context.Context, string, string, int64) ([]byte, string, error) {
 				return nil, "", cause
 			},
 		},
@@ -107,7 +107,7 @@ func TestReadGeneratedImageHidesAdapterSecurityDetails(t *testing.T) {
 
 	_, _, err := service.readGeneratedImage(t.Context(), llm.GeneratedImage{
 		URL: "https://cdn.example.test/image",
-	})
+	}, "")
 	if !errors.Is(err, ErrGeneratedMediaArtifactUnavailable) {
 		t.Fatalf("expected generated media artifact error, got %v", err)
 	}

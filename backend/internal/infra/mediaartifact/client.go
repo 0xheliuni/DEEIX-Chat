@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/outboundhttp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
@@ -49,41 +50,43 @@ type downloadResult struct {
 	MIMEType string
 }
 
-// Client 维护提供商返回媒体 URL 所使用的严格出站客户端。
-// 即使提供商端点由管理员配置，其响应中的媒体 URL 仍按不可信输入处理。
+// Client 维护提供商返回媒体 URL 所使用的隔离出站客户端。
+// 仅当制品 URL 与管理员配置的模型 endpoint 同 origin 时继承局部信任；其他 URL 仍按不可信输入处理。
 type Client struct {
-	policy               security.OutboundPolicy
-	httpClient           *http.Client
-	closeIdleConnections func()
-	pollAttempts         int
-	pollInterval         time.Duration
+	basePolicy   security.OutboundPolicy
+	httpClients  *outboundhttp.Pool
+	pollAttempts int
+	pollInterval time.Duration
 }
 
 // New 使用注入的严格出站策略创建可复用的媒体制品客户端。
 func New(policy security.OutboundPolicy) *Client {
-	transport := security.NewOutboundHTTPTransport(policy, defaultConnectTimeout)
-	// 媒体制品 URL 经常携带签名查询参数，不能使用会记录 url.full 的通用 HTTP tracing。
-	// 请求级诊断由 application 的脱敏结构化日志承担。
-	httpClient := &http.Client{
-		Transport: transport,
-	}
-	httpClient.CheckRedirect = stripCredentialOnCrossOriginRedirect
 	return &Client{
-		policy:               policy,
-		httpClient:           httpClient,
-		closeIdleConnections: transport.CloseIdleConnections,
-		pollAttempts:         geminiFilePollAttempts,
-		pollInterval:         geminiFilePollInterval,
+		basePolicy: policy,
+		httpClients: outboundhttp.NewPool(policy, outboundhttp.DefaultCacheLimit, func(trustedPolicy security.OutboundPolicy, trustedOrigin string, _ string) (outboundhttp.ManagedClient, error) {
+			return newMediaArtifactHTTPClient(trustedPolicy, policy, trustedOrigin), nil
+		}),
+		pollAttempts: geminiFilePollAttempts,
+		pollInterval: geminiFilePollInterval,
 	}
 }
 
+func newMediaArtifactHTTPClient(policy security.OutboundPolicy, strictPolicy security.OutboundPolicy, trustedOrigin string) outboundhttp.ManagedClient {
+	transport := security.NewOutboundHTTPTransport(policy, defaultConnectTimeout)
+	// 媒体制品 URL 经常携带签名查询参数，不能使用会记录 url.full 的通用 HTTP tracing。
+	// 请求级诊断由 application 的脱敏结构化日志承担。
+	httpClient := &http.Client{Transport: transport, CheckRedirect: mediaArtifactRedirectPolicy(strictPolicy, trustedOrigin)}
+	return outboundhttp.ManagedClient{Client: httpClient, CloseIdleConnections: transport.CloseIdleConnections}
+}
+
 // DownloadImage 从不可信的提供商返回 URL 下载生成图片。
-func (c *Client) DownloadImage(ctx context.Context, sourceURL string, maxBytes int64) ([]byte, string, error) {
+func (c *Client) DownloadImage(ctx context.Context, sourceURL string, trustedProviderEndpoint string, maxBytes int64) ([]byte, string, error) {
 	if _, _, ok := geminiGeneratedFileURLs(sourceURL); ok {
 		return nil, "", fmt.Errorf("Gemini Files generated image URI is not supported")
 	}
 	result, err := c.download(ctx, downloadRequest{
 		url:                sourceURL,
+		trustedEndpoint:    trustedProviderEndpoint,
 		maxBytes:           maxBytes,
 		timeout:            imageDownloadTimeout,
 		expectedMIMEPrefix: "image/",
@@ -93,7 +96,7 @@ func (c *Client) DownloadImage(ctx context.Context, sourceURL string, maxBytes i
 }
 
 // DownloadVideo 下载生成视频，并按需等待和解析 Gemini Files 制品。
-func (c *Client) DownloadVideo(ctx context.Context, sourceURL string, apiKey string, maxBytes int64) ([]byte, string, error) {
+func (c *Client) DownloadVideo(ctx context.Context, sourceURL string, trustedProviderEndpoint string, apiKey string, maxBytes int64) ([]byte, string, error) {
 	resolvedMIME := ""
 	headers := map[string]string(nil)
 	downloadURL := strings.TrimSpace(sourceURL)
@@ -103,7 +106,7 @@ func (c *Client) DownloadVideo(ctx context.Context, sourceURL string, apiKey str
 			return nil, "", fmt.Errorf("Gemini Files generated video URI requires an API key")
 		}
 		var err error
-		resolvedMIME, err = c.waitGeminiFileReady(ctx, metadataURL, apiKey)
+		resolvedMIME, err = c.waitGeminiFileReady(ctx, metadataURL, trustedProviderEndpoint, apiKey)
 		if err != nil {
 			return nil, "", err
 		}
@@ -113,6 +116,7 @@ func (c *Client) DownloadVideo(ctx context.Context, sourceURL string, apiKey str
 
 	result, err := c.download(ctx, downloadRequest{
 		url:                downloadURL,
+		trustedEndpoint:    trustedProviderEndpoint,
 		headers:            headers,
 		maxBytes:           maxBytes,
 		timeout:            videoDownloadTimeout,
@@ -130,6 +134,7 @@ func (c *Client) DownloadVideo(ctx context.Context, sourceURL string, apiKey str
 
 type downloadRequest struct {
 	url                string
+	trustedEndpoint    string
 	headers            map[string]string
 	maxBytes           int64
 	timeout            time.Duration
@@ -139,13 +144,17 @@ type downloadRequest struct {
 
 // download 统一执行带超时、状态码和响应大小边界的媒体下载。
 func (c *Client) download(ctx context.Context, input downloadRequest) (downloadResult, error) {
-	if c == nil || c.httpClient == nil {
+	if c == nil || c.httpClients == nil {
 		return downloadResult{}, fmt.Errorf("media artifact client is not configured")
 	}
 	if input.maxBytes <= 0 {
 		return downloadResult{}, fmt.Errorf("media artifact size limit must be positive")
 	}
-	if err := security.ValidateOutboundHTTPURL(input.url, c.policy); err != nil {
+	trustedEndpoint, policy, err := c.artifactPolicy(input.url, input.trustedEndpoint)
+	if err != nil {
+		return downloadResult{}, fmt.Errorf("%s failed: %w", input.failureLabel, err)
+	}
+	if err := security.ValidateOutboundHTTPURL(input.url, policy); err != nil {
 		return downloadResult{}, fmt.Errorf("%s failed: %w", input.failureLabel, err)
 	}
 	requestCtx, cancel := context.WithTimeout(ctx, input.timeout)
@@ -157,7 +166,7 @@ func (c *Client) download(ctx context.Context, input downloadRequest) (downloadR
 	for key, value := range input.headers {
 		request.Header.Set(key, value)
 	}
-	response, err := c.httpClient.Do(request)
+	response, err := c.httpClients.Do(request, trustedEndpoint, "")
 	if err != nil {
 		return downloadResult{}, sanitizeRequestError(input.failureLabel, err)
 	}
@@ -176,11 +185,35 @@ func (c *Client) download(ctx context.Context, input downloadRequest) (downloadR
 	}, nil
 }
 
+func (c *Client) artifactPolicy(sourceURL string, trustedProviderEndpoint string) (string, security.OutboundPolicy, error) {
+	trustedEndpoint := ""
+	providerEndpoint := strings.TrimSpace(trustedProviderEndpoint)
+	if providerEndpoint != "" {
+		providerOrigin, err := security.HTTPOrigin(providerEndpoint)
+		if err != nil {
+			return "", security.OutboundPolicy{}, fmt.Errorf("invalid configured model endpoint: %w", err)
+		}
+		sourceOrigin, sourceErr := security.HTTPOrigin(sourceURL)
+		if sourceErr == nil && sourceOrigin == providerOrigin {
+			trustedEndpoint = providerEndpoint
+		}
+	}
+	policy := c.basePolicy
+	if trustedEndpoint != "" {
+		var err error
+		policy, err = c.basePolicy.WithTrustedHTTPURLs(trustedEndpoint)
+		if err != nil {
+			return "", security.OutboundPolicy{}, err
+		}
+	}
+	return trustedEndpoint, policy, nil
+}
+
 // waitGeminiFileReady 按 Gemini Files 状态协议轮询，且始终服从调用方取消信号。
-func (c *Client) waitGeminiFileReady(ctx context.Context, metadataURL string, apiKey string) (string, error) {
+func (c *Client) waitGeminiFileReady(ctx context.Context, metadataURL string, trustedProviderEndpoint string, apiKey string) (string, error) {
 	lastState := ""
 	for attempt := 0; attempt < c.pollAttempts; attempt++ {
-		state, mimeType, err := c.fetchGeminiFileState(ctx, metadataURL, apiKey)
+		state, mimeType, err := c.fetchGeminiFileState(ctx, metadataURL, trustedProviderEndpoint, apiKey)
 		if err != nil {
 			return "", err
 		}
@@ -206,8 +239,12 @@ func (c *Client) waitGeminiFileReady(ctx context.Context, metadataURL string, ap
 }
 
 // fetchGeminiFileState 在独立请求超时和元数据大小边界内读取一次文件状态。
-func (c *Client) fetchGeminiFileState(ctx context.Context, metadataURL string, apiKey string) (string, string, error) {
-	if err := security.ValidateOutboundHTTPURL(metadataURL, c.policy); err != nil {
+func (c *Client) fetchGeminiFileState(ctx context.Context, metadataURL string, trustedProviderEndpoint string, apiKey string) (string, string, error) {
+	trustedEndpoint, policy, err := c.artifactPolicy(metadataURL, trustedProviderEndpoint)
+	if err != nil {
+		return "", "", fmt.Errorf("poll generated video file failed: %w", err)
+	}
+	if err := security.ValidateOutboundHTTPURL(metadataURL, policy); err != nil {
 		return "", "", fmt.Errorf("poll generated video file failed: %w", err)
 	}
 	requestCtx, cancel := context.WithTimeout(ctx, metadataRequestTimeout)
@@ -217,7 +254,7 @@ func (c *Client) fetchGeminiFileState(ctx context.Context, metadataURL string, a
 		return "", "", err
 	}
 	request.Header.Set(geminiAPIKeyHeader, strings.TrimSpace(apiKey))
-	response, err := c.httpClient.Do(request)
+	response, err := c.httpClients.Do(request, trustedEndpoint, "")
 	if err != nil {
 		return "", "", sanitizeRequestError("poll generated video file", err)
 	}
@@ -341,18 +378,42 @@ func stripCredentialOnCrossOriginRedirect(request *http.Request, via []*http.Req
 	if len(via) >= maxRedirects {
 		return fmt.Errorf("stopped after %d redirects", maxRedirects)
 	}
-	if len(via) == 0 || sameOrigin(request.URL, via[0].URL) {
+	if len(via) == 0 || sameHTTPOrigin(request.URL, via[0].URL) {
 		return nil
 	}
 	request.Header.Del(geminiAPIKeyHeader)
 	return nil
 }
 
-func sameOrigin(left *url.URL, right *url.URL) bool {
+func mediaArtifactRedirectPolicy(strictPolicy security.OutboundPolicy, trustedOrigin string) func(*http.Request, []*http.Request) error {
+	return func(request *http.Request, via []*http.Request) error {
+		if err := stripCredentialOnCrossOriginRedirect(request, via); err != nil {
+			return err
+		}
+		if trustedOrigin != "" {
+			redirectOrigin, err := security.HTTPOrigin(request.URL.String())
+			if err == nil && redirectOrigin == trustedOrigin {
+				return nil
+			}
+			trustedURL, trustedErr := url.Parse(trustedOrigin)
+			if err != nil || trustedErr != nil || strings.EqualFold(request.URL.Hostname(), trustedURL.Hostname()) {
+				return fmt.Errorf("media artifact redirect changed trusted origin: %w", security.ErrUnsafeOutboundURL)
+			}
+		}
+		if err := security.ValidateOutboundHTTPURL(request.URL.String(), strictPolicy); err != nil {
+			return fmt.Errorf("media artifact redirect target is not allowed: %w", err)
+		}
+		return nil
+	}
+}
+
+func sameHTTPOrigin(left *url.URL, right *url.URL) bool {
 	if left == nil || right == nil {
 		return false
 	}
-	return strings.EqualFold(left.Scheme, right.Scheme) && strings.EqualFold(left.Host, right.Host)
+	leftOrigin, leftErr := security.HTTPOrigin(left.String())
+	rightOrigin, rightErr := security.HTTPOrigin(right.String())
+	return leftErr == nil && rightErr == nil && leftOrigin == rightOrigin
 }
 
 func firstNonEmpty(values ...string) string {
@@ -366,7 +427,7 @@ func firstNonEmpty(values ...string) string {
 
 // CloseIdleConnections 释放可复用传输层持有的空闲连接。
 func (c *Client) CloseIdleConnections() {
-	if c != nil && c.closeIdleConnections != nil {
-		c.closeIdleConnections()
+	if c != nil && c.httpClients != nil {
+		c.httpClients.CloseIdleConnections()
 	}
 }

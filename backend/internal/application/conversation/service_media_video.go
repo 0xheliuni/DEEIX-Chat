@@ -314,7 +314,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 	attachmentRows := make([]model.Attachment, 0, len(output.GeneratedVideos))
 	now := time.Now()
 	for i, video := range output.GeneratedVideos {
-		data, mimeType, readErr := s.readGeneratedVideo(ctx, video, route.APIKey)
+		data, mimeType, readErr := s.readGeneratedVideo(ctx, video, route.BaseURL, route.APIKey)
 		if readErr != nil {
 			retErr = s.finalizeGeneratedMediaArtifactFailure(ctx, run, assistantMessage.ID, i+1, len(output.GeneratedVideos), readErr)
 			return buildBillableFailure(retErr, output.Usage), retErr
@@ -500,7 +500,7 @@ func mediaInputAttachmentRows(conversationID uint, userID uint, attachments []At
 	return rows
 }
 
-func (s *Service) readGeneratedVideo(ctx context.Context, video llm.GeneratedVideo, apiKey string) ([]byte, string, error) {
+func (s *Service) readGeneratedVideo(ctx context.Context, video llm.GeneratedVideo, trustedProviderEndpoint string, apiKey string) ([]byte, string, error) {
 	mimeType := strings.TrimSpace(video.MIMEType)
 	if mimeType == "" {
 		mimeType = "video/mp4"
@@ -528,7 +528,7 @@ func (s *Service) readGeneratedVideo(ctx context.Context, video llm.GeneratedVid
 	if limit <= 0 {
 		limit = 20 * 1024 * 1024
 	}
-	data, downloadedMIME, err := s.mediaDownloader.DownloadVideo(ctx, url, apiKey, limit)
+	data, downloadedMIME, err := s.mediaDownloader.DownloadVideo(ctx, url, trustedProviderEndpoint, apiKey, limit)
 	if err != nil {
 		if isMediaArtifactResponseTooLarge(err) {
 			return nil, mimeType, ErrFileTooLarge

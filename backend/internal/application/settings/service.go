@@ -12,6 +12,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	mineruextract "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extract/mineru"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
 // Service 封装 settings 业务逻辑。
@@ -448,8 +449,8 @@ func validatePatchItem(item PatchItem) error {
 		if value == "" {
 			return nil
 		}
-		if !strings.HasPrefix(value, "http://") && !strings.HasPrefix(value, "https://") {
-			return fmt.Errorf("%s must start with http:// or https://", key)
+		if err := security.ValidateTrustedOutboundHTTPURL(value); err != nil {
+			return fmt.Errorf("%s must be a valid trusted HTTP endpoint", key)
 		}
 		return nil
 	case "file:embedding_output_dimensions":

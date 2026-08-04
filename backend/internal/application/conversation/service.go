@@ -69,8 +69,8 @@ type auditWriter interface {
 
 // generatedMediaDownloader 定义会话用例所需的最小媒体下载端口，避免应用层感知 HTTP 细节。
 type generatedMediaDownloader interface {
-	DownloadImage(ctx context.Context, sourceURL string, maxBytes int64) ([]byte, string, error)
-	DownloadVideo(ctx context.Context, sourceURL string, apiKey string, maxBytes int64) ([]byte, string, error)
+	DownloadImage(ctx context.Context, sourceURL string, trustedProviderEndpoint string, maxBytes int64) ([]byte, string, error)
+	DownloadVideo(ctx context.Context, sourceURL string, trustedProviderEndpoint string, apiKey string, maxBytes int64) ([]byte, string, error)
 }
 
 // mediaArtifactResponseTooLarge 是跨层错误能力契约，不要求应用层依赖具体适配器错误类型。

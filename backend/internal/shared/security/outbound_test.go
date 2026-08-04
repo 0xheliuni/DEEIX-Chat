@@ -94,6 +94,24 @@ func TestWithTrustedHTTPURLsRejectsPermanentlyBlockedTargets(t *testing.T) {
 	}
 }
 
+func TestHTTPOriginNormalizesSchemeHostAndDefaultPort(t *testing.T) {
+	origin, err := HTTPOrigin("HTTPS://Example.COM.:443/provider/path?query=1")
+	if err != nil {
+		t.Fatalf("normalize origin: %v", err)
+	}
+	if origin != "https://example.com" {
+		t.Fatalf("origin = %q, want https://example.com", origin)
+	}
+
+	origin, err = HTTPOrigin("http://[::1]:8080/v1")
+	if err != nil {
+		t.Fatalf("normalize IPv6 origin: %v", err)
+	}
+	if origin != "http://[::1]:8080" {
+		t.Fatalf("origin = %q, want http://[::1]:8080", origin)
+	}
+}
+
 func TestValidateOutboundHTTPURLNeverAllowsMetadataTargets(t *testing.T) {
 	policy := mustOutboundPolicy(t, true, nil, []string{"0.0.0.0/0", "::/0"})
 	for _, rawURL := range []string{

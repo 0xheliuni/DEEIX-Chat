@@ -74,6 +74,26 @@ func ValidateTrustedOutboundHTTPURL(raw string) error {
 	return err
 }
 
+// HTTPOrigin 返回经过规范化的 HTTP(S) origin，用于把管理员配置的端点信任限制在 scheme、host 和 port。
+// 默认端口会被折叠，路径、查询参数和片段不会进入 origin。
+func HTTPOrigin(raw string) (string, error) {
+	parsed, err := parseTrustedHTTPURL(raw)
+	if err != nil {
+		return "", err
+	}
+	scheme := strings.ToLower(strings.TrimSpace(parsed.Scheme))
+	hostname := normalizeURLHostname(parsed.Hostname())
+	host := hostname
+	if strings.Contains(hostname, ":") {
+		host = "[" + hostname + "]"
+	}
+	port := parsed.Port()
+	if port != "" && !isDefaultHTTPPort(scheme, port) {
+		host += ":" + port
+	}
+	return scheme + "://" + host, nil
+}
+
 // WithTrustedHTTPURLs 返回一份仅额外信任指定 HTTP(S) 端点主机的策略副本。
 // 该能力用于管理员显式配置的集成端点；不会修改原策略，也不能放行链路本地或元数据目标。
 func (p OutboundPolicy) WithTrustedHTTPURLs(rawURLs ...string) (OutboundPolicy, error) {
@@ -134,6 +154,10 @@ func parseTrustedHTTPURL(raw string) (*url.URL, error) {
 		return nil, fmt.Errorf("%w: target host %q cannot be trusted", ErrInvalidOutboundPolicy, host)
 	}
 	return parsed, nil
+}
+
+func isDefaultHTTPPort(scheme string, port string) bool {
+	return (scheme == "http" && port == "80") || (scheme == "https" && port == "443")
 }
 
 // ValidateOutboundHTTPURL 校验外联 HTTP 地址；启用 SSRF 防护时仅允许策略授权的本机/内网目标，并始终阻断链路本地和元数据地址。
