@@ -767,6 +767,9 @@ func (c Config) Validate() error {
 	if _, err := sharedsecurity.NewOutboundPolicy(c.ssrfProtectionEnforced(), splitCommaSeparated(c.SSRFAllowedHosts), splitCommaSeparated(c.SSRFAllowedCIDRs)); err != nil {
 		return fmt.Errorf("invalid config: SSRF allowlist: %w", err)
 	}
+	if err := validateHTTPIntegrationURL(c.TurnstileSiteverifyURL, "TURNSTILE_SITEVERIFY_URL"); err != nil {
+		return err
+	}
 	if env != "prod" {
 		return nil
 	}
@@ -843,6 +846,17 @@ func (c Config) validateStorage() error {
 	default:
 		return fmt.Errorf("invalid storage config: unsupported STORAGE_BACKEND %q", c.StorageBackend)
 	}
+}
+
+func validateHTTPIntegrationURL(raw string, label string) error {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return nil
+	}
+	if err := sharedsecurity.ValidateTrustedOutboundHTTPURL(value); err != nil {
+		return fmt.Errorf("invalid config: %s must be an http(s) URL without credentials; metadata and link-local targets are not allowed", label)
+	}
+	return nil
 }
 
 func validatePublicURL(raw string, label string) error {

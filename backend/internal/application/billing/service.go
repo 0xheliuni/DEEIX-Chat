@@ -61,7 +61,6 @@ type Service struct {
 	permissionGroupLookup         permissionGroupLookup
 	permissionGroupPlanCounter    permissionGroupPlanCounter
 	redemptionCodeSecret          string
-	openRouterPricingProvider     openRouterPricingProvider
 }
 
 // groupRateMultiplierResolver 提供用户权限组计费倍率查询能力。

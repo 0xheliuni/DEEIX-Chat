@@ -35,12 +35,15 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/embedding"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/geoip"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/identityprovider"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/mcp"
 	openrouterpricing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/modelpricing/openrouter"
 	platformlogger "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/logger"
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/openwebui"
+	stripepayment "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/payment/stripe"
+	filecache "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/filecache"
 	announcementrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/announcement"
 	auditrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/audit"
 	billingrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/billing"
@@ -78,13 +81,14 @@ import (
 
 // App 维护应用运行依赖。
 type App struct {
-	cfg              config.Config
-	engine           *gin.Engine
-	logger           *zap.Logger
-	db               *gorm.DB
-	redis            *redis.Client
-	geoResolver      *geoip.Client
-	backgroundCancel context.CancelFunc
+	cfg                    config.Config
+	engine                 *gin.Engine
+	logger                 *zap.Logger
+	db                     *gorm.DB
+	redis                  *redis.Client
+	geoResolver            *geoip.Client
+	identityProviderClient *identityprovider.Client
+	backgroundCancel       context.CancelFunc
 }
 
 type subscriptionGroupAdapter struct {
@@ -195,12 +199,22 @@ func NewApp() (*App, error) {
 	billingService := billing.NewService(billingRepo)
 	billingService.SetAuditWriter(auditService)
 	billingService.SetRedemptionCodeSecret(cfg.DataEncryptionKey)
-	billingService.SetOpenRouterPricingProvider(openrouterpricing.New(cfg.StrictOutboundPolicy()))
-	billingHandler := billinghttp.NewHandler(billingService, settingsService, runtimeCfg)
+	officialPricingService := billing.NewOfficialPricingService(
+		openrouterpricing.New(cfg.StrictOutboundPolicy()),
+		filecache.NewOpenRouterPricingCache(runtimeCfg.Snapshot().StorageRootDir),
+	)
+	paymentCheckoutService := billing.NewPaymentCheckoutService(stripepayment.New(cfg.StrictOutboundPolicy()))
+	billingHandler := billinghttp.NewHandler(billingService, settingsService, runtimeCfg, officialPricingService, paymentCheckoutService)
 	billingModule := billinghttp.NewModule(billingHandler)
 	objectStoreProvider := appstorage.NewRuntimeProvider(runtimeCfg, nil)
 	geoResolver := geoip.New(runtimeCfg.Snapshot())
-	authService := auth.NewServiceWithRuntime(runtimeCfg, userRepo, geoResolver)
+	identityProviderClient := identityprovider.New(cfg.StrictOutboundPolicy())
+	authService := auth.NewServiceWithRuntime(
+		runtimeCfg,
+		userRepo,
+		geoResolver,
+		identityProviderClient,
+	)
 	authService.SetLogger(log)
 	authService.SetObjectStoreProvider(objectStoreProvider)
 	authService.SetAuditWriter(auditService)
@@ -353,13 +367,14 @@ func NewApp() (*App, error) {
 	conversationService.StartBackgroundWorkers(backgroundCtx)
 
 	return &App{
-		cfg:              runtimeCfg.Snapshot(),
-		engine:           engine,
-		logger:           log,
-		db:               db,
-		redis:            redisClient,
-		geoResolver:      geoResolver,
-		backgroundCancel: backgroundCancel,
+		cfg:                    runtimeCfg.Snapshot(),
+		engine:                 engine,
+		logger:                 log,
+		db:                     db,
+		redis:                  redisClient,
+		geoResolver:            geoResolver,
+		identityProviderClient: identityProviderClient,
+		backgroundCancel:       backgroundCancel,
 	}, nil
 }
 
@@ -431,6 +446,9 @@ func (a *App) Close() {
 	}
 	if a.geoResolver != nil {
 		a.geoResolver.Close()
+	}
+	if a.identityProviderClient != nil {
+		a.identityProviderClient.CloseIdleConnections()
 	}
 	if a.db != nil {
 		if sqlDB, err := a.db.DB(); err == nil {

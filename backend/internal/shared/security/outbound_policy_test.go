@@ -39,7 +39,6 @@ func TestOutboundHTTPCallSitesAreExplicit(t *testing.T) {
 		"&http.Client{": {
 			reason: "direct HTTP clients must be reviewed for external-vs-internal trust boundaries",
 			files: allowFiles(
-				"internal/application/auth/service.go",
 				"internal/infra/embedding/client.go",
 				"internal/infra/extract/mineru/client.go",
 				"internal/infra/geoip/client.go",
@@ -47,7 +46,6 @@ func TestOutboundHTTPCallSitesAreExplicit(t *testing.T) {
 				"internal/infra/mcp/client.go",
 				"internal/infra/observability/tracing/http.go",
 				"internal/shared/security/outbound.go",
-				"internal/transport/http/billing/payment.go",
 			),
 		},
 		"platformtracing.NewHTTPClient(": {

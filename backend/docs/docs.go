@@ -853,6 +853,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/OpenRouterOfficialPricingResponseDoc"
                         }
                     },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/BillingErrorDoc"
+                        }
+                    },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
