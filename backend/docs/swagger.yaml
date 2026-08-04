@@ -6195,6 +6195,21 @@ definitions:
     type: object
   ToolResponse:
     properties:
+      attachmentArgument:
+        type: string
+      attachmentEncoding:
+        enum:
+        - ""
+        - base64
+        - data_url
+        type: string
+      attachmentInputMode:
+        enum:
+        - none
+        - image
+        type: string
+      attachmentPromptArgument:
+        type: string
       createdAt:
         type: string
       description:
@@ -6218,6 +6233,10 @@ definitions:
       updatedAt:
         type: string
     required:
+    - attachmentArgument
+    - attachmentEncoding
+    - attachmentInputMode
+    - attachmentPromptArgument
     - createdAt
     - description
     - displayName
@@ -6502,6 +6521,20 @@ definitions:
     type: object
   UpdateToolRequest:
     properties:
+      attachmentArgument:
+        type: string
+      attachmentEncoding:
+        enum:
+        - base64
+        - data_url
+        type: string
+      attachmentInputMode:
+        enum:
+        - none
+        - image
+        type: string
+      attachmentPromptArgument:
+        type: string
       description:
         type: string
       displayName:
@@ -10504,7 +10537,7 @@ paths:
     patch:
       consumes:
       - application/json
-      description: 管理员更新 MCP 工具的展示信息或状态
+      description: 管理员更新 MCP 工具的展示信息、附件处理配置或状态
       parameters:
       - description: MCP 工具 ID
         in: path

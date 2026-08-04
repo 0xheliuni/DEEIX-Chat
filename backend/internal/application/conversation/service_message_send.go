@@ -441,10 +441,43 @@ func (s *Service) sendMessageInternal(
 	currentAttachments := filterCurrentAttachments(conversationAttachments)
 	userMessage.Attachments = marshalAttachmentSnapshots(currentAttachments)
 
+	toolRuntime, err := s.resolveSelectedToolRuntime(ctx, input.SelectedToolIDs)
+	if err != nil {
+		retErr = err
+		return nil, err
+	}
+	imageAttachmentRoutingActive := toolRuntime.attachmentProcessor != nil
+	imageProcessing, err := s.processImageAttachments(ctx, imageAttachmentProcessingInput{
+		UserID:         input.UserID,
+		ConversationID: input.ConversationID,
+		MessageID:      assistantMessage.ID,
+		RequestID:      input.RequestID,
+		RunID:          runID,
+		UserPrompt:     input.Content,
+		Attachments:    currentAttachments,
+		Runtime:        toolRuntime,
+		TraceRecorder:  traceRecorder,
+	})
+	toolCallRows = append(toolCallRows, imageProcessing.Rows...)
+	mergeToolCallPersistenceKeys(&persistedToolCallKeys, imageProcessing.PersistedToolCallKeys)
+	if err != nil {
+		retErr = err
+		return nil, err
+	}
+	if imageProcessing.Routed {
+		toolRuntime = toolRuntime.withoutAttachmentProcessor()
+		if len(toolCallRows) >= s.resolveMaxToolCallsPerRun() {
+			toolRuntime = toolRuntime.withoutDefinitions()
+		}
+	}
+
 	fileContextPlan := buildConversationFileContextPlan(conversationAttachments, fileMode, cfg, route.UpstreamModel, route.ModelCapabilitiesJSON, capability.RAGAvailable)
+	if imageProcessing.Routed {
+		fileContextPlan = withoutCurrentImageAttachments(fileContextPlan)
+	}
 
 	contextAssembler := NewContextAssembler(int64(cfg.ContextMaxInputTokens))
-	userCtx := userContextInput{}
+	userCtx := userContextInput{ImageAnalyses: imageProcessing.Analyses}
 	var prefixMemories []domainmemory.UserMemory
 	preferencePrompt := ""
 	if promptScope.Snapshot != nil {
@@ -637,7 +670,6 @@ func (s *Service) sendMessageInternal(
 			messageTraceStatusStreaming,
 		)
 	}
-	toolRuntime := s.resolveSelectedToolRuntime(ctx, input.SelectedToolIDs)
 	routePromptInput := messageRoutePromptInput{
 		UserContent:             input.Content,
 		ProjectSystemPrompt:     conversation.ProjectSystemPrompt,
@@ -648,6 +680,7 @@ func (s *Service) sendMessageInternal(
 		PreferencePrompt:        preferencePrompt,
 		SkillPrompts:            skillPrompts,
 		ToolRuntime:             toolRuntime,
+		SkipImageAttachments:    imageAttachmentRoutingActive,
 		Config:                  cfg,
 	}
 	buildRoutePrompt := func(currentRoute *channel.ResolvedRoute) (PromptPlan, bool, error) {
@@ -1218,7 +1251,6 @@ func (s *Service) sendMessageInternal(
 	}
 	s.routeResolver.MarkRouteSuccess(ctx, route)
 
-	toolCallRows = make([]model.ToolCall, 0)
 	assistantText, nativeToolRows := syncUpstreamOutputTrace(traceRecorder, upstreamOutput, runID)
 	toolCallRows = append(toolCallRows, nativeToolRows...)
 	totalUsage := upstreamOutput.Usage
@@ -1228,7 +1260,7 @@ func (s *Service) sendMessageInternal(
 		usageAccumulator.setObservedUsage(totalUsage)
 	}
 	totalServerSideToolUsage = addServerSideToolUsage(nil, upstreamOutput.ServerSideToolUsage)
-	remainingToolCalls := s.resolveMaxToolCallsPerRun()
+	remainingToolCalls := max(s.resolveMaxToolCallsPerRun()-len(imageProcessing.Rows), 0)
 	llmCallCount := llmRequestCount
 	toolLedger := newToolExecutionLedger()
 	toolHistoryTrimmedForRun := false

@@ -4031,7 +4031,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "管理员更新 MCP 工具的展示信息或状态",
+                "description": "管理员更新 MCP 工具的展示信息、附件处理配置或状态",
                 "consumes": [
                     "application/json"
                 ],
@@ -20186,6 +20186,10 @@ const docTemplate = `{
         "ToolResponse": {
             "type": "object",
             "required": [
+                "attachmentArgument",
+                "attachmentEncoding",
+                "attachmentInputMode",
+                "attachmentPromptArgument",
                 "createdAt",
                 "description",
                 "displayName",
@@ -20199,6 +20203,27 @@ const docTemplate = `{
                 "updatedAt"
             ],
             "properties": {
+                "attachmentArgument": {
+                    "type": "string"
+                },
+                "attachmentEncoding": {
+                    "type": "string",
+                    "enum": [
+                        "",
+                        "base64",
+                        "data_url"
+                    ]
+                },
+                "attachmentInputMode": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "image"
+                    ]
+                },
+                "attachmentPromptArgument": {
+                    "type": "string"
+                },
                 "createdAt": {
                     "type": "string"
                 },
@@ -20619,6 +20644,26 @@ const docTemplate = `{
         "UpdateToolRequest": {
             "type": "object",
             "properties": {
+                "attachmentArgument": {
+                    "type": "string"
+                },
+                "attachmentEncoding": {
+                    "type": "string",
+                    "enum": [
+                        "base64",
+                        "data_url"
+                    ]
+                },
+                "attachmentInputMode": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "image"
+                    ]
+                },
+                "attachmentPromptArgument": {
+                    "type": "string"
+                },
                 "description": {
                     "type": "string"
                 },

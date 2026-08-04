@@ -47,6 +47,10 @@ var (
 	ErrTooManyMessageFiles = errors.New("too many message files")
 	// ErrTooManySelectedTools 单条消息选择的 MCP 工具数超限。
 	ErrTooManySelectedTools = errors.New("too many selected tools")
+	// ErrMultipleImageAttachmentProcessors 单条消息不能同时选择多个图片附件处理器。
+	ErrMultipleImageAttachmentProcessors = errors.New("multiple image attachment processors selected")
+	// ErrImageAttachmentProcessingFailed 图片附件处理器调用失败。
+	ErrImageAttachmentProcessingFailed = errors.New("image attachment processing failed")
 	// ErrTooManySelectedSkills 单条消息选择的 Skill 数超限。
 	ErrTooManySelectedSkills = errors.New("too many selected skills")
 	// ErrSkillNotFound 技能不存在或当前用户不可用。
