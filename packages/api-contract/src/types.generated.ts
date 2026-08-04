@@ -2729,6 +2729,10 @@ export interface ToolListResponseDoc {
 }
 
 export interface ToolResponse {
+  attachmentArgument: string;
+  attachmentEncoding: "" | "base64" | "data_url";
+  attachmentInputMode: "none" | "image";
+  attachmentPromptArgument: string;
   createdAt: string;
   description: string;
   displayName: string;
@@ -2898,6 +2902,10 @@ export interface UpdateServerToolsStatusRequest {
 }
 
 export interface UpdateToolRequest {
+  attachmentArgument?: string;
+  attachmentEncoding?: "base64" | "data_url";
+  attachmentInputMode?: "none" | "image";
+  attachmentPromptArgument?: string;
   description?: string;
   displayName?: string;
   status?: string;
@@ -4899,7 +4907,7 @@ export namespace Admin {
   }
 
   /**
-   * @description 管理员更新 MCP 工具的展示信息或状态
+   * @description 管理员更新 MCP 工具的展示信息、附件处理配置或状态
    * @tags admin-mcp
    * @name McpToolsPartialUpdate
    * @summary 更新 MCP 工具

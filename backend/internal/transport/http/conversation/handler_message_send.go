@@ -368,6 +368,10 @@ func handleSendMessageError(c *gin.Context, err error) {
 		response.Error(c, http.StatusBadRequest, "too many files in one message")
 	case errors.Is(err, appconversation.ErrTooManySelectedTools):
 		response.Error(c, http.StatusBadRequest, "too many selected tools")
+	case errors.Is(err, appconversation.ErrMultipleImageAttachmentProcessors):
+		response.Error(c, http.StatusBadRequest, "multiple image attachment processors selected")
+	case errors.Is(err, appconversation.ErrImageAttachmentProcessingFailed):
+		response.Error(c, http.StatusBadGateway, "image attachment processing failed")
 	case errors.Is(err, appconversation.ErrTooManySelectedSkills):
 		response.Error(c, http.StatusBadRequest, "too many selected skills")
 	case errors.Is(err, appconversation.ErrSkillNotFound):
