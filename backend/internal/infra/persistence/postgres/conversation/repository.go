@@ -4316,12 +4316,12 @@ func insertSQLiteMessageChunkVectors(tx *gorm.DB, entities []models.MessageChunk
 	return nil
 }
 
-func (r *Repo) searchSQLiteMessageChunks(ctx context.Context, conversationID uint, userID uint, queryEmbedding []float32, topK int, minSimilarity float64) ([]domainconversation.MessageChunk, error) {
-	vector, err := sqlitevec.SerializeFloat32(queryEmbedding)
+func (r *Repo) searchSQLiteMessageChunks(ctx context.Context, input repository.MessageChunkSearchInput) ([]domainconversation.MessageChunk, error) {
+	vector, err := sqlitevec.SerializeFloat32(input.QueryEmbedding)
 	if err != nil {
 		return nil, err
 	}
-	query := fmt.Sprintf(`
+	query := historicalMessageScopeCTE + fmt.Sprintf(`
 		SELECT chunks.id, chunks.conversation_id, chunks.message_id, chunks.user_id, chunks.role,
 		       chunks.chunk_index, chunks.content, chunks.token_count, chunks.created_at,
 		       (1.0 - vectors.distance) AS similarity
@@ -4332,16 +4332,27 @@ func (r *Repo) searchSQLiteMessageChunks(ctx context.Context, conversationID uin
 			AND vectors.k = ?
 			AND vectors.user_id = ?
 			AND vectors.conversation_id = ?
+			AND vectors.message_id IN (
+				SELECT id
+				FROM valid_historical_message_scope
+			)
 		ORDER BY vectors.distance ASC`,
 		sqlitevec.MessageChunkVectorTable,
 	)
+	args := historicalMessageScopeArgs(input.Scope)
+	args = append(args,
+		vector,
+		input.TopK,
+		input.Scope.UserID,
+		input.Scope.ConversationID,
+	)
 	var rows []messageChunkSearchRow
-	if err := r.db.WithContext(ctx).Raw(query, vector, topK, userID, conversationID).Scan(&rows).Error; err != nil {
+	if err := r.db.WithContext(ctx).Raw(query, args...).Scan(&rows).Error; err != nil {
 		return nil, translateError(err)
 	}
 	results := make([]domainconversation.MessageChunk, 0, len(rows))
 	for _, row := range rows {
-		if row.Similarity < minSimilarity {
+		if row.Similarity < input.MinSimilarity {
 			continue
 		}
 		results = append(results, domainconversation.MessageChunk{
@@ -4360,29 +4371,47 @@ func (r *Repo) searchSQLiteMessageChunks(ctx context.Context, conversationID uin
 	return results, nil
 }
 
-// SearchMessageChunks 按查询向量检索最相关的历史消息分片。
-func (r *Repo) SearchMessageChunks(ctx context.Context, conversationID uint, userID uint, queryEmbedding []float32, topK int, minSimilarity float64) ([]domainconversation.MessageChunk, error) {
-	if len(queryEmbedding) == 0 || topK <= 0 {
+// SearchMessageChunks 在当前活跃分支内按查询向量检索最相关的历史消息分片。
+func (r *Repo) SearchMessageChunks(ctx context.Context, input repository.MessageChunkSearchInput) ([]domainconversation.MessageChunk, error) {
+	if !input.Scope.Valid() || len(input.QueryEmbedding) == 0 || input.TopK <= 0 {
 		return nil, nil
 	}
 	if r.sqliteDialect() {
-		return r.searchSQLiteMessageChunks(ctx, conversationID, userID, queryEmbedding, topK, minSimilarity)
+		return r.searchSQLiteMessageChunks(ctx, input)
 	}
-	vec := float32SliceToPostgresVector(queryEmbedding)
-	query := `
-		SELECT id, conversation_id, message_id, user_id, role, chunk_index, content, token_count, created_at,
+	vec := float32SliceToPostgresVector(input.QueryEmbedding)
+	// PostgreSQL 的 IVFFlat 会在近似索引扫描后应用普通过滤条件；直接 JOIN 分支范围可能让 sibling
+	// 候选先占满 Top-K。先物化当前分支分片，再执行精确距离排序，保证过滤严格发生在 Top-K 之前。
+	query := historicalMessageScopeCTE + `,
+		branch_message_chunks AS MATERIALIZED (
+			SELECT chunks.id, chunks.conversation_id, chunks.message_id, chunks.user_id, chunks.role,
+			       chunks.chunk_index, chunks.content, chunks.token_count, chunks.created_at, chunks.embedding
+			FROM chat_message_chunks AS chunks
+			JOIN valid_historical_message_scope AS branch_scope ON branch_scope.id = chunks.message_id
+			WHERE chunks.conversation_id = ?
+			  AND chunks.user_id = ?
+			  AND chunks.embedding IS NOT NULL
+		)
+		SELECT id, conversation_id, message_id, user_id, role,
+		       chunk_index, content, token_count, created_at,
 		       (1 - (embedding <=> ?::vector)) AS similarity
-		FROM chat_message_chunks
-		WHERE conversation_id = ? AND user_id = ? AND embedding IS NOT NULL
+		FROM branch_message_chunks
 		ORDER BY similarity DESC
 		LIMIT ?`
+	args := historicalMessageScopeArgs(input.Scope)
+	args = append(args,
+		input.Scope.ConversationID,
+		input.Scope.UserID,
+		vec,
+		input.TopK,
+	)
 	var rows []messageChunkSearchRow
-	if err := r.db.WithContext(ctx).Raw(query, vec, conversationID, userID, topK).Scan(&rows).Error; err != nil {
+	if err := r.db.WithContext(ctx).Raw(query, args...).Scan(&rows).Error; err != nil {
 		return nil, translateError(err)
 	}
 	results := make([]domainconversation.MessageChunk, 0, len(rows))
 	for _, row := range rows {
-		if row.Similarity < minSimilarity {
+		if row.Similarity < input.MinSimilarity {
 			continue
 		}
 		results = append(results, domainconversation.MessageChunk{
