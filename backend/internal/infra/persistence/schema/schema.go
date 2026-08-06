@@ -22,6 +22,8 @@ func Models() []interface{} {
 		&model.TrustedDevice{},
 		&model.LLMUpstream{},
 		&model.LLMUpstreamModel{},
+		&model.LLMModelVendor{},
+		&model.LLMModelDisplayGroup{},
 		&model.LLMPlatformModel{},
 		&model.LLMPlatformModelRoute{},
 		&model.MCPServer{},
@@ -66,6 +68,45 @@ func Models() []interface{} {
 		&model.PermissionGroupModelRule{},
 		&model.PermissionGroupUserAccess{},
 	}
+}
+
+// SeedModelVendors 初始化内置厂商，并为存量模型中的技术厂商补齐目录项。
+// 同 key 的现有目录项会晋升为内置，但管理员修改的展示名称、图标和排序不会被覆盖。
+func SeedModelVendors(db *gorm.DB) error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		for _, item := range domainchannel.BuiltInModelVendors() {
+			entity := model.LLMModelVendor{
+				Key:       item.Key,
+				Name:      item.Name,
+				Icon:      item.Icon,
+				BuiltIn:   true,
+				SortOrder: item.SortOrder,
+			}
+			if err := tx.Where("key = ?", entity.Key).Attrs(entity).FirstOrCreate(&entity).Error; err != nil {
+				return err
+			}
+			if !entity.BuiltIn {
+				if err := tx.Model(&entity).Update("built_in", true).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		var vendorKeys []string
+		if err := tx.Model(&model.LLMPlatformModel{}).
+			Distinct("vendor").
+			Where("vendor <> ?", "").
+			Pluck("vendor", &vendorKeys).Error; err != nil {
+			return err
+		}
+		for _, key := range vendorKeys {
+			entity := model.LLMModelVendor{Key: key, Name: key}
+			if err := tx.Where("key = ?", key).Attrs(entity).FirstOrCreate(&entity).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // Migrate creates or updates the baseline schema with Gorm's portable migrator.

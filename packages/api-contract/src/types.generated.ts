@@ -915,6 +915,15 @@ export interface CreateConversationShareRequest {
   defaultMessagePublicIDs?: string[];
 }
 
+export interface CreateModelDisplayGroupRequest {
+  /** @maxLength 2048 */
+  icon?: string;
+  /** @maxItems 10000 */
+  modelIDs?: number[];
+  /** @maxLength 64 */
+  name: string;
+}
+
 export interface CreateModelRequest {
   accessScope?: "public" | "internal";
   /** @maxLength 10000 */
@@ -928,6 +937,7 @@ export interface CreateModelRequest {
   cbWindowMin?: number;
   /** @maxLength 10000 */
   description?: string;
+  displayGroupID?: number;
   /** @maxLength 128 */
   icon?: string;
   /** @maxLength 1000 */
@@ -947,6 +957,15 @@ export interface CreateModelRequest {
 export interface CreateModelResponseDoc {
   data: ModelDataResponse;
   errorMsg: string;
+}
+
+export interface CreateModelVendorRequest {
+  /** @maxLength 2048 */
+  icon?: string;
+  /** @maxLength 64 */
+  key: string;
+  /** @maxLength 64 */
+  name: string;
 }
 
 export interface CreatePermissionGroupRequest {
@@ -1610,6 +1629,32 @@ export interface ModelDataResponse {
   model: ModelResponse;
 }
 
+export interface ModelDisplayGroupDataResponse {
+  group: ModelDisplayGroupResponse;
+}
+
+export interface ModelDisplayGroupDataResponseDoc {
+  data: ModelDisplayGroupDataResponse;
+  errorMsg: string;
+}
+
+export interface ModelDisplayGroupListResponseDoc {
+  data: {
+    results: ModelDisplayGroupResponse[];
+    total: number;
+  };
+  errorMsg: string;
+}
+
+export interface ModelDisplayGroupResponse {
+  createdAt: string;
+  icon: string;
+  id: number;
+  name: string;
+  sortOrder: number;
+  updatedAt: string;
+}
+
 export interface ModelListResponseDoc {
   data: {
     results: ModelResponse[];
@@ -1737,6 +1782,9 @@ export interface ModelResponse {
   cbWindowMin: number;
   createdAt: string;
   description: string;
+  displayGroupID: number | null;
+  displayGroupIcon: string;
+  displayGroupName: string;
   icon: string;
   id: number;
   kindsJSON: string;
@@ -1749,6 +1797,8 @@ export interface ModelResponse {
   updatedAt: string;
   upstreamNamesJSON: string;
   vendor: string;
+  vendorIcon: string;
+  vendorName: string;
 }
 
 export interface ModelUpstreamSourceDataResponse {
@@ -1790,6 +1840,34 @@ export interface ModelUpstreamSourceResponse {
   upstreamName: string;
   upstreamStatus: string;
   weight: number;
+}
+
+export interface ModelVendorDataResponse {
+  vendor: ModelVendorResponse;
+}
+
+export interface ModelVendorDataResponseDoc {
+  data: ModelVendorDataResponse;
+  errorMsg: string;
+}
+
+export interface ModelVendorListResponseDoc {
+  data: {
+    results: ModelVendorResponse[];
+    total: number;
+  };
+  errorMsg: string;
+}
+
+export interface ModelVendorResponse {
+  builtIn: boolean;
+  createdAt: string;
+  icon: string;
+  id: number;
+  key: string;
+  name: string;
+  sortOrder: number;
+  updatedAt: string;
 }
 
 export interface NativeToolPricingRequest {
@@ -2168,6 +2246,9 @@ export interface PublicModelPricingTierResponse {
 export interface PublicModelResponse {
   capabilitiesJSON: string;
   description: string;
+  displayGroupID: number | null;
+  displayGroupIcon: string;
+  displayGroupName: string;
   icon: string;
   kindsJSON: string;
   platformModelName: string;
@@ -2175,6 +2256,8 @@ export interface PublicModelResponse {
   protocolsJSON: string;
   sortOrder: number;
   vendor: string;
+  vendorIcon: string;
+  vendorName: string;
 }
 
 export interface PublicSharedConversationResponse {
@@ -2544,6 +2627,15 @@ export interface SetModelPermissionGroupsRequest {
   groupIDs?: number[];
 }
 
+export interface SetModelsDisplayGroupRequest {
+  displayGroupID: number;
+  /**
+   * @maxItems 1000
+   * @minItems 1
+   */
+  modelIDs: number[];
+}
+
 export interface SettingsPatchSettingsRequest {
   /** @minItems 1 */
   items: PatchItem[];
@@ -2831,6 +2923,15 @@ export interface UpdateMessageRequest {
   content: string;
 }
 
+export interface UpdateModelDisplayGroupRequest {
+  /** @maxLength 2048 */
+  icon?: string;
+  /** @maxItems 10000 */
+  modelIDs?: number[];
+  /** @maxLength 64 */
+  name?: string;
+}
+
 export interface UpdateModelRequest {
   accessScope?: "public" | "internal";
   /** @maxLength 10000 */
@@ -2844,6 +2945,7 @@ export interface UpdateModelRequest {
   cbWindowMin?: number;
   /** @maxLength 10000 */
   description?: string;
+  displayGroupID?: number;
   /** @maxLength 128 */
   icon?: string;
   /** @maxLength 1000 */
@@ -2882,6 +2984,13 @@ export interface UpdateModelUpstreamSourceRequest {
 export interface UpdateModelUpstreamSourceResponseDoc {
   data: ModelUpstreamSourceDataResponse;
   errorMsg: string;
+}
+
+export interface UpdateModelVendorRequest {
+  /** @maxLength 2048 */
+  icon?: string;
+  /** @maxLength 64 */
+  name?: string;
 }
 
 export interface UpdatePermissionGroupRequest {
@@ -4093,6 +4202,141 @@ export namespace Admin {
   }
 
   /**
+   * @description 分页查询自定义展示分组；未绑定分组的模型继续按技术厂商展示
+   * @tags llm
+   * @name LlmModelDisplayGroupsList
+   * @summary 管理员查询模型展示分组
+   * @request GET:/admin/llm/model-display-groups
+   * @secure
+   */
+  export namespace LlmModelDisplayGroupsList {
+    export type RequestParams = {};
+    export type RequestQuery = {
+      /** 页码 */
+      page?: number;
+      /** 每页数量 */
+      page_size?: number;
+      /** 搜索名称 */
+      q?: string;
+    };
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = ModelDisplayGroupListResponseDoc;
+  }
+
+  /**
+   * @description 创建仅影响用户界面归类的自定义模型分组
+   * @tags llm
+   * @name LlmModelDisplayGroupsCreate
+   * @summary 管理员创建模型展示分组
+   * @request POST:/admin/llm/model-display-groups
+   * @secure
+   */
+  export namespace LlmModelDisplayGroupsCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = CreateModelDisplayGroupRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = ModelDisplayGroupDataResponseDoc;
+  }
+
+  /**
+   * @description 删除展示分组后，关联模型恢复按技术厂商展示
+   * @tags llm
+   * @name LlmModelDisplayGroupsDelete
+   * @summary 管理员删除模型展示分组
+   * @request DELETE:/admin/llm/model-display-groups/{id}
+   * @secure
+   */
+  export namespace LlmModelDisplayGroupsDelete {
+    export type RequestParams = {
+      /** 展示分组 ID */
+      id: number;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = SuccessDoc;
+  }
+
+  /**
+   * No description
+   * @tags llm
+   * @name LlmModelDisplayGroupsPartialUpdate
+   * @summary 管理员更新模型展示分组
+   * @request PATCH:/admin/llm/model-display-groups/{id}
+   * @secure
+   */
+  export namespace LlmModelDisplayGroupsPartialUpdate {
+    export type RequestParams = {
+      /** 展示分组 ID */
+      id: number;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = UpdateModelDisplayGroupRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = ModelDisplayGroupDataResponseDoc;
+  }
+
+  /**
+   * @description 分页查询模型技术厂商目录；技术厂商是路由、权限和计费使用的稳定身份
+   * @tags llm
+   * @name LlmModelVendorsList
+   * @summary 管理员查询模型技术厂商
+   * @request GET:/admin/llm/model-vendors
+   * @secure
+   */
+  export namespace LlmModelVendorsList {
+    export type RequestParams = {};
+    export type RequestQuery = {
+      /** 页码 */
+      page?: number;
+      /** 每页数量 */
+      page_size?: number;
+      /** 搜索 key 或名称 */
+      q?: string;
+    };
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = ModelVendorListResponseDoc;
+  }
+
+  /**
+   * @description 创建新的稳定技术厂商身份；创建后可供平台模型选择
+   * @tags llm
+   * @name LlmModelVendorsCreate
+   * @summary 管理员创建模型技术厂商
+   * @request POST:/admin/llm/model-vendors
+   * @secure
+   */
+  export namespace LlmModelVendorsCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = CreateModelVendorRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = ModelVendorDataResponseDoc;
+  }
+
+  /**
+   * @description 更新厂商展示名称和图标；稳定技术 key 不可修改
+   * @tags llm
+   * @name LlmModelVendorsPartialUpdate
+   * @summary 管理员更新模型技术厂商
+   * @request PATCH:/admin/llm/model-vendors/{key}
+   * @secure
+   */
+  export namespace LlmModelVendorsPartialUpdate {
+    export type RequestParams = {
+      /** 技术厂商 key */
+      key: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = UpdateModelVendorRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = ModelVendorDataResponseDoc;
+  }
+
+  /**
    * @description 管理员分页查询平台模型目录，可按 only_active 过滤
    * @tags llm
    * @name LlmModelsList
@@ -4159,6 +4403,22 @@ export namespace Admin {
     export type RequestBody = BatchDeleteRequest;
     export type RequestHeaders = {};
     export type ResponseBody = BatchDeleteResponseDoc;
+  }
+
+  /**
+   * @description 在单个事务中将指定模型归入展示分组；displayGroupID 为 0 时恢复按技术厂商展示
+   * @tags llm
+   * @name LlmModelsDisplayGroupPartialUpdate
+   * @summary 管理员批量设置模型展示分组
+   * @request PATCH:/admin/llm/models/display-group
+   * @secure
+   */
+  export namespace LlmModelsDisplayGroupPartialUpdate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = SetModelsDisplayGroupRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = SuccessDoc;
   }
 
   /**

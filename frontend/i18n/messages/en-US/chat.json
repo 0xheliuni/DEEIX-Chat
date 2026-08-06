@@ -477,7 +477,7 @@
   "modelPicker": {
     "selectModel": "Select model",
     "empty": "No models",
-    "vendor": "Vendor",
+    "group": "Group",
     "viewPricing": "View pricing",
     "freeModel": "Free model",
     "freeModelDescription": "No usage balance will be deducted",
