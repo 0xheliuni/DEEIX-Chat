@@ -371,6 +371,58 @@ func TestSeedPermissionGroupsDoesNotRecreateDefaultAllRuleAfterAccessConfigured(
 	}
 }
 
+func TestSeedModelVendorsPromotesBuiltInsPreservesEditsAndBackfillsExistingKeys(t *testing.T) {
+	dbName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	db, err := gorm.Open(sqlite.Open("file:"+dbName+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err = db.AutoMigrate(&model.LLMModelVendor{}, &model.LLMPlatformModel{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	customized := model.LLMModelVendor{
+		Key: "openai", Name: "OpenAI Custom", Icon: "custom-icon", BuiltIn: false, SortOrder: 99,
+	}
+	if err = db.Create(&customized).Error; err != nil {
+		t.Fatalf("create customized vendor: %v", err)
+	}
+	if err = db.Create(&model.LLMPlatformModel{Name: "acme-chat", Vendor: "acme-ai"}).Error; err != nil {
+		t.Fatalf("create existing model: %v", err)
+	}
+	if err = db.Create(&model.LLMPlatformModel{Name: "legacy-openai", Vendor: "OpenAI"}).Error; err != nil {
+		t.Fatalf("create legacy model: %v", err)
+	}
+
+	if err = SeedModelVendors(db); err != nil {
+		t.Fatalf("SeedModelVendors() error = %v", err)
+	}
+
+	var openAI model.LLMModelVendor
+	if err = db.Where("key = ?", "openai").First(&openAI).Error; err != nil {
+		t.Fatalf("load OpenAI vendor: %v", err)
+	}
+	if openAI.Name != customized.Name || openAI.Icon != customized.Icon || openAI.SortOrder != customized.SortOrder {
+		t.Fatalf("expected customized vendor to remain unchanged, got %#v", openAI)
+	}
+	if !openAI.BuiltIn {
+		t.Fatalf("expected matching custom vendor to be promoted to built-in, got %#v", openAI)
+	}
+	var custom model.LLMModelVendor
+	if err = db.Where("key = ?", "acme-ai").First(&custom).Error; err != nil {
+		t.Fatalf("load backfilled vendor: %v", err)
+	}
+	if custom.Name != "acme-ai" || custom.BuiltIn {
+		t.Fatalf("unexpected backfilled vendor: %#v", custom)
+	}
+	var legacy model.LLMModelVendor
+	if err = db.Where("key = ?", "OpenAI").First(&legacy).Error; err != nil {
+		t.Fatalf("load legacy vendor with duplicate display name: %v", err)
+	}
+	if legacy.Name != "OpenAI" || legacy.BuiltIn {
+		t.Fatalf("unexpected legacy vendor: %#v", legacy)
+	}
+}
+
 func openSchemaTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	dbName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())

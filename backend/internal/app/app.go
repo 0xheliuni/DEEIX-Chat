@@ -243,7 +243,7 @@ func NewApp() (*App, error) {
 	llmClient := llm.NewClient(trustedOutboundPolicy)
 	mcpClient := mcp.NewClient(trustedOutboundPolicy)
 	mediaArtifactClient := mediaartifact.New(strictOutboundPolicy)
-	channelService := channel.NewServiceWithRuntime(runtimeCfg, channelRepo, channelCache, llmClient)
+	channelService := channel.NewServiceWithRuntime(runtimeCfg, channelRepo, channelRepo, channelCache, llmClient)
 	channelService.SetLogger(log)
 	channelService.SetBillingModelPricingFilter(billingService)
 	channelService.SetPermissionGroupRepo(channelRepo)

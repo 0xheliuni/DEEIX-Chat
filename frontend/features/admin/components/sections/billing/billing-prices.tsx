@@ -46,11 +46,11 @@ import {
   type OfficialPricingCatalogItem,
 } from "@/features/admin/model/official-pricing";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
-import { LobeHubIcon } from "@/shared/components/lobehub-icon";
+import { ModelIcon } from "@/shared/components/model-icon";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { cn } from "@/lib/utils";
-import { KNOWN_VENDOR_OPTIONS, resolveLobeHubIconURL, resolveModelIdentity } from "@/shared/lib/model-identity";
+import { resolveModelIconURL, resolveModelIdentity } from "@/shared/lib/model-identity";
 
 type BillingPricesSectionProps = {
   models: AdminLLMModelDTO[];
@@ -156,7 +156,9 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
 
   const rows = React.useMemo(() => buildPricingRows(models, pricingItems), [models, pricingItems]);
   const vendorFilterOptions = React.useMemo(() => {
-    const options = new Map(KNOWN_VENDOR_OPTIONS.map((item) => [item.value, item.label]));
+    const options = new Map(
+      models.map((model) => [model.vendor, model.vendorName.trim() || model.vendor] as const),
+    );
     for (const row of rows) {
       const value = row.vendor.trim();
       if (!value || options.has(value)) {
@@ -170,7 +172,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
       options.set(value, identity.vendorLabel);
     }
     return Array.from(options.entries()).map(([value, label]) => ({ value, label }));
-  }, [rows]);
+  }, [models, rows]);
   const filteredRows = React.useMemo(() => {
     const keyword = query.trim().toLowerCase();
     return rows.filter((row) => {
@@ -619,13 +621,13 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
                     vendor: row.vendor,
                     icon: row.icon,
                   });
-                  const iconURL = resolveLobeHubIconURL(identity.modelIcon);
+                  const iconURL = resolveModelIconURL(identity.modelIcon);
 
                   return (
                     <TableRow key={row.platformModelName}>
                       <TableCell className="py-1.5">
                         <div className="flex h-7 min-w-0 items-center gap-2">
-                          <LobeHubIcon iconUrl={iconURL} label={row.platformModelName} />
+                          <ModelIcon iconUrl={iconURL} label={row.platformModelName} />
                           <div className="flex min-w-0 flex-1">
                             <span className="truncate text-xs font-medium leading-5 text-foreground">
                               {row.platformModelName}
@@ -784,7 +786,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
                     {editOfficialPricingSuggestions.map((suggestion) => {
                       const { vendor, modelID } = splitOfficialPricingID(suggestion.item.id);
                       const identity = resolveModelIdentity({ code: suggestion.item.id, vendor });
-                      const iconURL = resolveLobeHubIconURL(identity.modelIcon || identity.vendorIcon);
+                      const iconURL = resolveModelIconURL(identity.modelIcon || identity.vendorIcon);
                       const displayName = officialPricingDisplayName(suggestion.item);
                       const fullName = suggestion.item.name || suggestion.item.id;
 
@@ -807,7 +809,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <div className="flex min-w-0 items-center gap-4">
-                                  <LobeHubIcon
+                                  <ModelIcon
                                     iconUrl={iconURL}
                                     label={fullName}
                                     size={18}

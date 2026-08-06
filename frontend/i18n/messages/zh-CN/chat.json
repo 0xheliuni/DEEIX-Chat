@@ -477,7 +477,7 @@
   "modelPicker": {
     "selectModel": "选择模型",
     "empty": "暂无模型",
-    "vendor": "厂商",
+    "group": "分组",
     "viewPricing": "查看价格",
     "freeModel": "免费模型",
     "freeModelDescription": "不会扣除按量余额",
