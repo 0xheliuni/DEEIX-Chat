@@ -7267,6 +7267,106 @@ const docTemplate = `{
                 }
             }
         },
+        "/auth/providers/{slug}/authorize": {
+            "post": {
+                "description": "为 Web、App 或桌面公共客户端创建 PKCE 保护的 OAuth 授权事务；外部身份源仅回调当前 DEEIX 实例",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "创建第三方登录授权桥事务",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "身份源 slug",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "授权桥参数",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ProviderAuthBridgeStartRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ProviderAuthBridgeStartResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/providers/{slug}/exchange": {
+            "post": {
+                "description": "使用客户端 PKCE verifier 原子兑换服务端回调签发的一次性授权码，并进入统一 2FA/会话流程",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "兑换第三方登录一次性授权码",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "身份源 slug",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "授权码兑换参数",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ProviderAuthBridgeExchangeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/LoginResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/refresh": {
             "post": {
                 "description": "使用 HttpOnly refresh cookie 轮换并签发新的 access token",
@@ -16305,6 +16405,7 @@ const docTemplate = `{
                 "emailRegistrationEnabled",
                 "emailVerificationEnabled",
                 "passwordResetEnabled",
+                "providerAuthBridge",
                 "providers",
                 "turnstileRegistrationEnabled",
                 "turnstileSiteKey",
@@ -16322,6 +16423,9 @@ const docTemplate = `{
                 },
                 "passwordResetEnabled": {
                     "type": "boolean"
+                },
+                "providerAuthBridge": {
+                    "$ref": "#/definitions/ProviderAuthBridgeResponse"
                 },
                 "providers": {
                     "type": "array",
@@ -18892,6 +18996,119 @@ const docTemplate = `{
             "properties": {
                 "data": {
                     "$ref": "#/definitions/PromptPresetDataResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ProviderAuthBridgeExchangeRequest": {
+            "type": "object",
+            "required": [
+                "clientID",
+                "codeVerifier",
+                "grant"
+            ],
+            "properties": {
+                "clientID": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "codeVerifier": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "minLength": 43
+                },
+                "grant": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "minLength": 43
+                }
+            }
+        },
+        "ProviderAuthBridgeResponse": {
+            "type": "object",
+            "required": [
+                "callbackBaseURL",
+                "enabled",
+                "protocolVersion"
+            ],
+            "properties": {
+                "callbackBaseURL": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "protocolVersion": {
+                    "type": "integer"
+                }
+            }
+        },
+        "ProviderAuthBridgeStartRequest": {
+            "type": "object",
+            "required": [
+                "clientID",
+                "clientState",
+                "codeChallenge",
+                "redirectURI"
+            ],
+            "properties": {
+                "clientID": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "clientState": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "minLength": 43
+                },
+                "codeChallenge": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "minLength": 43
+                },
+                "intent": {
+                    "type": "string",
+                    "enum": [
+                        "login",
+                        "register"
+                    ]
+                },
+                "next": {
+                    "type": "string",
+                    "maxLength": 2048
+                },
+                "redirectURI": {
+                    "type": "string",
+                    "maxLength": 2048
+                }
+            }
+        },
+        "ProviderAuthBridgeStartResponse": {
+            "type": "object",
+            "required": [
+                "authorizationURL",
+                "expiresAt"
+            ],
+            "properties": {
+                "authorizationURL": {
+                    "type": "string"
+                },
+                "expiresAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "ProviderAuthBridgeStartResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ProviderAuthBridgeStartResponse"
                 },
                 "errorMsg": {
                     "type": "string"

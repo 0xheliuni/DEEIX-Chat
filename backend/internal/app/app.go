@@ -221,6 +221,7 @@ func NewApp() (*App, error) {
 		identityProviderClient,
 	)
 	authService.SetLogger(log)
+	authService.SetProviderAuthBridge(buildProviderAuthBridge(cfg, redisClient, memoryCache))
 	authService.SetObjectStoreProvider(objectStoreProvider)
 	authService.SetAuditWriter(auditService)
 	settingsService.SetAuthSafetyService(authService)

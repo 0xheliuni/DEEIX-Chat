@@ -3184,6 +3184,8 @@ definitions:
         type: boolean
       passwordResetEnabled:
         type: boolean
+      providerAuthBridge:
+        $ref: '#/definitions/ProviderAuthBridgeResponse'
       providers:
         items:
           $ref: '#/definitions/IdentityProviderResponse'
@@ -3199,6 +3201,7 @@ definitions:
     - emailRegistrationEnabled
     - emailVerificationEnabled
     - passwordResetEnabled
+    - providerAuthBridge
     - providers
     - turnstileRegistrationEnabled
     - turnstileSiteKey
@@ -4993,6 +4996,87 @@ definitions:
     properties:
       data:
         $ref: '#/definitions/PromptPresetDataResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  ProviderAuthBridgeExchangeRequest:
+    properties:
+      clientID:
+        maxLength: 128
+        type: string
+      codeVerifier:
+        maxLength: 128
+        minLength: 43
+        type: string
+      grant:
+        maxLength: 128
+        minLength: 43
+        type: string
+    required:
+    - clientID
+    - codeVerifier
+    - grant
+    type: object
+  ProviderAuthBridgeResponse:
+    properties:
+      callbackBaseURL:
+        type: string
+      enabled:
+        type: boolean
+      protocolVersion:
+        type: integer
+    required:
+    - callbackBaseURL
+    - enabled
+    - protocolVersion
+    type: object
+  ProviderAuthBridgeStartRequest:
+    properties:
+      clientID:
+        maxLength: 128
+        type: string
+      clientState:
+        maxLength: 128
+        minLength: 43
+        type: string
+      codeChallenge:
+        maxLength: 128
+        minLength: 43
+        type: string
+      intent:
+        enum:
+        - login
+        - register
+        type: string
+      next:
+        maxLength: 2048
+        type: string
+      redirectURI:
+        maxLength: 2048
+        type: string
+    required:
+    - clientID
+    - clientState
+    - codeChallenge
+    - redirectURI
+    type: object
+  ProviderAuthBridgeStartResponse:
+    properties:
+      authorizationURL:
+        type: string
+      expiresAt:
+        type: string
+    required:
+    - authorizationURL
+    - expiresAt
+    type: object
+  ProviderAuthBridgeStartResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/ProviderAuthBridgeStartResponse'
       errorMsg:
         type: string
     required:
@@ -12810,6 +12894,72 @@ paths:
           schema:
             $ref: '#/definitions/AuthErrorDoc'
       summary: 发送密码重置验证码
+      tags:
+      - auth
+  /auth/providers/{slug}/authorize:
+    post:
+      consumes:
+      - application/json
+      description: 为 Web、App 或桌面公共客户端创建 PKCE 保护的 OAuth 授权事务；外部身份源仅回调当前 DEEIX 实例
+      parameters:
+      - description: 身份源 slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: 授权桥参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/ProviderAuthBridgeStartRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ProviderAuthBridgeStartResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      summary: 创建第三方登录授权桥事务
+      tags:
+      - auth
+  /auth/providers/{slug}/exchange:
+    post:
+      consumes:
+      - application/json
+      description: 使用客户端 PKCE verifier 原子兑换服务端回调签发的一次性授权码，并进入统一 2FA/会话流程
+      parameters:
+      - description: 身份源 slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: 授权码兑换参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/ProviderAuthBridgeExchangeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/LoginResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      summary: 兑换第三方登录一次性授权码
       tags:
       - auth
   /auth/refresh:
