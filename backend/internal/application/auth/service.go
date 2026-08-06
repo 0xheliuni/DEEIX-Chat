@@ -46,6 +46,7 @@ type Service struct {
 	storeProvider        appstorage.Provider
 	auditWriter          auditWriter
 	avatarFileValidator  avatarFileValidator
+	providerAuthBridge   repository.ProviderAuthBridgeRepository
 }
 
 type subscriptionResolver interface {
@@ -88,6 +89,11 @@ func (s *Service) SetSubscriptionResolver(resolver subscriptionResolver) {
 // SetLogger 注入结构化日志记录器。
 func (s *Service) SetLogger(logger *zap.Logger) {
 	s.logger = logger
+}
+
+// SetProviderAuthBridge injects the short-lived OAuth handoff store.
+func (s *Service) SetProviderAuthBridge(store repository.ProviderAuthBridgeRepository) {
+	s.providerAuthBridge = store
 }
 
 // SetObjectStoreProvider 注入对象存储 provider。

@@ -1412,6 +1412,7 @@ export interface LoginOptionsResponse {
   emailRegistrationEnabled: boolean;
   emailVerificationEnabled: boolean;
   passwordResetEnabled: boolean;
+  providerAuthBridge: ProviderAuthBridgeResponse;
   providers: IdentityProviderResponse[];
   turnstileRegistrationEnabled: boolean;
   turnstileSiteKey: string;
@@ -2213,6 +2214,57 @@ export interface PromptPresetResponse {
 
 export interface PromptPresetResponseDoc {
   data: PromptPresetDataResponse;
+  errorMsg: string;
+}
+
+export interface ProviderAuthBridgeExchangeRequest {
+  /** @maxLength 128 */
+  clientID: string;
+  /**
+   * @minLength 43
+   * @maxLength 128
+   */
+  codeVerifier: string;
+  /**
+   * @minLength 43
+   * @maxLength 128
+   */
+  grant: string;
+}
+
+export interface ProviderAuthBridgeResponse {
+  callbackBaseURL: string;
+  enabled: boolean;
+  protocolVersion: number;
+}
+
+export interface ProviderAuthBridgeStartRequest {
+  /** @maxLength 128 */
+  clientID: string;
+  /**
+   * @minLength 43
+   * @maxLength 128
+   */
+  clientState: string;
+  /**
+   * @minLength 43
+   * @maxLength 128
+   */
+  codeChallenge: string;
+  intent?: "login" | "register";
+  /** @maxLength 2048 */
+  next?: string;
+  /** @maxLength 2048 */
+  redirectURI: string;
+}
+
+export interface ProviderAuthBridgeStartResponse {
+  authorizationURL: string;
+  expiresAt: string;
+}
+
+export interface ProviderAuthBridgeStartResponseDoc {
+  data: ProviderAuthBridgeStartResponse;
   errorMsg: string;
 }
 
@@ -6241,6 +6293,42 @@ export namespace Auth {
     export type RequestBody = PasswordResetStartRequest;
     export type RequestHeaders = {};
     export type ResponseBody = PasswordResetStartResponseDoc;
+  }
+
+  /**
+   * @description 为 Web、App 或桌面公共客户端创建 PKCE 保护的 OAuth 授权事务；外部身份源仅回调当前 DEEIX 实例
+   * @tags auth
+   * @name ProvidersAuthorizeCreate
+   * @summary 创建第三方登录授权桥事务
+   * @request POST:/auth/providers/{slug}/authorize
+   */
+  export namespace ProvidersAuthorizeCreate {
+    export type RequestParams = {
+      /** 身份源 slug */
+      slug: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = ProviderAuthBridgeStartRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = ProviderAuthBridgeStartResponseDoc;
+  }
+
+  /**
+   * @description 使用客户端 PKCE verifier 原子兑换服务端回调签发的一次性授权码，并进入统一 2FA/会话流程
+   * @tags auth
+   * @name ProvidersExchangeCreate
+   * @summary 兑换第三方登录一次性授权码
+   * @request POST:/auth/providers/{slug}/exchange
+   */
+  export namespace ProvidersExchangeCreate {
+    export type RequestParams = {
+      /** 身份源 slug */
+      slug: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = ProviderAuthBridgeExchangeRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = LoginResponseDoc;
   }
 
   /**

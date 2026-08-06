@@ -33,7 +33,14 @@ type LoginOptions struct {
 	PasswordResetEnabled         bool
 	TurnstileRegistrationEnabled bool
 	TurnstileSiteKey             string
+	ProviderAuthBridge           ProviderAuthBridgeOptions
 	Providers                    []IdentityProviderView
+}
+
+type ProviderAuthBridgeOptions struct {
+	Enabled         bool
+	ProtocolVersion int
+	CallbackBaseURL string
 }
 
 type IdentityProviderView struct {
@@ -147,6 +154,7 @@ func (s *Service) GetLoginOptions(ctx context.Context) (*LoginOptions, error) {
 		PasswordResetEnabled:         passwordResetEnabled(cfg),
 		TurnstileRegistrationEnabled: cfg.TurnstileRegistrationEnabled,
 		TurnstileSiteKey:             cfg.TurnstileSiteKey,
+		ProviderAuthBridge:           s.GetProviderAuthBridgeOptions(),
 		Providers:                    providerViews,
 	}, nil
 }
@@ -342,32 +350,59 @@ func (s *Service) CompleteProviderLogin(
 		return nil, err
 	}
 
-	tokenResponse, err := s.exchangeProviderCode(ctx, *provider, trimmedCode, redirectURI, strings.TrimSpace(codeVerifier))
+	userItem, subject, err := s.resolveProviderLoginCode(ctx, *provider, trimmedCode, redirectURI, strings.TrimSpace(codeVerifier), verifiedState.Intent)
 	if err != nil {
 		return nil, err
 	}
-	profile, err := s.fetchProviderUserInfo(ctx, *provider, tokenResponse.AccessToken)
+	return s.completeProviderLoginForUser(ctx, userItem, provider.Slug, subject, requestID, auditCtx)
+}
+
+func (s *Service) resolveProviderLoginCode(
+	ctx context.Context,
+	provider domainuser.IdentityProvider,
+	code string,
+	redirectURI string,
+	codeVerifier string,
+	intent string,
+) (*domainuser.User, string, error) {
+	tokenResponse, err := s.exchangeProviderCode(ctx, provider, code, redirectURI, codeVerifier)
 	if err != nil {
-		return nil, err
+		return nil, "", err
+	}
+	profile, err := s.fetchProviderUserInfo(ctx, provider, tokenResponse.AccessToken)
+	if err != nil {
+		return nil, "", err
 	}
 	profileJSON, _ := json.Marshal(profile)
 	subject := claimString(profile, provider.SubjectField)
 	if subject == "" {
-		return nil, fmt.Errorf("provider subject is missing")
+		return nil, "", fmt.Errorf("provider subject is missing")
 	}
 	email, err := normalizeProviderEmail(claimString(profile, provider.EmailField))
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	displayName := firstNonEmpty(claimString(profile, provider.NameField), email, subject)
 	avatarURL := claimString(profile, provider.AvatarField)
-	emailVerified := resolveProviderEmailVerified(profile, *provider)
-
-	userItem, err := s.resolveProviderUser(ctx, *provider, subject, email, displayName, avatarURL, emailVerified, string(profileJSON), verifiedState.Intent)
+	emailVerified := resolveProviderEmailVerified(profile, provider)
+	userItem, err := s.resolveProviderUser(ctx, provider, subject, email, displayName, avatarURL, emailVerified, string(profileJSON), intent)
 	if err != nil {
+		return nil, "", err
+	}
+	return userItem, subject, nil
+}
+
+func (s *Service) completeProviderLoginForUser(
+	ctx context.Context,
+	userItem *domainuser.User,
+	providerSlug string,
+	subject string,
+	requestID string,
+	auditCtx requestmeta.SessionAuditContext,
+) (*LoginResult, error) {
+	if err := ensureProviderLoginUserActive(userItem); err != nil {
 		return nil, err
 	}
-
 	normalizedAuditCtx := s.resolveSessionAuditContext(ctx, auditCtx)
 	requireTwoFactor, err := s.shouldRequireTwoFactor(ctx, userItem)
 	if err != nil {
@@ -388,7 +423,7 @@ func (s *Service) CompleteProviderLogin(
 			normalizedAuditCtx.ClientIP,
 			normalizedAuditCtx.UserAgent,
 			marshalAuthEventDetail(map[string]interface{}{
-				"provider": provider.Slug,
+				"provider": providerSlug,
 				"subject":  subject,
 			}),
 		)
@@ -408,7 +443,7 @@ func (s *Service) CompleteProviderLogin(
 		normalizedAuditCtx.ClientIP,
 		normalizedAuditCtx.UserAgent,
 		marshalAuthEventDetail(map[string]interface{}{
-			"provider":   provider.Slug,
+			"provider":   providerSlug,
 			"subject":    subject,
 			"session_id": result.SessionID,
 		}),
