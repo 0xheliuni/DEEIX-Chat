@@ -30,6 +30,8 @@ const (
 	EndpointImageGenerations = "image_generations"
 	// EndpointImageEdits 表示 OpenAI Images API 编辑端点。
 	EndpointImageEdits = "image_edits"
+	// EndpointVideoGenerations 表示异步视频生成端点。
+	EndpointVideoGenerations = "video_generations"
 	// EndpointInteractions 表示 Gemini Interactions API 端点。
 	EndpointInteractions = "interactions"
 )
@@ -813,6 +815,7 @@ func NewClient(outboundPolicy security.OutboundPolicy) *Client {
 		AdapterXAIResponses:           &xAIResponsesAdapter{client: client},
 		AdapterXAIImage:               &xAIImageAdapter{client: client},
 		AdapterXAIImageEdits:          &xAIImageEditsAdapter{client: client},
+		AdapterXAIVideo:               &xAIVideoAdapter{client: client},
 		AdapterAnthropicMessages:      &anthropicMessagesAdapter{client: client},
 		AdapterGoogleGenerateContent:  &geminiGenerateContentAdapter{client: client},
 		AdapterGoogleImageGeneration:  &geminiImageGenerationAdapter{client: client},
@@ -1637,6 +1640,8 @@ func normalizeEndpoint(raw string) string {
 		return EndpointImageGenerations
 	case EndpointImageEdits:
 		return EndpointImageEdits
+	case EndpointVideoGenerations:
+		return EndpointVideoGenerations
 	case EndpointInteractions:
 		return EndpointInteractions
 	default:

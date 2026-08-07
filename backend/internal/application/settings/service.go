@@ -198,12 +198,16 @@ func isLegacyDefaultModelOptionAllowedPaths(value string) bool {
 	if err := json.Unmarshal([]byte(strings.TrimSpace(value)), &current); err != nil {
 		return false
 	}
-	legacy := map[string][]string{}
-	if err := json.Unmarshal([]byte(config.DefaultModelOptionAllowedPathsJSON()), &legacy); err != nil {
+	previousDefault := map[string][]string{}
+	if err := json.Unmarshal([]byte(config.DefaultModelOptionAllowedPathsJSON()), &previousDefault); err != nil {
 		return false
 	}
-	legacy["xai_responses"] = []string{"reasoning.effort"}
-	return sameStringSliceMap(current, legacy)
+	delete(previousDefault, "xai_video")
+	if sameStringSliceMap(current, previousDefault) {
+		return true
+	}
+	previousDefault["xai_responses"] = []string{"reasoning.effort"}
+	return sameStringSliceMap(current, previousDefault)
 }
 
 func sameStringSliceMap(left map[string][]string, right map[string][]string) bool {

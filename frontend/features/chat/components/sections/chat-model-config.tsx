@@ -95,6 +95,7 @@ const OPTION_LABEL_KEYS = new Set<string>([
   "budget_tokens",
   "cache_timeout",
   "candidate_count",
+  "duration",
   "effort",
   "enable_cache",
   "enable_thinking",
@@ -201,6 +202,7 @@ const OPTION_ORDER = [
   "generationConfig.frequencyPenalty",
   "generationConfig.imageConfig.aspectRatio",
   "generationConfig.imageConfig.imageSize",
+  "duration",
   "size",
   "quality",
   "background",
@@ -271,6 +273,7 @@ const OPTION_ORDER = [
 const NUMBER_OPTION_KEYS = new Set([
   "budget_tokens",
   "candidate_count",
+  "duration",
   "frequency_penalty",
   "generationConfig.candidateCount",
   "generationConfig.frequencyPenalty",
@@ -401,6 +404,7 @@ const PROTOCOL_LABELS: Record<string, string> = {
   stability_ai_generate: "Image Generation",
   xai_image: "Images Generations",
   xai_image_edits: "Images Edits",
+  xai_video: "Video Generations",
   xai_responses: "xAI Responses",
 };
 
