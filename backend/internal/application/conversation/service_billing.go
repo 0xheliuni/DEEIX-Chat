@@ -278,6 +278,13 @@ func (s *Service) buildSendMessageUsageLedger(ctx context.Context, input SendMes
 	if result == nil {
 		return nil, nil
 	}
+	isVideoGeneration := sendMessageResultIsVideoGeneration(result)
+	mediaType := ""
+	inputImageCount := int64(0)
+	if isVideoGeneration {
+		mediaType = "video"
+		inputImageCount, _ = countAttachmentKinds(result.UserMessage.Attachments)
+	}
 	latencyMS := result.LatencyMS
 	if latencyMS <= 0 {
 		latencyMS = result.AssistantMessage.LatencyMS
@@ -305,8 +312,10 @@ func (s *Service) buildSendMessageUsageLedger(ctx context.Context, input SendMes
 		OutputTokens:        result.AssistantMessage.OutputTokens,
 		ReasoningTokens:     result.AssistantMessage.ReasoningTokens,
 		CallCount:           1,
-		DurationBillable:    sendMessageResultIsVideoGeneration(result),
+		DurationBillable:    isVideoGeneration,
 		DurationSeconds:     sendMessageBillingDurationSeconds(result),
+		MediaType:           mediaType,
+		InputImageCount:     inputImageCount,
 		LatencyMS:           latencyMS,
 		ServerSideToolUsage: result.ServerSideToolUsage,
 		RawUsageJSON:        result.RawUsageJSON,

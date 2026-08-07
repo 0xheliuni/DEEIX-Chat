@@ -101,12 +101,21 @@ func TestBuildUsageLedgerBillsDurationOnlyWhenExplicitlyBillable(t *testing.T) {
 		PlatformModelName: "video-model",
 		DurationBillable:  true,
 		DurationSeconds:   6,
+		MediaType:         "video",
+		InputImageCount:   1,
 	})
 	if err != nil {
 		t.Fatalf("build video duration ledger: %v", err)
 	}
 	if video.DurationSeconds != 6 || video.BilledNanousd != 18 {
 		t.Fatalf("unexpected video duration billing: %#v", video)
+	}
+	var snapshot map[string]interface{}
+	if err := json.Unmarshal([]byte(video.PricingSnapshotJSON), &snapshot); err != nil {
+		t.Fatalf("unmarshal video pricing snapshot: %v", err)
+	}
+	if snapshot["media_type"] != "video" || snapshot["input_image_count"] != float64(1) {
+		t.Fatalf("unexpected video media snapshot: %#v", snapshot)
 	}
 }
 
