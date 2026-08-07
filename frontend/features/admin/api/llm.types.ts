@@ -56,7 +56,8 @@ export type AdminLLMAdapter =
   | "gemini_interactions"
   | "xai_responses"
   | "xai_image"
-  | "xai_image_edits";
+  | "xai_image_edits"
+  | "xai_video";
 export type AdminLLMModelVendor = string;
 export type AdminLLMCompatible =
   | "openai"

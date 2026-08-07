@@ -99,6 +99,7 @@ func (c *Client) DownloadImage(ctx context.Context, sourceURL string, trustedPro
 func (c *Client) DownloadVideo(ctx context.Context, sourceURL string, trustedProviderEndpoint string, apiKey string, maxBytes int64) ([]byte, string, error) {
 	resolvedMIME := ""
 	headers := map[string]string(nil)
+	providerBearerToken := strings.TrimSpace(apiKey)
 	downloadURL := strings.TrimSpace(sourceURL)
 	metadataURL, geminiDownloadURL, geminiFile := geminiGeneratedFileURLs(downloadURL)
 	if geminiFile {
@@ -112,16 +113,18 @@ func (c *Client) DownloadVideo(ctx context.Context, sourceURL string, trustedPro
 		}
 		downloadURL = geminiDownloadURL
 		headers = map[string]string{geminiAPIKeyHeader: strings.TrimSpace(apiKey)}
+		providerBearerToken = ""
 	}
 
 	result, err := c.download(ctx, downloadRequest{
-		url:                downloadURL,
-		trustedEndpoint:    trustedProviderEndpoint,
-		headers:            headers,
-		maxBytes:           maxBytes,
-		timeout:            videoDownloadTimeout,
-		expectedMIMEPrefix: "video/",
-		failureLabel:       "download generated video",
+		url:                 downloadURL,
+		trustedEndpoint:     trustedProviderEndpoint,
+		headers:             headers,
+		providerBearerToken: providerBearerToken,
+		maxBytes:            maxBytes,
+		timeout:             videoDownloadTimeout,
+		expectedMIMEPrefix:  "video/",
+		failureLabel:        "download generated video",
 	})
 	if err != nil {
 		return nil, "", err
@@ -133,13 +136,14 @@ func (c *Client) DownloadVideo(ctx context.Context, sourceURL string, trustedPro
 }
 
 type downloadRequest struct {
-	url                string
-	trustedEndpoint    string
-	headers            map[string]string
-	maxBytes           int64
-	timeout            time.Duration
-	expectedMIMEPrefix string
-	failureLabel       string
+	url                 string
+	trustedEndpoint     string
+	headers             map[string]string
+	providerBearerToken string
+	maxBytes            int64
+	timeout             time.Duration
+	expectedMIMEPrefix  string
+	failureLabel        string
 }
 
 // download 统一执行带超时、状态码和响应大小边界的媒体下载。
@@ -165,6 +169,11 @@ func (c *Client) download(ctx context.Context, input downloadRequest) (downloadR
 	}
 	for key, value := range input.headers {
 		request.Header.Set(key, value)
+	}
+	// 仅在制品 URL 与管理员配置的 Provider endpoint 明确同源时携带 Key。
+	// 跨 origin 制品和后续跨 origin 重定向都不得获得 Provider 凭据。
+	if trustedEndpoint != "" && sameArtifactOrigin(input.url, input.trustedEndpoint) && strings.TrimSpace(input.providerBearerToken) != "" {
+		request.Header.Set("Authorization", "Bearer "+strings.TrimSpace(input.providerBearerToken))
 	}
 	response, err := c.httpClients.Do(request, trustedEndpoint, "")
 	if err != nil {
@@ -382,7 +391,14 @@ func stripCredentialOnCrossOriginRedirect(request *http.Request, via []*http.Req
 		return nil
 	}
 	request.Header.Del(geminiAPIKeyHeader)
+	request.Header.Del("Authorization")
 	return nil
+}
+
+func sameArtifactOrigin(sourceURL string, providerEndpoint string) bool {
+	sourceOrigin, sourceErr := security.HTTPOrigin(strings.TrimSpace(sourceURL))
+	providerOrigin, providerErr := security.HTTPOrigin(strings.TrimSpace(providerEndpoint))
+	return sourceErr == nil && providerErr == nil && sourceOrigin == providerOrigin
 }
 
 func mediaArtifactRedirectPolicy(strictPolicy security.OutboundPolicy, trustedOrigin string) func(*http.Request, []*http.Request) error {

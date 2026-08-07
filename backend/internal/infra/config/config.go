@@ -159,6 +159,11 @@ func DefaultModelOptionAllowedPathsJSON() string {
     "resolution",
     "response_format"
   ],
+  "xai_video": [
+    "aspect_ratio",
+    "duration",
+    "resolution"
+  ],
   "gemini_generate_content": [
     "generationConfig.temperature",
     "generationConfig.topP",

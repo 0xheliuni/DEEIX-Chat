@@ -96,6 +96,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 	if !llm.IsVideoGenerationAdapter(route.Protocol) {
 		return nil, ErrMediaRouteProtocolMismatch
 	}
+	videoEndpoint := llm.DefaultEndpointForAdapter(route.Protocol)
 	if strings.TrimSpace(conversation.Model) != strings.TrimSpace(route.PlatformModelName) {
 		conversation.Model = strings.TrimSpace(route.PlatformModelName)
 		conversation.Provider = inferProvider(conversation.Model)
@@ -115,7 +116,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 		UserID:             input.UserID,
 		ConversationID:     input.ConversationID,
 		TaskType:           channel.TaskTypeVideoGeneration,
-		Endpoint:           llm.EndpointInteractions,
+		Endpoint:           videoEndpoint,
 		Provider:           strings.TrimSpace(conversation.Provider),
 		ProviderProtocol:   route.Protocol,
 		UpstreamID:         route.UpstreamID,
@@ -227,7 +228,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 		ConnectTimeoutMS:    route.ConnectTimeoutMS,
 		ReadTimeoutMS:       route.ReadTimeoutMS,
 		StreamIdleTimeoutMS: route.StreamIdleTimeoutMS,
-		Endpoint:            llm.EndpointInteractions,
+		Endpoint:            videoEndpoint,
 		UpstreamModel:       route.UpstreamModel,
 		AttributionReferer:  attributionReferer,
 		AttributionTitle:    attributionTitle,
