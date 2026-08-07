@@ -125,7 +125,7 @@ func buildXAIVideoRequestBody(model string, input GenerateInput) (map[string]int
 	}
 	applyXAIVideoParams(payload, input.Options)
 
-	debugPayload := make(map[string]interface{}, len(payload)+1)
+	debugPayload := make(map[string]interface{}, len(payload))
 	for key, value := range payload {
 		if key != "image" {
 			debugPayload[key] = value
