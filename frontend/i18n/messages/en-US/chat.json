@@ -187,7 +187,6 @@
     "contextCompressed": "Context was automatically compressed",
     "scrollToBottom": "Scroll to bottom",
     "processing": "Processing...",
-    "videoDuration": "Video duration: {seconds} seconds",
     "expandUserMessage": "Expand",
     "collapseUserMessage": "Collapse",
     "editCreatesBranch": "Saving creates a new branch in this conversation.",

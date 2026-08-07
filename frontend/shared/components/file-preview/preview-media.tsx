@@ -17,7 +17,6 @@ type PreviewMediaProps = {
   contentType?: string;
   toolbarContainer?: HTMLElement | null;
   inline?: boolean;
-  onDurationChange?: (durationSeconds: number) => void;
 };
 
 const IMAGE_PREVIEW = {
@@ -78,7 +77,6 @@ export function PreviewMedia({
   contentType,
   toolbarContainer,
   inline = false,
-  onDurationChange,
 }: PreviewMediaProps) {
   const t = useTranslations("files.previewErrors");
   const tPreview = useTranslations("files.preview");
@@ -306,8 +304,7 @@ export function PreviewMedia({
     const nextDuration = media.duration || 0;
     setDuration(nextDuration);
     setCurrentTime(media.currentTime || 0);
-    onDurationChange?.(nextDuration);
-  }, [onDurationChange]);
+  }, []);
 
   const handleMediaLoadedMetadata = React.useCallback((event: React.SyntheticEvent<HTMLAudioElement | HTMLVideoElement>) => {
     syncMediaMetrics(event.currentTarget);

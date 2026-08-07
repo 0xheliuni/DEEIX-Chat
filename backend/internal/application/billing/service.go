@@ -151,6 +151,8 @@ type UsagePricingInput struct {
 	CallCount           int64
 	DurationBillable    bool
 	DurationSeconds     int64
+	MediaType           string
+	InputImageCount     int64
 	LatencyMS           int64
 	ServerSideToolUsage map[string]int64
 	ServiceItems        []ServiceUsageInput
@@ -1767,6 +1769,14 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 		"native_tool_billed_nanousd":               nativeToolBilledNanousd,
 		"base_service_billed_nanousd":              serviceBilledNanousd,
 		"service_items":                            usageServiceItemSnapshots(serviceItems),
+	}
+	if strings.EqualFold(strings.TrimSpace(input.MediaType), "video") {
+		inputImageCount := input.InputImageCount
+		if inputImageCount < 0 {
+			inputImageCount = 0
+		}
+		snapshot["media_type"] = "video"
+		snapshot["input_image_count"] = inputImageCount
 	}
 	if usageSource := strings.TrimSpace(input.UsageSource); usageSource != "" {
 		snapshot["usage_source"] = usageSource
