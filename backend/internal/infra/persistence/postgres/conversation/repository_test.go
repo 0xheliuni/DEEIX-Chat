@@ -22,6 +22,17 @@ func TestTranslateErrorAllowsNil(t *testing.T) {
 	}
 }
 
+func TestAttachmentDurationSecondsFromMetaJSON(t *testing.T) {
+	if got := attachmentDurationSecondsFromMetaJSON(`{"duration_seconds":6}`); got != 6 {
+		t.Fatalf("expected attachment duration 6, got %d", got)
+	}
+	for _, raw := range []string{"", `{}`, `{"duration_seconds":0}`, `{"duration_seconds":"6"}`} {
+		if got := attachmentDurationSecondsFromMetaJSON(raw); got != 0 {
+			t.Fatalf("expected invalid attachment duration for %q, got %d", raw, got)
+		}
+	}
+}
+
 func TestCreateContextArtifactsRejectsIncompleteOwnerScope(t *testing.T) {
 	repo := NewRepo(openConversationRepositoryTestDB(t))
 	valid := domainconversation.ContextArtifact{

@@ -187,6 +187,7 @@
     "contextCompressed": "上下文已自动压缩",
     "scrollToBottom": "回到底部",
     "processing": "正在处理…",
+    "videoDuration": "视频时长：{seconds} 秒",
     "expandUserMessage": "展开",
     "collapseUserMessage": "收起",
     "editCreatesBranch": "保存后会在当前 conversation 内创建新分支。",

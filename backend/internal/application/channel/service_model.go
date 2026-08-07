@@ -323,6 +323,25 @@ func (s *Service) ListActivePlatformModelNames(ctx context.Context) (map[string]
 	return keys, nil
 }
 
+// SupportsVideoGeneration 返回平台模型是否具有真实可路由的视频生成能力。
+func (s *Service) SupportsVideoGeneration(ctx context.Context, platformModelName string) (bool, error) {
+	name, err := normalizePlatformModelName(platformModelName)
+	if err != nil {
+		return false, nil
+	}
+	items, err := s.listAllActiveModelRows(ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, item := range items {
+		if item.ActiveSourceCount <= 0 || strings.TrimSpace(item.PlatformModelName) != name {
+			continue
+		}
+		return hasModelKind(parseKinds(item.KindsJSON), modelKindVideoGen), nil
+	}
+	return false, nil
+}
+
 // CreateModel 创建平台模型目录项。
 //
 // 创建模型只负责本地目录与展示元数据。

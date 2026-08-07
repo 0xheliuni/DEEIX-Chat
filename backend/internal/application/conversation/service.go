@@ -155,6 +155,7 @@ type AttachmentInput struct {
 	Current                bool // 是否为本轮用户显式上传的附件
 	MessageRole            string
 	ContextMode            string
+	DurationSeconds        int64 // 仅生成视频附件使用。
 }
 
 // SendMessageInput 定义消息发送请求。

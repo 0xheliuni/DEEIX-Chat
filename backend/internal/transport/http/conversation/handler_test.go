@@ -33,6 +33,17 @@ func TestSafeFileContentTypeDowngradesActiveContent(t *testing.T) {
 	}
 }
 
+func TestMediaStreamErrorPayloadPreservesPersistedResult(t *testing.T) {
+	result := &appconversation.SendMessageResult{}
+	payload := mediaStreamErrorPayload(errors.New("store generated video"), result)
+	if payload["type"] != "error" {
+		t.Fatalf("payload type = %#v, want error", payload["type"])
+	}
+	if _, ok := payload["data"]; !ok {
+		t.Fatalf("media error payload lost persisted result: %#v", payload)
+	}
+}
+
 func TestMessagePageParamsAllowsRestoreWindow(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()

@@ -17,6 +17,7 @@ type PreviewMediaProps = {
   contentType?: string;
   toolbarContainer?: HTMLElement | null;
   inline?: boolean;
+  onDurationChange?: (durationSeconds: number) => void;
 };
 
 const IMAGE_PREVIEW = {
@@ -70,7 +71,15 @@ function resolveAudioLabel(contentType?: string, name?: string): string {
   return "audio";
 }
 
-export function PreviewMedia({ kind, source, alt, contentType, toolbarContainer, inline = false }: PreviewMediaProps) {
+export function PreviewMedia({
+  kind,
+  source,
+  alt,
+  contentType,
+  toolbarContainer,
+  inline = false,
+  onDurationChange,
+}: PreviewMediaProps) {
   const t = useTranslations("files.previewErrors");
   const tPreview = useTranslations("files.preview");
   const mediaRef = React.useRef<HTMLAudioElement | HTMLVideoElement | null>(null);
@@ -294,9 +303,11 @@ export function PreviewMedia({ kind, source, alt, contentType, toolbarContainer,
   }, [kind, playing]);
 
   const syncMediaMetrics = React.useCallback((media: HTMLAudioElement | HTMLVideoElement) => {
-    setDuration(media.duration || 0);
+    const nextDuration = media.duration || 0;
+    setDuration(nextDuration);
     setCurrentTime(media.currentTime || 0);
-  }, []);
+    onDurationChange?.(nextDuration);
+  }, [onDurationChange]);
 
   const handleMediaLoadedMetadata = React.useCallback((event: React.SyntheticEvent<HTMLAudioElement | HTMLVideoElement>) => {
     syncMediaMetrics(event.currentTarget);

@@ -685,12 +685,20 @@ function MessageInlineVideoPreview({
   const resolveErrorMessage = useLocalizedErrorMessage();
   const objectURLRef = React.useRef<string | null>(null);
   const [state, setState] = React.useState<InlineVideoPreviewState>({ status: "loading" });
+  const [detectedDurationSeconds, setDetectedDurationSeconds] = React.useState<number | undefined>();
   const fileID = attachment.fileID;
   const fileName = attachment.fileName;
   const mimeType = attachment.mimeType;
   const detectedMime = attachment.detectedMime;
   const previewURL = attachment.previewURL;
   const sizeBytes = attachment.sizeBytes;
+  const displayDurationSeconds = attachment.durationSeconds ?? detectedDurationSeconds;
+
+  const handleDurationChange = React.useCallback((durationSeconds: number) => {
+    setDetectedDurationSeconds(
+      Number.isFinite(durationSeconds) && durationSeconds > 0 ? Math.ceil(durationSeconds) : undefined,
+    );
+  }, []);
 
   const revokeObjectURL = React.useCallback(() => {
     if (!objectURLRef.current) {
@@ -703,6 +711,7 @@ function MessageInlineVideoPreview({
   React.useEffect(() => {
     let cancelled = false;
     revokeObjectURL();
+    setDetectedDurationSeconds(undefined);
 
     if (previewURL) {
       setState({
@@ -786,14 +795,23 @@ function MessageInlineVideoPreview({
   }
 
   return (
-    <div className="my-4 w-full max-w-[40rem]">
+    <div className="relative my-4 w-full max-w-[40rem]">
       <PreviewMedia
         kind="video"
         source={state.source}
         alt={attachment.fileName}
         contentType={state.contentType}
         inline
+        onDurationChange={handleDurationChange}
       />
+      {displayDurationSeconds && displayDurationSeconds > 0 ? (
+        <span
+          className="pointer-events-none absolute left-3 top-3 rounded-md bg-black/65 px-2 py-1 text-xs font-medium tabular-nums text-white backdrop-blur-sm"
+          title={tMessages("videoDuration", { seconds: displayDurationSeconds })}
+        >
+          {displayDurationSeconds}s
+        </span>
+      ) : null}
     </div>
   );
 }

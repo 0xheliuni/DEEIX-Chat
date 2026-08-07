@@ -3356,6 +3356,17 @@ type messageAttachmentSnapshotRow struct {
 	ProcessingReady        bool   `gorm:"column:processing_ready"`
 	ProcessingErrorCode    string `gorm:"column:processing_error_code"`
 	ProcessingErrorMessage string `gorm:"column:processing_error_message"`
+	MetaJSON               string `gorm:"column:meta_json"`
+}
+
+func attachmentDurationSecondsFromMetaJSON(raw string) int64 {
+	var metadata struct {
+		DurationSeconds int64 `json:"duration_seconds"`
+	}
+	if json.Unmarshal([]byte(strings.TrimSpace(raw)), &metadata) != nil || metadata.DurationSeconds <= 0 {
+		return 0
+	}
+	return metadata.DurationSeconds
 }
 
 func (r *Repo) hydrateMessageAttachments(ctx context.Context, items []models.Message) error {
@@ -3383,6 +3394,7 @@ func (r *Repo) hydrateMessageAttachments(ctx context.Context, items []models.Mes
 			"a.file_name",
 			"a.mime_type",
 			"a.file_size",
+			"a.meta_json",
 			"fo.detected_mime",
 			"fo.file_category",
 			"fo.processing_status",
@@ -3399,7 +3411,7 @@ func (r *Repo) hydrateMessageAttachments(ctx context.Context, items []models.Mes
 
 	grouped := make(map[uint][]map[string]interface{}, len(rows))
 	for _, row := range rows {
-		grouped[row.MessageID] = append(grouped[row.MessageID], map[string]interface{}{
+		payload := map[string]interface{}{
 			"file_id":                  row.FileID,
 			"kind":                     row.Kind,
 			"file_name":                row.FileName,
@@ -3411,7 +3423,11 @@ func (r *Repo) hydrateMessageAttachments(ctx context.Context, items []models.Mes
 			"processing_ready":         row.ProcessingReady,
 			"processing_error_code":    row.ProcessingErrorCode,
 			"processing_error_message": row.ProcessingErrorMessage,
-		})
+		}
+		if durationSeconds := attachmentDurationSecondsFromMetaJSON(row.MetaJSON); durationSeconds > 0 {
+			payload["duration_seconds"] = durationSeconds
+		}
+		grouped[row.MessageID] = append(grouped[row.MessageID], payload)
 	}
 	for i := range items {
 		payload := grouped[items[i].ID]

@@ -413,13 +413,17 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
     try {
       const raw = await file.text();
       const validNames = new Set(rows.map((row) => row.platformModelName));
-      const parsed = parseModelPricingImportJSON(raw, validNames, {
+      const videoGenerationNames = new Set(
+        rows.filter((row) => row.supportsVideoGeneration).map((row) => row.platformModelName),
+      );
+      const parsed = parseModelPricingImportJSON(raw, validNames, videoGenerationNames, {
         invalidJSON: t("importErrors.invalidJSON"),
         rootObject: t("importErrors.rootObject"),
         emptyModelName: t("importErrors.emptyModelName"),
         duplicateModel: (model) => t("importErrors.duplicateModel", { model }),
         pricingObject: (model) => t("importErrors.pricingObject", { model }),
         invalidPricingMode: (model) => t("importErrors.invalidPricingMode", { model }),
+        durationVideoOnly: (model) => t("importErrors.durationVideoOnly", { model }),
         invalidNumber: (model, field) => t("importErrors.invalidNumber", { model, field }),
         invalidTieredPricing: (model, field) => t("importErrors.invalidTieredPricing", { model, field }),
         invalidTieredPricingJSON: (model) => t("importErrors.invalidTieredPricingJSON", { model }),
@@ -695,6 +699,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
         open={!!editRow && !!form}
         saving={saving}
         form={stableForm}
+        durationPricingEnabled={Boolean(stableEditRow?.supportsVideoGeneration)}
         setForm={setForm}
         onOpenChange={(open) => {
           if (!open && !saving) {
