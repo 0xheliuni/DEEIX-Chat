@@ -476,7 +476,7 @@ const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
     payload: {
       defaultOptions: {
         aspect_ratio: "16:9",
-        duration: 8,
+        duration: 6,
         resolution: "720p",
       },
       optionControls: [

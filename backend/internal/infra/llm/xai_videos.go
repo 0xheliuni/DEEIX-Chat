@@ -86,7 +86,7 @@ func (c *Client) generateXAIVideo(ctx context.Context, route RouteConfig, input 
 	if err != nil {
 		return nil, acceptedXAIVideoResponseError(err, upstreamDebugSnapshot(req, debugBody, resp, body))
 	}
-	return c.pollXAIVideoResult(requestCtx, route, requestID)
+	return c.pollXAIVideoResult(requestCtx, route, requestID, generatedMediaDurationSeconds(requestBody["duration"]))
 }
 
 func newXAIMediaRequest(ctx context.Context, method string, requestURL string, payload []byte, route RouteConfig) (*http.Request, error) {
@@ -214,7 +214,7 @@ func parseXAIVideoRequestID(body []byte) (string, error) {
 	return requestID, nil
 }
 
-func (c *Client) pollXAIVideoResult(ctx context.Context, route RouteConfig, requestID string) (*GenerateOutput, error) {
+func (c *Client) pollXAIVideoResult(ctx context.Context, route RouteConfig, requestID string, requestedDurationSeconds int64) (*GenerateOutput, error) {
 	requestURL := buildXAIVideoResultURL(route.BaseURL, requestID)
 	if requestURL == "" {
 		return nil, MarkRequestAccepted(fmt.Errorf("invalid xAI video result url"))
@@ -239,7 +239,7 @@ func (c *Client) pollXAIVideoResult(ctx context.Context, route RouteConfig, requ
 			return nil, MarkRequestAccepted(parseUpstreamError(resp.StatusCode, body, debug))
 		}
 
-		output, pending, err := parseXAIVideoResult(body, requestID)
+		output, pending, err := parseXAIVideoResult(body, requestID, requestedDurationSeconds)
 		if err != nil {
 			return nil, acceptedXAIVideoResponseError(err, debug)
 		}
@@ -261,7 +261,7 @@ func buildXAIVideoResultURL(baseURL string, requestID string) string {
 	return buildVersionedEndpointURL(baseURL, "v1", "/videos/"+url.PathEscape(id))
 }
 
-func parseXAIVideoResult(body []byte, requestID string) (*GenerateOutput, bool, error) {
+func parseXAIVideoResult(body []byte, requestID string, requestedDurationSeconds int64) (*GenerateOutput, bool, error) {
 	parsed := make(map[string]interface{})
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return nil, false, err
@@ -298,14 +298,23 @@ func parseXAIVideoResult(body []byte, requestID string) (*GenerateOutput, bool, 
 	if videoURL == "" {
 		return nil, false, fmt.Errorf("xAI video result missing downloadable URL")
 	}
+	durationSeconds := generatedMediaDurationSeconds(
+		videoPayload["duration_seconds"],
+		videoPayload["duration"],
+		fileOutput["duration_seconds"],
+		parsed["duration_seconds"],
+		parsed["duration"],
+		requestedDurationSeconds,
+	)
 	result := &GenerateOutput{
 		ResponseID:      strings.TrimSpace(requestID),
 		ToolCalls:       make([]ToolCall, 0),
 		ServerToolCalls: make([]ToolCall, 0),
 		GeneratedVideos: []GeneratedVideo{{
-			URL:      videoURL,
-			MIMEType: "video/mp4",
-			FileName: strings.TrimSpace(getString(fileOutput["filename"])),
+			URL:             videoURL,
+			MIMEType:        "video/mp4",
+			FileName:        strings.TrimSpace(getString(fileOutput["filename"])),
+			DurationSeconds: durationSeconds,
 		}},
 		RawJSON: string(body),
 	}

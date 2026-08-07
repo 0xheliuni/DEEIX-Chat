@@ -131,6 +131,7 @@ func TestGenerateXAIVideoSubmitsAndPolls(t *testing.T) {
 				"status":"done",
 				"video":{
 					"url":"https://example.com/generated.mp4",
+					"duration_seconds":6,
 					"respect_moderation":true,
 					"file_output":{"filename":"generated.mp4"}
 				},
@@ -162,7 +163,7 @@ func TestGenerateXAIVideoSubmitsAndPolls(t *testing.T) {
 		t.Fatalf("unexpected xAI video output: %#v", output)
 	}
 	video := output.GeneratedVideos[0]
-	if video.URL != "https://example.com/generated.mp4" || video.MIMEType != "video/mp4" || video.FileName != "generated.mp4" {
+	if video.URL != "https://example.com/generated.mp4" || video.MIMEType != "video/mp4" || video.FileName != "generated.mp4" || video.DurationSeconds != 6 {
 		t.Fatalf("unexpected generated video: %#v", video)
 	}
 	if !strings.Contains(output.Usage.RawUsageJSON, `"cost_in_usd_ticks":27`) {
@@ -205,7 +206,7 @@ func TestParseXAIVideoResultRejectsModeratedOutput(t *testing.T) {
 	_, _, err := parseXAIVideoResult([]byte(`{
 		"status":"done",
 		"video":{"url":"https://example.com/blocked.mp4","respect_moderation":false}
-	}`), "video_req_1")
+	}`), "video_req_1", 6)
 	if err == nil || !strings.Contains(err.Error(), "content moderation") {
 		t.Fatalf("expected moderation error, got %v", err)
 	}

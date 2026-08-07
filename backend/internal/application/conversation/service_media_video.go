@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -242,8 +243,9 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 	if llm.NormalizeAdapter(route.Protocol) == llm.AdapterGeminiInteractions {
 		filteredOptions = withGeminiInteractionResponseType(filteredOptions, "video")
 	}
+	filteredOptions = withDefaultMediaVideoDuration(filteredOptions, route.Protocol)
 	durationSeconds := mediaDurationSecondsFromOptions(filteredOptions)
-	buildBillableFailure := func(failure error, usage llm.Usage) *SendMessageResult {
+	buildFailureResult := func(failure error, usage llm.Usage) *SendMessageResult {
 		result := buildFailedMediaBillingResult(failedMediaBillingResultInput{
 			UserMessage:      userMessage,
 			AssistantMessage: assistantMessage,
@@ -253,6 +255,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 			StartedAt:        startedAt,
 			DurationSeconds:  durationSeconds,
 			Failure:          failure,
+			Billable:         false,
 		})
 		applyMediaRunUsage(run, result)
 		return result
@@ -290,6 +293,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 				GenerateInput:    generateInput,
 				StartedAt:        startedAt,
 				DurationSeconds:  durationSeconds,
+				Billable:         false,
 			})
 			if cancelErr != nil {
 				retErr = cancelErr
@@ -307,7 +311,11 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 	if output == nil || len(output.GeneratedVideos) == 0 {
 		retErr = ErrUpstreamEmptyResponse
 		_ = s.repo.UpdateMessageState(ctx, assistantMessage.ID, "error", classifyRunErrorCode(retErr), truncateError(messageErrorSummary(retErr), 255))
-		return buildBillableFailure(retErr, mediaOutputUsage(output)), retErr
+		return buildFailureResult(retErr, mediaOutputUsage(output)), retErr
+	}
+	videoDurations, generatedDurationSeconds := resolveGeneratedVideoDurations(output.GeneratedVideos, durationSeconds)
+	if generatedDurationSeconds > 0 {
+		durationSeconds = generatedDurationSeconds
 	}
 
 	emitMediaEvent(input.OnEvent, "saving_artifact", "saving video", "video")
@@ -318,7 +326,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 		data, mimeType, readErr := s.readGeneratedVideo(ctx, video, route.BaseURL, route.APIKey)
 		if readErr != nil {
 			retErr = s.finalizeGeneratedMediaArtifactFailure(ctx, run, assistantMessage.ID, i+1, len(output.GeneratedVideos), readErr)
-			return buildBillableFailure(retErr, output.Usage), retErr
+			return buildFailureResult(retErr, output.Usage), retErr
 		}
 		fileName := generatedVideoFileName(route.PlatformModelName, now, i, len(output.GeneratedVideos), mimeType)
 		uploadResult, uploadErr := s.UploadFile(ctx, appupload.UploadFileInput{
@@ -332,7 +340,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 		if uploadErr != nil {
 			retErr = uploadErr
 			_ = s.repo.UpdateMessageState(ctx, assistantMessage.ID, "error", classifyRunErrorCode(retErr), truncateError(messageErrorSummary(retErr), 255))
-			return buildBillableFailure(uploadErr, output.Usage), uploadErr
+			return buildFailureResult(uploadErr, output.Usage), uploadErr
 		}
 		file := uploadResult.File
 		uploaded = append(uploaded, file)
@@ -348,6 +356,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 			SHA256:         file.SHA256,
 			StoragePath:    file.StoragePath,
 			Status:         "active",
+			MetaJSON:       generatedVideoAttachmentMetaJSON(videoDurations[i]),
 			UploadedAt:     now,
 		})
 	}
@@ -404,7 +413,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 	}
 	if err != nil {
 		retErr = err
-		return buildBillableFailure(err, output.Usage), err
+		return buildFailureResult(err, output.Usage), err
 	}
 
 	assistantMessage.Content = content
@@ -416,7 +425,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 	}
 	assistantMessage.LatencyMS = latencyMS
 	assistantMessage.Status = "success"
-	assistantMessage.Attachments = string(marshalAttachmentSnapshots(videoAttachmentsFromFiles(uploaded)))
+	assistantMessage.Attachments = string(marshalAttachmentSnapshots(videoAttachmentsFromFiles(uploaded, videoDurations)))
 	run.InputTokens = usage.InputTokens
 	run.OutputTokens = usage.OutputTokens
 	run.CacheReadTokens = usage.CacheReadTokens
@@ -597,9 +606,24 @@ func generatedVideoMarkdown(files []model.FileObject) string {
 	return strings.Join(blocks, "\n\n")
 }
 
-func videoAttachmentsFromFiles(files []model.FileObject) []AttachmentInput {
+func generatedVideoAttachmentMetaJSON(durationSeconds int64) string {
+	if durationSeconds <= 0 {
+		return ""
+	}
+	payload, err := json.Marshal(map[string]int64{"duration_seconds": durationSeconds})
+	if err != nil {
+		return ""
+	}
+	return string(payload)
+}
+
+func videoAttachmentsFromFiles(files []model.FileObject, durations []int64) []AttachmentInput {
 	items := make([]AttachmentInput, 0, len(files))
-	for _, file := range files {
+	for index, file := range files {
+		durationSeconds := int64(0)
+		if index < len(durations) {
+			durationSeconds = positiveSeconds(durations[index])
+		}
 		items = append(items, AttachmentInput{
 			FileObjID:        file.ID,
 			FileID:           file.FileID,
@@ -613,6 +637,7 @@ func videoAttachmentsFromFiles(files []model.FileObject) []AttachmentInput {
 			StoragePath:      file.StoragePath,
 			ProcessingStatus: file.ProcessingStatus,
 			ProcessingReady:  file.ProcessingReady,
+			DurationSeconds:  durationSeconds,
 		})
 	}
 	return items

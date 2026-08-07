@@ -1,6 +1,14 @@
 import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
 import type { MessageDTO, UpstreamDebugInfo } from "@/shared/api/conversation.types";
 
+function parseAttachmentDurationSeconds(value: unknown): number | undefined {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return undefined;
+  }
+  return Math.ceil(parsed);
+}
+
 export function parseAttachments(raw: string): MessageAttachment[] {
   if (!raw) return [];
   try {
@@ -14,6 +22,7 @@ export function parseAttachments(raw: string): MessageAttachment[] {
         detectedMime: String(item.detected_mime ?? ""),
         fileCategory: String(item.file_category ?? ""),
         sizeBytes: Number(item.file_size ?? 0),
+        durationSeconds: parseAttachmentDurationSeconds(item.duration_seconds),
         kind: item.kind === "image" ? ("image" as const) : ("file" as const),
         processingStatus: String(item.processing_status ?? ""),
         processingReady: Boolean(item.processing_ready),
