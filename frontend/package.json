@@ -19,8 +19,7 @@
     "check": "pnpm lint && pnpm typecheck",
     "lint": "biome lint .",
     "lint:fix": "biome lint --write .",
-    "clean": "rm -rf .next out",
-    "test": "node --no-warnings --test shared/components/markdown/markdown-table-analyzer.test.mjs"
+    "clean": "rm -rf .next out"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

@@ -368,6 +368,12 @@ export function buildVisibleMessages(
     if (item.role !== "assistant") {
       return item;
     }
+    // Assistant-only retries reuse the original user message, but own the
+    // prompt-side usage for their generation. A zero value is authoritative
+    // and must not fall back to the reused user's first-run usage.
+    if (item.branchReason === "retry" && item.sourcePublicID?.trim()) {
+      return item;
+    }
     const previous = index > 0 ? withBranchNavigators[index - 1] : null;
     if (!previous || previous.role !== "user") {
       return item;
