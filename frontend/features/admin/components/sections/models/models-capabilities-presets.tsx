@@ -61,6 +61,7 @@ const XAI_IMAGE_ASPECT_RATIOS = [
 ];
 const XAI_IMAGE_RESOLUTIONS = ["1k", "2k"];
 const XAI_VIDEO_ASPECT_RATIOS = ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"];
+const XAI_VIDEO_DURATIONS = Array.from({ length: 15 }, (_, index) => String(index + 1));
 const XAI_VIDEO_RESOLUTIONS = ["480p", "720p", "1080p"];
 
 const XAI_IMAGE_OPTION_CONTROLS = [
@@ -487,9 +488,10 @@ const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
         },
         {
           path: "duration",
-          type: "number",
+          type: "select",
           label: "Duration (seconds)",
           description: "Video duration from 1 to 15 seconds.",
+          options: XAI_VIDEO_DURATIONS,
         },
         {
           path: "resolution",

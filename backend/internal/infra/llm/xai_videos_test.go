@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestBuildXAIVideoRequestBody(t *testing.T) {
@@ -84,6 +85,21 @@ func TestBuildXAIVideoRequestBodyDropsUnsupportedParams(t *testing.T) {
 	}
 }
 
+func TestXAIVideoPollDelayClampsUnsafeValues(t *testing.T) {
+	tests := map[string]time.Duration{
+		"":   time.Second,
+		"0":  time.Second,
+		"-1": time.Second,
+		"2":  2 * time.Second,
+		"99": 10 * time.Second,
+	}
+	for retryAfter, expected := range tests {
+		if got := xAIVideoPollDelay(retryAfter); got != expected {
+			t.Fatalf("retry-after %q: expected %s, got %s", retryAfter, expected, got)
+		}
+	}
+}
+
 func TestGenerateXAIVideoSubmitsAndPolls(t *testing.T) {
 	postCount := 0
 	pollCount := 0
@@ -107,7 +123,6 @@ func TestGenerateXAIVideoSubmitsAndPolls(t *testing.T) {
 			pollCount++
 			w.Header().Set("Content-Type", "application/json")
 			if pollCount == 1 {
-				w.Header().Set("Retry-After", "0")
 				w.WriteHeader(http.StatusAccepted)
 				_, _ = w.Write([]byte(`{"status":"pending","progress":50}`))
 				return

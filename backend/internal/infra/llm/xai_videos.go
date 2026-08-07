@@ -331,7 +331,7 @@ func acceptedXAIVideoResponseError(err error, debug *UpstreamDebugSnapshot) erro
 
 func xAIVideoPollDelay(retryAfter string) time.Duration {
 	seconds, err := strconv.Atoi(strings.TrimSpace(retryAfter))
-	if err != nil || seconds < 0 {
+	if err != nil || seconds <= 0 {
 		return defaultXAIVideoPollInterval
 	}
 	delay := time.Duration(seconds) * time.Second

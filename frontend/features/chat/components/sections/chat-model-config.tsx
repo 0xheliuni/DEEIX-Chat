@@ -908,6 +908,16 @@ function resolveSelectValues(key: string, configuredValues?: string[]): string[]
   return Array.from(new Set((sourceValues ?? []).map((item) => item.trim()).filter(Boolean)));
 }
 
+function resolveSelectOptionValue(key: string, value: string, selectValues: string[]): string | number {
+  if (NUMBER_OPTION_KEYS.has(key) && selectValues.every((item) => typeof parseVisualNumberInput(item) === "number")) {
+    const parsed = parseVisualNumberInput(value);
+    if (typeof parsed === "number") {
+      return parsed;
+    }
+  }
+  return value;
+}
+
 function resolveModelOptionFilterStatus(
   policy: ModelOptionPolicy | null,
   protocol: string,
@@ -1423,8 +1433,10 @@ export function ChatModelConfig({
                     </Select>
                   ) : kind === "select" ? (
                     <Select
-                      value={typeof editableValue === "string" && editableValue.trim() ? editableValue : undefined}
-                      onValueChange={(nextValue) => updateOptionValue(path, nextValue)}
+                      value={(typeof editableValue === "string" || typeof editableValue === "number") && String(editableValue).trim()
+                        ? String(editableValue)
+                        : undefined}
+                      onValueChange={(nextValue) => updateOptionValue(path, resolveSelectOptionValue(key, nextValue, selectValues))}
                     >
                       <SelectTrigger size="sm">
                         <SelectValue placeholder={placeholder ?? key} />
