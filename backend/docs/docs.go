@@ -1360,6 +1360,133 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/content-moderation/config": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-content-moderation"
+                ],
+                "summary": "Get content moderation config",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/SuccessDoc"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-content-moderation"
+                ],
+                "summary": "Update content moderation config",
+                "responses": {}
+            }
+        },
+        "/admin/content-moderation/events": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-content-moderation"
+                ],
+                "summary": "List content moderation events",
+                "responses": {}
+            }
+        },
+        "/admin/content-moderation/events/{eventID}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-content-moderation"
+                ],
+                "summary": "Get content moderation event detail",
+                "responses": {}
+            }
+        },
+        "/admin/content-moderation/events/{eventID}/images/{index}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "admin-content-moderation"
+                ],
+                "summary": "Stream a isolated moderation image",
+                "responses": {}
+            }
+        },
+        "/admin/content-moderation/probe": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-content-moderation"
+                ],
+                "summary": "Probe content moderation service",
+                "responses": {}
+            }
+        },
+        "/admin/content-moderation/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-content-moderation"
+                ],
+                "summary": "Get content moderation daily stats",
+                "responses": {}
+            }
+        },
         "/admin/conversation-events": {
             "get": {
                 "security": [
@@ -16715,6 +16842,26 @@ const docTemplate = `{
                 }
             }
         },
+        "MessageModerationResponse": {
+            "type": "object",
+            "properties": {
+                "categories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "direction": {
+                    "type": "string"
+                },
+                "eventID": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                }
+            }
+        },
         "MessageProcessTraceResponse": {
             "type": "object",
             "required": [
@@ -16948,6 +17095,9 @@ const docTemplate = `{
                 },
                 "modelVendor": {
                     "type": "string"
+                },
+                "moderation": {
+                    "$ref": "#/definitions/MessageModerationResponse"
                 },
                 "myFeedback": {
                     "type": "string"

@@ -289,7 +289,12 @@
     "continueReplyUnavailable": "This reply cannot be continued right now.",
     "editReplyFailed": "Failed to edit reply",
     "retryReplyFailed": "Unable to retry this reply",
-    "retryReplyMissingUser": "The corresponding user message was not found."
+    "retryReplyMissingUser": "The corresponding user message was not found.",
+    "moderationChecking": "Safety check in progress…",
+    "moderationBlocked": "Content blocked",
+    "moderationBlockedDescription": "This response was withdrawn after a safety check.",
+    "moderationEventId": "Event ID: {id}",
+    "moderationCategories": "Categories: {categories}"
   },
   "data": {
     "signInRequired": "Sign in before loading conversation messages.",

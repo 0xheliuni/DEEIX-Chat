@@ -1,0 +1,59 @@
+{
+  "title": "Content moderation",
+  "loading": "Loading…",
+  "loadFailed": "Failed to load content moderation settings",
+  "saved": "Configuration saved",
+  "saveFailed": "Failed to save configuration",
+  "save": "Save",
+  "saving": "Saving…",
+  "selectAll": "Select all",
+  "probe": "Probe validity",
+  "probing": "Probing…",
+  "probeFailed": "Probe failed",
+  "probeText": "Text",
+  "probeImage": "Image",
+  "valid": "valid",
+  "invalid": "invalid",
+  "policyHint": "Empty selection disables this check surface. Defaults are empty (all disabled).",
+  "superAdminOnly": "Only superadmins can manage moderation policy and service settings. View stats under Usage statistics and events under Logs.",
+  "tabs": {
+    "policy": "Policy",
+    "service": "Service"
+  },
+  "surfaces": {
+    "inputText": "Input text",
+    "inputImage": "Input image",
+    "outputText": "Output text",
+    "outputImage": "Output image"
+  },
+  "fields": {
+    "baseUrl": "Base URL",
+    "model": "Model",
+    "apiKey": "API key",
+    "apiKeyPlaceholder": "Enter new API key",
+    "timeoutSeconds": "Timeout (seconds)",
+    "maxConcurrency": "Max concurrency",
+    "queueCapacity": "Queue capacity"
+  },
+  "table": {
+    "date": "Date",
+    "direction": "Direction",
+    "modality": "Modality",
+    "result": "Result",
+    "checks": "Checks",
+    "hits": "Hits",
+    "failures": "Failures",
+    "eventId": "Event ID",
+    "latency": "Latency",
+    "createdAt": "Created",
+    "actions": "Actions"
+  },
+  "viewDetail": "View detail",
+  "detailTitle": "Event detail (audited)",
+  "closeDetail": "Close",
+  "detailFailed": "Failed to load event detail",
+  "detailText": "Decrypted text",
+  "detailImages": "Isolated images",
+  "detailImageAlt": "Moderation image {index}",
+  "imageLoadFailed": "Failed to load one or more isolated images"
+}

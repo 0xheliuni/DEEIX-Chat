@@ -188,19 +188,21 @@ type Message struct {
 	BilledCurrency   string
 	BilledNanousd    int64
 	PricingSnapshot  string
-	Status           string
-	ErrorCode        string
-	ErrorMessage     string
-	Attachments      string
-	ParentPublicID   string
-	SourcePublicID   string
-	MyFeedback       string
-	ThumbsUpCount    int64
-	ThumbsDownCount  int64
-	ProcessTrace     *MessageProcessTrace
-	EditedAt         *time.Time
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	Status                   string
+	ErrorCode                string
+	ErrorMessage             string
+	ModerationEventID        string
+	ModerationCategoriesJSON string
+	Attachments              string
+	ParentPublicID           string
+	SourcePublicID           string
+	MyFeedback               string
+	ThumbsUpCount            int64
+	ThumbsDownCount          int64
+	ProcessTrace             *MessageProcessTrace
+	EditedAt                 *time.Time
+	CreatedAt                time.Time
+	UpdatedAt                time.Time
 }
 
 // MessageFeedback 表示消息反馈。
@@ -362,13 +364,16 @@ type Run struct {
 	ToolCallsCount      int
 	FirstTokenLatencyMS int64
 	TotalLatencyMS      int64
-	Status              string
-	ErrorCode           string
-	ErrorMessage        string
-	StartedAt           time.Time
-	EndedAt             *time.Time
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
+	Status                   string
+	ErrorCode                string
+	ErrorMessage             string
+	ModerationState          string
+	ModerationEventID        string
+	ModerationCategoriesJSON string
+	StartedAt                time.Time
+	EndedAt                  *time.Time
+	CreatedAt                time.Time
+	UpdatedAt                time.Time
 }
 
 // MessageTrace 表示消息处理轨迹。

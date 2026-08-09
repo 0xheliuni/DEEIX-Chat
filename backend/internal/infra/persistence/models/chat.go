@@ -118,10 +118,12 @@ type Message struct {
 	BilledCurrency   string     `gorm:"size:16;not null;default:'USD';comment:消息计费币种"`
 	BilledNanousd    int64      `gorm:"not null;default:0;comment:消息计费金额(纳美元)"`
 	PricingSnapshot  string     `gorm:"type:text;not null;default:'';comment:消息计费快照JSON"`
-	Status           string     `gorm:"size:32;not null;default:'';index:idx_chat_messages_status;comment:消息处理状态"`
-	ErrorCode        string     `gorm:"size:64;not null;default:'';comment:错误码"`
-	ErrorMessage     string     `gorm:"size:255;not null;default:'';comment:错误信息"`
-	IsCompacted      bool       `gorm:"not null;default:false;index:idx_chat_messages_is_compacted;comment:预留未使用(祖先链未按此过滤，无读写方)"`
+	Status                    string     `gorm:"size:32;not null;default:'';index:idx_chat_messages_status;comment:消息处理状态"`
+	ErrorCode                 string     `gorm:"size:64;not null;default:'';comment:错误码"`
+	ErrorMessage              string     `gorm:"size:255;not null;default:'';comment:错误信息"`
+	ModerationEventID         string     `gorm:"size:40;not null;default:'';index:idx_chat_messages_moderation_event_id;comment:内容审核事件编号"`
+	ModerationCategoriesJSON  string     `gorm:"type:text;not null;default:'[]';comment:内容审核命中分类JSON"`
+	IsCompacted               bool       `gorm:"not null;default:false;index:idx_chat_messages_is_compacted;comment:预留未使用(祖先链未按此过滤，无读写方)"`
 	EditedAt         *time.Time `gorm:"index:idx_chat_messages_edited_at;comment:用户编辑时间"`
 	ParentPublicID   string     `gorm:"-"`
 	SourcePublicID   string     `gorm:"-"`
@@ -282,11 +284,14 @@ type ConversationRun struct {
 	ToolCallsCount      int        `gorm:"not null;default:0;comment:工具调用次数"`
 	FirstTokenLatencyMS int64      `gorm:"not null;default:0;comment:首Token时延毫秒"`
 	TotalLatencyMS      int64      `gorm:"not null;default:0;comment:总时长毫秒"`
-	Status              string     `gorm:"size:32;not null;default:'';index:idx_chat_runs_status;comment:运行状态"`
-	ErrorCode           string     `gorm:"size:64;not null;default:'';comment:错误码"`
-	ErrorMessage        string     `gorm:"size:255;not null;default:'';comment:错误信息"`
-	StartedAt           time.Time  `gorm:"not null;comment:开始时间"`
-	EndedAt             *time.Time `gorm:"comment:结束时间"`
+	Status                    string     `gorm:"size:32;not null;default:'';index:idx_chat_runs_status;comment:运行状态"`
+	ErrorCode                 string     `gorm:"size:64;not null;default:'';comment:错误码"`
+	ErrorMessage              string     `gorm:"size:255;not null;default:'';comment:错误信息"`
+	ModerationState           string     `gorm:"size:32;not null;default:'not_required';index:idx_chat_runs_moderation_state;comment:内容审核状态"`
+	ModerationEventID         string     `gorm:"size:40;not null;default:'';index:idx_chat_runs_moderation_event_id;comment:主审核事件编号"`
+	ModerationCategoriesJSON  string     `gorm:"type:text;not null;default:'[]';comment:审核命中分类摘要JSON"`
+	StartedAt                 time.Time  `gorm:"not null;comment:开始时间"`
+	EndedAt                   *time.Time `gorm:"comment:结束时间"`
 }
 
 // TableName 指定表名。

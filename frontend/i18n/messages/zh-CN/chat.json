@@ -289,7 +289,12 @@
     "continueReplyUnavailable": "这条回复当前不能继续生成。",
     "editReplyFailed": "编辑回复失败",
     "retryReplyFailed": "无法重试这条回复",
-    "retryReplyMissingUser": "没有找到对应的用户消息。"
+    "retryReplyMissingUser": "没有找到对应的用户消息。",
+    "moderationChecking": "安全检查中…",
+    "moderationBlocked": "内容已拦截",
+    "moderationBlockedDescription": "安全检查后已撤回本轮回答。",
+    "moderationEventId": "事件编号：{id}",
+    "moderationCategories": "命中分类：{categories}"
   },
   "data": {
     "signInRequired": "未登录，无法加载会话消息",

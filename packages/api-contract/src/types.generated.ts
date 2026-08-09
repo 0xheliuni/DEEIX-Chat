@@ -1512,6 +1512,13 @@ export interface MessageListResponseDoc {
   errorMsg: string;
 }
 
+export interface MessageModerationResponse {
+  categories?: string[];
+  direction?: string;
+  eventID?: string;
+  state?: string;
+}
+
 export interface MessageProcessTraceResponse {
   enabled: boolean;
   events?: MessageTraceEventResponse[];
@@ -1570,6 +1577,7 @@ export interface MessageResponse {
   latencyMS: number;
   modelIcon: string;
   modelVendor: string;
+  moderation?: MessageModerationResponse;
   myFeedback: string;
   outputTokens: number;
   parentMessageID: number | null;
@@ -4161,6 +4169,123 @@ export namespace Admin {
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = UsageLogListResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags admin-content-moderation
+   * @name ContentModerationConfigList
+   * @summary Get content moderation config
+   * @request GET:/admin/content-moderation/config
+   * @secure
+   */
+  export namespace ContentModerationConfigList {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = SuccessDoc;
+  }
+
+  /**
+   * No description
+   * @tags admin-content-moderation
+   * @name ContentModerationConfigUpdate
+   * @summary Update content moderation config
+   * @request PUT:/admin/content-moderation/config
+   * @secure
+   */
+  export namespace ContentModerationConfigUpdate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = any;
+  }
+
+  /**
+   * No description
+   * @tags admin-content-moderation
+   * @name ContentModerationEventsList
+   * @summary List content moderation events
+   * @request GET:/admin/content-moderation/events
+   * @secure
+   */
+  export namespace ContentModerationEventsList {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = any;
+  }
+
+  /**
+   * No description
+   * @tags admin-content-moderation
+   * @name ContentModerationEventsDetail
+   * @summary Get content moderation event detail
+   * @request GET:/admin/content-moderation/events/{eventID}
+   * @secure
+   */
+  export namespace ContentModerationEventsDetail {
+    export type RequestParams = {
+      eventId: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = any;
+  }
+
+  /**
+   * No description
+   * @tags admin-content-moderation
+   * @name ContentModerationEventsImagesDetail
+   * @summary Stream a isolated moderation image
+   * @request GET:/admin/content-moderation/events/{eventID}/images/{index}
+   * @secure
+   */
+  export namespace ContentModerationEventsImagesDetail {
+    export type RequestParams = {
+      eventId: string;
+      index: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = Blob;
+  }
+
+  /**
+   * No description
+   * @tags admin-content-moderation
+   * @name ContentModerationProbeCreate
+   * @summary Probe content moderation service
+   * @request POST:/admin/content-moderation/probe
+   * @secure
+   */
+  export namespace ContentModerationProbeCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = any;
+  }
+
+  /**
+   * No description
+   * @tags admin-content-moderation
+   * @name ContentModerationStatsList
+   * @summary Get content moderation daily stats
+   * @request GET:/admin/content-moderation/stats
+   * @secure
+   */
+  export namespace ContentModerationStatsList {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = any;
   }
 
   /**

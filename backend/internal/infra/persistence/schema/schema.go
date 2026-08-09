@@ -37,6 +37,8 @@ func Models() []interface{} {
 		&model.FileObject{},
 		&model.UserStorageQuota{},
 		&model.ConversationRun{},
+		&model.ContentModerationEvent{},
+		&model.ContentModerationDailyStat{},
 		&model.ChatRunEvent{},
 		&model.ChatContextRecord{},
 		&model.UserMemory{},

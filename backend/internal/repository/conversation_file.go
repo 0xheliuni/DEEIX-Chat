@@ -20,6 +20,14 @@ type FileLookupRepository interface {
 	RenameFileObjectByID(ctx context.Context, userID uint, fileID string, fileName string) (*domainconversation.FileObject, error)
 	UpdateFileObjectRagOptOut(ctx context.Context, userID uint, fileID string, ragOptOut bool) (*domainconversation.FileObject, error)
 	TouchFileObjectLastAccessedAt(ctx context.Context, userID uint, fileID string, accessedAt time.Time) error
+	// RevokeGeneratedFileForModeration marks a generated file inaccessible and unlinks user ownership.
+	RevokeGeneratedFileForModeration(ctx context.Context, fileID string) error
+	// DeleteGeneratedFileArtifactsForModeration marks attachments deleted (keeps storage_path for retry).
+	DeleteGeneratedFileArtifactsForModeration(ctx context.Context, fileID string) error
+	// ClearGeneratedFileStoragePath clears storage_path after a successful physical delete.
+	ClearGeneratedFileStoragePath(ctx context.Context, fileID string) error
+	// GetFileObjectByFileIDAnyStatus loads a file regardless of status (for moderation cleanup).
+	GetFileObjectByFileIDAnyStatus(ctx context.Context, fileID string) (*domainconversation.FileObject, error)
 }
 
 // FileBatchRepository 封装批量读取文件能力。

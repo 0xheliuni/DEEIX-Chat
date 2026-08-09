@@ -329,5 +329,12 @@
   "userSettings": {
     "invalidValue": "Invalid user setting value.",
     "unknownKey": "Unknown user setting key."
+  },
+  "content_moderation": {
+    "blocked": "This content was blocked by safety checks.",
+    "invalid_config": "Invalid content moderation configuration.",
+    "config_required": "Service configuration is required when policies are enabled.",
+    "probe_failed": "Content moderation probe failed.",
+    "event_not_found": "Content moderation event not found."
   }
 }

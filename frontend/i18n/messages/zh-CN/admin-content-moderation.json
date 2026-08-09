@@ -1,0 +1,59 @@
+{
+  "title": "内容审核",
+  "loading": "加载中…",
+  "loadFailed": "加载内容审核配置失败",
+  "saved": "配置已保存",
+  "saveFailed": "保存配置失败",
+  "save": "保存",
+  "saving": "保存中…",
+  "selectAll": "全选",
+  "probe": "探测有效性",
+  "probing": "探测中…",
+  "probeFailed": "探测失败",
+  "probeText": "文本",
+  "probeImage": "图像",
+  "valid": "有效",
+  "invalid": "无效",
+  "policyHint": "分类数组为空即跳过该检查面。默认全部为空（关闭）。",
+  "superAdminOnly": "仅超级管理员可管理内容审核策略与服务配置。统计请查看「用量统计」，事件请查看「日志中心」。",
+  "tabs": {
+    "policy": "审核策略",
+    "service": "服务配置"
+  },
+  "surfaces": {
+    "inputText": "输入文本",
+    "inputImage": "输入图像",
+    "outputText": "输出文本",
+    "outputImage": "输出图像"
+  },
+  "fields": {
+    "baseUrl": "Base URL",
+    "model": "模型",
+    "apiKey": "API Key",
+    "apiKeyPlaceholder": "输入新的 API Key",
+    "timeoutSeconds": "总时限（秒）",
+    "maxConcurrency": "最大并发",
+    "queueCapacity": "队列容量"
+  },
+  "table": {
+    "date": "日期",
+    "direction": "方向",
+    "modality": "模态",
+    "result": "结果",
+    "checks": "检查数",
+    "hits": "命中",
+    "failures": "失败开放",
+    "eventId": "事件编号",
+    "latency": "延迟",
+    "createdAt": "时间",
+    "actions": "操作"
+  },
+  "viewDetail": "查看详情",
+  "detailTitle": "事件详情（已审计）",
+  "closeDetail": "关闭",
+  "detailFailed": "加载事件详情失败",
+  "detailText": "解密文本",
+  "detailImages": "隔离图片",
+  "detailImageAlt": "审核图片 {index}",
+  "imageLoadFailed": "部分隔离图片加载失败"
+}

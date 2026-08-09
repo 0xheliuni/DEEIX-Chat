@@ -9,6 +9,7 @@ import (
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	appcompact "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/compact"
+	appcm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/contentmoderation"
 	appembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/embedding"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/extraction"
 	appstorage "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/objectstorage"
@@ -113,6 +114,7 @@ type Service struct {
 	auditWriter       auditWriter
 	storeProvider     appstorage.Provider
 	logger            *zap.Logger
+	moderationSvc     *appcm.Service
 	toolLimiters      sync.Map
 	generationStreams *generationStreamRegistry
 	snapshotCache     sync.Map // conversationID (uint) → *cachedSnapshot
@@ -208,6 +210,8 @@ type SendMessageResult struct {
 	LatencyMS             int64
 	DurationSeconds       int64
 	StartedAt             time.Time
+	// Moderation is set when a soft-moderation barrier ran; Blocked means withdrawn.
+	Moderation            *MessageModerationOutcome
 	postBillingCompaction *postBillingCompactionTask
 }
 

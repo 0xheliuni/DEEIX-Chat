@@ -1697,6 +1697,73 @@ func (r *Repo) CreateConversationRun(ctx context.Context, item *domainconversati
 	return nil
 }
 
+// EnsureConversationRun inserts a run row when missing so mid-flight moderation updates have a target.
+func (r *Repo) EnsureConversationRun(ctx context.Context, item *domainconversation.Run) error {
+	if item == nil || strings.TrimSpace(item.RunID) == "" {
+		return nil
+	}
+	entity := toConversationRunModel(item)
+	return translateError(r.db.WithContext(ctx).
+		Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "run_id"}},
+			DoNothing: true,
+		}).
+		Create(&entity).Error)
+}
+
+// UpsertConversationRun writes the final run snapshot (create or full update by run_id).
+func (r *Repo) UpsertConversationRun(ctx context.Context, item *domainconversation.Run) error {
+	if item == nil || strings.TrimSpace(item.RunID) == "" {
+		return nil
+	}
+	entity := toConversationRunModel(item)
+	err := r.db.WithContext(ctx).
+		Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "run_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"request_id",
+				"user_id",
+				"conversation_id",
+				"task_type",
+				"endpoint",
+				"provider",
+				"provider_protocol",
+				"upstream_id",
+				"upstream_model_id",
+				"upstream_name",
+				"requested_model_name",
+				"platform_model_name",
+				"routed_binding_code",
+				"model_vendor",
+				"model_icon",
+				"upstream_model_name",
+				"input_tokens",
+				"output_tokens",
+				"cache_read_tokens",
+				"cache_write_tokens",
+				"reasoning_tokens",
+				"tool_calls_count",
+				"first_token_latency_ms",
+				"total_latency_ms",
+				"status",
+				"error_code",
+				"error_message",
+				"moderation_state",
+				"moderation_event_id",
+				"moderation_categories_json",
+				"started_at",
+				"ended_at",
+				"updated_at",
+			}),
+		}).
+		Create(&entity).Error
+	if err != nil {
+		return translateError(err)
+	}
+	*item = toConversationRunDomain(entity)
+	return nil
+}
+
 // UpsertConversationMessageTrace 写入或更新消息轨迹。
 func (r *Repo) UpsertConversationMessageTrace(ctx context.Context, item *domainconversation.MessageTrace) error {
 	if item == nil {
@@ -3595,18 +3662,20 @@ func toMessageDomain(item models.Message) domainconversation.Message {
 		BilledCurrency:   item.BilledCurrency,
 		BilledNanousd:    item.BilledNanousd,
 		PricingSnapshot:  item.PricingSnapshot,
-		Status:           item.Status,
-		ErrorCode:        item.ErrorCode,
-		ErrorMessage:     item.ErrorMessage,
-		Attachments:      item.Attachments,
-		ParentPublicID:   item.ParentPublicID,
-		SourcePublicID:   item.SourcePublicID,
-		MyFeedback:       item.MyFeedback,
-		ThumbsUpCount:    item.ThumbsUpCount,
-		ThumbsDownCount:  item.ThumbsDownCount,
-		EditedAt:         item.EditedAt,
-		CreatedAt:        item.CreatedAt,
-		UpdatedAt:        item.UpdatedAt,
+		Status:                   item.Status,
+		ErrorCode:                item.ErrorCode,
+		ErrorMessage:             item.ErrorMessage,
+		ModerationEventID:        item.ModerationEventID,
+		ModerationCategoriesJSON: item.ModerationCategoriesJSON,
+		Attachments:              item.Attachments,
+		ParentPublicID:           item.ParentPublicID,
+		SourcePublicID:           item.SourcePublicID,
+		MyFeedback:               item.MyFeedback,
+		ThumbsUpCount:            item.ThumbsUpCount,
+		ThumbsDownCount:          item.ThumbsDownCount,
+		EditedAt:                 item.EditedAt,
+		CreatedAt:                item.CreatedAt,
+		UpdatedAt:                item.UpdatedAt,
 	}
 }
 
@@ -3644,10 +3713,12 @@ func toMessageModel(item *domainconversation.Message) models.Message {
 		BilledCurrency:   item.BilledCurrency,
 		BilledNanousd:    item.BilledNanousd,
 		PricingSnapshot:  item.PricingSnapshot,
-		Status:           item.Status,
-		ErrorCode:        item.ErrorCode,
-		ErrorMessage:     item.ErrorMessage,
-		EditedAt:         item.EditedAt,
+		Status:                   item.Status,
+		ErrorCode:                item.ErrorCode,
+		ErrorMessage:             item.ErrorMessage,
+		ModerationEventID:        item.ModerationEventID,
+		ModerationCategoriesJSON: item.ModerationCategoriesJSON,
+		EditedAt:                 item.EditedAt,
 	}
 }
 
@@ -3712,13 +3783,16 @@ func toConversationRunDomain(item models.ConversationRun) domainconversation.Run
 		ToolCallsCount:      item.ToolCallsCount,
 		FirstTokenLatencyMS: item.FirstTokenLatencyMS,
 		TotalLatencyMS:      item.TotalLatencyMS,
-		Status:              item.Status,
-		ErrorCode:           item.ErrorCode,
-		ErrorMessage:        item.ErrorMessage,
-		StartedAt:           item.StartedAt,
-		EndedAt:             item.EndedAt,
-		CreatedAt:           item.CreatedAt,
-		UpdatedAt:           item.UpdatedAt,
+		Status:                   item.Status,
+		ErrorCode:                item.ErrorCode,
+		ErrorMessage:             item.ErrorMessage,
+		ModerationState:          item.ModerationState,
+		ModerationEventID:        item.ModerationEventID,
+		ModerationCategoriesJSON: item.ModerationCategoriesJSON,
+		StartedAt:                item.StartedAt,
+		EndedAt:                  item.EndedAt,
+		CreatedAt:                item.CreatedAt,
+		UpdatedAt:                item.UpdatedAt,
 	}
 }
 
@@ -3799,12 +3873,29 @@ func toConversationRunModel(item *domainconversation.Run) models.ConversationRun
 		ToolCallsCount:      item.ToolCallsCount,
 		FirstTokenLatencyMS: item.FirstTokenLatencyMS,
 		TotalLatencyMS:      item.TotalLatencyMS,
-		Status:              item.Status,
-		ErrorCode:           item.ErrorCode,
-		ErrorMessage:        item.ErrorMessage,
-		StartedAt:           item.StartedAt,
-		EndedAt:             item.EndedAt,
+		Status:                   item.Status,
+		ErrorCode:                item.ErrorCode,
+		ErrorMessage:             item.ErrorMessage,
+		ModerationState:          defaultModerationState(item.ModerationState),
+		ModerationEventID:        item.ModerationEventID,
+		ModerationCategoriesJSON: defaultJSONArray(item.ModerationCategoriesJSON),
+		StartedAt:                item.StartedAt,
+		EndedAt:                  item.EndedAt,
 	}
+}
+
+func defaultModerationState(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return "not_required"
+	}
+	return value
+}
+
+func defaultJSONArray(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return "[]"
+	}
+	return value
 }
 
 func toConversationMessageTraceDomains(items []models.ChatRunEvent) []domainconversation.MessageTrace {

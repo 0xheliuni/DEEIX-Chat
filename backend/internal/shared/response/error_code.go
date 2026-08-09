@@ -292,6 +292,15 @@ var exactErrorSpecs = map[string]errorSpec{
 	"too many refresh attempts":        {Code: "rate_limit.refresh_exceeded", Message: "too many refresh attempts"},
 	"too many authentication attempts": {Code: "rate_limit.authentication_exceeded", Message: "too many authentication attempts"},
 
+	"content moderation event not found": {Code: "content_moderation.event_not_found", Message: "content moderation event not found"},
+	"content moderation service config is required when policies are enabled": {Code: "content_moderation.config_required", Message: "content moderation service config is required when policies are enabled"},
+	"invalid content moderation config":   {Code: "content_moderation.invalid_config", Message: "invalid content moderation config"},
+	"invalid content moderation base url": {Code: "content_moderation.invalid_config", Message: "invalid content moderation base url"},
+	"invalid content moderation model":    {Code: "content_moderation.invalid_config", Message: "invalid content moderation model"},
+	"content moderation probe failed":     {Code: "content_moderation.probe_failed", Message: "content moderation probe failed"},
+	"content blocked by moderation":       {Code: "content_moderation.blocked", Message: "content blocked by moderation"},
+
+
 	"deleting this identity provider would remove the only login method for some users": {Code: "identity_provider.delete_conflict", Message: "deleting this identity provider would remove the only login method for some users"},
 }
 
