@@ -35,13 +35,16 @@ func (s *Service) Probe(ctx context.Context, actorRole string) (*ProbeResponse, 
 	if err != nil {
 		return nil, err
 	}
-	client := s.newClient(cfg)
 	out := &ProbeResponse{}
+	if s.provider == nil {
+		return nil, ErrModerationService
+	}
+	providerConfig := providerConfigFromRuntime(cfg)
 
 	// Text probe
 	{
 		started := time.Now()
-		resp, err := client.ModerateText(ctx, "hello", nil, ModalityText)
+		resp, err := s.provider.ModerateText(ctx, providerConfig, "hello", nil, ModalityText)
 		out.Text.Latency = time.Since(started).Milliseconds()
 		if err != nil {
 			out.Text.Error = err.Error()
@@ -56,8 +59,7 @@ func (s *Service) Probe(ctx context.Context, actorRole string) (*ProbeResponse, 
 	// Image probe
 	{
 		started := time.Now()
-		dataURL := BuildImageDataURL("image/png", probePNG)
-		resp, err := client.ModerateImages(ctx, []string{dataURL}, nil, ModalityImage)
+		resp, err := s.provider.ModerateImages(ctx, providerConfig, []ProviderImage{{Data: probePNG, MimeType: "image/png"}}, nil, ModalityImage)
 		out.Image.Latency = time.Since(started).Milliseconds()
 		if err != nil {
 			out.Image.Error = err.Error()

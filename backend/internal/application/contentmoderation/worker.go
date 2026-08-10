@@ -16,10 +16,6 @@ type moderationTask struct {
 	Direction   string
 	Modality    string
 	Text        string
-	DataURLs    []string
-	ImageSHA    []string
-	ImageMime   []string
-	ImageSize   []int64
 	FileIDs     []string
 	Selected    []string
 	Location    domaincm.ContentLocation
@@ -179,11 +175,7 @@ func (s *Service) executeTask(parent context.Context, task *moderationTask) {
 	workParent := context.WithoutCancel(parent)
 	ctx, cancel := context.WithTimeout(workParent, timeout)
 	defer cancel()
-	// Persistence after timeout/cancel must not reuse the expired work context.
-	persistCtx, persistCancel := context.WithTimeout(workParent, 10*time.Second)
-	defer persistCancel()
 
-	client := s.newClient(cfg)
 	selected := task.Selected
 	if len(selected) == 0 {
 		selected = cfg.Policy.CategoriesFor(task.Direction, task.Modality)
@@ -193,13 +185,30 @@ func (s *Service) executeTask(parent context.Context, task *moderationTask) {
 		resp *Response
 		err  error
 	)
-	switch task.Modality {
-	case domaincm.ModalityImage:
-		resp, err = client.ModerateImages(ctx, task.DataURLs, selected, task.Modality)
-	default:
-		resp, err = client.ModerateText(ctx, task.Text, selected, task.Modality)
+	if s.provider == nil {
+		err = ErrModerationService
+	} else {
+		providerConfig := providerConfigFromRuntime(cfg)
+		switch task.Modality {
+		case domaincm.ModalityImage:
+			images := make([]ProviderImage, 0, len(task.RawImages))
+			for _, image := range task.RawImages {
+				if len(image.Data) == 0 {
+					continue
+				}
+				images = append(images, ProviderImage{Data: image.Data, MimeType: image.MimeType})
+			}
+			resp, err = s.provider.ModerateImages(ctx, providerConfig, images, selected, task.Modality)
+		default:
+			resp, err = s.provider.ModerateText(ctx, providerConfig, task.Text, selected, task.Modality)
+		}
 	}
 	latency := time.Since(started).Milliseconds()
+	// Start a fresh persistence budget only after the upstream request finishes.
+	// Slow moderation requests must not consume the time reserved for recording
+	// their result and statistics.
+	persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(parent), 10*time.Second)
+	defer persistCancel()
 
 	if err != nil {
 		code := classifyErrorCode(err)
@@ -248,10 +257,7 @@ func contentItemCount(task *moderationTask) int64 {
 		return 0
 	}
 	if task.Modality == domaincm.ModalityImage {
-		n := len(task.DataURLs)
-		if n == 0 {
-			n = len(task.RawImages)
-		}
+		n := len(task.RawImages)
 		if n == 0 {
 			return 1
 		}
@@ -374,6 +380,26 @@ func (s *Service) recordPass(ctx context.Context, task *moderationTask, latencyM
 	return publicID, nil
 }
 
+func (s *Service) deleteUntrackedIsolatedImages(ctx context.Context, eventID string, images []domaincm.IsolatedImageMeta) {
+	if s == nil || s.objectStore == nil {
+		return
+	}
+	for _, image := range images {
+		path := strings.TrimSpace(image.StoragePath)
+		if path == "" {
+			continue
+		}
+		if err := s.objectStore.Delete(ctx, path); err != nil {
+			s.logWarn(
+				"content_moderation_rollback_isolated_image_failed",
+				zap.String("event_id", eventID),
+				zap.String("path", path),
+				zap.Error(err),
+			)
+		}
+	}
+}
+
 func (s *Service) recordHit(ctx context.Context, task *moderationTask, eval HitEvaluation, latencyMS int64, resp *Response) (string, error) {
 	now := time.Now()
 	publicID := newPublicEventID()
@@ -477,6 +503,9 @@ func (s *Service) recordHit(ctx context.Context, task *moderationTask, eval HitE
 		MetadataExpiresAt:   now.Add(metadataRetention),
 	}
 	if err := s.repo.CreateEvent(ctx, event); err != nil {
+		rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		s.deleteUntrackedIsolatedImages(rollbackCtx, publicID, imageMeta)
+		cancel()
 		return publicID, err
 	}
 	return publicID, nil
@@ -491,7 +520,7 @@ func (s *Service) bumpDailyStat(
 		return
 	}
 	day := time.Now().UTC().Truncate(24 * time.Hour)
-	_ = s.repo.IncrementDailyStat(ctx, repository.DailyStatIncrement{
+	if err := s.repo.IncrementDailyStat(ctx, repository.DailyStatIncrement{
 		StatDate:     day,
 		Direction:    direction,
 		Modality:     modality,
@@ -502,7 +531,9 @@ func (s *Service) bumpDailyStat(
 		HitCount:     hitCount,
 		FailureCount: failureCount,
 		LatencyMS:    latencyMS,
-	})
+	}); err != nil {
+		s.logWarn("content_moderation_increment_daily_stat_failed", zap.Error(err))
+	}
 }
 
 func truncate(value string, max int) string {

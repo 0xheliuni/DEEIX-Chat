@@ -13,7 +13,6 @@ type ContentModerationRepository interface {
 	GetEventByPublicID(ctx context.Context, publicID string) (*domaincm.Event, error)
 	GetLatestHitEventByRunID(ctx context.Context, runID string) (*domaincm.Event, error)
 	ListEvents(ctx context.Context, filter domaincm.EventListFilter) ([]domaincm.Event, int64, error)
-	ClearExpiredContent(ctx context.Context, before time.Time) (int64, error)
 	// ClearExpiredContentByPublicIDs clears payloads only for events whose isolated objects were deleted.
 	ClearExpiredContentByPublicIDs(ctx context.Context, publicIDs []string) (int64, error)
 	ListExpiredContentEvents(ctx context.Context, before time.Time, limit int) ([]domaincm.Event, error)
@@ -22,7 +21,6 @@ type ContentModerationRepository interface {
 	ListDailyStats(ctx context.Context, from, to time.Time) ([]domaincm.DailyStat, error)
 	DeleteDailyStatsBefore(ctx context.Context, before time.Time) (int64, error)
 	UpdateRunModeration(ctx context.Context, runID string, state string, eventPublicID string, categoriesJSON string) error
-	UpdateMessageModeration(ctx context.Context, messageID uint, eventPublicID string, categoriesJSON string, status string) error
 	// ApplyRunBlock atomically marks messages/output files blocked, clears assistant content/traces,
 	// and updates run state. It returns output file IDs that need physical object cleanup.
 	ApplyRunBlock(ctx context.Context, runID string, includeUser bool, eventPublicID string, categoriesJSON string) ([]string, error)

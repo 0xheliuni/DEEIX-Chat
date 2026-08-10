@@ -3,10 +3,12 @@ package contentmoderation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 
 	domaincm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/contentmoderation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
 // StatsFilter bounds the admin stats query.
@@ -32,7 +34,6 @@ type EventListInput struct {
 // EventDetail is the super-admin detail payload (may include decrypted text).
 type EventDetail struct {
 	Event           domaincm.Event
-	Categories      []string
 	CategoryScores  map[string]float64
 	DecryptedText   string
 	TextAvailable   bool
@@ -59,7 +60,7 @@ func (s *Service) GetStats(ctx context.Context, actorRole string, filter StatsFi
 		from = minFrom
 	}
 	if to.Before(from) {
-		to = from
+		return nil, ErrInvalidEventFilter
 	}
 	return s.repo.ListDailyStats(ctx, from, to)
 }
@@ -68,6 +69,25 @@ func (s *Service) GetStats(ctx context.Context, actorRole string, filter StatsFi
 func (s *Service) ListEvents(ctx context.Context, actorRole string, input EventListInput) ([]domaincm.Event, int64, error) {
 	if !isSuperAdmin(actorRole) {
 		return nil, 0, ErrSuperAdminRequired
+	}
+	direction := strings.TrimSpace(input.Direction)
+	if direction != "" && direction != domaincm.DirectionInput && direction != domaincm.DirectionOutput {
+		return nil, 0, ErrInvalidEventFilter
+	}
+	modality := strings.TrimSpace(input.Modality)
+	if modality != "" && modality != domaincm.ModalityText && modality != domaincm.ModalityImage {
+		return nil, 0, ErrInvalidEventFilter
+	}
+	result := strings.TrimSpace(input.Result)
+	if result != "" && result != domaincm.ResultHit && result != domaincm.ResultFailedOpen && result != domaincm.ResultPassed {
+		return nil, 0, ErrInvalidEventFilter
+	}
+	category := strings.TrimSpace(input.Category)
+	if category != "" && !IsKnownCategory(category) {
+		return nil, 0, ErrInvalidEventFilter
+	}
+	if input.From != nil && input.To != nil && input.To.Before(*input.From) {
+		return nil, 0, ErrInvalidEventFilter
 	}
 	page := input.Page
 	if page < 1 {
@@ -81,10 +101,10 @@ func (s *Service) ListEvents(ctx context.Context, actorRole string, input EventL
 		pageSize = 100
 	}
 	return s.repo.ListEvents(ctx, domaincm.EventListFilter{
-		Direction: strings.TrimSpace(input.Direction),
-		Modality:  strings.TrimSpace(input.Modality),
-		Result:    strings.TrimSpace(input.Result),
-		Category:  strings.TrimSpace(input.Category),
+		Direction: direction,
+		Modality:  modality,
+		Result:    result,
+		Category:  category,
 		UserID:    input.UserID,
 		RunID:     strings.TrimSpace(input.RunID),
 		From:      input.From,
@@ -95,8 +115,6 @@ func (s *Service) ListEvents(ctx context.Context, actorRole string, input EventL
 }
 
 // GetEventDetail returns decrypted text when still retained.
-// Viewing moderation events is intentionally not written to the operation audit log;
-// the dedicated moderation events log is the source of truth.
 func (s *Service) GetEventDetail(
 	ctx context.Context,
 	actorRole string,
@@ -106,11 +124,13 @@ func (s *Service) GetEventDetail(
 		return nil, ErrSuperAdminRequired
 	}
 	event, err := s.repo.GetEventByPublicID(ctx, strings.TrimSpace(eventID))
-	if err != nil || event == nil {
+	if errors.Is(err, repository.ErrNotFound) || (err == nil && event == nil) {
 		return nil, ErrEventNotFound
 	}
+	if err != nil {
+		return nil, err
+	}
 	detail := &EventDetail{Event: *event}
-	_ = json.Unmarshal([]byte(event.CategoriesJSON), &detail.Categories)
 	_ = json.Unmarshal([]byte(event.CategoryScoresJSON), &detail.CategoryScores)
 	detail.Images = unmarshalIsolatedImageMetadata(event.ImageMetaJSON)
 
@@ -130,7 +150,6 @@ func (s *Service) GetEventDetail(
 }
 
 // OpenEventImage decrypts an isolated image for super-admin streaming.
-// Image viewing is intentionally not written to the operation audit log.
 func (s *Service) OpenEventImage(
 	ctx context.Context,
 	actorRole string,
@@ -141,8 +160,11 @@ func (s *Service) OpenEventImage(
 		return nil, "", ErrSuperAdminRequired
 	}
 	event, err := s.repo.GetEventByPublicID(ctx, strings.TrimSpace(eventID))
-	if err != nil || event == nil {
+	if errors.Is(err, repository.ErrNotFound) || (err == nil && event == nil) {
 		return nil, "", ErrEventNotFound
+	}
+	if err != nil {
+		return nil, "", err
 	}
 	if time.Now().After(event.ContentExpiresAt) {
 		return nil, "", ErrEventNotFound

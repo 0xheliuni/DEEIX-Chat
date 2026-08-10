@@ -121,18 +121,6 @@ func (r *Repo) ListEvents(ctx context.Context, filter domaincm.EventListFilter) 
 	return items, total, nil
 }
 
-func (r *Repo) ClearExpiredContent(ctx context.Context, before time.Time) (int64, error) {
-	res := r.db.WithContext(ctx).Model(&model.ContentModerationEvent{}).
-		Where("content_expires_at <= ? AND (encrypted_text <> '' OR image_count > 0 OR image_meta_json <> '[]')", before).
-		Updates(map[string]interface{}{
-			"encrypted_text":  "",
-			"image_count":     0,
-			"image_meta_json": "[]",
-			"content_summary": "",
-		})
-	return res.RowsAffected, translateError(res.Error)
-}
-
 func (r *Repo) ClearExpiredContentByPublicIDs(ctx context.Context, publicIDs []string) (int64, error) {
 	if len(publicIDs) == 0 {
 		return 0, nil
@@ -171,7 +159,10 @@ func (r *Repo) DeleteExpiredMetadata(ctx context.Context, before time.Time) (int
 	// Physical delete: retention policy requires rows to disappear, not soft-delete.
 	res := r.db.WithContext(ctx).
 		Unscoped().
-		Where("metadata_expires_at <= ?", before).
+		Where(
+			"metadata_expires_at <= ? AND encrypted_text = '' AND image_count = 0 AND (image_meta_json = '' OR image_meta_json = '[]')",
+			before,
+		).
 		Delete(&model.ContentModerationEvent{})
 	return res.RowsAffected, translateError(res.Error)
 }
@@ -256,28 +247,6 @@ func (r *Repo) UpdateRunModeration(ctx context.Context, runID string, state stri
 	}
 	return translateError(r.db.WithContext(ctx).Model(&model.ConversationRun{}).
 		Where("run_id = ?", runID).
-		Updates(updates).Error)
-}
-
-func (r *Repo) UpdateMessageModeration(ctx context.Context, messageID uint, eventPublicID string, categoriesJSON string, status string) error {
-	if messageID == 0 {
-		return nil
-	}
-	updates := map[string]interface{}{}
-	if eventPublicID != "" {
-		updates["moderation_event_id"] = eventPublicID
-	}
-	if categoriesJSON != "" {
-		updates["moderation_categories_json"] = categoriesJSON
-	}
-	if status != "" {
-		updates["status"] = status
-	}
-	if len(updates) == 0 {
-		return nil
-	}
-	return translateError(r.db.WithContext(ctx).Model(&model.Message{}).
-		Where("id = ?", messageID).
 		Updates(updates).Error)
 }
 

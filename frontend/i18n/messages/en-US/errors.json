@@ -333,8 +333,8 @@
   "content_moderation": {
     "blocked": "This content was blocked by safety checks.",
     "invalid_config": "Invalid content moderation configuration.",
-    "config_required": "Service configuration is required when policies are enabled.",
-    "probe_failed": "Content moderation probe failed.",
+    "config_required": "A complete service configuration and at least one policy category are required when content moderation is enabled.",
+    "probe_failed": "Content moderation connection test failed.",
     "event_not_found": "Content moderation event not found."
   }
 }

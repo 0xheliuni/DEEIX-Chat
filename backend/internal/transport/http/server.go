@@ -51,22 +51,22 @@ type HealthChecker interface {
 
 // Modules 聚合可注册的业务模块。
 type Modules struct {
-	Auth         *authhttp.Module
-	AuthService  middleware.SessionValidator
-	Channel      *channelhttp.Module
-	Conversation *conversationhttp.Module
-	MCP          *mcphttp.Module
-	Memory       *memoryhttp.Module
-	Billing      *billinghttp.Module
-	Admin              *adminhttp.Module
-	ContentModeration  *contentmoderationhttp.Module
-	Announcement       *announcementhttp.Module
-	PromptPreset       *promptpresethttp.Module
-	Skill              *skillhttp.Module
-	Settings           *settingshttp.Module
-	User               *userhttp.Module
-	UserSettings       *usersettingshttp.Module
-	StartupLog         func(*zap.Logger)
+	Auth              *authhttp.Module
+	AuthService       middleware.SessionValidator
+	Channel           *channelhttp.Module
+	Conversation      *conversationhttp.Module
+	MCP               *mcphttp.Module
+	Memory            *memoryhttp.Module
+	Billing           *billinghttp.Module
+	Admin             *adminhttp.Module
+	ContentModeration *contentmoderationhttp.Module
+	Announcement      *announcementhttp.Module
+	PromptPreset      *promptpresethttp.Module
+	Skill             *skillhttp.Module
+	Settings          *settingshttp.Module
+	User              *userhttp.Module
+	UserSettings      *usersettingshttp.Module
+	StartupLog        func(*zap.Logger)
 }
 
 // NewEngine 创建并注册 API 路由。

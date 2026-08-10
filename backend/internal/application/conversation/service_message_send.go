@@ -246,6 +246,7 @@ func (s *Service) sendMessageInternal(
 	runState.bind(&userMessage, &assistantMessage, &traceRecorder, &result, ctx)
 	defer func() {
 		if retErr != nil {
+			retainedOutput := false
 			if errors.Is(retErr, ErrMessageGenerationCanceled) || llm.RequestWasAccepted(retErr) {
 				if usage, ok := s.recoverOpenAIResponsesBackgroundUsage(responsesBackgroundRouteConfig, responsesBackgroundRecovery); ok {
 					responsesBackgroundUsageRecovered = true
@@ -276,9 +277,11 @@ func (s *Service) sendMessageInternal(
 				ReuseUserMessage:       reuseUserMessage,
 			}); retained != nil {
 				result = retained
+				retainedOutput = true
 				applyRetainedGenerationRunUsage(run, retained, len(toolCallRows), startedAt)
 			}
-			// Input checks continue after cancel/interrupt/error; may still block the turn.
+			// Input checks and any retained visible output continue after
+			// cancel/interrupt/error; either surface may still block the turn.
 			if moderationCoord != nil {
 				if result == nil && userMessage != nil && assistantMessage != nil {
 					result = &SendMessageResult{
@@ -288,7 +291,16 @@ func (s *Service) sendMessageInternal(
 						StartedAt:        startedAt,
 					}
 				}
-				s.completeModerationAfterFailure(context.Background(), moderationCoord, result)
+				if result != nil && retainedOutput {
+					s.completeModerationAfterInterruption(
+						context.Background(),
+						moderationCoord,
+						result,
+						moderationOutputText(streamedText.String(), traceRecorder.upstreamThinkContent()),
+					)
+				} else {
+					s.completeModerationAfterFailure(context.Background(), moderationCoord, result)
+				}
 			}
 		}
 		runState.finalize(ctx, retErr)
@@ -1629,7 +1641,15 @@ func (s *Service) sendMessageInternal(
 	// Soft moderation barrier: show checking, then block or pass.
 	if moderationCoord != nil {
 		outputImages := s.loadOutputImagesForModeration(ctx, moderationCoord, input.UserID, assistantMessage.Attachments)
-		s.completeModerationAfterSuccess(ctx, moderationCoord, result, assistantText, outputImages, input, reuseUserMessage)
+		s.completeModerationAfterSuccess(
+			ctx,
+			moderationCoord,
+			result,
+			moderationOutputText(assistantText, assistantReasoningContent, traceRecorder.upstreamThinkContent()),
+			outputImages,
+			input,
+			reuseUserMessage,
+		)
 	}
 	return result, nil
 }

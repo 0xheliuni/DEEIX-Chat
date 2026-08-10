@@ -914,7 +914,7 @@ export async function resumeMessageGenerationStream(
     return null;
   }
 
-  const { completed, moderationBlocked } = await readConversationStream(response, options);
+  const { moderationBlocked } = await readConversationStream(response, options);
   if (moderationBlocked) {
     throw new ApiError(
       "content blocked by moderation",

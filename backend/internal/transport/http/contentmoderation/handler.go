@@ -10,88 +10,13 @@ import (
 
 	appadmin "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/admin"
 	appcm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/contentmoderation"
-	domaincm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/contentmoderation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
 )
 
-type eventDTO struct {
-	PublicID        string    `json:"publicID"`
-	UserID          uint      `json:"userID"`
-	UserLabel       string    `json:"userLabel"`
-	Username        string    `json:"username"`
-	ConversationID  uint      `json:"conversationID"`
-	RunID           string    `json:"runID"`
-	MessagePublicID string    `json:"messagePublicID"`
-	Direction       string    `json:"direction"`
-	Modality        string    `json:"modality"`
-	Model           string    `json:"model"`
-	PolicyVersion   int64     `json:"policyVersion"`
-	Result          string    `json:"result"`
-	CategoriesJSON  string    `json:"categoriesJSON"`
-	LatencyMS       int64     `json:"latencyMS"`
-	ErrorCode       string    `json:"errorCode"`
-	ErrorMessage    string    `json:"errorMessage"`
-	ContentSummary  string    `json:"contentSummary"`
-	CreatedAt       time.Time `json:"createdAt"`
-}
-
 type userLabelResolver interface {
 	ResolveUserLabels(ctx context.Context, userIDs []uint) map[uint]appadmin.UserLabel
-}
-
-type dailyStatDTO struct {
-	StatDate     time.Time `json:"statDate"`
-	Direction    string    `json:"direction"`
-	Modality     string    `json:"modality"`
-	Result       string    `json:"result"`
-	Category     string    `json:"category"`
-	CheckCount   int64     `json:"checkCount"`
-	ContentItems int64     `json:"contentItems"`
-	HitCount     int64     `json:"hitCount"`
-	FailureCount int64     `json:"failureCount"`
-	LatencySumMS int64     `json:"latencySumMS"`
-	LatencyCount int64     `json:"latencyCount"`
-}
-
-func toEventDTO(item domaincm.Event, label appadmin.UserLabel) eventDTO {
-	return eventDTO{
-		PublicID:        item.PublicID,
-		UserID:          item.UserID,
-		UserLabel:       label.Label,
-		Username:        label.Username,
-		ConversationID:  item.ConversationID,
-		RunID:           item.RunID,
-		MessagePublicID: item.MessagePublicID,
-		Direction:       item.Direction,
-		Modality:        item.Modality,
-		Model:           item.Model,
-		PolicyVersion:   item.PolicyVersion,
-		Result:          item.Result,
-		CategoriesJSON:  item.CategoriesJSON,
-		LatencyMS:       item.LatencyMS,
-		ErrorCode:       item.ErrorCode,
-		ErrorMessage:    item.ErrorMessage,
-		ContentSummary:  item.ContentSummary,
-		CreatedAt:       item.CreatedAt,
-	}
-}
-
-func toDailyStatDTO(item domaincm.DailyStat) dailyStatDTO {
-	return dailyStatDTO{
-		StatDate:     item.StatDate,
-		Direction:    item.Direction,
-		Modality:     item.Modality,
-		Result:       item.Result,
-		Category:     item.Category,
-		CheckCount:   item.CheckCount,
-		ContentItems: item.ContentItems,
-		HitCount:     item.HitCount,
-		FailureCount: item.FailureCount,
-		LatencySumMS: item.LatencySumMS,
-		LatencyCount: item.LatencyCount,
-	}
 }
 
 // Handler exposes admin content-moderation APIs.
@@ -117,12 +42,47 @@ func (h *Handler) resolveUserLabels(ctx context.Context, userIDs []uint) map[uin
 	return h.userLabelResolver.ResolveUserLabels(ctx, userIDs)
 }
 
+func parseOptionalRFC3339(c *gin.Context, key string) (*time.Time, bool) {
+	raw := strings.TrimSpace(c.Query(key))
+	if raw == "" {
+		return nil, true
+	}
+	parsed, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "invalid "+key)
+		return nil, false
+	}
+	return &parsed, true
+}
+
+func parsePagination(c *gin.Context) (page int, pageSize int, ok bool) {
+	page = 1
+	pageSize = 20
+	if raw := strings.TrimSpace(c.Query("page")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 {
+			response.Error(c, http.StatusBadRequest, "invalid page")
+			return 0, 0, false
+		}
+		page = parsed
+	}
+	if raw := strings.TrimSpace(c.Query("pageSize")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > 100 {
+			response.Error(c, http.StatusBadRequest, "invalid pageSize")
+			return 0, 0, false
+		}
+		pageSize = parsed
+	}
+	return page, pageSize, true
+}
+
 // GetConfig godoc
 // @Summary Get content moderation config
 // @Tags admin-content-moderation
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} response.SuccessDoc
+// @Success 200 {object} ContentModerationConfigResponseDoc
 // @Router /admin/content-moderation/config [get]
 func (h *Handler) GetConfig(c *gin.Context) {
 	cfg, err := h.service.GetConfig(c.Request.Context(), middleware.MustUserRole(c))
@@ -130,9 +90,13 @@ func (h *Handler) GetConfig(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
-	response.Success(c, gin.H{
-		"config":     toServiceConfigDTO(cfg),
-		"categories": appcm.CategoryCatalog(),
+	categories := appcm.CategoryCatalog()
+	response.Success(c, ContentModerationConfigDataResponse{
+		Config: toConfigResponse(cfg),
+		Categories: ContentModerationCategoryCatalogResponse{
+			Text:  categories["text"],
+			Image: categories["image"],
+		},
 	})
 }
 
@@ -142,19 +106,21 @@ func (h *Handler) GetConfig(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
+// @Param body body ContentModerationUpdateConfigRequest true "Content moderation configuration"
+// @Success 200 {object} ContentModerationConfigUpdateResponseDoc
 // @Router /admin/content-moderation/config [put]
 func (h *Handler) UpdateConfig(c *gin.Context) {
-	var req updateConfigRequest
+	var req ContentModerationUpdateConfigRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	cfg, err := h.service.UpdateConfig(c.Request.Context(), middleware.MustUserRole(c), req.toApplication())
+	cfg, err := h.service.UpdateConfig(c.Request.Context(), middleware.MustUserRole(c), req.toApplicationInput())
 	if err != nil {
 		writeError(c, err)
 		return
 	}
-	response.Success(c, gin.H{"config": toServiceConfigDTO(cfg)})
+	response.Success(c, ContentModerationConfigUpdateDataResponse{Config: toConfigResponse(cfg)})
 }
 
 // Probe godoc
@@ -162,6 +128,7 @@ func (h *Handler) UpdateConfig(c *gin.Context) {
 // @Tags admin-content-moderation
 // @Produce json
 // @Security BearerAuth
+// @Success 200 {object} ContentModerationProbeResponseDoc
 // @Router /admin/content-moderation/probe [post]
 func (h *Handler) Probe(c *gin.Context) {
 	result, err := h.service.Probe(c.Request.Context(), middleware.MustUserRole(c))
@@ -169,7 +136,7 @@ func (h *Handler) Probe(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
-	response.Success(c, toProbeResponseDTO(result))
+	response.Success(c, toProbeResponse(result))
 }
 
 // GetStats godoc
@@ -177,29 +144,30 @@ func (h *Handler) Probe(c *gin.Context) {
 // @Tags admin-content-moderation
 // @Produce json
 // @Security BearerAuth
+// @Param from query string false "Start time (RFC3339)"
+// @Param to query string false "End time (RFC3339)"
+// @Success 200 {object} ContentModerationStatsResponseDoc
 // @Router /admin/content-moderation/stats [get]
 func (h *Handler) GetStats(c *gin.Context) {
-	filter := appcm.StatsFilter{}
-	if raw := strings.TrimSpace(c.Query("from")); raw != "" {
-		if t, err := time.Parse(time.RFC3339, raw); err == nil {
-			filter.From = &t
-		}
+	from, ok := parseOptionalRFC3339(c, "from")
+	if !ok {
+		return
 	}
-	if raw := strings.TrimSpace(c.Query("to")); raw != "" {
-		if t, err := time.Parse(time.RFC3339, raw); err == nil {
-			filter.To = &t
-		}
+	to, ok := parseOptionalRFC3339(c, "to")
+	if !ok {
+		return
 	}
+	filter := appcm.StatsFilter{From: from, To: to}
 	items, err := h.service.GetStats(c.Request.Context(), middleware.MustUserRole(c), filter)
 	if err != nil {
 		writeError(c, err)
 		return
 	}
-	out := make([]dailyStatDTO, 0, len(items))
+	out := make([]ContentModerationDailyStatResponse, 0, len(items))
 	for _, item := range items {
-		out = append(out, toDailyStatDTO(item))
+		out = append(out, toDailyStatResponse(item))
 	}
-	response.Success(c, gin.H{"items": out})
+	response.Success(c, ContentModerationStatsDataResponse{Items: out})
 }
 
 // parseOptionalUserID parses the optional userId query parameter.
@@ -225,11 +193,32 @@ func parseOptionalUserID(c *gin.Context) (uint, bool) {
 // @Tags admin-content-moderation
 // @Produce json
 // @Security BearerAuth
+// @Param page query int false "Page number"
+// @Param pageSize query int false "Page size"
+// @Param result query string false "Result filter"
+// @Param direction query string false "Direction filter"
+// @Param modality query string false "Modality filter"
+// @Param category query string false "Category filter"
+// @Param userId query int false "User ID"
+// @Param runId query string false "Run ID"
+// @Param from query string false "Start time (RFC3339)"
+// @Param to query string false "End time (RFC3339)"
+// @Success 200 {object} ContentModerationEventListResponseDoc
 // @Router /admin/content-moderation/events [get]
 func (h *Handler) ListEvents(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
+	page, pageSize, ok := parsePagination(c)
+	if !ok {
+		return
+	}
 	userID, ok := parseOptionalUserID(c)
+	if !ok {
+		return
+	}
+	from, ok := parseOptionalRFC3339(c, "from")
+	if !ok {
+		return
+	}
+	to, ok := parseOptionalRFC3339(c, "to")
 	if !ok {
 		return
 	}
@@ -240,6 +229,8 @@ func (h *Handler) ListEvents(c *gin.Context) {
 		Category:  c.Query("category"),
 		UserID:    userID,
 		RunID:     c.Query("runId"),
+		From:      from,
+		To:        to,
 		Page:      page,
 		PageSize:  pageSize,
 	}
@@ -253,11 +244,17 @@ func (h *Handler) ListEvents(c *gin.Context) {
 		userIDs = append(userIDs, item.UserID)
 	}
 	userLabels := h.resolveUserLabels(c.Request.Context(), userIDs)
-	out := make([]eventDTO, 0, len(items))
+	out := make([]ContentModerationEventResponse, 0, len(items))
 	for _, item := range items {
-		out = append(out, toEventDTO(item, userLabels[item.UserID]))
+		label := userLabels[item.UserID]
+		out = append(out, toEventResponse(item, label.Label, label.Username))
 	}
-	response.Success(c, gin.H{"items": out, "total": total, "page": page, "pageSize": pageSize})
+	response.Success(c, ContentModerationEventListDataResponse{
+		Items:    out,
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+	})
 }
 
 // GetEvent godoc
@@ -265,6 +262,8 @@ func (h *Handler) ListEvents(c *gin.Context) {
 // @Tags admin-content-moderation
 // @Produce json
 // @Security BearerAuth
+// @Param eventID path string true "Moderation event ID"
+// @Success 200 {object} ContentModerationEventDetailResponseDoc
 // @Router /admin/content-moderation/events/{eventID} [get]
 func (h *Handler) GetEvent(c *gin.Context) {
 	detail, err := h.service.GetEventDetail(
@@ -279,9 +278,18 @@ func (h *Handler) GetEvent(c *gin.Context) {
 	label := appadmin.UserLabel{}
 	if detail != nil {
 		label = h.resolveUserLabels(c.Request.Context(), []uint{detail.Event.UserID})[detail.Event.UserID]
+		h.service.RecordReviewAudit(c.Request.Context(), appcm.ReviewAuditInput{
+			ActorUserID: middleware.MustUserID(c),
+			RequestID:   middleware.MustRequestID(c),
+			Action:      "content_moderation.event.view",
+			EventID:     detail.Event.PublicID,
+			ClientIP:    c.ClientIP(),
+			UserAgent:   c.Request.UserAgent(),
+			Detail:      map[string]bool{"retainedTextAvailable": detail.TextAvailable},
+		})
 	}
 	c.Header("Cache-Control", "no-store")
-	response.Success(c, toEventDetailDTO(detail, label.Label, label.Username))
+	response.Success(c, toEventDetailResponse(detail, label.Label, label.Username))
 }
 
 // GetEventImage godoc
@@ -289,6 +297,9 @@ func (h *Handler) GetEvent(c *gin.Context) {
 // @Tags admin-content-moderation
 // @Produce octet-stream
 // @Security BearerAuth
+// @Param eventID path string true "Moderation event ID"
+// @Param index path int true "Image index"
+// @Success 200 {file} binary
 // @Router /admin/content-moderation/events/{eventID}/images/{index} [get]
 func (h *Handler) GetEventImage(c *gin.Context) {
 	index, err := strconv.Atoi(c.Param("index"))
@@ -306,6 +317,15 @@ func (h *Handler) GetEventImage(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
+	h.service.RecordReviewAudit(c.Request.Context(), appcm.ReviewAuditInput{
+		ActorUserID: middleware.MustUserID(c),
+		RequestID:   middleware.MustRequestID(c),
+		Action:      "content_moderation.event_image.view",
+		EventID:     c.Param("eventID"),
+		ClientIP:    c.ClientIP(),
+		UserAgent:   c.Request.UserAgent(),
+		Detail:      map[string]int{"imageIndex": index},
+	})
 	c.Header("Cache-Control", "no-store")
 	c.Data(http.StatusOK, mimeType, data)
 }
@@ -331,6 +351,8 @@ func writeError(c *gin.Context, err error) {
 		response.ErrorWithCode(c, http.StatusBadRequest, "content_moderation.invalid_config", err.Error())
 	case errors.Is(err, appcm.ErrProbeFailed):
 		response.ErrorWithCode(c, http.StatusBadRequest, "content_moderation.probe_failed", err.Error())
+	case errors.Is(err, appcm.ErrInvalidEventFilter):
+		response.ErrorWithCode(c, http.StatusBadRequest, response.CodeRequestInvalidQuery, err.Error())
 	default:
 		response.Error(c, http.StatusInternalServerError, "internal server error")
 	}

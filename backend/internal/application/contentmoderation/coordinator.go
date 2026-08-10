@@ -2,6 +2,7 @@ package contentmoderation
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"time"
@@ -54,8 +55,6 @@ type RunCoordinator struct {
 	blocked        bool
 	blockInfo      BlockInfo
 	failedOpen     bool
-	inputDone      chan struct{}
-	inputClosed    bool
 	allDone        chan struct{}
 	allClosed      bool
 	cancelOnce     sync.Once
@@ -67,11 +66,10 @@ type RunCoordinator struct {
 
 func newRunCoordinator(service *Service, meta RunMeta, cfg runtimeConfig) *RunCoordinator {
 	return &RunCoordinator{
-		service:   service,
-		meta:      meta,
-		cfg:       cfg,
-		inputDone: make(chan struct{}),
-		allDone:   make(chan struct{}),
+		service: service,
+		meta:    meta,
+		cfg:     cfg,
+		allDone: make(chan struct{}),
 	}
 }
 
@@ -116,7 +114,6 @@ func (c *RunCoordinator) EnqueueInputImages(ctx context.Context, fileIDs []strin
 		return
 	}
 	seenSHA := make(map[string]struct{})
-	dataURLs := make([]string, 0, len(fileIDs))
 	raw := make([]OutputImageSource, 0, len(fileIDs))
 	keptFiles := make([]string, 0, len(fileIDs))
 	for _, fileID := range fileIDs {
@@ -125,7 +122,10 @@ func (c *RunCoordinator) EnqueueInputImages(ctx context.Context, fileIDs []strin
 			continue
 		}
 		prepared, err := c.service.imageLoader(ctx, c.meta.UserID, fileID)
-		if err != nil || strings.TrimSpace(prepared.DataURL) == "" {
+		if errors.Is(err, ErrNonImageAttachment) {
+			continue
+		}
+		if err != nil || len(prepared.Data) == 0 {
 			if err == nil {
 				err = ErrModerationInvalidResp
 			}
@@ -139,7 +139,6 @@ func (c *RunCoordinator) EnqueueInputImages(ctx context.Context, fileIDs []strin
 			}
 			seenSHA[sha] = struct{}{}
 		}
-		dataURLs = append(dataURLs, prepared.DataURL)
 		// Isolated copy for review only; user originals are not deleted.
 		raw = append(raw, OutputImageSource{
 			FileID:   fileID,
@@ -149,14 +148,13 @@ func (c *RunCoordinator) EnqueueInputImages(ctx context.Context, fileIDs []strin
 		})
 		keptFiles = append(keptFiles, fileID)
 	}
-	if len(dataURLs) == 0 {
+	if len(raw) == 0 {
 		return
 	}
 	c.startTask(&moderationTask{
 		Coord:     c,
 		Direction: domaincm.DirectionInput,
 		Modality:  domaincm.ModalityImage,
-		DataURLs:  dataURLs,
 		RawImages: raw,
 		FileIDs:   keptFiles,
 		Selected:  selected,
@@ -171,7 +169,9 @@ func (c *RunCoordinator) AfterGeneration(ctx context.Context, outputText string,
 	if c == nil {
 		return BarrierResult{State: domaincm.ModerationStatePassed}
 	}
-	_ = c.service.repo.UpdateRunModeration(ctx, c.meta.RunID, domaincm.ModerationStateModerating, "", "[]")
+	if err := c.service.repo.UpdateRunModeration(ctx, c.meta.RunID, domaincm.ModerationStateModerating, "", "[]"); err != nil {
+		c.service.logWarn("content_moderation_mark_moderating_failed", zap.String("run_id", c.meta.RunID), zap.Error(err))
+	}
 	c.emit("moderation_checking", map[string]interface{}{
 		"type": "moderation_checking",
 	})
@@ -251,7 +251,9 @@ func (c *RunCoordinator) updateRunState(state, eventID, categoriesJSON string) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_ = c.service.repo.UpdateRunModeration(ctx, c.meta.RunID, state, eventID, categoriesJSON)
+	if err := c.service.repo.UpdateRunModeration(ctx, c.meta.RunID, state, eventID, categoriesJSON); err != nil {
+		c.service.logWarn("content_moderation_update_run_state_failed", zap.String("run_id", c.meta.RunID), zap.String("state", state), zap.Error(err))
+	}
 }
 
 // RecordOutputImageFailure records an expected model-output image that could not be loaded.
@@ -306,7 +308,6 @@ func (c *RunCoordinator) enqueueOutputImages(images []OutputImageSource) {
 		return
 	}
 	seen := make(map[string]struct{})
-	dataURLs := make([]string, 0, len(images))
 	raw := make([]OutputImageSource, 0, len(images))
 	for _, img := range images {
 		if len(img.Data) == 0 {
@@ -321,18 +322,16 @@ func (c *RunCoordinator) enqueueOutputImages(images []OutputImageSource) {
 			continue
 		}
 		seen[sha] = struct{}{}
-		mime := firstNonEmpty(img.MimeType, "image/png")
-		dataURLs = append(dataURLs, BuildImageDataURL(mime, img.Data))
+		img.MimeType = firstNonEmpty(img.MimeType, "image/png")
 		raw = append(raw, img)
 	}
-	if len(dataURLs) == 0 {
+	if len(raw) == 0 {
 		return
 	}
 	c.startTask(&moderationTask{
 		Coord:     c,
 		Direction: domaincm.DirectionOutput,
 		Modality:  domaincm.ModalityImage,
-		DataURLs:  dataURLs,
 		RawImages: raw,
 		Selected:  selected,
 		Location:  domaincm.ContentLocation{Field: "assistant_images"},
@@ -356,24 +355,29 @@ func (c *RunCoordinator) startTask(task *moderationTask) {
 
 func (c *RunCoordinator) onTaskResult(task *moderationTask, result taskResult) *BlockInfo {
 	c.mu.Lock()
+	direction := ""
+	if task != nil {
+		direction = task.Direction
+	}
 	if c.pending > 0 {
 		c.pending--
 	}
 	// Clear task payloads after processing to reduce retained sensitive memory.
 	if task != nil {
 		task.Text = ""
-		task.DataURLs = nil
 		task.RawImages = nil
 	}
 	if c.settled || c.finished {
 		var lateBlock *BlockInfo
-		if result.Hit && !c.blockHandled {
+		if result.Hit && (!c.blockHandled || preferBlockDirection(direction, c.blockInfo.Direction)) {
 			c.blockHandled = true
 			info := BlockInfo{
 				EventID:    result.EventID,
-				Direction:  task.Direction,
+				Direction:  direction,
 				Categories: append([]string(nil), result.Categories...),
 			}
+			c.blocked = true
+			c.blockInfo = info
 			lateBlock = &info
 		}
 		if c.pending == 0 && c.outputEnqueued {
@@ -384,16 +388,16 @@ func (c *RunCoordinator) onTaskResult(task *moderationTask, result taskResult) *
 	}
 	cancelInput := false
 	if result.Hit {
-		if !c.blocked {
+		if !c.blocked || preferBlockDirection(direction, c.blockInfo.Direction) {
 			c.blocked = true
 			c.blockInfo = BlockInfo{
 				EventID:    result.EventID,
-				Direction:  task.Direction,
+				Direction:  direction,
 				Categories: append([]string(nil), result.Categories...),
 			}
-			if task.Direction == domaincm.DirectionInput {
-				cancelInput = true
-			}
+		}
+		if direction == domaincm.DirectionInput {
+			cancelInput = true
 		}
 	} else if result.Err != nil {
 		c.failedOpen = true
@@ -426,10 +430,10 @@ func (c *RunCoordinator) closeAllLocked() {
 		close(c.allDone)
 		c.allClosed = true
 	}
-	if !c.inputClosed {
-		close(c.inputDone)
-		c.inputClosed = true
-	}
+}
+
+func preferBlockDirection(candidate, current string) bool {
+	return candidate == domaincm.DirectionInput && current != domaincm.DirectionInput
 }
 
 func (c *RunCoordinator) waitAll(ctx context.Context) {

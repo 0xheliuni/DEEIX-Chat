@@ -34,6 +34,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/usersettings"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	moderationclient "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/contentmoderation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/embedding"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/geoip"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/identityprovider"
@@ -96,6 +97,7 @@ type App struct {
 	mcpClient              *mcp.Client
 	embeddingClient        *embedding.Client
 	mediaArtifactClient    *mediaartifact.Client
+	moderationClient       *moderationclient.Client
 	backgroundCancel       context.CancelFunc
 }
 
@@ -297,13 +299,10 @@ func NewApp() (*App, error) {
 	conversationService.SetObjectStoreProvider(objectStoreProvider)
 	conversationService.SetMCPRepository(mcpRepo)
 	contentModerationRepo := contentmoderationrepo.NewRepo(db)
-	contentModerationService := appcontentmoderation.NewService(
-		settingsRepo,
-		contentModerationRepo,
-		cfg.DataEncryptionKey,
-		log,
-		trustedOutboundPolicy,
-	)
+	contentModerationService := appcontentmoderation.NewService(settingsRepo, contentModerationRepo, cfg.DataEncryptionKey, log)
+	moderationClient := moderationclient.New(trustedOutboundPolicy)
+	contentModerationService.SetProvider(moderationClient)
+	contentModerationService.SetAuditWriter(auditService)
 	conversationService.SetModerationService(contentModerationService)
 	contentModerationHandler := contentmoderationhttp.NewHandler(contentModerationService)
 	contentModerationModule := contentmoderationhttp.NewModule(contentModerationHandler)
@@ -359,13 +358,13 @@ func NewApp() (*App, error) {
 	hc := newHealthChecker(db, cfg.CacheDriver, redisClient)
 	rateLimiter := buildRateLimiter(cfg, redisClient, memoryCache)
 	engine, err := platformhttp.NewEngine(runtimeCfg, log, platformhttp.Modules{
-		Auth:         authModule,
-		AuthService:  authService,
-		Channel:      channelModule,
-		Conversation: conversationModule,
-		MCP:          mcpModule,
-		Memory:       memoryModule,
-		Billing:      billingModule,
+		Auth:              authModule,
+		AuthService:       authService,
+		Channel:           channelModule,
+		Conversation:      conversationModule,
+		MCP:               mcpModule,
+		Memory:            memoryModule,
+		Billing:           billingModule,
 		Admin:             adminModule,
 		ContentModeration: contentModerationModule,
 		Announcement:      announcementModule,
@@ -404,6 +403,7 @@ func NewApp() (*App, error) {
 		mcpClient:              mcpClient,
 		embeddingClient:        embedClient,
 		mediaArtifactClient:    mediaArtifactClient,
+		moderationClient:       moderationClient,
 		backgroundCancel:       backgroundCancel,
 	}, nil
 }
@@ -491,6 +491,9 @@ func (a *App) Close() {
 	}
 	if a.mediaArtifactClient != nil {
 		a.mediaArtifactClient.CloseIdleConnections()
+	}
+	if a.moderationClient != nil {
+		a.moderationClient.CloseIdleConnections()
 	}
 	if a.db != nil {
 		if sqlDB, err := a.db.DB(); err == nil {

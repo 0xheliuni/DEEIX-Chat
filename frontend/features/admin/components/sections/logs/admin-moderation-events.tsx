@@ -186,8 +186,8 @@ function ModerationEventDetailSheet({
                 <DetailRow
                   label={t("columns.user")}
                   value={resolveUserDisplayName(
-                    detail.userLabel || event.userLabel,
-                    detail.username || event.username,
+                    event.userLabel,
+                    event.username,
                     event.userID,
                   )}
                 />
@@ -227,7 +227,7 @@ function ModerationEventDetailSheet({
                     {JSON.stringify(
                       {
                         event: detail.event,
-                        categories: detail.categories,
+                        categories: detail.event.categories,
                         categoryScores: detail.categoryScores,
                         textAvailable: detail.textAvailable,
                         imagesAvailable: detail.imagesAvailable,

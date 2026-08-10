@@ -13,7 +13,6 @@ import (
 	domaincm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/contentmoderation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/secretbox"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -35,12 +34,11 @@ type OnBlocked func(runID string, info BlockInfo)
 
 // PreparedImage is a resized moderation-ready image.
 type PreparedImage struct {
-	DataURL string
-	Data    []byte
-	SHA256  string
-	Mime    string
-	Size    int64
-	FileID  string
+	Data   []byte
+	SHA256 string
+	Mime   string
+	Size   int64
+	FileID string
 }
 
 // ImageLoader loads and prepares an image for moderation.
@@ -79,13 +77,14 @@ type Service struct {
 	repo              repository.ContentModerationRepository
 	dataEncryptionKey string
 	logger            *zap.Logger
-	outboundPolicy    security.OutboundPolicy
 	objectStore       ObjectStore
 	fileAccess        FileAccessController
 	imageLoader       ImageLoader
 	emitEvent         EventEmitter
 	cancelRun         CancelRun
 	onBlocked         OnBlocked
+	provider          Provider
+	auditWriter       auditWriter
 
 	configMu     sync.RWMutex
 	cachedConfig *runtimeConfig
@@ -117,14 +116,12 @@ func NewService(
 	repo repository.ContentModerationRepository,
 	dataEncryptionKey string,
 	logger *zap.Logger,
-	outboundPolicy security.OutboundPolicy,
 ) *Service {
 	s := &Service{
 		settingsRepo:      settingsRepo,
 		repo:              repo,
 		dataEncryptionKey: dataEncryptionKey,
 		logger:            logger,
-		outboundPolicy:    outboundPolicy,
 		coordinators:      make(map[string]*RunCoordinator),
 		pendingBlocks:     make(map[string]pendingBlock),
 		stopCh:            make(chan struct{}),
@@ -144,6 +141,21 @@ func (s *Service) SetImageLoader(loader ImageLoader)              { s.imageLoade
 func (s *Service) SetEventEmitter(emit EventEmitter)              { s.emitEvent = emit }
 func (s *Service) SetCancelRun(cancel CancelRun)                  { s.cancelRun = cancel }
 func (s *Service) SetOnBlocked(fn OnBlocked)                      { s.onBlocked = fn }
+
+// SetProvider injects the infrastructure adapter used for moderation calls.
+func (s *Service) SetProvider(provider Provider) {
+	if s == nil {
+		return
+	}
+	s.provider = provider
+}
+
+// SetAuditWriter injects the operation-audit sink used for privileged review reads.
+func (s *Service) SetAuditWriter(writer auditWriter) {
+	if s != nil {
+		s.auditWriter = writer
+	}
+}
 
 // StartBackgroundWorkers starts the worker pool and cleanup loop.
 func (s *Service) StartBackgroundWorkers(ctx context.Context) {
@@ -225,9 +237,9 @@ func (s *Service) resizeWorker(maxConcurrency, queueCapacity int) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	// Keep enough worker loops to serve the physical ceiling; logical concurrency
-	// is gated in workerLoop via activeWorkers.
-	for s.workerCount < maxPhysicalConcurrency {
+	// Grow worker loops with configured demand. Existing loops are retained when
+	// the limit decreases, while the logical gate enforces the new lower limit.
+	for s.workerCount < maxConcurrency {
 		s.workerCount++
 		s.wg.Add(1)
 		go s.workerLoop(ctx)
@@ -253,14 +265,39 @@ func (s *Service) ensureWorkers(ctx context.Context, count int) {
 // re-applies pending after the row is ensured.
 func (s *Service) BeginRun(ctx context.Context, meta RunMeta) *RunCoordinator {
 	cfg, err := s.loadRuntimeConfig(ctx)
-	if err != nil || !cfg.Policy.Enabled() {
+	if err != nil {
+		// Configuration/storage failures are fail-open, but must remain observable.
+		// Return a coordinator so the conversation run is durably settled as
+		// failed_open instead of becoming indistinguishable from an intentionally
+		// disabled policy.
+		coord := newRunCoordinator(s, meta, runtimeConfig{Timeout: defaultTimeoutSeconds * time.Second})
+		coord.failedOpen = true
+		s.coordMu.Lock()
+		s.coordinators[meta.RunID] = coord
+		s.coordMu.Unlock()
+		s.recordFailedOpen(
+			ctx,
+			meta,
+			domaincm.DirectionInput,
+			domaincm.ModalityText,
+			domaincm.ErrorCodeConfigMissing,
+			"content moderation configuration unavailable",
+			0,
+		)
+		s.bumpDailyStat(ctx, domaincm.DirectionInput, domaincm.ModalityText, domaincm.ResultFailedOpen, "", 1, 1, 0, 1, 0)
+		s.logWarn("content_moderation_config_load_failed", zap.String("run_id", meta.RunID), zap.Error(err))
+		return coord
+	}
+	if !cfg.Enabled || !cfg.Policy.Enabled() {
 		return nil
 	}
 	coord := newRunCoordinator(s, meta, cfg)
 	s.coordMu.Lock()
 	s.coordinators[meta.RunID] = coord
 	s.coordMu.Unlock()
-	_ = s.repo.UpdateRunModeration(ctx, meta.RunID, domaincm.ModerationStatePending, "", "[]")
+	if err := s.repo.UpdateRunModeration(ctx, meta.RunID, domaincm.ModerationStatePending, "", "[]"); err != nil {
+		s.logWarn("content_moderation_mark_pending_failed", zap.String("run_id", meta.RunID), zap.Error(err))
+	}
 	return coord
 }
 
@@ -269,7 +306,9 @@ func (s *Service) SyncRunPending(ctx context.Context, runID string) {
 	if s == nil || s.repo == nil {
 		return
 	}
-	_ = s.repo.UpdateRunModeration(ctx, strings.TrimSpace(runID), domaincm.ModerationStatePending, "", "[]")
+	if err := s.repo.UpdateRunModeration(ctx, strings.TrimSpace(runID), domaincm.ModerationStatePending, "", "[]"); err != nil {
+		s.logWarn("content_moderation_sync_pending_failed", zap.String("run_id", runID), zap.Error(err))
+	}
 }
 
 // GetCoordinator returns an active coordinator if present.
@@ -347,17 +386,18 @@ func (s *Service) RecoverRunIfStale(ctx context.Context, runID string) {
 		return
 	}
 	s.recordFailedOpen(ctx, RunMeta{RunID: runID}, domaincm.DirectionOutput, domaincm.ModalityText, domaincm.ErrorCodeWorkerLost, ErrWorkerLost.Error(), 0)
-	_ = s.repo.UpdateRunModeration(ctx, runID, domaincm.ModerationStateFailedOpen, "", "[]")
+	if err := s.repo.UpdateRunModeration(ctx, runID, domaincm.ModerationStateFailedOpen, "", "[]"); err != nil {
+		s.logWarn("content_moderation_recover_run_mark_failed_open_failed", zap.String("run_id", runID), zap.Error(err))
+	}
 }
 
-func (s *Service) newClient(cfg runtimeConfig) *Client {
-	return NewClient(ClientConfig{
-		BaseURL:        cfg.BaseURL,
-		APIKey:         cfg.APIKey,
-		Model:          cfg.Model,
-		TotalTimeout:   cfg.Timeout,
-		OutboundPolicy: s.outboundPolicy,
-	})
+func providerConfigFromRuntime(cfg runtimeConfig) ProviderConfig {
+	return ProviderConfig{
+		BaseURL: cfg.BaseURL,
+		APIKey:  cfg.APIKey,
+		Model:   cfg.Model,
+		Timeout: cfg.Timeout,
+	}
 }
 
 func (s *Service) encryptText(plaintext string) (string, error) {
@@ -382,18 +422,6 @@ func newPublicEventID() string {
 	return "cme_" + strings.ReplaceAll(uuid.NewString(), "-", "")[:24]
 }
 
-func contentSummary(text string, max int) string {
-	value := strings.TrimSpace(text)
-	if max <= 0 {
-		max = 120
-	}
-	runes := []rune(value)
-	if len(runes) <= max {
-		return value
-	}
-	return string(runes[:max]) + "…"
-}
-
 func sha256Hex(data []byte) string {
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
@@ -407,12 +435,6 @@ func mustJSON(v interface{}) string {
 	return string(raw)
 }
 
-func (s *Service) logError(msg string, fields ...zap.Field) {
-	if s.logger != nil {
-		s.logger.Error(msg, fields...)
-	}
-}
-
 func (s *Service) logWarn(msg string, fields ...zap.Field) {
 	if s.logger != nil {
 		s.logger.Warn(msg, fields...)
@@ -421,11 +443,4 @@ func (s *Service) logWarn(msg string, fields ...zap.Field) {
 
 func isolatedImagePath(eventPublicID string, index int, sha string) string {
 	return fmt.Sprintf("moderation-isolated/%s/%d_%s.bin", eventPublicID, index, sha[:min(16, len(sha))])
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -77,5 +78,43 @@ func TestParseOptionalUserID(t *testing.T) {
 				t.Fatalf("expected status 400, got %d", recorder.Code)
 			}
 		})
+	}
+}
+
+func TestParsePaginationRejectsInvalidValues(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, query := range []string{"page=0", "page=abc", "pageSize=0", "pageSize=101", "pageSize=abc"} {
+		t.Run(query, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodGet, "/events?"+query, nil)
+			if _, _, ok := parsePagination(c); ok {
+				t.Fatalf("expected %q to be rejected", query)
+			}
+			if recorder.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400", recorder.Code)
+			}
+		})
+	}
+}
+
+func TestParseOptionalRFC3339(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	valid := "2026-08-10T01:02:03Z"
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodGet, "/stats?from="+valid, nil)
+	parsed, ok := parseOptionalRFC3339(c, "from")
+	if !ok || parsed == nil || !parsed.Equal(time.Date(2026, 8, 10, 1, 2, 3, 0, time.UTC)) {
+		t.Fatalf("unexpected parsed time: %v, ok=%v", parsed, ok)
+	}
+
+	recorder := httptest.NewRecorder()
+	c, _ = gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/stats?from=not-a-time", nil)
+	if parsed, ok = parseOptionalRFC3339(c, "from"); ok || parsed != nil {
+		t.Fatalf("expected invalid time to be rejected: %v, ok=%v", parsed, ok)
+	}
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", recorder.Code)
 	}
 }

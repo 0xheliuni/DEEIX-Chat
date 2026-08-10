@@ -305,8 +305,8 @@ func (s *Service) finishSuccessfulMessageGeneration(ctx context.Context, input p
 
 // persistInterruptedMessageGeneration 在模型调用已经产生可见内容或工具轨迹后失败时，保留本轮 assistant 消息。
 // 显式取消由取消流程单独处理，避免把用户主动停止误标为异常中断。
-// Partial outputs from cancel/interrupt/upstream errors are not output-moderated;
-// input moderation continues via completeModerationAfterFailure.
+// Partial outputs from cancel/interrupt/upstream errors remain subject to the
+// moderation barrier after persistence.
 func (s *Service) persistInterruptedMessageGeneration(ctx context.Context, input persistInterruptedMessageGenerationInput) *SendMessageResult {
 	if !shouldPersistInterruptedMessageGeneration(input) {
 		return nil
@@ -409,7 +409,11 @@ func shouldPersistInterruptedMessageGeneration(input persistInterruptedMessageGe
 	hasEstimatedCanceledInput := errors.Is(input.Error, ErrMessageGenerationCanceled) &&
 		input.UpstreamCallStarted &&
 		input.EstimatedInputTokens > 0
-	return strings.TrimSpace(input.AssistantText) != "" || hasRetainedToolTrace || hasObservedUsage || hasEstimatedCanceledInput
+	return strings.TrimSpace(input.AssistantText) != "" ||
+		strings.TrimSpace(input.AssistantReasoningText) != "" ||
+		hasRetainedToolTrace ||
+		hasObservedUsage ||
+		hasEstimatedCanceledInput
 }
 
 // resolveInterruptedMessageGenerationMetrics 统一处理中断消息的真实 usage 与估算兜底。

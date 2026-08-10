@@ -14,6 +14,7 @@ import (
 const (
 	settingsNamespace = "content_moderation"
 
+	keyEnabled        = "enabled"
 	keyBaseURL        = "base_url"
 	keyAPIKey         = "api_key"
 	keyModel          = "model"
@@ -32,8 +33,8 @@ const (
 
 // ServiceConfig is the saved moderation service configuration.
 type ServiceConfig struct {
+	Enabled        bool
 	BaseURL        string
-	APIKey         string
 	APIKeyMasked   string
 	HasAPIKey      bool
 	Model          string
@@ -41,11 +42,11 @@ type ServiceConfig struct {
 	MaxConcurrency int
 	QueueCapacity  int
 	Policy         Policy
-	PolicyVersion  int64
 }
 
 // UpdateConfigInput is the super-admin PUT body.
 type UpdateConfigInput struct {
+	Enabled        *bool
 	BaseURL        *string
 	APIKey         *string
 	ClearAPIKey    bool
@@ -57,6 +58,7 @@ type UpdateConfigInput struct {
 }
 
 type runtimeConfig struct {
+	Enabled        bool
 	BaseURL        string
 	APIKey         string
 	Model          string
@@ -124,6 +126,12 @@ func (s *Service) readRuntimeConfig(ctx context.Context) (runtimeConfig, error) 
 	if err != nil {
 		return runtimeConfig{}, err
 	}
+	enabled := false
+	if raw, exists := values[keyEnabled]; exists {
+		if parsed, parseErr := strconv.ParseBool(strings.TrimSpace(raw)); parseErr == nil {
+			enabled = parsed
+		}
+	}
 
 	timeoutSec := parseInt(values[keyTimeoutSeconds], defaultTimeoutSeconds)
 	if timeoutSec < 1 {
@@ -147,6 +155,7 @@ func (s *Service) readRuntimeConfig(ctx context.Context) (runtimeConfig, error) 
 	}
 
 	return runtimeConfig{
+		Enabled:        enabled,
 		BaseURL:        baseURL,
 		APIKey:         apiKey,
 		Model:          model,
@@ -179,12 +188,15 @@ func (s *Service) UpdateConfig(ctx context.Context, actorRole string, input Upda
 		return nil, err
 	}
 	next := current
+	if input.Enabled != nil {
+		next.Enabled = *input.Enabled
+	}
 	if input.BaseURL != nil {
 		base := strings.TrimSpace(*input.BaseURL)
 		if base == "" {
 			base = defaultBaseURL
 		}
-		if _, err := NormalizeBaseURL(base); err != nil {
+		if s.provider == nil || s.provider.ValidateBaseURL(base) != nil {
 			return nil, ErrInvalidBaseURL
 		}
 		next.BaseURL = base
@@ -231,11 +243,11 @@ func (s *Service) UpdateConfig(ctx context.Context, actorRole string, input Upda
 		}
 		next.Policy = policy
 	}
-	if next.Policy.Enabled() {
-		if strings.TrimSpace(next.BaseURL) == "" || strings.TrimSpace(next.Model) == "" || strings.TrimSpace(next.APIKey) == "" {
+	if next.Enabled {
+		if !next.Policy.Enabled() || strings.TrimSpace(next.BaseURL) == "" || strings.TrimSpace(next.Model) == "" || strings.TrimSpace(next.APIKey) == "" {
 			return nil, ErrServiceConfigRequired
 		}
-		if _, err := NormalizeBaseURL(next.BaseURL); err != nil {
+		if s.provider == nil || s.provider.ValidateBaseURL(next.BaseURL) != nil {
 			return nil, ErrInvalidBaseURL
 		}
 	}
@@ -273,15 +285,15 @@ func stringSlicesEqual(a, b []string) bool {
 
 func toServiceConfig(cfg runtimeConfig) *ServiceConfig {
 	return &ServiceConfig{
+		Enabled:        cfg.Enabled,
 		BaseURL:        cfg.BaseURL,
-		APIKeyMasked:   MaskAPIKey(cfg.APIKey),
+		APIKeyMasked:   maskAPIKey(cfg.APIKey),
 		HasAPIKey:      strings.TrimSpace(cfg.APIKey) != "",
 		Model:          cfg.Model,
 		TimeoutSeconds: int(cfg.Timeout / time.Second),
 		MaxConcurrency: cfg.MaxConcurrency,
 		QueueCapacity:  cfg.QueueCapacity,
 		Policy:         cfg.Policy,
-		PolicyVersion:  cfg.Policy.Version,
 	}
 }
 
@@ -298,6 +310,7 @@ func buildSettingItems(cfg runtimeConfig, encryptionKey string) ([]domainsetting
 		}
 	}
 	return []domainsettings.SystemSetting{
+		{Namespace: settingsNamespace, Key: keyEnabled, Value: strconv.FormatBool(cfg.Enabled), ValueType: "bool"},
 		{Namespace: settingsNamespace, Key: keyBaseURL, Value: cfg.BaseURL, ValueType: "string"},
 		{Namespace: settingsNamespace, Key: keyAPIKey, Value: encryptedKey, ValueType: "string"},
 		{Namespace: settingsNamespace, Key: keyModel, Value: cfg.Model, ValueType: "string"},

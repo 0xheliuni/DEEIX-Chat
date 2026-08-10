@@ -149,7 +149,9 @@ func (s *Service) recoverStaleRuns(ctx context.Context) {
 			continue
 		}
 		s.recordFailedOpen(ctx, RunMeta{RunID: runID}, domaincm.DirectionOutput, domaincm.ModalityText, domaincm.ErrorCodeWorkerLost, ErrWorkerLost.Error(), 0)
-		_ = s.repo.UpdateRunModeration(ctx, runID, domaincm.ModerationStateFailedOpen, "", "[]")
+		if err := s.repo.UpdateRunModeration(ctx, runID, domaincm.ModerationStateFailedOpen, "", "[]"); err != nil {
+			s.logWarn("content_moderation_recover_mark_failed_open_failed", zap.String("run_id", runID), zap.Error(err))
+		}
 	}
 }
 
@@ -213,7 +215,9 @@ func (s *Service) handleLateBlock(meta RunMeta, info BlockInfo) {
 	)
 	if err != nil {
 		s.registerPendingBlock(meta, info)
-		_ = s.repo.UpdateRunModeration(ctx, meta.RunID, domaincm.ModerationStateModerating, info.EventID, mustJSON(info.Categories))
+		if stateErr := s.repo.UpdateRunModeration(ctx, meta.RunID, domaincm.ModerationStateModerating, info.EventID, mustJSON(info.Categories)); stateErr != nil {
+			s.logWarn("content_moderation_late_block_mark_pending_failed", zap.String("run_id", meta.RunID), zap.Error(stateErr))
+		}
 		s.logWarn("content_moderation_late_block_apply_failed", zap.String("run_id", meta.RunID), zap.Error(err))
 	} else {
 		s.removePendingBlock(meta.RunID)

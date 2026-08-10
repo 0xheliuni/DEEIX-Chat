@@ -1,93 +1,31 @@
+import type {
+  Admin,
+  ContentModerationConfigDataResponse,
+  ContentModerationConfigUpdateDataResponse,
+  ContentModerationDailyStatResponse,
+  ContentModerationEventDetailResponse,
+  ContentModerationEventListDataResponse,
+  ContentModerationEventResponse,
+  ContentModerationProbeResponse,
+  ContentModerationServiceConfigResponse,
+  ContentModerationStatsDataResponse,
+  ContentModerationUpdateConfigRequest,
+} from "@deeix/api-contract";
+
 import { authedFetch, authedRequest } from "@/shared/api/authed-client";
 
-export type ContentModerationPolicy = {
-  inputTextCategories: string[];
-  outputTextCategories: string[];
-  inputImageCategories: string[];
-  outputImageCategories: string[];
-  version: number;
-};
+export type ContentModerationConfig = ContentModerationServiceConfigResponse;
+export type DailyStat = ContentModerationDailyStatResponse;
+export type ModerationEvent = ContentModerationEventResponse;
+export type ContentModerationEventDetail = ContentModerationEventDetailResponse;
 
-export type ContentModerationConfig = {
-  baseUrl: string;
-  apiKeyMasked?: string;
-  hasAPIKey: boolean;
-  model: string;
-  timeoutSeconds: number;
-  maxConcurrency: number;
-  queueCapacity: number;
-  policy: ContentModerationPolicy;
-  policyVersion: number;
-};
-
-export type ContentModerationConfigResponse = {
-  config: ContentModerationConfig;
-  categories: {
-    text: string[];
-    image: string[];
-  };
-};
-
-export type ContentModerationUpdateInput = {
-  baseUrl?: string;
-  apiKey?: string;
-  clearAPIKey?: boolean;
-  model?: string;
-  timeoutSeconds?: number;
-  maxConcurrency?: number;
-  queueCapacity?: number;
-  policy?: Partial<ContentModerationPolicy>;
-};
-
-export type ProbeResult = {
-  valid: boolean;
-  model?: string;
-  latencyMS: number;
-  error?: string;
-};
-
-export type ProbeResponse = {
-  text: ProbeResult;
-  image: ProbeResult;
-};
-
-export type DailyStat = {
-  statDate: string;
-  direction: string;
-  modality: string;
-  result: string;
-  category: string;
-  checkCount: number;
-  contentItems: number;
-  hitCount: number;
-  failureCount: number;
-  latencySumMS: number;
-  latencyCount: number;
-};
-
-export type ModerationEvent = {
-  publicID: string;
-  userID: number;
-  userLabel?: string;
-  username?: string;
-  conversationID: number;
-  runID: string;
-  messagePublicID: string;
-  direction: string;
-  modality: string;
-  model: string;
-  policyVersion: number;
-  result: string;
-  categoriesJSON: string;
-  latencyMS: number;
-  errorCode: string;
-  errorMessage: string;
-  contentSummary: string;
-  createdAt: string;
-};
+type ContentModerationEventListQuery = Pick<
+  Admin.ContentModerationEventsList.RequestQuery,
+  "page" | "pageSize" | "result" | "direction"
+>;
 
 export async function getContentModerationConfig(accessToken: string) {
-  return authedRequest<ContentModerationConfigResponse>(
+  return authedRequest<ContentModerationConfigDataResponse>(
     "/api/v1/admin/content-moderation/config",
     { method: "GET", accessToken },
     true,
@@ -96,9 +34,9 @@ export async function getContentModerationConfig(accessToken: string) {
 
 export async function updateContentModerationConfig(
   accessToken: string,
-  payload: ContentModerationUpdateInput,
+  payload: ContentModerationUpdateConfigRequest,
 ) {
-  return authedRequest<{ config: ContentModerationConfig }>(
+  return authedRequest<ContentModerationConfigUpdateDataResponse>(
     "/api/v1/admin/content-moderation/config",
     { method: "PUT", accessToken, body: payload },
     true,
@@ -106,7 +44,7 @@ export async function updateContentModerationConfig(
 }
 
 export async function probeContentModeration(accessToken: string) {
-  return authedRequest<ProbeResponse>(
+  return authedRequest<ContentModerationProbeResponse>(
     "/api/v1/admin/content-moderation/probe",
     { method: "POST", accessToken },
     true,
@@ -114,7 +52,7 @@ export async function probeContentModeration(accessToken: string) {
 }
 
 export async function getContentModerationStats(accessToken: string) {
-  return authedRequest<{ items: DailyStat[] }>(
+  return authedRequest<ContentModerationStatsDataResponse>(
     "/api/v1/admin/content-moderation/stats",
     { method: "GET", accessToken },
     true,
@@ -123,7 +61,7 @@ export async function getContentModerationStats(accessToken: string) {
 
 export async function listContentModerationEvents(
   accessToken: string,
-  params: { page?: number; pageSize?: number; result?: string; direction?: string } = {},
+  params: ContentModerationEventListQuery = {},
 ) {
   const query = new URLSearchParams();
   if (params.page) query.set("page", String(params.page));
@@ -131,33 +69,12 @@ export async function listContentModerationEvents(
   if (params.result) query.set("result", params.result);
   if (params.direction) query.set("direction", params.direction);
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  return authedRequest<{ items: ModerationEvent[]; total: number; page: number; pageSize: number }>(
+  return authedRequest<ContentModerationEventListDataResponse>(
     `/api/v1/admin/content-moderation/events${suffix}`,
     { method: "GET", accessToken },
     true,
   );
 }
-
-export type ContentModerationEventDetail = {
-  event?: ModerationEvent & {
-    imageCount?: number;
-    imageMetaJSON?: string;
-  };
-  userLabel?: string;
-  username?: string;
-  categories?: string[];
-  categoryScores?: Record<string, number>;
-  decryptedText?: string;
-  textAvailable?: boolean;
-  imagesAvailable?: boolean;
-  images?: Array<{
-    index: number;
-    sha256?: string;
-    mimeType?: string;
-    sizeBytes?: number;
-    sourceFileID?: string;
-  }>;
-};
 
 export async function getContentModerationEvent(accessToken: string, eventID: string) {
   return authedRequest<ContentModerationEventDetail>(

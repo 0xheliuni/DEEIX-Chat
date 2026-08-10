@@ -88,3 +88,48 @@ func TestApplyRunBlockWithdrawsAssistantAttachments(t *testing.T) {
 		t.Fatalf("blocked trace remains visible, count=%d", traceCount)
 	}
 }
+
+func TestDeleteExpiredMetadataKeepsRowsWithUnclearedContent(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:content_moderation_retention?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.ContentModerationEvent{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	expired := time.Now().Add(-time.Hour)
+	pendingCleanup := model.ContentModerationEvent{
+		PublicID:          "cme_pending_cleanup",
+		ImageCount:        1,
+		ImageMetaJSON:     `[{"storage_path":"moderation/pending"}]`,
+		ContentExpiresAt:  expired,
+		MetadataExpiresAt: expired,
+	}
+	cleared := model.ContentModerationEvent{
+		PublicID:          "cme_cleared",
+		ImageMetaJSON:     "[]",
+		ContentExpiresAt:  expired,
+		MetadataExpiresAt: expired,
+	}
+	if err := db.Create(&[]model.ContentModerationEvent{pendingCleanup, cleared}).Error; err != nil {
+		t.Fatalf("create events: %v", err)
+	}
+
+	repo := NewRepo(db)
+	deleted, err := repo.DeleteExpiredMetadata(context.Background(), time.Now())
+	if err != nil {
+		t.Fatalf("delete expired metadata: %v", err)
+	}
+	if deleted != 1 {
+		t.Fatalf("deleted=%d, want 1", deleted)
+	}
+
+	var remaining []model.ContentModerationEvent
+	if err := db.Find(&remaining).Error; err != nil {
+		t.Fatalf("list remaining events: %v", err)
+	}
+	if len(remaining) != 1 || remaining[0].PublicID != pendingCleanup.PublicID {
+		t.Fatalf("uncleared isolation metadata must remain retryable: %#v", remaining)
+	}
+}

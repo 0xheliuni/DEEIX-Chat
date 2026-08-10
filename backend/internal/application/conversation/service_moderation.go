@@ -184,6 +184,21 @@ func (s *Service) completeModerationAfterSuccess(
 	}
 }
 
+// completeModerationAfterInterruption moderates content that was already visible
+// and retained after a cancel or upstream failure, without embedding a partial reply.
+func (s *Service) completeModerationAfterInterruption(
+	ctx context.Context,
+	coord *appcm.RunCoordinator,
+	result *SendMessageResult,
+	outputText string,
+) {
+	if coord == nil || result == nil {
+		return
+	}
+	barrier := coord.AfterGeneration(ctx, outputText, nil)
+	applyBarrierOutcome(result, barrier)
+}
+
 // completeModerationAfterFailure continues input-only checks (no output moderation).
 func (s *Service) completeModerationAfterFailure(
 	ctx context.Context,
@@ -286,11 +301,32 @@ func mustJSONArray(items []string) string {
 	return string(raw)
 }
 
+func moderationOutputText(parts ...string) string {
+	seen := make(map[string]struct{}, len(parts))
+	kept := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if _, exists := seen[part]; exists {
+			continue
+		}
+		seen[part] = struct{}{}
+		kept = append(kept, part)
+	}
+	return strings.Join(kept, "\n\n")
+}
+
 func (s *Service) loadImageForModeration(ctx context.Context, userID uint, fileID string) (appcm.PreparedImage, error) {
 	empty := appcm.PreparedImage{}
 	file, err := s.repo.GetActiveFileObjectByID(ctx, userID, strings.TrimSpace(fileID))
 	if err != nil || file == nil {
 		return empty, err
+	}
+	declaredMIME := firstNonEmptyString(file.DetectedMIME, file.MimeType)
+	if normalizeAttachmentKind("", declaredMIME) != "image" {
+		return empty, appcm.ErrNonImageAttachment
 	}
 	cfg := s.cfg.Snapshot()
 	storeProvider := s.storeProvider
@@ -316,25 +352,28 @@ func (s *Service) loadImageForModeration(ctx context.Context, userID uint, fileI
 	if len(data) > 20*1024*1024 {
 		return empty, errModerationImageTooLarge
 	}
+	detectedMIME := detectGeneratedImageMIME(data)
+	if detectedMIME == "" {
+		return empty, errUnsupportedModerationImage
+	}
 	maxDim := cfg.ImageMaxDimension
 	if maxDim <= 0 {
 		maxDim = 1024
 	}
-	mime := resolveImageMimeType(firstNonEmptyString(file.DetectedMIME, file.MimeType))
-	resized, actualMIME := resizeImageIfNeeded(data, mime, maxDim)
+	resized, actualMIME := resizeImageIfNeeded(data, detectedMIME, maxDim)
 	return appcm.PreparedImage{
-		DataURL: appcm.BuildImageDataURL(actualMIME, resized),
-		Data:    resized,
-		SHA256:  file.SHA256,
-		Mime:    actualMIME,
-		Size:    int64(len(resized)),
-		FileID:  file.FileID,
+		Data:   resized,
+		SHA256: file.SHA256,
+		Mime:   actualMIME,
+		Size:   int64(len(resized)),
+		FileID: file.FileID,
 	}, nil
 }
 
 var (
-	errEmptyModerationImage    = errString("empty image")
-	errModerationImageTooLarge = errString("image exceeds 20MB")
+	errEmptyModerationImage       = errString("empty image")
+	errModerationImageTooLarge    = errString("image exceeds 20MB")
+	errUnsupportedModerationImage = errString("unsupported moderation image")
 )
 
 type stringError string

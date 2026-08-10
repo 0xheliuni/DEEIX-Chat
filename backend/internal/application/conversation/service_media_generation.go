@@ -600,7 +600,7 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 			ctx,
 			moderationCoord,
 			result,
-			strings.TrimSpace(output.Text),
+			moderationOutputText(output.Text, traceRecorder.upstreamThinkContent()),
 			outputImages,
 			SendMessageInput{
 				UserID:         input.UserID,
