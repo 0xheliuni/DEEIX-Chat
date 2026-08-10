@@ -161,8 +161,12 @@ func buildGeminiInteractionRequestBody(route RouteConfig, input GenerateInput) (
 	if previousID := strings.TrimSpace(input.PreviousResponseID); previousID != "" {
 		payload["previous_interaction_id"] = previousID
 	}
-	if tools := buildGeminiInteractionTools(input.Tools); len(tools) > 0 && !input.DisableTools {
-		payload["tools"] = tools
+	providerTools, toolDefinitions, toolsEnabled, err := toolDeclarationsForInput(input)
+	if err != nil {
+		return nil, err
+	}
+	if toolsEnabled {
+		appendToolDeclarations(payload, providerTools, buildGeminiInteractionTools(toolDefinitions))
 	}
 	applyProviderOptions(payload, input.Options, geminiInteractionsProtectedProviderOptionKeys()...)
 	return payload, nil

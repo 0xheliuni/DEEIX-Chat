@@ -678,6 +678,10 @@ func TestFilterModelOptionsGeminiPolicyKeyMatchesGoogleAdapter(t *testing.T) {
 			"temperature":      0.4,
 			"responseMimeType": "application/json",
 			"candidateCount":   3,
+			"thinkingConfig": map[string]interface{}{
+				"includeThoughts": true,
+				"thinkingLevel":   "high",
+			},
 		},
 		"tools": []interface{}{
 			map[string]interface{}{"type": "google_search"},
@@ -695,6 +699,10 @@ func TestFilterModelOptionsGeminiPolicyKeyMatchesGoogleAdapter(t *testing.T) {
 	}
 	if _, ok := generationConfig["candidateCount"]; ok {
 		t.Fatalf("expected unlisted gemini option removed, got %#v", generationConfig)
+	}
+	thinkingConfig, ok := generationConfig["thinkingConfig"].(map[string]interface{})
+	if !ok || thinkingConfig["includeThoughts"] != true || thinkingConfig["thinkingLevel"] != "high" {
+		t.Fatalf("expected Gemini thinking options to pass, got %#v", generationConfig)
 	}
 	tools := filtered["tools"].([]map[string]interface{})
 	if len(tools) != 1 {
@@ -972,8 +980,10 @@ func TestFilterModelOptionsGeminiInteractionsAllowsVideoParams(t *testing.T) {
 			"delivery":     "b64_json",
 		},
 		"generation_config": map[string]interface{}{
-			"temperature":    0.3,
-			"thinking_level": "low",
+			"temperature":        0.3,
+			"thinking_level":     "low",
+			"thinking_summaries": "auto",
+			"max_output_tokens":  1024,
 			"video_config": map[string]interface{}{
 				"task": "image_to_video",
 			},
@@ -998,7 +1008,10 @@ func TestFilterModelOptionsGeminiInteractionsAllowsVideoParams(t *testing.T) {
 		t.Fatalf("expected Gemini generation_config to pass, got %#v", filtered)
 	}
 	videoConfig, ok := generationConfig["video_config"].(map[string]interface{})
-	if generationConfig["temperature"] != 0.3 || generationConfig["thinking_level"] != "low" {
+	if generationConfig["temperature"] != 0.3 ||
+		generationConfig["thinking_level"] != "low" ||
+		generationConfig["thinking_summaries"] != "auto" ||
+		generationConfig["max_output_tokens"] != 1024 {
 		t.Fatalf("expected Gemini generation config fields to pass, got %#v", generationConfig)
 	}
 	if !ok || videoConfig["task"] != "image_to_video" {
@@ -1007,6 +1020,33 @@ func TestFilterModelOptionsGeminiInteractionsAllowsVideoParams(t *testing.T) {
 	for _, key := range []string{"model", "input"} {
 		if _, ok := filtered[key]; ok {
 			t.Fatalf("expected %s override to be hard denied, got %#v", key, filtered)
+		}
+	}
+}
+
+func TestFilterModelOptionsGeminiInteractionsPreservesConfiguredNativeTools(t *testing.T) {
+	filtered := filterModelOptions(map[string]interface{}{
+		"tools": []interface{}{
+			map[string]interface{}{"type": "google_search"},
+			map[string]interface{}{"type": "code_execution"},
+			map[string]interface{}{"type": "url_context"},
+			map[string]interface{}{"type": "external_function", "name": "not_allowed"},
+		},
+	}, llm.AdapterGeminiInteractions, modelOptionPolicyConfig{
+		Mode:                  modelOptionPolicyAllowlist,
+		AllowedPathsJSON:      config.DefaultModelOptionAllowedPathsJSON(),
+		DeniedPathsJSON:       config.DefaultModelOptionDeniedPathsJSON(),
+		ModelCapabilitiesJSON: `{"nativeToolKeys":["google.google_search","google.code_execution","google.url_context"]}`,
+	})
+
+	tools, ok := filtered["tools"].([]map[string]interface{})
+	if !ok || len(tools) != 3 {
+		t.Fatalf("expected three configured Gemini Interactions tools, got %#v", filtered["tools"])
+	}
+	wantTypes := []string{"google_search", "code_execution", "url_context"}
+	for index, wantType := range wantTypes {
+		if tools[index]["type"] != wantType {
+			t.Fatalf("tool %d type = %#v, want %q", index, tools[index]["type"], wantType)
 		}
 	}
 }

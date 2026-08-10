@@ -85,16 +85,16 @@ function normalizeNativeToolStrings(value: unknown): string[] {
 
 function nativeToolID({
   key,
-  protocol,
+  protocols,
   type,
   index,
 }: {
   key: string;
-  protocol: string;
+  protocols: string[];
   type: string;
   index: number;
 }): string {
-  return [key, protocol, type].map((item) => item.trim()).filter(Boolean).join(":") || `native-tool-${index}`;
+  return [key, ...protocols, type].map((item) => item.trim()).filter(Boolean).join(":") || `native-tool-${index}`;
 }
 
 function resolveNativeTools(raw: string): ModelNativeToolConfig[] {
@@ -114,14 +114,15 @@ function resolveNativeTools(raw: string): ModelNativeToolConfig[] {
       const type = normalizeNativeToolString(source.type) || normalizeNativeToolString(payload.type);
       const protocol = normalizeNativeToolString(source.protocol);
       const protocols = normalizeNativeToolStrings(source.protocols);
+      const effectiveProtocols = protocols.length > 0 ? protocols : (protocol ? [protocol] : []);
       if (!key && !type && Object.keys(payload).length === 0) {
         return [];
       }
       return [{
-        id: normalizeNativeToolString(source.id) || nativeToolID({ key, protocol, type, index }),
+        id: normalizeNativeToolString(source.id) || nativeToolID({ key, protocols: effectiveProtocols, type, index }),
         key,
         protocol,
-        protocols: protocols.length > 0 ? protocols : (protocol ? [protocol] : []),
+        protocols: effectiveProtocols,
         provider: normalizeNativeToolString(source.provider) || undefined,
         type,
         label: normalizeNativeToolString(source.label) || type || key,
@@ -133,7 +134,7 @@ function resolveNativeTools(raw: string): ModelNativeToolConfig[] {
     }).filter((item) => item.enabled);
   }
   return resolveNativeToolKeys(raw).map((key, index) => ({
-    id: nativeToolID({ key, protocol: "", type: "", index }),
+    id: nativeToolID({ key, protocols: [], type: "", index }),
     key,
     protocol: "",
     protocols: [],

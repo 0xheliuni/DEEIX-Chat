@@ -145,7 +145,8 @@ func TestBuildGeminiInteractionRequestBodySupportsUniversalOptionsAndTools(t *te
 			"max_output_tokens": 512,
 			"thinking_level":    "low",
 			"generation_config": map[string]interface{}{
-				"thinkingLevel": "high",
+				"thinkingLevel":      "high",
+				"thinking_summaries": "auto",
 			},
 		},
 	})
@@ -164,7 +165,7 @@ func TestBuildGeminiInteractionRequestBodySupportsUniversalOptionsAndTools(t *te
 		t.Fatalf("unexpected image response_format: %#v", imageFormat)
 	}
 	config, ok := payload["generation_config"].(map[string]interface{})
-	if !ok || config["temperature"] != 0.4 || config["top_p"] != 0.9 || config["max_output_tokens"] != 512 || config["thinking_level"] != "low" {
+	if !ok || config["temperature"] != 0.4 || config["top_p"] != 0.9 || config["max_output_tokens"] != 512 || config["thinking_level"] != "low" || config["thinking_summaries"] != "auto" {
 		t.Fatalf("unexpected generation_config: %#v", payload["generation_config"])
 	}
 	tools, ok := payload["tools"].([]map[string]interface{})
@@ -190,6 +191,56 @@ func TestBuildGeminiInteractionRequestBodySupportsUniversalOptionsAndTools(t *te
 	resultContent, ok := steps[3]["result"].([]map[string]interface{})
 	if !ok || len(resultContent) != 1 || resultContent[0]["type"] != "text" || resultContent[0]["text"] != `{"temperature":"20C"}` {
 		t.Fatalf("expected function result content blocks, got %#v", steps[3]["result"])
+	}
+}
+
+func TestBuildGeminiInteractionRequestBodyMergesNativeAndFunctionTools(t *testing.T) {
+	input := GenerateInput{
+		Messages: []Message{{Role: "user", Content: "Research and calculate."}},
+		Options: map[string]interface{}{
+			"tools": []interface{}{
+				map[string]interface{}{"type": "google_search"},
+				map[string]interface{}{"type": "code_execution"},
+				map[string]interface{}{"type": "url_context"},
+			},
+		},
+		Tools: []ToolDefinition{{
+			Name:        "get_weather",
+			Description: "Gets weather.",
+			InputSchema: json.RawMessage(`{"type":"object"}`),
+		}},
+	}
+	payload, err := buildGeminiInteractionRequestBody(RouteConfig{
+		Endpoint:      EndpointInteractions,
+		UpstreamModel: "gemini-3.5-flash",
+	}, input)
+	if err != nil {
+		t.Fatalf("build Gemini interaction request body: %v", err)
+	}
+	tools, ok := payload["tools"].([]map[string]interface{})
+	if !ok || len(tools) != 4 {
+		t.Fatalf("expected three native tools and one function, got %#v", payload["tools"])
+	}
+	wantTypes := []string{"google_search", "code_execution", "url_context", "function"}
+	for index, wantType := range wantTypes {
+		if tools[index]["type"] != wantType {
+			t.Fatalf("tool %d type = %#v, want %q", index, tools[index]["type"], wantType)
+		}
+	}
+	if tools[3]["name"] != "get_weather" {
+		t.Fatalf("expected function tool to be preserved, got %#v", tools[3])
+	}
+
+	input.DisableTools = true
+	disabledPayload, err := buildGeminiInteractionRequestBody(RouteConfig{
+		Endpoint:      EndpointInteractions,
+		UpstreamModel: "gemini-3.5-flash",
+	}, input)
+	if err != nil {
+		t.Fatalf("build disabled-tools Gemini interaction request body: %v", err)
+	}
+	if _, exists := disabledPayload["tools"]; exists {
+		t.Fatalf("expected DisableTools to remove native and function tools, got %#v", disabledPayload["tools"])
 	}
 }
 
