@@ -588,6 +588,164 @@ export interface CleanupLogsResponseDoc {
   errorMsg: string;
 }
 
+export interface ContentModerationCategoryCatalogResponse {
+  image: string[];
+  text: string[];
+}
+
+export interface ContentModerationConfigDataResponse {
+  categories: ContentModerationCategoryCatalogResponse;
+  config: ContentModerationServiceConfigResponse;
+}
+
+export interface ContentModerationConfigResponseDoc {
+  data: ContentModerationConfigDataResponse;
+  errorMsg: string;
+}
+
+export interface ContentModerationConfigUpdateDataResponse {
+  config: ContentModerationServiceConfigResponse;
+}
+
+export interface ContentModerationConfigUpdateResponseDoc {
+  data: ContentModerationConfigUpdateDataResponse;
+  errorMsg: string;
+}
+
+export interface ContentModerationDailyStatResponse {
+  category: string;
+  checkCount: number;
+  contentItems: number;
+  direction: string;
+  failureCount: number;
+  hitCount: number;
+  latencyCount: number;
+  latencySumMS: number;
+  modality: string;
+  result: string;
+  statDate: string;
+}
+
+export interface ContentModerationEventDetailResponse {
+  categoryScores: Record<string, number>;
+  decryptedText?: string;
+  event: ContentModerationEventResponse;
+  images: ContentModerationIsolatedImageResponse[];
+  imagesAvailable: boolean;
+  textAvailable: boolean;
+}
+
+export interface ContentModerationEventDetailResponseDoc {
+  data: ContentModerationEventDetailResponse;
+  errorMsg: string;
+}
+
+export interface ContentModerationEventListDataResponse {
+  items: ContentModerationEventResponse[];
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
+export interface ContentModerationEventListResponseDoc {
+  data: ContentModerationEventListDataResponse;
+  errorMsg: string;
+}
+
+export interface ContentModerationEventResponse {
+  categories: string[];
+  contentSummary: string;
+  conversationID: number;
+  createdAt: string;
+  direction: string;
+  errorCode: string;
+  errorMessage: string;
+  latencyMS: number;
+  messagePublicID: string;
+  modality: string;
+  model: string;
+  policyVersion: number;
+  publicID: string;
+  result: string;
+  runID: string;
+  userID: number;
+  userLabel?: string;
+  username?: string;
+}
+
+export interface ContentModerationIsolatedImageResponse {
+  sha256: string;
+  index: number;
+  mimeType: string;
+  sizeBytes: number;
+  sourceFileID?: string;
+}
+
+export interface ContentModerationPolicyRequest {
+  inputImageCategories: string[];
+  inputTextCategories: string[];
+  outputImageCategories: string[];
+  outputTextCategories: string[];
+}
+
+export interface ContentModerationPolicyResponse {
+  inputImageCategories: string[];
+  inputTextCategories: string[];
+  outputImageCategories: string[];
+  outputTextCategories: string[];
+  version: number;
+}
+
+export interface ContentModerationProbeResponse {
+  image: ContentModerationProbeResultResponse;
+  text: ContentModerationProbeResultResponse;
+}
+
+export interface ContentModerationProbeResponseDoc {
+  data: ContentModerationProbeResponse;
+  errorMsg: string;
+}
+
+export interface ContentModerationProbeResultResponse {
+  error?: string;
+  latencyMS: number;
+  model?: string;
+  valid: boolean;
+}
+
+export interface ContentModerationServiceConfigResponse {
+  apiKeyMasked?: string;
+  baseUrl: string;
+  enabled: boolean;
+  hasAPIKey: boolean;
+  maxConcurrency: number;
+  model: string;
+  policy: ContentModerationPolicyResponse;
+  queueCapacity: number;
+  timeoutSeconds: number;
+}
+
+export interface ContentModerationStatsDataResponse {
+  items: ContentModerationDailyStatResponse[];
+}
+
+export interface ContentModerationStatsResponseDoc {
+  data: ContentModerationStatsDataResponse;
+  errorMsg: string;
+}
+
+export interface ContentModerationUpdateConfigRequest {
+  apiKey?: string;
+  baseUrl?: string;
+  clearAPIKey?: boolean;
+  enabled?: boolean;
+  maxConcurrency?: number;
+  model?: string;
+  policy?: ContentModerationPolicyRequest;
+  queueCapacity?: number;
+  timeoutSeconds?: number;
+}
+
 export interface ContextArtifactResponse {
   content: string;
   createdAt: string;
@@ -1512,6 +1670,13 @@ export interface MessageListResponseDoc {
   errorMsg: string;
 }
 
+export interface MessageModerationResponse {
+  categories?: string[];
+  direction?: string;
+  eventID?: string;
+  state?: string;
+}
+
 export interface MessageProcessTraceResponse {
   enabled: boolean;
   events?: MessageTraceEventResponse[];
@@ -1570,6 +1735,7 @@ export interface MessageResponse {
   latencyMS: number;
   modelIcon: string;
   modelVendor: string;
+  moderation?: MessageModerationResponse;
   myFeedback: string;
   outputTokens: number;
   parentMessageID: number | null;
@@ -4161,6 +4327,152 @@ export namespace Admin {
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = UsageLogListResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags admin-content-moderation
+   * @name ContentModerationConfigList
+   * @summary Get content moderation config
+   * @request GET:/admin/content-moderation/config
+   * @secure
+   */
+  export namespace ContentModerationConfigList {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = ContentModerationConfigResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags admin-content-moderation
+   * @name ContentModerationConfigUpdate
+   * @summary Update content moderation config
+   * @request PUT:/admin/content-moderation/config
+   * @secure
+   */
+  export namespace ContentModerationConfigUpdate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = ContentModerationUpdateConfigRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = ContentModerationConfigUpdateResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags admin-content-moderation
+   * @name ContentModerationEventsList
+   * @summary List content moderation events
+   * @request GET:/admin/content-moderation/events
+   * @secure
+   */
+  export namespace ContentModerationEventsList {
+    export type RequestParams = {};
+    export type RequestQuery = {
+      /** Category filter */
+      category?: string;
+      /** Direction filter */
+      direction?: string;
+      /** Start time (RFC3339) */
+      from?: string;
+      /** Modality filter */
+      modality?: string;
+      /** Page number */
+      page?: number;
+      /** Page size */
+      pageSize?: number;
+      /** Result filter */
+      result?: string;
+      /** Run ID */
+      runId?: string;
+      /** End time (RFC3339) */
+      to?: string;
+      /** User ID */
+      userId?: number;
+    };
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = ContentModerationEventListResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags admin-content-moderation
+   * @name ContentModerationEventsDetail
+   * @summary Get content moderation event detail
+   * @request GET:/admin/content-moderation/events/{eventID}
+   * @secure
+   */
+  export namespace ContentModerationEventsDetail {
+    export type RequestParams = {
+      /** Moderation event ID */
+      eventId: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = ContentModerationEventDetailResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags admin-content-moderation
+   * @name ContentModerationEventsImagesDetail
+   * @summary Stream a isolated moderation image
+   * @request GET:/admin/content-moderation/events/{eventID}/images/{index}
+   * @secure
+   */
+  export namespace ContentModerationEventsImagesDetail {
+    export type RequestParams = {
+      /** Moderation event ID */
+      eventId: string;
+      /** Image index */
+      index: number;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = Blob;
+  }
+
+  /**
+   * No description
+   * @tags admin-content-moderation
+   * @name ContentModerationProbeCreate
+   * @summary Probe content moderation service
+   * @request POST:/admin/content-moderation/probe
+   * @secure
+   */
+  export namespace ContentModerationProbeCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = ContentModerationProbeResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags admin-content-moderation
+   * @name ContentModerationStatsList
+   * @summary Get content moderation daily stats
+   * @request GET:/admin/content-moderation/stats
+   * @secure
+   */
+  export namespace ContentModerationStatsList {
+    export type RequestParams = {};
+    export type RequestQuery = {
+      /** Start time (RFC3339) */
+      from?: string;
+      /** End time (RFC3339) */
+      to?: string;
+    };
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = ContentModerationStatsResponseDoc;
   }
 
   /**

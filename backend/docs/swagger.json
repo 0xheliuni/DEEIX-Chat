@@ -1353,6 +1353,287 @@
                 }
             }
         },
+        "/admin/content-moderation/config": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-content-moderation"
+                ],
+                "summary": "Get content moderation config",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ContentModerationConfigResponseDoc"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-content-moderation"
+                ],
+                "summary": "Update content moderation config",
+                "parameters": [
+                    {
+                        "description": "Content moderation configuration",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ContentModerationUpdateConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ContentModerationConfigUpdateResponseDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/content-moderation/events": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-content-moderation"
+                ],
+                "summary": "List content moderation events",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "pageSize",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Result filter",
+                        "name": "result",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Direction filter",
+                        "name": "direction",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Modality filter",
+                        "name": "modality",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Category filter",
+                        "name": "category",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "User ID",
+                        "name": "userId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Run ID",
+                        "name": "runId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start time (RFC3339)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End time (RFC3339)",
+                        "name": "to",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ContentModerationEventListResponseDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/content-moderation/events/{eventID}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-content-moderation"
+                ],
+                "summary": "Get content moderation event detail",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Moderation event ID",
+                        "name": "eventID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ContentModerationEventDetailResponseDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/content-moderation/events/{eventID}/images/{index}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "admin-content-moderation"
+                ],
+                "summary": "Stream a isolated moderation image",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Moderation event ID",
+                        "name": "eventID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Image index",
+                        "name": "index",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/content-moderation/probe": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-content-moderation"
+                ],
+                "summary": "Probe content moderation service",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ContentModerationProbeResponseDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/content-moderation/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-content-moderation"
+                ],
+                "summary": "Get content moderation daily stats",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Start time (RFC3339)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End time (RFC3339)",
+                        "name": "to",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ContentModerationStatsResponseDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/conversation-events": {
             "get": {
                 "security": [
@@ -13927,6 +14208,561 @@
                 }
             }
         },
+        "ContentModerationCategoryCatalogResponse": {
+            "type": "object",
+            "required": [
+                "image",
+                "text"
+            ],
+            "properties": {
+                "image": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "text": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "ContentModerationConfigDataResponse": {
+            "type": "object",
+            "required": [
+                "categories",
+                "config"
+            ],
+            "properties": {
+                "categories": {
+                    "$ref": "#/definitions/ContentModerationCategoryCatalogResponse"
+                },
+                "config": {
+                    "$ref": "#/definitions/ContentModerationServiceConfigResponse"
+                }
+            }
+        },
+        "ContentModerationConfigResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ContentModerationConfigDataResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ContentModerationConfigUpdateDataResponse": {
+            "type": "object",
+            "required": [
+                "config"
+            ],
+            "properties": {
+                "config": {
+                    "$ref": "#/definitions/ContentModerationServiceConfigResponse"
+                }
+            }
+        },
+        "ContentModerationConfigUpdateResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ContentModerationConfigUpdateDataResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ContentModerationDailyStatResponse": {
+            "type": "object",
+            "required": [
+                "category",
+                "checkCount",
+                "contentItems",
+                "direction",
+                "failureCount",
+                "hitCount",
+                "latencyCount",
+                "latencySumMS",
+                "modality",
+                "result",
+                "statDate"
+            ],
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "checkCount": {
+                    "type": "integer"
+                },
+                "contentItems": {
+                    "type": "integer"
+                },
+                "direction": {
+                    "type": "string"
+                },
+                "failureCount": {
+                    "type": "integer"
+                },
+                "hitCount": {
+                    "type": "integer"
+                },
+                "latencyCount": {
+                    "type": "integer"
+                },
+                "latencySumMS": {
+                    "type": "integer"
+                },
+                "modality": {
+                    "type": "string"
+                },
+                "result": {
+                    "type": "string"
+                },
+                "statDate": {
+                    "type": "string"
+                }
+            }
+        },
+        "ContentModerationEventDetailResponse": {
+            "type": "object",
+            "required": [
+                "categoryScores",
+                "event",
+                "images",
+                "imagesAvailable",
+                "textAvailable"
+            ],
+            "properties": {
+                "categoryScores": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "number",
+                        "format": "float64"
+                    }
+                },
+                "decryptedText": {
+                    "type": "string"
+                },
+                "event": {
+                    "$ref": "#/definitions/ContentModerationEventResponse"
+                },
+                "images": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ContentModerationIsolatedImageResponse"
+                    }
+                },
+                "imagesAvailable": {
+                    "type": "boolean"
+                },
+                "textAvailable": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "ContentModerationEventDetailResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ContentModerationEventDetailResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ContentModerationEventListDataResponse": {
+            "type": "object",
+            "required": [
+                "items",
+                "page",
+                "pageSize",
+                "total"
+            ],
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ContentModerationEventResponse"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "pageSize": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "ContentModerationEventListResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ContentModerationEventListDataResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ContentModerationEventResponse": {
+            "type": "object",
+            "required": [
+                "categories",
+                "contentSummary",
+                "conversationID",
+                "createdAt",
+                "direction",
+                "errorCode",
+                "errorMessage",
+                "latencyMS",
+                "messagePublicID",
+                "modality",
+                "model",
+                "policyVersion",
+                "publicID",
+                "result",
+                "runID",
+                "userID"
+            ],
+            "properties": {
+                "categories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "contentSummary": {
+                    "type": "string"
+                },
+                "conversationID": {
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "direction": {
+                    "type": "string"
+                },
+                "errorCode": {
+                    "type": "string"
+                },
+                "errorMessage": {
+                    "type": "string"
+                },
+                "latencyMS": {
+                    "type": "integer"
+                },
+                "messagePublicID": {
+                    "type": "string"
+                },
+                "modality": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "policyVersion": {
+                    "type": "integer"
+                },
+                "publicID": {
+                    "type": "string"
+                },
+                "result": {
+                    "type": "string"
+                },
+                "runID": {
+                    "type": "string"
+                },
+                "userID": {
+                    "type": "integer"
+                },
+                "userLabel": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "ContentModerationIsolatedImageResponse": {
+            "type": "object",
+            "required": [
+                "index",
+                "mimeType",
+                "sha256",
+                "sizeBytes"
+            ],
+            "properties": {
+                "index": {
+                    "type": "integer"
+                },
+                "mimeType": {
+                    "type": "string"
+                },
+                "sha256": {
+                    "type": "string"
+                },
+                "sizeBytes": {
+                    "type": "integer"
+                },
+                "sourceFileID": {
+                    "type": "string"
+                }
+            }
+        },
+        "ContentModerationPolicyRequest": {
+            "type": "object",
+            "required": [
+                "inputImageCategories",
+                "inputTextCategories",
+                "outputImageCategories",
+                "outputTextCategories"
+            ],
+            "properties": {
+                "inputImageCategories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "inputTextCategories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "outputImageCategories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "outputTextCategories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "ContentModerationPolicyResponse": {
+            "type": "object",
+            "required": [
+                "inputImageCategories",
+                "inputTextCategories",
+                "outputImageCategories",
+                "outputTextCategories",
+                "version"
+            ],
+            "properties": {
+                "inputImageCategories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "inputTextCategories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "outputImageCategories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "outputTextCategories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
+        "ContentModerationProbeResponse": {
+            "type": "object",
+            "required": [
+                "image",
+                "text"
+            ],
+            "properties": {
+                "image": {
+                    "$ref": "#/definitions/ContentModerationProbeResultResponse"
+                },
+                "text": {
+                    "$ref": "#/definitions/ContentModerationProbeResultResponse"
+                }
+            }
+        },
+        "ContentModerationProbeResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ContentModerationProbeResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ContentModerationProbeResultResponse": {
+            "type": "object",
+            "required": [
+                "latencyMS",
+                "valid"
+            ],
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "latencyMS": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "valid": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "ContentModerationServiceConfigResponse": {
+            "type": "object",
+            "required": [
+                "baseUrl",
+                "enabled",
+                "hasAPIKey",
+                "maxConcurrency",
+                "model",
+                "policy",
+                "queueCapacity",
+                "timeoutSeconds"
+            ],
+            "properties": {
+                "apiKeyMasked": {
+                    "type": "string"
+                },
+                "baseUrl": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "hasAPIKey": {
+                    "type": "boolean"
+                },
+                "maxConcurrency": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "policy": {
+                    "$ref": "#/definitions/ContentModerationPolicyResponse"
+                },
+                "queueCapacity": {
+                    "type": "integer"
+                },
+                "timeoutSeconds": {
+                    "type": "integer"
+                }
+            }
+        },
+        "ContentModerationStatsDataResponse": {
+            "type": "object",
+            "required": [
+                "items"
+            ],
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ContentModerationDailyStatResponse"
+                    }
+                }
+            }
+        },
+        "ContentModerationStatsResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ContentModerationStatsDataResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ContentModerationUpdateConfigRequest": {
+            "type": "object",
+            "properties": {
+                "apiKey": {
+                    "type": "string"
+                },
+                "baseUrl": {
+                    "type": "string"
+                },
+                "clearAPIKey": {
+                    "type": "boolean"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "maxConcurrency": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "policy": {
+                    "$ref": "#/definitions/ContentModerationPolicyRequest"
+                },
+                "queueCapacity": {
+                    "type": "integer"
+                },
+                "timeoutSeconds": {
+                    "type": "integer"
+                }
+            }
+        },
         "ContextArtifactResponse": {
             "type": "object",
             "required": [
@@ -16708,6 +17544,26 @@
                 }
             }
         },
+        "MessageModerationResponse": {
+            "type": "object",
+            "properties": {
+                "categories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "direction": {
+                    "type": "string"
+                },
+                "eventID": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                }
+            }
+        },
         "MessageProcessTraceResponse": {
             "type": "object",
             "required": [
@@ -16941,6 +17797,9 @@
                 },
                 "modelVendor": {
                     "type": "string"
+                },
+                "moderation": {
+                    "$ref": "#/definitions/MessageModerationResponse"
                 },
                 "myFeedback": {
                     "type": "string"

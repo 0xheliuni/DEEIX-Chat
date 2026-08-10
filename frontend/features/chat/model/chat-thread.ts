@@ -168,6 +168,8 @@ type MessageLabels = {
   generationInterrupted: string;
   streamInterrupted?: string;
   imageRunning?: string;
+  moderationBlocked?: string;
+  moderationBlockedDescription?: string;
   resolveErrorMessage?: (errorCode: string, fallback: string, details?: UpstreamDebugInfo) => string;
 };
 
@@ -229,7 +231,17 @@ export function mapServerMessage(
     msg.latencyMS = item.latencyMS ?? 0;
     msg.billingCost = item.billingCost;
     msg.processTrace = parseProcessTrace(item);
-    if ((item.status === "error" || item.status === "interrupted") && item.errorMessage?.trim()) {
+    const status = item.status.trim().toLowerCase();
+    const moderationBlocked = status === "blocked" || item.errorCode === "content_moderation.blocked";
+    if (moderationBlocked) {
+      msg.inlineAlert = {
+        title: labels.moderationBlocked || "Content blocked",
+        message:
+          labels.moderationBlockedDescription ||
+          item.errorMessage?.trim() ||
+          "This response was withdrawn after a safety check.",
+      };
+    } else if ((status === "error" || status === "interrupted") && item.errorMessage?.trim()) {
       const details = extractInlineAlertDetails(item);
       msg.inlineAlert = {
         title: labels.generationInterrupted,

@@ -9,6 +9,7 @@ import (
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	appcompact "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/compact"
+	appcm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/contentmoderation"
 	appembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/embedding"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/extraction"
 	appstorage "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/objectstorage"
@@ -113,6 +114,7 @@ type Service struct {
 	auditWriter       auditWriter
 	storeProvider     appstorage.Provider
 	logger            *zap.Logger
+	moderationSvc     *appcm.Service
 	toolLimiters      sync.Map
 	generationStreams *generationStreamRegistry
 	snapshotCache     sync.Map // conversationID (uint) → *cachedSnapshot
@@ -187,27 +189,29 @@ func (s *Service) SetSkillResolver(resolver skillResolver) {
 
 // SendMessageResult 返回用户消息与 AI 消息。
 type SendMessageResult struct {
-	UserMessage           model.Message
-	AssistantMessage      model.Message
-	MetadataRefreshHint   string
-	Billable              bool
-	UpstreamID            uint
-	UpstreamName          string
-	PlatformModelName     string
-	RoutedBindingCode     string
-	UpstreamModelName     string
-	UpstreamProtocol      string
-	EffectiveOptions      map[string]interface{}
-	UsageSpeed            string
-	UsageServiceTier      string
-	UsageSource           string
-	RawUsageJSON          string
-	CacheWrite5mTokens    int64
-	CacheWrite1hTokens    int64
-	ServerSideToolUsage   map[string]int64
-	LatencyMS             int64
-	DurationSeconds       int64
-	StartedAt             time.Time
+	UserMessage         model.Message
+	AssistantMessage    model.Message
+	MetadataRefreshHint string
+	Billable            bool
+	UpstreamID          uint
+	UpstreamName        string
+	PlatformModelName   string
+	RoutedBindingCode   string
+	UpstreamModelName   string
+	UpstreamProtocol    string
+	EffectiveOptions    map[string]interface{}
+	UsageSpeed          string
+	UsageServiceTier    string
+	UsageSource         string
+	RawUsageJSON        string
+	CacheWrite5mTokens  int64
+	CacheWrite1hTokens  int64
+	ServerSideToolUsage map[string]int64
+	LatencyMS           int64
+	DurationSeconds     int64
+	StartedAt           time.Time
+	// Moderation is set when a soft-moderation barrier ran; Blocked means withdrawn.
+	Moderation            *MessageModerationOutcome
 	postBillingCompaction *postBillingCompactionTask
 }
 

@@ -292,6 +292,14 @@ var exactErrorSpecs = map[string]errorSpec{
 	"too many refresh attempts":        {Code: "rate_limit.refresh_exceeded", Message: "too many refresh attempts"},
 	"too many authentication attempts": {Code: "rate_limit.authentication_exceeded", Message: "too many authentication attempts"},
 
+	"content moderation event not found":                                     {Code: "content_moderation.event_not_found", Message: "content moderation event not found"},
+	"content moderation service config and policy are required when enabled": {Code: "content_moderation.config_required", Message: "content moderation service config and policy are required when enabled"},
+	"invalid content moderation config":                                      {Code: "content_moderation.invalid_config", Message: "invalid content moderation config"},
+	"invalid content moderation base url":                                    {Code: "content_moderation.invalid_config", Message: "invalid content moderation base url"},
+	"invalid content moderation model":                                       {Code: "content_moderation.invalid_config", Message: "invalid content moderation model"},
+	"content moderation probe failed":                                        {Code: "content_moderation.probe_failed", Message: "content moderation probe failed"},
+	"content blocked by moderation":                                          {Code: "content_moderation.blocked", Message: "content blocked by moderation"},
+
 	"deleting this identity provider would remove the only login method for some users": {Code: "identity_provider.delete_conflict", Message: "deleting this identity provider would remove the only login method for some users"},
 }
 
@@ -587,8 +595,8 @@ var fallbackMessages = map[string]string{
 	"llm.system_prompt_too_long":                        "system prompt too long",
 	"llm.platform_model_name_required":                  "platform model name is required",
 	"llm.protocol_required":                             "protocol is required",
-	"media.artifact_unavailable":                       "generated media artifact is temporarily unavailable",
-	"media.image_stream_unsupported":                   "upstream may not support image streaming; disable image.stream for this model",
+	"media.artifact_unavailable":                        "generated media artifact is temporarily unavailable",
+	"media.image_stream_unsupported":                    "upstream may not support image streaming; disable image.stream for this model",
 	"billing.period_credit_exceeded":                    "period usage credit exceeded",
 	"billing.invalid_subscription_tier":                 "invalid subscription tier",
 	"billing.subscription_expiry_required":              "subscription expiry required",

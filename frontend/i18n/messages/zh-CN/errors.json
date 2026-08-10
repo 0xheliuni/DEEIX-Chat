@@ -329,5 +329,12 @@
   "userSettings": {
     "invalidValue": "用户设置值无效。",
     "unknownKey": "未知的用户设置项。"
+  },
+  "content_moderation": {
+    "blocked": "内容已被安全检查拦截。",
+    "invalid_config": "内容审核配置无效。",
+    "config_required": "启用内容审核时必须配置完整服务并至少选择一个审核类别。",
+    "probe_failed": "内容审核连接测试失败。",
+    "event_not_found": "未找到内容审核事件。"
   }
 }

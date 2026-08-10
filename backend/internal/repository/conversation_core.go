@@ -118,6 +118,10 @@ type MessageFeedbackRepository interface {
 type ConversationTraceRepository interface {
 	CreateAttachments(ctx context.Context, items []domainconversation.Attachment) error
 	CreateConversationRun(ctx context.Context, item *domainconversation.Run) error
+	// EnsureConversationRun inserts a mid-flight run row if absent (moderation / recovery).
+	EnsureConversationRun(ctx context.Context, item *domainconversation.Run) error
+	// UpsertConversationRun creates or updates the final run snapshot by run_id.
+	UpsertConversationRun(ctx context.Context, item *domainconversation.Run) error
 	UpsertConversationMessageTrace(ctx context.Context, item *domainconversation.MessageTrace) error
 	ListConversationMessageTracesByMessageIDs(ctx context.Context, messageIDs []uint) ([]domainconversation.MessageTrace, error)
 	UpsertConversationMessageTraceEvent(ctx context.Context, item *domainconversation.MessageTraceEventRow) error
