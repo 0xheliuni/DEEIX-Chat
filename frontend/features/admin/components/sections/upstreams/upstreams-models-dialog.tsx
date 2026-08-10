@@ -852,13 +852,9 @@ function NewBindingDialog({
         priority: 1,
         weight: 1,
       };
-      const protocols = form.protocols.length > 0 ? form.protocols : [undefined];
-      for (const protocol of protocols) {
-        await upsertAdminLLMUpstreamModel(token, upstreamId, {
-          ...payload,
-          protocol,
-        });
-      }
+      await upsertAdminLLMUpstreamModel(token, upstreamId, form.protocols.length > 0
+        ? { ...payload, protocols: form.protocols }
+        : payload);
       toast.success(t("modelsDialog.bindingCreated"));
       setForm(DEFAULT_NEW_BINDING);
       onOpenChange(false);
@@ -1356,48 +1352,25 @@ export function UpstreamModelsDialog({
         };
         const desiredProtocols = selectedProtocolsForSave(row);
         if (desiredProtocols.length === 0) {
-          const keepRouteID = row.routeID || existingRouteIDs[0];
           upsertOperations.push(() =>
             upsertAdminLLMUpstreamModel(token, upstream.id, {
               ...basePayload,
-              routeID: keepRouteID || undefined,
+              routeIDs: existingRouteIDs,
+              protocols: [],
             }),
           );
           savedCount += 1;
-          for (const routeID of existingRouteIDs) {
-            if (routeID === keepRouteID) continue;
-            deleteOperations.push(() => deleteAdminLLMUpstreamModel(token, upstream.id, routeID));
-            deletedCount += 1;
-          }
           continue;
         }
 
-        const desiredSet = new Set(desiredProtocols);
-        const reusableRouteIDs = Object.entries(row.routeIDsByProtocol)
-          .filter(([protocol]) => !desiredSet.has(protocol as AdminLLMAdapter))
-          .map(([, routeID]) => routeID)
-          .filter((routeID) => routeID > 0);
-        const reusedRouteIDs = new Set<number>();
-        for (const protocol of desiredProtocols) {
-          const existingRouteID = row.routeIDsByProtocol[protocol];
-          const routeID = existingRouteID || reusableRouteIDs.shift();
-          if (routeID) {
-            reusedRouteIDs.add(routeID);
-          }
-          upsertOperations.push(() =>
-            upsertAdminLLMUpstreamModel(token, upstream.id, {
-              ...basePayload,
-              routeID,
-              protocol,
-            }),
-          );
-          savedCount += 1;
-        }
-        for (const [protocol, routeID] of Object.entries(row.routeIDsByProtocol)) {
-          if (desiredSet.has(protocol as AdminLLMAdapter) || reusedRouteIDs.has(routeID)) continue;
-          deleteOperations.push(() => deleteAdminLLMUpstreamModel(token, upstream.id, routeID));
-          deletedCount += 1;
-        }
+        upsertOperations.push(() =>
+          upsertAdminLLMUpstreamModel(token, upstream.id, {
+            ...basePayload,
+            routeIDs: existingRouteIDs,
+            protocols: desiredProtocols,
+          }),
+        );
+        savedCount += 1;
       }
 
       if (deleteOperations.length === 0 && upsertOperations.length === 0) {
@@ -1441,7 +1414,7 @@ export function UpstreamModelsDialog({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
-          className="flex max-h-[min(90vh,800px)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 md:w-[calc(100vw-8rem)] sm:max-w-[860px]"
+          className="flex max-h-[min(90svh,800px)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 md:w-[calc(100vw-8rem)] sm:max-w-[860px]"
         >
           <DialogHeader className="shrink-0 px-4 py-4">
             <DialogTitle>{t("modelsDialog.manageTitle")}</DialogTitle>
@@ -1591,8 +1564,8 @@ export function UpstreamModelsDialog({
             <Table
               className="min-w-[800px]"
               viewportRef={virtualRows.viewportRef}
-              viewportClassName={virtualRows.viewportClassName}
-              viewportStyle={virtualRows.viewportStyle}
+              viewportClassName={cn(virtualRows.viewportClassName, "overscroll-contain")}
+              viewportStyle={{ ...virtualRows.viewportStyle, maxHeight: "min(54svh, 540px)" }}
             >
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">

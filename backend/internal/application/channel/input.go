@@ -106,9 +106,11 @@ type UpdateModelDisplayGroupInput struct {
 // UpsertUpstreamModelInput 定义上游真实模型与平台路由保存入参。
 type UpsertUpstreamModelInput struct {
 	RouteID            uint
+	RouteIDs           []uint
 	PlatformModelName  string
 	UpstreamModelName  string
 	Protocol           string
+	Protocols          []string
 	KindsJSON          string
 	Status             string
 	Priority           int

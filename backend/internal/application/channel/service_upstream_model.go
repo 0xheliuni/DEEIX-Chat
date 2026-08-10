@@ -78,10 +78,21 @@ func (s *Service) UpsertUpstreamModel(ctx context.Context, upstreamID uint, inpu
 	if err != nil {
 		return nil, err
 	}
-	protocol, err := resolveRouteProtocol(input.Protocol, upstream.Compatible, upstream.ProtocolDefaultsJSON, kindsJSON)
+	replaceRouteSet := len(input.Protocols) > 0 || len(input.RouteIDs) > 0
+	protocols := make([]string, 0, len(input.Protocols)+1)
+	if replaceRouteSet {
+		protocols, err = resolveRouteProtocols(input.Protocols, upstream.Compatible, upstream.ProtocolDefaultsJSON, kindsJSON)
+	} else {
+		var protocol string
+		protocol, err = resolveRouteProtocol(input.Protocol, upstream.Compatible, upstream.ProtocolDefaultsJSON, kindsJSON)
+		if err == nil {
+			protocols = append(protocols, protocol)
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
+	protocol := protocols[0]
 
 	platformModel, platformModelCreated, err := s.ensurePlatformModel(ctx, platformModelName, kindsJSON, upstreamModelName)
 	if err != nil {
@@ -98,6 +109,40 @@ func (s *Service) UpsertUpstreamModel(ctx context.Context, upstreamID uint, inpu
 	upstreamModel, err := s.upsertUpstreamCatalogModel(ctx, upstream.ID, upstreamModelName, protocol, kindsJSON, upstreamModelVendor, upstreamModelIcon, "active", normalizeSource(input.Source), "{}")
 	if err != nil {
 		return nil, err
+	}
+	if replaceRouteSet {
+		routes := make([]domainchannel.PlatformModelRoute, 0, len(protocols))
+		for _, desiredProtocol := range protocols {
+			routes = append(routes, domainchannel.PlatformModelRoute{
+				PlatformModelID:    platformModel.ID,
+				UpstreamModelID:    upstreamModel.ID,
+				Protocol:           desiredProtocol,
+				Status:             normalizeStatus(input.Status),
+				Priority:           normalizePriority(input.Priority),
+				Weight:             normalizeWeight(input.Weight),
+				Source:             normalizeSource(input.Source),
+				CbFailureThreshold: input.CbFailureThreshold,
+				CbDurationMin:      input.CbDurationMin,
+				CbWindowMin:        input.CbWindowMin,
+				HeadersJSON:        strings.TrimSpace(input.HeadersJSON),
+			})
+		}
+		routeIDs := append([]uint{}, input.RouteIDs...)
+		if input.RouteID > 0 {
+			routeIDs = append(routeIDs, input.RouteID)
+		}
+		replaced, replaceErr := s.repo.ReplacePlatformModelRoutes(ctx, upstream.ID, repository.ReplaceChannelPlatformRoutesInput{
+			ExistingRouteIDs: routeIDs,
+			Routes:           routes,
+		})
+		if replaceErr != nil {
+			if isDuplicateKeyError(replaceErr) {
+				return nil, ErrUpstreamModelConflict
+			}
+			return nil, replaceErr
+		}
+		s.InvalidateModelCatalog()
+		return s.findUpstreamModelViewByRoute(ctx, upstream.ID, replaced[0].ID, upstreamModel.ID)
 	}
 	if err := s.validateRouteProtocolCombination(ctx, upstream.ID, platformModel.ID, upstreamModel.ID, input.RouteID, protocol); err != nil {
 		return nil, err

@@ -396,6 +396,10 @@ func (r *modelUpdateRepo) UpsertPlatformModelRoute(context.Context, *domainchann
 	return nil
 }
 
+func (r *modelUpdateRepo) ReplacePlatformModelRoutes(context.Context, uint, repository.ReplaceChannelPlatformRoutesInput) ([]domainchannel.PlatformModelRoute, error) {
+	return nil, nil
+}
+
 func (r *modelUpdateRepo) GetModelUpstreamSourceByRouteID(context.Context, string, uint) (*repository.ChannelModelSourceRow, error) {
 	if r.source.ID == 0 {
 		return nil, repository.ErrNotFound

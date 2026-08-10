@@ -228,8 +228,9 @@ export type CreateAdminLLMModelDisplayGroupRequest = CreateModelDisplayGroupRequ
 export type UpdateAdminLLMModelDisplayGroupRequest = UpdateModelDisplayGroupRequest;
 export type SetAdminLLMModelsDisplayGroupRequest = SetModelsDisplayGroupRequest;
 
-export type UpsertAdminLLMUpstreamModelRequest = Omit<UpsertUpstreamModelRequest, "protocol" | "status"> & {
+export type UpsertAdminLLMUpstreamModelRequest = Omit<UpsertUpstreamModelRequest, "protocol" | "protocols" | "status"> & {
   protocol?: AdminLLMAdapter;
+  protocols?: AdminLLMAdapter[];
   status?: AdminLLMStatus;
 };
 

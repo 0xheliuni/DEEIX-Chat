@@ -3385,7 +3385,9 @@ export interface UpsertUpstreamModelRequest {
   priority?: number;
   /** @maxLength 64 */
   protocol?: string;
+  protocols?: string[];
   routeID?: number;
+  routeIDs?: number[];
   /** @maxLength 64 */
   source?: string;
   status?: "active" | "inactive";

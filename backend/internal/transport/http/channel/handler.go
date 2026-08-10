@@ -440,9 +440,11 @@ func (h *Handler) UpsertUpstreamModel(c *gin.Context) {
 
 	item, err := h.service.UpsertUpstreamModel(c.Request.Context(), upstreamID, appchannel.UpsertUpstreamModelInput{
 		RouteID:            req.RouteID,
+		RouteIDs:           req.RouteIDs,
 		PlatformModelName:  req.PlatformModelName,
 		UpstreamModelName:  req.UpstreamModelName,
 		Protocol:           req.Protocol,
+		Protocols:          req.Protocols,
 		KindsJSON:          req.KindsJSON,
 		Status:             req.Status,
 		Priority:           req.Priority,

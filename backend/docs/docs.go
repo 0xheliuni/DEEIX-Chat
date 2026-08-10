@@ -22857,8 +22857,20 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 64
                 },
+                "protocols": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "routeID": {
                     "type": "integer"
+                },
+                "routeIDs": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 },
                 "source": {
                     "type": "string",

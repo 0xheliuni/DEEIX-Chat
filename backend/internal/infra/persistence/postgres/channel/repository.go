@@ -192,8 +192,8 @@ func (r *Repo) GetUpstreamListRowByID(ctx context.Context, upstreamID uint) (*Up
 func upstreamListStatsJoinSQL() string {
 	return `LEFT JOIN (
 		SELECT um.upstream_id,
-			COUNT(DISTINCT r.id) AS models_count,
-			COUNT(DISTINCT CASE WHEN u.status = 'active' AND r.status = 'active' AND um.status = 'active' AND pm.status = 'active' THEN r.id END) AS active_models_count
+			COUNT(DISTINCT CASE WHEN r.id IS NOT NULL THEN um.id END) AS models_count,
+			COUNT(DISTINCT CASE WHEN u.status = 'active' AND r.status = 'active' AND um.status = 'active' AND pm.status = 'active' THEN um.id END) AS active_models_count
 		FROM llm_upstream_models um
 		LEFT JOIN llm_upstreams u ON u.id = um.upstream_id
 		LEFT JOIN llm_model_routes r ON r.upstream_model_id = um.id
@@ -849,20 +849,46 @@ func (r *Repo) MarkMissingSyncedUpstreamModelsInactive(ctx context.Context, upst
 // 上游模型列表与查询
 // ---------------------------------------------------------------------------
 
-// ListUpstreamModels 查询上游真实模型及其路由绑定。结果为扁平行：每条路由一行，无路由的上游模型单独一行。
-func (r *Repo) ListUpstreamModels(ctx context.Context, upstreamID uint, input repository.ListChannelUpstreamModelsInput) ([]UpstreamModelListRow, int64, error) {
-	items := make([]UpstreamModelListRow, 0)
-	var total int64
+type upstreamModelBindingPageKey struct {
+	UpstreamModelID uint `gorm:"column:upstream_model_id"`
+	PlatformModelID uint `gorm:"column:platform_model_id"`
+}
 
-	countQuery := r.db.WithContext(ctx).
+// ListUpstreamModels 查询上游真实模型及其路由绑定。分页单位是平台模型与上游真实模型组成的绑定；
+// 返回结果仍为扁平行：每条路由一行，无路由的上游模型单独一行。
+func (r *Repo) ListUpstreamModels(ctx context.Context, upstreamID uint, input repository.ListChannelUpstreamModelsInput) ([]UpstreamModelListRow, int64, error) {
+	baseQuery := r.db.WithContext(ctx).
 		Table("llm_upstream_models AS um").
 		Joins("LEFT JOIN llm_model_routes r ON r.upstream_model_id = um.id").
 		Joins("LEFT JOIN llm_platform_models pm ON pm.id = r.platform_model_id").
 		Where("um.upstream_id = ?", upstreamID)
-	countQuery = applyUpstreamModelListFilters(countQuery, input)
-	if err := countQuery.Count(&total).Error; err != nil {
+	baseQuery = applyUpstreamModelListFilters(baseQuery, input)
+
+	groupedQuery := baseQuery.
+		Select("um.id AS upstream_model_id, COALESCE(r.platform_model_id, 0) AS platform_model_id").
+		Group("um.id, r.platform_model_id, pm.name")
+	var total int64
+	if err := r.db.WithContext(ctx).
+		Table("(?) AS binding_groups", groupedQuery).
+		Count(&total).Error; err != nil {
 		return nil, 0, translateError(err)
 	}
+
+	pageKeys := make([]upstreamModelBindingPageKey, 0)
+	if input.Limit > 0 {
+		if err := groupedQuery.
+			Order(upstreamModelBindingListOrder(input.Sort)).
+			Offset(input.Offset).
+			Limit(input.Limit).
+			Scan(&pageKeys).Error; err != nil {
+			return nil, 0, translateError(err)
+		}
+	}
+	if len(pageKeys) == 0 {
+		return []UpstreamModelListRow{}, total, nil
+	}
+
+	items := make([]UpstreamModelListRow, 0)
 	listQuery := r.db.WithContext(ctx).
 		Table("llm_upstream_models AS um").
 		Select(
@@ -873,15 +899,53 @@ func (r *Repo) ListUpstreamModels(ctx context.Context, upstreamID uint, input re
 		Joins("LEFT JOIN llm_model_routes r ON r.upstream_model_id = um.id").
 		Joins("LEFT JOIN llm_platform_models pm ON pm.id = r.platform_model_id").
 		Where("um.upstream_id = ?", upstreamID)
-	listQuery = applyUpstreamModelListFilters(listQuery, input)
+	conditions := make([]string, 0, len(pageKeys))
+	args := make([]interface{}, 0, len(pageKeys)*2)
+	for _, key := range pageKeys {
+		conditions = append(conditions, "(um.id = ? AND COALESCE(r.platform_model_id, 0) = ?)")
+		args = append(args, key.UpstreamModelID, key.PlatformModelID)
+	}
+	listQuery = listQuery.Where(strings.Join(conditions, " OR "), args...)
 	if err := listQuery.
-		Order(upstreamModelListOrder(input.Sort)).
-		Offset(input.Offset).
-		Limit(input.Limit).
+		Order("um.id ASC, r.id ASC NULLS LAST").
 		Scan(&items).Error; err != nil {
 		return nil, 0, translateError(err)
 	}
-	return items, total, nil
+
+	itemsByKey := make(map[string][]UpstreamModelListRow, len(pageKeys))
+	for _, item := range items {
+		key := upstreamModelBindingKey(item.UpstreamModel.ID, item.PlatformModelID)
+		itemsByKey[key] = append(itemsByKey[key], item)
+	}
+	orderedItems := make([]UpstreamModelListRow, 0, len(items))
+	for _, pageKey := range pageKeys {
+		key := upstreamModelBindingKey(pageKey.UpstreamModelID, pageKey.PlatformModelID)
+		orderedItems = append(orderedItems, itemsByKey[key]...)
+	}
+	return orderedItems, total, nil
+}
+
+func upstreamModelBindingKey(upstreamModelID uint, platformModelID uint) string {
+	return strconv.FormatUint(uint64(upstreamModelID), 10) + ":" + strconv.FormatUint(uint64(platformModelID), 10)
+}
+
+func upstreamModelBindingListOrder(sortValue string) string {
+	switch strings.TrimSpace(sortValue) {
+	case "upstream_desc":
+		return "um.upstream_model_name DESC, um.id ASC, COALESCE(r.platform_model_id, 0) ASC"
+	case "platform_asc":
+		return "pm.name ASC NULLS LAST, um.upstream_model_name ASC, um.id ASC, COALESCE(r.platform_model_id, 0) ASC"
+	case "platform_desc":
+		return "pm.name DESC NULLS LAST, um.upstream_model_name ASC, um.id ASC, COALESCE(r.platform_model_id, 0) ASC"
+	case "status_asc":
+		return "CASE WHEN COUNT(r.id) = 0 THEN 2 WHEN MAX(CASE WHEN r.status = 'active' THEN 1 ELSE 0 END) = 1 THEN 0 ELSE 1 END ASC, um.upstream_model_name ASC, um.id ASC, COALESCE(r.platform_model_id, 0) ASC"
+	case "protocol_asc":
+		return "MIN(r.protocol) ASC NULLS LAST, um.upstream_model_name ASC, um.id ASC, COALESCE(r.platform_model_id, 0) ASC"
+	case "upstream_asc":
+		fallthrough
+	default:
+		return "um.upstream_model_name ASC, um.id ASC, COALESCE(r.platform_model_id, 0) ASC"
+	}
 }
 
 // ListUpstreamModelsByNames 按远端模型名集合查询已有上游模型和绑定快照。
@@ -999,25 +1063,6 @@ func applyUpstreamModelListFilters(query *gorm.DB, input repository.ListChannelU
 	return query
 }
 
-func upstreamModelListOrder(sort string) string {
-	switch strings.TrimSpace(sort) {
-	case "upstream_desc":
-		return "um.upstream_model_name DESC, r.id ASC NULLS LAST"
-	case "platform_asc":
-		return "pm.name ASC NULLS LAST, um.upstream_model_name ASC, r.id ASC NULLS LAST"
-	case "platform_desc":
-		return "pm.name DESC NULLS LAST, um.upstream_model_name ASC, r.id ASC NULLS LAST"
-	case "status_asc":
-		return "CASE WHEN r.id IS NULL THEN 2 WHEN r.status = 'active' THEN 0 ELSE 1 END ASC, um.upstream_model_name ASC, r.id ASC NULLS LAST"
-	case "protocol_asc":
-		return "r.protocol ASC NULLS LAST, um.upstream_model_name ASC, r.id ASC NULLS LAST"
-	case "upstream_asc":
-		fallthrough
-	default:
-		return "um.upstream_model_name ASC, r.id ASC NULLS LAST"
-	}
-}
-
 // UpsertPlatformModelRoute 新增或更新平台模型到上游真实模型的路由绑定。
 func (r *Repo) UpsertPlatformModelRoute(ctx context.Context, item *domainchannel.PlatformModelRoute) error {
 	if item == nil || item.PlatformModelID == 0 || item.UpstreamModelID == 0 {
@@ -1063,6 +1108,201 @@ func (r *Repo) UpsertPlatformModelRoute(ctx context.Context, item *domainchannel
 	}
 	*item = toPlatformModelRouteDomain(entity)
 	return nil
+}
+
+// ReplacePlatformModelRoutes 原子替换一个平台模型与上游真实模型绑定下的完整协议集合。
+func (r *Repo) ReplacePlatformModelRoutes(
+	ctx context.Context,
+	upstreamID uint,
+	input repository.ReplaceChannelPlatformRoutesInput,
+) ([]domainchannel.PlatformModelRoute, error) {
+	if upstreamID == 0 || len(input.Routes) == 0 {
+		return nil, repository.ErrInvalidInput
+	}
+	targetPlatformModelID := input.Routes[0].PlatformModelID
+	targetUpstreamModelID := input.Routes[0].UpstreamModelID
+	if targetPlatformModelID == 0 || targetUpstreamModelID == 0 {
+		return nil, repository.ErrInvalidInput
+	}
+	seenProtocols := make(map[string]struct{}, len(input.Routes))
+	for _, route := range input.Routes {
+		if route.PlatformModelID != targetPlatformModelID || route.UpstreamModelID != targetUpstreamModelID || strings.TrimSpace(route.Protocol) == "" {
+			return nil, repository.ErrInvalidInput
+		}
+		if _, exists := seenProtocols[route.Protocol]; exists {
+			return nil, repository.ErrInvalidInput
+		}
+		seenProtocols[route.Protocol] = struct{}{}
+	}
+	existingRouteIDs, ok := normalizePlatformRouteIDs(input.ExistingRouteIDs)
+	if !ok {
+		return nil, repository.ErrInvalidInput
+	}
+
+	replaced := make([]domainchannel.PlatformModelRoute, 0, len(input.Routes))
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var targetModelCount int64
+		if err := tx.Model(&model.LLMUpstreamModel{}).
+			Where("id = ? AND upstream_id = ?", targetUpstreamModelID, upstreamID).
+			Count(&targetModelCount).Error; err != nil {
+			return err
+		}
+		if targetModelCount == 0 {
+			return ErrUpstreamModelNotFound
+		}
+
+		candidateRows := make(map[uint]model.LLMPlatformModelRoute)
+		if len(existingRouteIDs) > 0 {
+			var selectedRows []model.LLMPlatformModelRoute
+			if err := tx.Table("llm_model_routes AS r").
+				Select("r.*").
+				Joins("JOIN llm_upstream_models um ON um.id = r.upstream_model_id").
+				Where("um.upstream_id = ? AND r.id IN ?", upstreamID, existingRouteIDs).
+				Scan(&selectedRows).Error; err != nil {
+				return err
+			}
+			if len(selectedRows) != len(existingRouteIDs) {
+				return ErrUpstreamModelNotFound
+			}
+			sourcePlatformModelID := selectedRows[0].PlatformModelID
+			sourceUpstreamModelID := selectedRows[0].UpstreamModelID
+			for _, row := range selectedRows {
+				if row.PlatformModelID != sourcePlatformModelID || row.UpstreamModelID != sourceUpstreamModelID {
+					return repository.ErrInvalidInput
+				}
+			}
+			var sourceRows []model.LLMPlatformModelRoute
+			if err := tx.Where("platform_model_id = ? AND upstream_model_id = ?", sourcePlatformModelID, sourceUpstreamModelID).
+				Order("id ASC").
+				Find(&sourceRows).Error; err != nil {
+				return err
+			}
+			if len(sourceRows) != len(existingRouteIDs) {
+				return repository.ErrInvalidInput
+			}
+			for _, row := range sourceRows {
+				candidateRows[row.ID] = row
+			}
+		}
+
+		var targetRows []model.LLMPlatformModelRoute
+		if err := tx.Where("platform_model_id = ? AND upstream_model_id = ?", targetPlatformModelID, targetUpstreamModelID).
+			Order("id ASC").
+			Find(&targetRows).Error; err != nil {
+			return err
+		}
+		for _, row := range targetRows {
+			candidateRows[row.ID] = row
+		}
+
+		candidates := make([]model.LLMPlatformModelRoute, 0, len(candidateRows))
+		for _, row := range candidateRows {
+			candidates = append(candidates, row)
+		}
+		sort.Slice(candidates, func(i int, j int) bool { return candidates[i].ID < candidates[j].ID })
+		usedIDs := make(map[uint]struct{}, len(input.Routes))
+
+		for _, desired := range input.Routes {
+			candidateIndex := selectPlatformRouteCandidate(candidates, usedIDs, targetPlatformModelID, targetUpstreamModelID, desired.Protocol)
+			if candidateIndex >= 0 {
+				candidate := candidates[candidateIndex]
+				if err := tx.Model(&model.LLMPlatformModelRoute{}).
+					Where("id = ?", candidate.ID).
+					Updates(platformRouteReplacementValues(desired)).Error; err != nil {
+					return err
+				}
+				desired.ID = candidate.ID
+				usedIDs[candidate.ID] = struct{}{}
+			} else {
+				entity := toPlatformModelRouteModel(&desired)
+				if err := tx.Create(&entity).Error; err != nil {
+					return err
+				}
+				desired = toPlatformModelRouteDomain(entity)
+			}
+			replaced = append(replaced, desired)
+		}
+
+		staleIDs := make([]uint, 0, len(candidates))
+		for _, candidate := range candidates {
+			if _, used := usedIDs[candidate.ID]; !used {
+				staleIDs = append(staleIDs, candidate.ID)
+			}
+		}
+		if len(staleIDs) > 0 {
+			if err := tx.Unscoped().Where("id IN ?", staleIDs).Delete(&model.LLMPlatformModelRoute{}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, translateError(err)
+	}
+	return replaced, nil
+}
+
+func normalizePlatformRouteIDs(routeIDs []uint) ([]uint, bool) {
+	seen := make(map[uint]struct{}, len(routeIDs))
+	result := make([]uint, 0, len(routeIDs))
+	for _, routeID := range routeIDs {
+		if routeID == 0 {
+			return nil, false
+		}
+		if _, exists := seen[routeID]; exists {
+			continue
+		}
+		seen[routeID] = struct{}{}
+		result = append(result, routeID)
+	}
+	return result, true
+}
+
+func selectPlatformRouteCandidate(
+	candidates []model.LLMPlatformModelRoute,
+	usedIDs map[uint]struct{},
+	targetPlatformModelID uint,
+	targetUpstreamModelID uint,
+	protocol string,
+) int {
+	for index, candidate := range candidates {
+		if _, used := usedIDs[candidate.ID]; used {
+			continue
+		}
+		if candidate.PlatformModelID == targetPlatformModelID && candidate.UpstreamModelID == targetUpstreamModelID && candidate.Protocol == protocol {
+			return index
+		}
+	}
+	for index, candidate := range candidates {
+		if _, used := usedIDs[candidate.ID]; used {
+			continue
+		}
+		if candidate.Protocol == protocol {
+			return index
+		}
+	}
+	for index, candidate := range candidates {
+		if _, used := usedIDs[candidate.ID]; !used {
+			return index
+		}
+	}
+	return -1
+}
+
+func platformRouteReplacementValues(route domainchannel.PlatformModelRoute) map[string]interface{} {
+	return map[string]interface{}{
+		"platform_model_id":    route.PlatformModelID,
+		"upstream_model_id":    route.UpstreamModelID,
+		"protocol":             route.Protocol,
+		"status":               route.Status,
+		"priority":             route.Priority,
+		"weight":               route.Weight,
+		"source":               route.Source,
+		"cb_failure_threshold": route.CbFailureThreshold,
+		"cb_duration_min":      route.CbDurationMin,
+		"cb_window_min":        route.CbWindowMin,
+		"headers_json":         route.HeadersJSON,
+	}
 }
 
 // ListPlatformModelRoutesByPair 查询同一平台模型和同一上游真实模型之间的全部协议绑定。

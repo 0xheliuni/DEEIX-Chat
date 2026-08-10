@@ -309,6 +309,12 @@ type UpdateChannelPlatformRouteInput struct {
 	HeadersJSON        *string
 }
 
+// ReplaceChannelPlatformRoutesInput 定义一个绑定的完整目标路由集合。
+type ReplaceChannelPlatformRoutesInput struct {
+	ExistingRouteIDs []uint
+	Routes           []domainchannel.PlatformModelRoute
+}
+
 // IsZero 判断是否没有任何上游配置更新字段。
 func (input UpdateChannelUpstreamInput) IsZero() bool {
 	return input.Name == nil &&
@@ -411,6 +417,7 @@ type ChannelRepository interface {
 	GetUpstreamModelRouteByID(ctx context.Context, upstreamID uint, routeID uint) (*ChannelUpstreamModelListRow, error)
 	GetUpstreamModelRouteByNames(ctx context.Context, upstreamID uint, platformModelName string, upstreamModelName string, protocol string) (*ChannelUpstreamModelListRow, error)
 	UpsertPlatformModelRoute(ctx context.Context, item *domainchannel.PlatformModelRoute) error
+	ReplacePlatformModelRoutes(ctx context.Context, upstreamID uint, input ReplaceChannelPlatformRoutesInput) ([]domainchannel.PlatformModelRoute, error)
 	GetModelUpstreamSourceByRouteID(ctx context.Context, platformModelName string, routeID uint) (*ChannelModelSourceRow, error)
 	ListPlatformModelRoutesByPair(ctx context.Context, upstreamID uint, platformModelID uint, upstreamModelID uint) ([]domainchannel.PlatformModelRoute, error)
 	GetPlatformModelRouteByID(ctx context.Context, routeID uint, upstreamID uint) (*domainchannel.PlatformModelRoute, error)
