@@ -13,6 +13,7 @@ import (
 	domaincm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/contentmoderation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/secretbox"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -78,6 +79,7 @@ type Service struct {
 	repo              repository.ContentModerationRepository
 	dataEncryptionKey string
 	logger            *zap.Logger
+	outboundPolicy    security.OutboundPolicy
 	objectStore       ObjectStore
 	fileAccess        FileAccessController
 	imageLoader       ImageLoader
@@ -115,12 +117,14 @@ func NewService(
 	repo repository.ContentModerationRepository,
 	dataEncryptionKey string,
 	logger *zap.Logger,
+	outboundPolicy security.OutboundPolicy,
 ) *Service {
 	s := &Service{
 		settingsRepo:      settingsRepo,
 		repo:              repo,
 		dataEncryptionKey: dataEncryptionKey,
 		logger:            logger,
+		outboundPolicy:    outboundPolicy,
 		coordinators:      make(map[string]*RunCoordinator),
 		pendingBlocks:     make(map[string]pendingBlock),
 		stopCh:            make(chan struct{}),
@@ -348,10 +352,11 @@ func (s *Service) RecoverRunIfStale(ctx context.Context, runID string) {
 
 func (s *Service) newClient(cfg runtimeConfig) *Client {
 	return NewClient(ClientConfig{
-		BaseURL:      cfg.BaseURL,
-		APIKey:       cfg.APIKey,
-		Model:        cfg.Model,
-		TotalTimeout: cfg.Timeout,
+		BaseURL:        cfg.BaseURL,
+		APIKey:         cfg.APIKey,
+		Model:          cfg.Model,
+		TotalTimeout:   cfg.Timeout,
+		OutboundPolicy: s.outboundPolicy,
 	})
 }
 

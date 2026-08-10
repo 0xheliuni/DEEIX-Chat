@@ -9,16 +9,16 @@ import (
 
 // ProbeResult is the super-admin probe response for one modality.
 type ProbeResult struct {
-	Valid   bool   `json:"valid"`
-	Model   string `json:"model,omitempty"`
-	Latency int64  `json:"latencyMS"`
-	Error   string `json:"error,omitempty"`
+	Valid   bool
+	Model   string
+	Latency int64
+	Error   string
 }
 
 // ProbeResponse covers text and image probes.
 type ProbeResponse struct {
-	Text  ProbeResult `json:"text"`
-	Image ProbeResult `json:"image"`
+	Text  ProbeResult
+	Image ProbeResult
 }
 
 // 1x1 transparent PNG.

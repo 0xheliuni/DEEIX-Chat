@@ -9,6 +9,7 @@ import (
 
 	domaincm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/contentmoderation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
 type coordinatorTestRepo struct {
@@ -108,7 +109,7 @@ func (r *coordinatorTestRepo) ListStaleModeratingRuns(context.Context, time.Time
 
 func TestKnownHitRemainsBlockedWhenDurableApplyFails(t *testing.T) {
 	repo := &coordinatorTestRepo{applyErr: errors.New("database unavailable")}
-	service := NewService(nil, repo, "", nil)
+	service := NewService(nil, repo, "", nil, security.OutboundPolicy{})
 	coord := newRunCoordinator(service, RunMeta{RunID: "run_known_hit"}, runtimeConfig{Timeout: time.Second})
 	coord.blocked = true
 	coord.blockInfo = BlockInfo{EventID: "cme_hit", Direction: domaincm.DirectionOutput, Categories: []string{"violence"}}
@@ -139,7 +140,7 @@ func TestKnownHitRemainsBlockedWhenDurableApplyFails(t *testing.T) {
 
 func TestLateHitRunsFullBlockCompensation(t *testing.T) {
 	repo := &coordinatorTestRepo{}
-	service := NewService(nil, repo, "", nil)
+	service := NewService(nil, repo, "", nil, security.OutboundPolicy{})
 	coord := newRunCoordinator(service, RunMeta{RunID: "run_late_hit"}, runtimeConfig{})
 	coord.pending = 1
 	coord.outputEnqueued = true
@@ -169,7 +170,7 @@ func TestLateHitRunsFullBlockCompensation(t *testing.T) {
 
 func TestWorkerPrefetchDoesNotBypassQueueCapacity(t *testing.T) {
 	repo := &coordinatorTestRepo{}
-	service := NewService(nil, repo, "", nil)
+	service := NewService(nil, repo, "", nil, security.OutboundPolicy{})
 	service.maxConcurrency = 1
 	service.queueCapacity = 1
 	service.activeWorkers = 1 // keep the worker waiting for a logical slot
@@ -201,7 +202,7 @@ func TestWorkerPrefetchDoesNotBypassQueueCapacity(t *testing.T) {
 
 func TestOutputImageLoadFailureIsAuditedAsFailedOpen(t *testing.T) {
 	repo := &coordinatorTestRepo{}
-	service := NewService(nil, repo, "", nil)
+	service := NewService(nil, repo, "", nil, security.OutboundPolicy{})
 	cfg := runtimeConfig{
 		Policy: Policy{OutputImageCategories: []string{"violence"}},
 	}

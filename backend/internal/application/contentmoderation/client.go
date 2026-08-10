@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
 const (
@@ -30,38 +32,65 @@ type ClientConfig struct {
 	APIKey  string
 	Model   string
 	// TotalTimeout bounds queue wait + request + retry for a check surface.
-	TotalTimeout time.Duration
-	HTTPClient   *http.Client
+	TotalTimeout   time.Duration
+	HTTPClient     *http.Client
+	OutboundPolicy security.OutboundPolicy
 }
 
-// TextInput is a single moderation input item (text or image data URL).
-type TextInput struct {
-	Type     string `json:"type"`
-	Text     string `json:"text,omitempty"`
-	ImageURL *struct {
-		URL string `json:"url"`
-	} `json:"image_url,omitempty"`
+type moderationInput struct {
+	Type     string              `json:"type"`
+	Text     string              `json:"text,omitempty"`
+	ImageURL *moderationImageURL `json:"image_url,omitempty"`
 }
 
-// Request is the OpenAI moderations request body.
-type Request struct {
+type moderationImageURL struct {
+	URL string `json:"url"`
+}
+
+type moderationRequest struct {
 	Model string      `json:"model"`
 	Input interface{} `json:"input"`
 }
 
 // CategoryResult is a single result item from the API.
 type CategoryResult struct {
+	Flagged                   bool
+	Categories                map[string]bool
+	CategoryScores            map[string]float64
+	CategoryAppliedInputTypes map[string][]string
+}
+
+// Response is the OpenAI moderations response body.
+type Response struct {
+	ID      string
+	Model   string
+	Results []CategoryResult
+}
+
+type moderationCategoryResult struct {
 	Flagged                   bool                `json:"flagged"`
 	Categories                map[string]bool     `json:"categories"`
 	CategoryScores            map[string]float64  `json:"category_scores"`
 	CategoryAppliedInputTypes map[string][]string `json:"category_applied_input_types"`
 }
 
-// Response is the OpenAI moderations response body.
-type Response struct {
-	ID      string           `json:"id"`
-	Model   string           `json:"model"`
-	Results []CategoryResult `json:"results"`
+type moderationResponse struct {
+	ID      string                     `json:"id"`
+	Model   string                     `json:"model"`
+	Results []moderationCategoryResult `json:"results"`
+}
+
+func (document moderationResponse) toResponse() *Response {
+	results := make([]CategoryResult, 0, len(document.Results))
+	for _, result := range document.Results {
+		results = append(results, CategoryResult{
+			Flagged:                   result.Flagged,
+			Categories:                result.Categories,
+			CategoryScores:            result.CategoryScores,
+			CategoryAppliedInputTypes: result.CategoryAppliedInputTypes,
+		})
+	}
+	return &Response{ID: document.ID, Model: document.Model, Results: results}
 }
 
 // Client calls an OpenAI-compatible POST /v1/moderations endpoint.
@@ -72,7 +101,13 @@ type Client struct {
 // NewClient creates a moderation API client.
 func NewClient(cfg ClientConfig) *Client {
 	if cfg.HTTPClient == nil {
-		cfg.HTTPClient = &http.Client{Timeout: defaultHTTPTimeout}
+		policy := cfg.OutboundPolicy
+		if endpoint, err := NormalizeBaseURL(cfg.BaseURL); err == nil {
+			if trustedPolicy, trustErr := policy.WithTrustedHTTPURLs(endpoint); trustErr == nil {
+				policy = trustedPolicy
+			}
+		}
+		cfg.HTTPClient = security.NewOutboundHTTPClient(policy, defaultHTTPTimeout)
 	}
 	if cfg.TotalTimeout <= 0 {
 		cfg.TotalTimeout = 10 * time.Second
@@ -287,7 +322,7 @@ func (c *Client) moderate(ctx context.Context, input interface{}) (*Response, er
 	if err != nil {
 		return nil, err
 	}
-	body, err := json.Marshal(Request{
+	body, err := json.Marshal(moderationRequest{
 		Model: strings.TrimSpace(c.cfg.Model),
 		Input: input,
 	})
@@ -348,7 +383,7 @@ func (c *Client) moderate(ctx context.Context, input interface{}) (*Response, er
 			return nil, mapHTTPStatus(resp.StatusCode, payload)
 		}
 
-		var parsed Response
+		var parsed moderationResponse
 		if err := json.Unmarshal(payload, &parsed); err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrModerationInvalidResp, err)
 		}
@@ -360,7 +395,7 @@ func (c *Client) moderate(ctx context.Context, input interface{}) (*Response, er
 				return nil, fmt.Errorf("%w: missing categories", ErrModerationInvalidResp)
 			}
 		}
-		return &parsed, nil
+		return parsed.toResponse(), nil
 	}
 	if lastErr != nil {
 		return nil, lastErr
@@ -368,22 +403,20 @@ func (c *Client) moderate(ctx context.Context, input interface{}) (*Response, er
 	return nil, ErrModerationService
 }
 
-func buildTextInput(text string) []TextInput {
-	return []TextInput{{Type: "text", Text: text}}
+func buildTextInput(text string) []moderationInput {
+	return []moderationInput{{Type: "text", Text: text}}
 }
 
-func buildImageInputs(dataURLs []string) []TextInput {
-	items := make([]TextInput, 0, len(dataURLs))
+func buildImageInputs(dataURLs []string) []moderationInput {
+	items := make([]moderationInput, 0, len(dataURLs))
 	for _, raw := range dataURLs {
 		urlValue := strings.TrimSpace(raw)
 		if urlValue == "" {
 			continue
 		}
-		items = append(items, TextInput{
-			Type: "image_url",
-			ImageURL: &struct {
-				URL string `json:"url"`
-			}{URL: urlValue},
+		items = append(items, moderationInput{
+			Type:     "image_url",
+			ImageURL: &moderationImageURL{URL: urlValue},
 		})
 	}
 	return items

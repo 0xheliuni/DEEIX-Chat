@@ -131,7 +131,7 @@ func (h *Handler) GetConfig(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{
-		"config":     cfg,
+		"config":     toServiceConfigDTO(cfg),
 		"categories": appcm.CategoryCatalog(),
 	})
 }
@@ -144,17 +144,17 @@ func (h *Handler) GetConfig(c *gin.Context) {
 // @Security BearerAuth
 // @Router /admin/content-moderation/config [put]
 func (h *Handler) UpdateConfig(c *gin.Context) {
-	var req appcm.UpdateConfigInput
+	var req updateConfigRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	cfg, err := h.service.UpdateConfig(c.Request.Context(), middleware.MustUserRole(c), req)
+	cfg, err := h.service.UpdateConfig(c.Request.Context(), middleware.MustUserRole(c), req.toApplication())
 	if err != nil {
 		writeError(c, err)
 		return
 	}
-	response.Success(c, gin.H{"config": cfg})
+	response.Success(c, gin.H{"config": toServiceConfigDTO(cfg)})
 }
 
 // Probe godoc
@@ -169,7 +169,7 @@ func (h *Handler) Probe(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
-	response.Success(c, result)
+	response.Success(c, toProbeResponseDTO(result))
 }
 
 // GetStats godoc
@@ -202,6 +202,24 @@ func (h *Handler) GetStats(c *gin.Context) {
 	response.Success(c, gin.H{"items": out})
 }
 
+// parseOptionalUserID parses the optional userId query parameter.
+// Empty means no filter (UserID 0). Invalid values yield 400 and ok=false.
+func parseOptionalUserID(c *gin.Context) (uint, bool) {
+	raw := strings.TrimSpace(c.Query("userId"))
+	if raw == "" {
+		return 0, true
+	}
+
+	// Limit bit size to the platform's uint width to avoid truncation on 32-bit.
+	parsed, err := strconv.ParseUint(raw, 10, strconv.IntSize)
+	if err != nil || parsed == 0 {
+		response.Error(c, http.StatusBadRequest, "invalid userId")
+		return 0, false
+	}
+
+	return uint(parsed), true
+}
+
 // ListEvents godoc
 // @Summary List content moderation events
 // @Tags admin-content-moderation
@@ -211,13 +229,16 @@ func (h *Handler) GetStats(c *gin.Context) {
 func (h *Handler) ListEvents(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
-	userID, _ := strconv.ParseUint(c.Query("userId"), 10, 64)
+	userID, ok := parseOptionalUserID(c)
+	if !ok {
+		return
+	}
 	input := appcm.EventListInput{
 		Direction: c.Query("direction"),
 		Modality:  c.Query("modality"),
 		Result:    c.Query("result"),
 		Category:  c.Query("category"),
-		UserID:    uint(userID),
+		UserID:    userID,
 		RunID:     c.Query("runId"),
 		Page:      page,
 		PageSize:  pageSize,
@@ -255,13 +276,12 @@ func (h *Handler) GetEvent(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
+	label := appadmin.UserLabel{}
 	if detail != nil {
-		label := h.resolveUserLabels(c.Request.Context(), []uint{detail.Event.UserID})[detail.Event.UserID]
-		detail.UserLabel = label.Label
-		detail.Username = label.Username
+		label = h.resolveUserLabels(c.Request.Context(), []uint{detail.Event.UserID})[detail.Event.UserID]
 	}
 	c.Header("Cache-Control", "no-store")
-	response.Success(c, detail)
+	response.Success(c, toEventDetailDTO(detail, label.Label, label.Username))
 }
 
 // GetEventImage godoc

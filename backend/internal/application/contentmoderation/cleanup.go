@@ -106,8 +106,8 @@ func (s *Service) deleteIsolatedImages(ctx context.Context, event domaincm.Event
 	if event.ImageMetaJSON == "" || event.ImageMetaJSON == "[]" {
 		return true
 	}
-	var images []domaincm.IsolatedImageMeta
-	if err := json.Unmarshal([]byte(event.ImageMetaJSON), &images); err != nil {
+	images := unmarshalIsolatedImageMetadata(event.ImageMetaJSON)
+	if images == nil {
 		return false
 	}
 	if len(images) == 0 {

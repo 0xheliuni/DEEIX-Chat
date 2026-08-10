@@ -20,6 +20,11 @@ type FileLookupRepository interface {
 	RenameFileObjectByID(ctx context.Context, userID uint, fileID string, fileName string) (*domainconversation.FileObject, error)
 	UpdateFileObjectRagOptOut(ctx context.Context, userID uint, fileID string, ragOptOut bool) (*domainconversation.FileObject, error)
 	TouchFileObjectLastAccessedAt(ctx context.Context, userID uint, fileID string, accessedAt time.Time) error
+}
+
+// ModerationFileRepository 封装内容审核清理所需的文件操作能力。
+// 与 FileLookupRepository 隔离，避免上传模块及其测试 mock 依赖审核专用方法。
+type ModerationFileRepository interface {
 	// RevokeGeneratedFileForModeration marks a generated file inaccessible and unlinks user ownership.
 	RevokeGeneratedFileForModeration(ctx context.Context, fileID string) error
 	// DeleteGeneratedFileArtifactsForModeration marks attachments deleted (keeps storage_path for retry).

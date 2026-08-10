@@ -87,9 +87,9 @@ func TestClientModerateText(t *testing.T) {
 		if r.URL.Path != "/v1/moderations" {
 			t.Fatalf("path=%s", r.URL.Path)
 		}
-		_ = json.NewEncoder(w).Encode(Response{
+		_ = json.NewEncoder(w).Encode(moderationResponse{
 			Model: "omni-moderation-latest",
-			Results: []CategoryResult{{
+			Results: []moderationCategoryResult{{
 				Categories:                map[string]bool{"hate": false},
 				CategoryScores:            map[string]float64{"hate": 0.01},
 				CategoryAppliedInputTypes: map[string][]string{"hate": {"text"}},
@@ -140,9 +140,9 @@ func TestModerateTextDoesNotSkipOnUnselectedHit(t *testing.T) {
 		if calls >= 2 {
 			categories = map[string]bool{"hate": false, "violence": true}
 		}
-		_ = json.NewEncoder(w).Encode(Response{
+		_ = json.NewEncoder(w).Encode(moderationResponse{
 			Model: "omni-moderation-latest",
-			Results: []CategoryResult{{
+			Results: []moderationCategoryResult{{
 				Categories:                categories,
 				CategoryScores:            map[string]float64{"hate": 0.9, "violence": 0.9},
 				CategoryAppliedInputTypes: map[string][]string{"hate": {"text"}, "violence": {"text"}},

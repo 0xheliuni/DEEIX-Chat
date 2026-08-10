@@ -7,11 +7,39 @@ import (
 
 // Policy holds the four category arrays (empty array = skip that surface).
 type Policy struct {
+	InputTextCategories   []string
+	OutputTextCategories  []string
+	InputImageCategories  []string
+	OutputImageCategories []string
+	Version               int64
+}
+
+type policyJSON struct {
 	InputTextCategories   []string `json:"inputTextCategories"`
 	OutputTextCategories  []string `json:"outputTextCategories"`
 	InputImageCategories  []string `json:"inputImageCategories"`
 	OutputImageCategories []string `json:"outputImageCategories"`
 	Version               int64    `json:"version"`
+}
+
+func newPolicyJSON(policy Policy) policyJSON {
+	return policyJSON{
+		InputTextCategories:   policy.InputTextCategories,
+		OutputTextCategories:  policy.OutputTextCategories,
+		InputImageCategories:  policy.InputImageCategories,
+		OutputImageCategories: policy.OutputImageCategories,
+		Version:               policy.Version,
+	}
+}
+
+func (document policyJSON) toPolicy() Policy {
+	return Policy{
+		InputTextCategories:   document.InputTextCategories,
+		OutputTextCategories:  document.OutputTextCategories,
+		InputImageCategories:  document.InputImageCategories,
+		OutputImageCategories: document.OutputImageCategories,
+		Version:               document.Version,
+	}
 }
 
 // Enabled reports whether any surface has categories selected.

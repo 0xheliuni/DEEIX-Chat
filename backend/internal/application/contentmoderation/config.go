@@ -32,28 +32,28 @@ const (
 
 // ServiceConfig is the saved moderation service configuration.
 type ServiceConfig struct {
-	BaseURL        string `json:"baseUrl"`
-	APIKey         string `json:"apiKey,omitempty"`
-	APIKeyMasked   string `json:"apiKeyMasked,omitempty"`
-	HasAPIKey      bool   `json:"hasAPIKey"`
-	Model          string `json:"model"`
-	TimeoutSeconds int    `json:"timeoutSeconds"`
-	MaxConcurrency int    `json:"maxConcurrency"`
-	QueueCapacity  int    `json:"queueCapacity"`
-	Policy         Policy `json:"policy"`
-	PolicyVersion  int64  `json:"policyVersion"`
+	BaseURL        string
+	APIKey         string
+	APIKeyMasked   string
+	HasAPIKey      bool
+	Model          string
+	TimeoutSeconds int
+	MaxConcurrency int
+	QueueCapacity  int
+	Policy         Policy
+	PolicyVersion  int64
 }
 
 // UpdateConfigInput is the super-admin PUT body.
 type UpdateConfigInput struct {
-	BaseURL        *string `json:"baseUrl"`
-	APIKey         *string `json:"apiKey"`
-	ClearAPIKey    bool    `json:"clearAPIKey"`
-	Model          *string `json:"model"`
-	TimeoutSeconds *int    `json:"timeoutSeconds"`
-	MaxConcurrency *int    `json:"maxConcurrency"`
-	QueueCapacity  *int    `json:"queueCapacity"`
-	Policy         *Policy `json:"policy"`
+	BaseURL        *string
+	APIKey         *string
+	ClearAPIKey    bool
+	Model          *string
+	TimeoutSeconds *int
+	MaxConcurrency *int
+	QueueCapacity  *int
+	Policy         *Policy
 }
 
 type runtimeConfig struct {
@@ -113,9 +113,11 @@ func (s *Service) readRuntimeConfig(ctx context.Context) (runtimeConfig, error) 
 
 	policy := Policy{}
 	if raw := strings.TrimSpace(values[keyPolicyJSON]); raw != "" {
-		if err := json.Unmarshal([]byte(raw), &policy); err != nil {
+		var policyDocument policyJSON
+		if err := json.Unmarshal([]byte(raw), &policyDocument); err != nil {
 			return runtimeConfig{}, err
 		}
+		policy = policyDocument.toPolicy()
 	}
 	policy.Version = parseInt64(values[keyPolicyVersion], 0)
 	policy, err = NormalizePolicy(policy)
@@ -284,7 +286,7 @@ func toServiceConfig(cfg runtimeConfig) *ServiceConfig {
 }
 
 func buildSettingItems(cfg runtimeConfig, encryptionKey string) ([]domainsettings.SystemSetting, error) {
-	policyJSON, err := json.Marshal(cfg.Policy)
+	policyJSON, err := json.Marshal(newPolicyJSON(cfg.Policy))
 	if err != nil {
 		return nil, err
 	}

@@ -50,50 +50,50 @@ const (
 
 // Event is a moderation check record (pass, hit, or failed-open).
 type Event struct {
-	ID                  uint      `json:"id"`
-	PublicID            string    `json:"publicID"`
-	UserID              uint      `json:"userID"`
-	ConversationID      uint      `json:"conversationID"`
-	RunID               string    `json:"runID"`
-	MessageID           uint      `json:"messageID"`
-	MessagePublicID     string    `json:"messagePublicID"`
-	Direction           string    `json:"direction"`
-	Modality            string    `json:"modality"`
-	Model               string    `json:"model"`
-	PolicyVersion       int64     `json:"policyVersion"`
-	Result              string    `json:"result"`
-	CategoriesJSON      string    `json:"categoriesJSON"`
-	CategoryScoresJSON  string    `json:"categoryScoresJSON,omitempty"`
-	LatencyMS           int64     `json:"latencyMS"`
-	ErrorCode           string    `json:"errorCode"`
-	ErrorMessage        string    `json:"errorMessage"`
-	ContentLocationJSON string    `json:"contentLocationJSON"`
-	ContentSummary      string    `json:"contentSummary"`
-	EncryptedText       string    `json:"-"`
-	ImageCount          int       `json:"imageCount"`
-	ImageMetaJSON       string    `json:"imageMetaJSON"`
-	ContentExpiresAt    time.Time `json:"contentExpiresAt"`
-	MetadataExpiresAt   time.Time `json:"metadataExpiresAt"`
-	CreatedAt           time.Time `json:"createdAt"`
-	UpdatedAt           time.Time `json:"updatedAt"`
+	ID                  uint
+	PublicID            string
+	UserID              uint
+	ConversationID      uint
+	RunID               string
+	MessageID           uint
+	MessagePublicID     string
+	Direction           string
+	Modality            string
+	Model               string
+	PolicyVersion       int64
+	Result              string
+	CategoriesJSON      string
+	CategoryScoresJSON  string
+	LatencyMS           int64
+	ErrorCode           string
+	ErrorMessage        string
+	ContentLocationJSON string
+	ContentSummary      string
+	EncryptedText       string
+	ImageCount          int
+	ImageMetaJSON       string
+	ContentExpiresAt    time.Time
+	MetadataExpiresAt   time.Time
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 // DailyStat aggregates anonymous counters for a calendar day.
 type DailyStat struct {
-	ID           uint      `json:"id"`
-	StatDate     time.Time `json:"statDate"`
-	Direction    string    `json:"direction"`
-	Modality     string    `json:"modality"`
-	Result       string    `json:"result"`
-	Category     string    `json:"category"`
-	CheckCount   int64     `json:"checkCount"`
-	ContentItems int64     `json:"contentItems"`
-	HitCount     int64     `json:"hitCount"`
-	FailureCount int64     `json:"failureCount"`
-	LatencySumMS int64     `json:"latencySumMS"`
-	LatencyCount int64     `json:"latencyCount"`
-	CreatedAt    time.Time `json:"createdAt"`
-	UpdatedAt    time.Time `json:"updatedAt"`
+	ID           uint
+	StatDate     time.Time
+	Direction    string
+	Modality     string
+	Result       string
+	Category     string
+	CheckCount   int64
+	ContentItems int64
+	HitCount     int64
+	FailureCount int64
+	LatencySumMS int64
+	LatencyCount int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 // EventListFilter filters super-admin event queries.
@@ -112,19 +112,19 @@ type EventListFilter struct {
 
 // IsolatedImageMeta describes one encrypted image copy held for review.
 type IsolatedImageMeta struct {
-	Index        int    `json:"index"`
-	SHA256       string `json:"sha256"`
-	MimeType     string `json:"mimeType"`
-	SizeBytes    int64  `json:"sizeBytes"`
-	StoragePath  string `json:"storagePath"`
-	SourceFileID string `json:"sourceFileID,omitempty"`
+	Index        int
+	SHA256       string
+	MimeType     string
+	SizeBytes    int64
+	StoragePath  string
+	SourceFileID string
 }
 
 // ContentLocation describes where moderated content originated.
 type ContentLocation struct {
-	Field      string `json:"field,omitempty"`
-	FileID     string `json:"fileID,omitempty"`
-	Attachment int    `json:"attachment,omitempty"`
-	ChunkIndex int    `json:"chunkIndex,omitempty"`
-	ChunkCount int    `json:"chunkCount,omitempty"`
+	Field      string
+	FileID     string
+	Attachment int
+	ChunkIndex int
+	ChunkCount int
 }

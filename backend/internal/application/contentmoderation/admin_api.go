@@ -31,15 +31,13 @@ type EventListInput struct {
 
 // EventDetail is the super-admin detail payload (may include decrypted text).
 type EventDetail struct {
-	Event           domaincm.Event               `json:"event"`
-	UserLabel       string                       `json:"userLabel,omitempty"`
-	Username        string                       `json:"username,omitempty"`
-	Categories      []string                     `json:"categories"`
-	CategoryScores  map[string]float64           `json:"categoryScores"`
-	DecryptedText   string                       `json:"decryptedText,omitempty"`
-	TextAvailable   bool                         `json:"textAvailable"`
-	ImagesAvailable bool                         `json:"imagesAvailable"`
-	Images          []domaincm.IsolatedImageMeta `json:"images"`
+	Event           domaincm.Event
+	Categories      []string
+	CategoryScores  map[string]float64
+	DecryptedText   string
+	TextAvailable   bool
+	ImagesAvailable bool
+	Images          []domaincm.IsolatedImageMeta
 }
 
 // GetStats returns anonymous aggregates for the last 90 days (admin+).
@@ -114,7 +112,7 @@ func (s *Service) GetEventDetail(
 	detail := &EventDetail{Event: *event}
 	_ = json.Unmarshal([]byte(event.CategoriesJSON), &detail.Categories)
 	_ = json.Unmarshal([]byte(event.CategoryScoresJSON), &detail.CategoryScores)
-	_ = json.Unmarshal([]byte(event.ImageMetaJSON), &detail.Images)
+	detail.Images = unmarshalIsolatedImageMetadata(event.ImageMetaJSON)
 
 	if event.Result == domaincm.ResultHit &&
 		event.Modality == domaincm.ModalityText &&
@@ -149,8 +147,7 @@ func (s *Service) OpenEventImage(
 	if time.Now().After(event.ContentExpiresAt) {
 		return nil, "", ErrEventNotFound
 	}
-	var images []domaincm.IsolatedImageMeta
-	_ = json.Unmarshal([]byte(event.ImageMetaJSON), &images)
+	images := unmarshalIsolatedImageMetadata(event.ImageMetaJSON)
 	var meta *domaincm.IsolatedImageMeta
 	for i := range images {
 		if images[i].Index == index {

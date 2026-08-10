@@ -297,7 +297,13 @@ func NewApp() (*App, error) {
 	conversationService.SetObjectStoreProvider(objectStoreProvider)
 	conversationService.SetMCPRepository(mcpRepo)
 	contentModerationRepo := contentmoderationrepo.NewRepo(db)
-	contentModerationService := appcontentmoderation.NewService(settingsRepo, contentModerationRepo, cfg.DataEncryptionKey, log)
+	contentModerationService := appcontentmoderation.NewService(
+		settingsRepo,
+		contentModerationRepo,
+		cfg.DataEncryptionKey,
+		log,
+		trustedOutboundPolicy,
+	)
 	conversationService.SetModerationService(contentModerationService)
 	contentModerationHandler := contentmoderationhttp.NewHandler(contentModerationService)
 	contentModerationModule := contentmoderationhttp.NewModule(contentModerationHandler)
