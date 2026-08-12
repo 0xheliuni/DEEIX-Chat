@@ -112,6 +112,28 @@ func TestSeedUsesDefaultFullContextMaxBytesForMissingSetting(t *testing.T) {
 	}
 }
 
+func TestSeedAddsMistralOCRDefaults(t *testing.T) {
+	repo := newSettingsSeedRepo()
+	service := NewService(repo, "test-data-encryption-key")
+
+	if err := service.Seed(context.Background(), config.Config{}); err != nil {
+		t.Fatalf("seed settings: %v", err)
+	}
+	want := map[string]string{
+		"extract:mistral_ocr_base_url":        "https://api.mistral.ai/v1/ocr",
+		"extract:mistral_ocr_model":           "mistral-ocr-latest",
+		"extract:mistral_ocr_timeout_seconds": "60",
+	}
+	for key, value := range want {
+		if got := repo.items[key].Value; got != value {
+			t.Fatalf("%s = %q, want %q", key, got, value)
+		}
+	}
+	if got := repo.items["extract:mistral_ocr_auth_token"]; got.Value != "" {
+		t.Fatalf("Mistral OCR auth token = %q, want empty", got.Value)
+	}
+}
+
 func TestSeedKeepsExistingFullContextMaxBytes(t *testing.T) {
 	const existingValue = "65536"
 	repo := newSettingsSeedRepo(domainsettings.SystemSetting{

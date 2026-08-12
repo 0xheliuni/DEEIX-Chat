@@ -480,10 +480,10 @@ func validatePatchItem(item PatchItem) error {
 		}
 	case "extract:ocr_engine":
 		switch value {
-		case extraction.OCREngineRapidOCR, extraction.OCREngineTesseract, extraction.OCREnginePaddle, extraction.OCREngineTencent, extraction.OCREngineAliyun, extraction.OCREngineLLM:
+		case extraction.OCREngineRapidOCR, extraction.OCREngineTesseract, extraction.OCREnginePaddle, extraction.OCREngineTencent, extraction.OCREngineAliyun, extraction.OCREngineMistral, extraction.OCREngineLLM:
 			return nil
 		default:
-			return fmt.Errorf("%s must be one of: %s, %s, %s, %s, %s, %s", key, extraction.OCREngineRapidOCR, extraction.OCREngineTesseract, extraction.OCREnginePaddle, extraction.OCREngineTencent, extraction.OCREngineAliyun, extraction.OCREngineLLM)
+			return fmt.Errorf("%s must be one of: %s, %s, %s, %s, %s, %s, %s", key, extraction.OCREngineRapidOCR, extraction.OCREngineTesseract, extraction.OCREnginePaddle, extraction.OCREngineTencent, extraction.OCREngineAliyun, extraction.OCREngineMistral, extraction.OCREngineLLM)
 		}
 	case "extract:tika_source":
 		switch value {
@@ -517,6 +517,14 @@ func validatePatchItem(item PatchItem) error {
 			return fmt.Errorf("%s must start with http:// or https://", key)
 		}
 		return nil
+	case "extract:mistral_ocr_base_url":
+		if value == "" {
+			return nil
+		}
+		if err := security.ValidateTrustedOutboundHTTPURL(value); err != nil {
+			return fmt.Errorf("%s must be a valid trusted HTTP endpoint", key)
+		}
+		return nil
 	case "extract:rapidocr_source":
 		switch value {
 		case extraction.TikaSourceExternal, extraction.TikaSourceManaged:
@@ -534,7 +542,7 @@ func validatePatchItem(item PatchItem) error {
 		}
 	case "extract:tika_timeout_seconds":
 		return validateIntMinMax(value, 1, 120, key)
-	case "extract:docling_timeout_seconds", "extract:tesseract_ocr_timeout_seconds", "extract:rapidocr_timeout_seconds", "extract:paddle_ocr_timeout_seconds", "extract:tencent_ocr_timeout_seconds", "extract:aliyun_ocr_timeout_seconds", "extract:mineru_timeout_seconds", "extract:llm_ocr_timeout_seconds":
+	case "extract:docling_timeout_seconds", "extract:tesseract_ocr_timeout_seconds", "extract:rapidocr_timeout_seconds", "extract:paddle_ocr_timeout_seconds", "extract:tencent_ocr_timeout_seconds", "extract:aliyun_ocr_timeout_seconds", "extract:mineru_timeout_seconds", "extract:mistral_ocr_timeout_seconds", "extract:llm_ocr_timeout_seconds":
 		return validateIntMinMax(value, 1, 600, key)
 	case "mcp:mcp_max_llm_calls_per_run":
 		return validateIntMinMax(value, 2, 32, key)
@@ -641,6 +649,16 @@ func (s *Service) validateFileProcessingSettings(ctx context.Context, patches []
 		}
 		if strings.TrimSpace(next["extract:aliyun_ocr_region"]) == "" {
 			return fmt.Errorf("extract:aliyun_ocr_region is required when OCR engine is aliyun")
+		}
+	case extraction.OCREngineMistral:
+		if strings.TrimSpace(next["extract:mistral_ocr_base_url"]) == "" {
+			return fmt.Errorf("extract:mistral_ocr_base_url is required when OCR engine is mistral")
+		}
+		if strings.TrimSpace(next["extract:mistral_ocr_auth_token"]) == "" {
+			return fmt.Errorf("extract:mistral_ocr_auth_token is required when OCR engine is mistral")
+		}
+		if strings.TrimSpace(next["extract:mistral_ocr_model"]) == "" {
+			return fmt.Errorf("extract:mistral_ocr_model is required when OCR engine is mistral")
 		}
 	case extraction.OCREngineLLM:
 		if strings.TrimSpace(next["extract:llm_ocr_base_url"]) == "" {
