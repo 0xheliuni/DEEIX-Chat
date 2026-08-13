@@ -20,6 +20,12 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+const (
+	defaultMessageQueryLimit = 20
+	maxMessageQueryLimit     = 1000
+	maxAncestorQueryDepth    = 2000
+)
+
 // translateError 将 gorm 底层错误统一映射为仓储语义错误。
 func translateError(err error) error {
 	if err == nil {
@@ -176,7 +182,7 @@ func (r *Repo) ListConversationsForSearch(
 	limit int,
 	searchQuery string,
 ) ([]domainconversation.Conversation, error) {
-	items := make([]models.Conversation, 0, limit)
+	items := make([]models.Conversation, 0)
 	query := r.db.WithContext(ctx).
 		Model(&models.Conversation{}).
 		Where("user_id = ?", userID)
@@ -1438,9 +1444,12 @@ func (r *Repo) ListMessages(ctx context.Context, conversationID uint, offset int
 // ListMessagesBeforeID 查询指定消息 ID 之前的一页会话消息（按时间升序返回）。
 func (r *Repo) ListMessagesBeforeID(ctx context.Context, conversationID uint, beforeID uint, limit int) ([]domainconversation.Message, int64, error) {
 	if limit <= 0 {
-		limit = 20
+		limit = defaultMessageQueryLimit
 	}
-	items := make([]models.Message, 0, limit)
+	if limit > maxMessageQueryLimit {
+		limit = maxMessageQueryLimit
+	}
+	items := make([]models.Message, 0)
 	var total int64
 
 	if err := r.db.WithContext(ctx).
@@ -2133,6 +2142,9 @@ func (r *Repo) ListMessageAncestors(ctx context.Context, conversationID uint, le
 	if maxDepth <= 0 {
 		maxDepth = 40
 	}
+	if maxDepth > maxAncestorQueryDepth {
+		maxDepth = maxAncestorQueryDepth
+	}
 
 	// WITH RECURSIVE：从叶节点沿 parent_message_id 向上递归，_depth 用于限制深度。
 	// 外层用 SELECT * 取全部列：GORM Scan 按列名映射并忽略未匹配的列，_depth 会被自然丢弃，
@@ -2157,7 +2169,7 @@ WITH RECURSIVE ancestors AS (
 SELECT * FROM ancestors
 ORDER BY id ASC`
 
-	path := make([]models.Message, 0, maxDepth)
+	path := make([]models.Message, 0)
 	if err := r.db.WithContext(ctx).Raw(cteSQL, leafMessageID, conversationID, maxDepth, conversationID).Scan(&path).Error; err != nil {
 		return nil, translateError(err)
 	}
@@ -2181,8 +2193,14 @@ func (r *Repo) ListLatestBranchPreviewMessages(
 	if maxDepth <= 0 {
 		maxDepth = 100
 	}
+	if maxDepth > maxAncestorQueryDepth {
+		maxDepth = maxAncestorQueryDepth
+	}
 	if limit <= 0 {
 		limit = 10
+	}
+	if limit > maxMessageQueryLimit {
+		limit = maxMessageQueryLimit
 	}
 
 	type previewMessageRow struct {
@@ -2192,7 +2210,7 @@ func (r *Repo) ListLatestBranchPreviewMessages(
 		Content      string `gorm:"column:content"`
 		ErrorMessage string `gorm:"column:error_message"`
 	}
-	rows := make([]previewMessageRow, 0, limit)
+	rows := make([]previewMessageRow, 0)
 	const previewSQL = `
 WITH RECURSIVE ancestors AS (
     SELECT id, conversation_id, parent_message_id, public_id, role, content, error_message, 1 AS depth
@@ -2249,6 +2267,9 @@ func (r *Repo) ListMessageAncestorsUntil(ctx context.Context, conversationID uin
 	if maxDepth <= 0 {
 		maxDepth = 200
 	}
+	if maxDepth > maxAncestorQueryDepth {
+		maxDepth = maxAncestorQueryDepth
+	}
 	if leafMessageID == 0 || stopMessageID == 0 {
 		return nil, false, repository.ErrInvalidInput
 	}
@@ -2271,7 +2292,7 @@ WITH RECURSIVE ancestors AS (
 SELECT * FROM ancestors
 ORDER BY id ASC`
 
-	path := make([]models.Message, 0, maxDepth)
+	path := make([]models.Message, 0)
 	if err := r.db.WithContext(ctx).Raw(cteSQL, leafMessageID, conversationID, maxDepth, stopMessageID, conversationID).Scan(&path).Error; err != nil {
 		return nil, false, translateError(err)
 	}
@@ -2295,7 +2316,10 @@ ORDER BY id ASC`
 // ListRecentMessages 查询会话最近消息窗口（按时间升序返回）。
 func (r *Repo) ListRecentMessages(ctx context.Context, conversationID uint, limit int) ([]domainconversation.Message, int64, error) {
 	if limit <= 0 {
-		limit = 20
+		limit = defaultMessageQueryLimit
+	}
+	if limit > maxMessageQueryLimit {
+		limit = maxMessageQueryLimit
 	}
 	var total int64
 	if err := r.db.WithContext(ctx).
@@ -2308,7 +2332,7 @@ func (r *Repo) ListRecentMessages(ctx context.Context, conversationID uint, limi
 	if offset < 0 {
 		offset = 0
 	}
-	items := make([]models.Message, 0, limit)
+	items := make([]models.Message, 0)
 	if err := r.db.WithContext(ctx).
 		Where("conversation_id = ?", conversationID).
 		Order("id ASC").
