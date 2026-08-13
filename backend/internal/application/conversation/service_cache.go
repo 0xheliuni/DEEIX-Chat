@@ -3,6 +3,8 @@ package conversation
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
+	"sync"
 	"time"
 
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
@@ -18,7 +20,15 @@ const (
 	userSettingCacheTTL = 10 * time.Minute
 	// inMemoryCacheSweepInterval：主动清理过期内存缓存，避免冷 key 长期驻留。
 	inMemoryCacheSweepInterval = time.Minute
+	userSettingCacheLockShards = 64
 )
+
+type userSettingCacheShard struct {
+	mu    sync.Mutex
+	epoch uint64
+}
+
+var userSettingCacheShards [userSettingCacheLockShards]userSettingCacheShard
 
 type cachedSnapshot struct {
 	snapshot  *model.ContextSnapshot
@@ -63,24 +73,77 @@ func (s *Service) invalidateSnapshotCache(conversationID uint) {
 
 // getUserSettingCached 从内存缓存读取用户设置，未命中时回退到 DB 查询。
 func (s *Service) getUserSettingCached(ctx context.Context, userID uint, key string) (string, error) {
-	cacheKey := fmt.Sprintf("%d:%s", userID, key)
-	if v, ok := s.userSettingCache.Load(cacheKey); ok {
-		entry := v.(*cachedUserSetting)
-		if time.Now().Before(entry.expiresAt) {
-			if !entry.valid {
-				return "", fmt.Errorf("not found")
-			}
-			return entry.value, nil
+	cacheKey := userSettingCacheKey(userID, key)
+	lockIndex := s.userSettingCacheLockIndex(cacheKey)
+	shard := &userSettingCacheShards[lockIndex]
+
+	shard.mu.Lock()
+	if value, ok := s.loadCachedUserSetting(cacheKey); ok {
+		shard.mu.Unlock()
+		return value.value, value.err
+	}
+	epoch := shard.epoch
+	shard.mu.Unlock()
+
+	value, err := s.repo.GetUserSettingValue(ctx, userID, key)
+
+	shard.mu.Lock()
+	if shard.epoch == epoch {
+		if err != nil {
+			s.userSettingCache.Store(cacheKey, &cachedUserSetting{valid: false, expiresAt: time.Now().Add(userSettingCacheTTL)})
+		} else {
+			s.userSettingCache.Store(cacheKey, &cachedUserSetting{value: value, valid: true, expiresAt: time.Now().Add(userSettingCacheTTL)})
 		}
+	}
+	shard.mu.Unlock()
+
+	return value, err
+}
+
+type cachedUserSettingResult struct {
+	value string
+	err   error
+}
+
+// loadCachedUserSetting must be called while holding the key's shard lock.
+func (s *Service) loadCachedUserSetting(cacheKey string) (cachedUserSettingResult, bool) {
+	value, ok := s.userSettingCache.Load(cacheKey)
+	if !ok {
+		return cachedUserSettingResult{}, false
+	}
+	entry := value.(*cachedUserSetting)
+	if !time.Now().Before(entry.expiresAt) {
 		s.userSettingCache.Delete(cacheKey)
+		return cachedUserSettingResult{}, false
 	}
-	val, err := s.repo.GetUserSettingValue(ctx, userID, key)
-	if err != nil {
-		s.userSettingCache.Store(cacheKey, &cachedUserSetting{valid: false, expiresAt: time.Now().Add(userSettingCacheTTL)})
-		return "", err
+	if !entry.valid {
+		return cachedUserSettingResult{err: fmt.Errorf("not found")}, true
 	}
-	s.userSettingCache.Store(cacheKey, &cachedUserSetting{value: val, valid: true, expiresAt: time.Now().Add(userSettingCacheTTL)})
-	return val, nil
+	return cachedUserSettingResult{value: entry.value}, true
+}
+
+func userSettingCacheKey(userID uint, key string) string {
+	return fmt.Sprintf("%d:%s", userID, key)
+}
+
+func (s *Service) userSettingCacheLockIndex(cacheKey string) uint32 {
+	hasher := fnv.New32a()
+	_, _ = hasher.Write([]byte(cacheKey))
+	return hasher.Sum32() % userSettingCacheLockShards
+}
+
+// InvalidateUserSettingCache 清除指定用户指定 key 的用户设置缓存。
+// 由 usersettings 服务在写入成功后通过回调触发，避免循环依赖。
+func (s *Service) InvalidateUserSettingCache(userID uint, keys []string) {
+	for _, key := range keys {
+		cacheKey := userSettingCacheKey(userID, key)
+		lockIndex := s.userSettingCacheLockIndex(cacheKey)
+		shard := &userSettingCacheShards[lockIndex]
+		shard.mu.Lock()
+		shard.epoch++
+		s.userSettingCache.Delete(cacheKey)
+		shard.mu.Unlock()
+	}
 }
 
 // getCachedUserMemories 从内存缓存读取用户长期记忆，未命中时回退到 DB 查询。
