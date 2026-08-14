@@ -478,21 +478,32 @@ func TestGenerateGeminiInteractionStreamPostsStreamRequest(t *testing.T) {
 			t.Fatalf("decode request payload: %v", err)
 		}
 		w.Header().Set("Content-Type", "text/event-stream")
-		_, _ = w.Write([]byte(`data: {"type":"interaction.created","interaction":{"id":"interaction-stream-1"}}
+		_, _ = w.Write([]byte(`data: {"event_type":"interaction.created","interaction":{"id":"interaction-stream-1"}}
 
-data: {"type":"step.delta","interaction_id":"interaction-stream-1","delta":{"type":"text","text":"Hello"}}
+data: {"event_type":"step.delta","index":0,"delta":{"type":"thought_summary","content":{"type":"text","text":"I should check the weather."}}}
 
-data: {"type":"step.delta","interaction_id":"interaction-stream-1","delta":{"type":"text","text":" world"}}
+data: {"event_type":"step.start","index":1,"step":{"type":"function_call","id":"call_weather","name":"get_weather"}}
 
-data: {"type":"interaction.completed","usage_metadata":{"prompt_token_count":4,"candidates_token_count":2},"interaction":{"id":"interaction-stream-1","output":[{"type":"text","text":"Hello world"}]}}
+data: {"event_type":"step.delta","index":1,"delta":{"type":"arguments","arguments_delta":"{\"location\":\""}}
 
-data: {"type":"done"}
+data: {"event_type":"step.delta","index":1,"delta":{"type":"arguments","arguments_delta":"Paris\"}"}}
+
+data: {"event_type":"step.stop","index":1,"status":"waiting"}
+
+data: {"event_type":"step.delta","index":2,"delta":{"type":"text","text":"Hello"}}
+
+data: {"event_type":"step.delta","index":2,"delta":{"type":"text","text":" world"}}
+
+data: {"event_type":"interaction.completed","interaction":{"id":"interaction-stream-1","usage":{"total_input_tokens":4,"total_output_tokens":2,"total_thought_tokens":3}}}
+
+data: [DONE]
 
 `))
 	}))
 	defer server.Close()
 
 	var deltas []string
+	var reasoningDeltas []ReasoningDelta
 	var usageEvents []Usage
 	output, err := newTestClient().GenerateStream(context.Background(), RouteConfig{
 		Protocol:      AdapterGeminiInteractions,
@@ -504,6 +515,9 @@ data: {"type":"done"}
 	}, func(event GenerateStreamEvent) error {
 		if event.Delta != "" {
 			deltas = append(deltas, event.Delta)
+		}
+		if event.Reasoning != nil {
+			reasoningDeltas = append(reasoningDeltas, *event.Reasoning)
 		}
 		if event.Usage != (Usage{}) {
 			usageEvents = append(usageEvents, event.Usage)
@@ -522,7 +536,16 @@ data: {"type":"done"}
 	if strings.Join(deltas, "") != "Hello world" {
 		t.Fatalf("unexpected stream deltas: %#v", deltas)
 	}
-	if len(usageEvents) != 1 || output.Usage.InputTokens != 4 || output.Usage.OutputTokens != 2 {
+	if output.Reasoning == nil || output.Reasoning.Summary != "I should check the weather." {
+		t.Fatalf("unexpected stream reasoning: %#v", output.Reasoning)
+	}
+	if len(reasoningDeltas) != 1 || reasoningDeltas[0].Kind != "summary_text" || reasoningDeltas[0].Text != "I should check the weather." {
+		t.Fatalf("unexpected reasoning deltas: %#v", reasoningDeltas)
+	}
+	if len(output.ToolCalls) != 1 || output.ToolCalls[0].ToolCallID != "call_weather" || output.ToolCalls[0].ToolName != "get_weather" || output.ToolCalls[0].ArgumentsJSON != `{"location":"Paris"}` {
+		t.Fatalf("unexpected stream tool calls: %#v", output.ToolCalls)
+	}
+	if len(usageEvents) != 1 || output.Usage.InputTokens != 4 || output.Usage.OutputTokens != 2 || output.Usage.ReasoningTokens != 3 {
 		t.Fatalf("unexpected stream usage events=%#v output=%#v", usageEvents, output.Usage)
 	}
 }
