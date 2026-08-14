@@ -346,6 +346,7 @@ const MODEL_CAPABILITY_PRESETS: CapabilityPreset[] = [
       defaultOptions: {
         generation_config: {
           thinking_level: "medium",
+          thinking_summaries: "auto",
         },
       },
       optionControls: [
