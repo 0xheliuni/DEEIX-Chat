@@ -2,13 +2,11 @@ package conversation
 
 import (
 	"context"
-	"fmt"
-	"hash/fnv"
-	"sync"
 	"time"
 
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainmemory "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/memory"
+	"go.uber.org/zap"
 )
 
 const (
@@ -20,15 +18,7 @@ const (
 	userSettingCacheTTL = 10 * time.Minute
 	// inMemoryCacheSweepInterval：主动清理过期内存缓存，避免冷 key 长期驻留。
 	inMemoryCacheSweepInterval = time.Minute
-	userSettingCacheLockShards = 64
 )
-
-type userSettingCacheShard struct {
-	mu    sync.Mutex
-	epoch uint64
-}
-
-var userSettingCacheShards [userSettingCacheLockShards]userSettingCacheShard
 
 type cachedSnapshot struct {
 	snapshot  *model.ContextSnapshot
@@ -37,12 +27,6 @@ type cachedSnapshot struct {
 
 type cachedUserMemories struct {
 	memories  []domainmemory.UserMemory
-	expiresAt time.Time
-}
-
-type cachedUserSetting struct {
-	value     string
-	valid     bool
 	expiresAt time.Time
 }
 
@@ -71,78 +55,63 @@ func (s *Service) invalidateSnapshotCache(conversationID uint) {
 	s.snapshotCache.Delete(conversationID)
 }
 
-// getUserSettingCached 从内存缓存读取用户设置，未命中时回退到 DB 查询。
+// getUserSettingCached 从共享缓存读取用户设置，未命中或缓存不可用时回退到 DB。
 func (s *Service) getUserSettingCached(ctx context.Context, userID uint, key string) (string, error) {
-	cacheKey := userSettingCacheKey(userID, key)
-	lockIndex := s.userSettingCacheLockIndex(cacheKey)
-	shard := &userSettingCacheShards[lockIndex]
-
-	shard.mu.Lock()
-	if value, ok := s.loadCachedUserSetting(cacheKey); ok {
-		shard.mu.Unlock()
-		return value.value, value.err
+	if s.cache == nil {
+		return s.repo.GetUserSettingValue(ctx, userID, key)
 	}
-	epoch := shard.epoch
-	shard.mu.Unlock()
-
+	version, versionErr := s.cache.GetUserSettingCacheVersion(ctx, userID, key, userSettingCacheTTL)
+	if versionErr == nil {
+		if value, ok, err := s.cache.GetUserSettingCache(ctx, userID, key, version); err == nil && ok {
+			return value, nil
+		} else if err != nil && s.logger != nil {
+			s.logger.Warn("user_setting_cache_read_failed", zap.Uint("user_id", userID), zap.String("key", key), zap.Error(err))
+		}
+	} else if s.logger != nil {
+		s.logger.Warn("user_setting_cache_version_read_failed", zap.Uint("user_id", userID), zap.String("key", key), zap.Error(versionErr))
+	}
 	value, err := s.repo.GetUserSettingValue(ctx, userID, key)
-
-	shard.mu.Lock()
-	if shard.epoch == epoch {
-		if err != nil {
-			s.userSettingCache.Store(cacheKey, &cachedUserSetting{valid: false, expiresAt: time.Now().Add(userSettingCacheTTL)})
-		} else {
-			s.userSettingCache.Store(cacheKey, &cachedUserSetting{value: value, valid: true, expiresAt: time.Now().Add(userSettingCacheTTL)})
+	if err != nil {
+		return "", err
+	}
+	if versionErr == nil {
+		if err := s.cache.SetUserSettingCache(ctx, userID, key, version, value, userSettingCacheTTL); err != nil && s.logger != nil {
+			s.logger.Warn("user_setting_cache_write_failed", zap.Uint("user_id", userID), zap.String("key", key), zap.Error(err))
 		}
 	}
-	shard.mu.Unlock()
-
-	return value, err
+	return value, nil
 }
 
-type cachedUserSettingResult struct {
-	value string
-	err   error
-}
-
-// loadCachedUserSetting must be called while holding the key's shard lock.
-func (s *Service) loadCachedUserSetting(cacheKey string) (cachedUserSettingResult, bool) {
-	value, ok := s.userSettingCache.Load(cacheKey)
-	if !ok {
-		return cachedUserSettingResult{}, false
+// RefreshUserSettingCache 推进指定设置的共享缓存版本，并用数据库中已提交的当前值回填新版本。
+// 版本化数据键保证了在途旧读取与并发更新都无法覆盖当前值。
+func (s *Service) RefreshUserSettingCache(ctx context.Context, userID uint, keys []string) {
+	if s.cache == nil {
+		return
 	}
-	entry := value.(*cachedUserSetting)
-	if !time.Now().Before(entry.expiresAt) {
-		s.userSettingCache.Delete(cacheKey)
-		return cachedUserSettingResult{}, false
-	}
-	if !entry.valid {
-		return cachedUserSettingResult{err: fmt.Errorf("not found")}, true
-	}
-	return cachedUserSettingResult{value: entry.value}, true
-}
-
-func userSettingCacheKey(userID uint, key string) string {
-	return fmt.Sprintf("%d:%s", userID, key)
-}
-
-func (s *Service) userSettingCacheLockIndex(cacheKey string) uint32 {
-	hasher := fnv.New32a()
-	_, _ = hasher.Write([]byte(cacheKey))
-	return hasher.Sum32() % userSettingCacheLockShards
-}
-
-// InvalidateUserSettingCache 清除指定用户指定 key 的用户设置缓存。
-// 由 usersettings 服务在写入成功后通过回调触发，避免循环依赖。
-func (s *Service) InvalidateUserSettingCache(userID uint, keys []string) {
+	versions := make(map[string]string, len(keys))
+	refreshKeys := make([]string, 0, len(keys))
 	for _, key := range keys {
-		cacheKey := userSettingCacheKey(userID, key)
-		lockIndex := s.userSettingCacheLockIndex(cacheKey)
-		shard := &userSettingCacheShards[lockIndex]
-		shard.mu.Lock()
-		shard.epoch++
-		s.userSettingCache.Delete(cacheKey)
-		shard.mu.Unlock()
+		version, err := s.cache.AdvanceUserSettingCacheVersion(ctx, userID, key, userSettingCacheTTL)
+		if err != nil {
+			if s.logger != nil {
+				s.logger.Warn("user_setting_cache_version_advance_failed", zap.Uint("user_id", userID), zap.String("key", key), zap.Error(err))
+			}
+			continue
+		}
+		versions[key] = version
+		refreshKeys = append(refreshKeys, key)
+	}
+	values, err := s.repo.GetUserSettingValues(ctx, userID, refreshKeys)
+	if err != nil {
+		if s.logger != nil {
+			s.logger.Warn("user_setting_cache_refresh_load_failed", zap.Uint("user_id", userID), zap.Error(err))
+		}
+		return
+	}
+	for _, key := range refreshKeys {
+		if err := s.cache.SetUserSettingCache(ctx, userID, key, versions[key], values[key], userSettingCacheTTL); err != nil && s.logger != nil {
+			s.logger.Warn("user_setting_cache_refresh_write_failed", zap.Uint("user_id", userID), zap.String("key", key), zap.Error(err))
+		}
 	}
 }
 
@@ -196,13 +165,6 @@ func (s *Service) cleanupExpiredInMemoryCaches(now time.Time) {
 		entry, ok := value.(*cachedUserMemories)
 		if !ok || !now.Before(entry.expiresAt) {
 			s.userMemCache.Delete(key)
-		}
-		return true
-	})
-	s.userSettingCache.Range(func(key, value interface{}) bool {
-		entry, ok := value.(*cachedUserSetting)
-		if !ok || !now.Before(entry.expiresAt) {
-			s.userSettingCache.Delete(key)
 		}
 		return true
 	})
