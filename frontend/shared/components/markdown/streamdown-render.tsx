@@ -216,8 +216,16 @@ const SOURCE_POSITION_STREAMDOWN_REHYPE_PLUGINS = buildStreamdownRehypePlugins(t
 const FENCED_CODE_BLOCK_RE = /(?:^|\n)[ \t]*(?:```|~~~)(?!\s*(?:mermaid|mmd)\b)[^\n]*(?:\n|$)/i;
 const MERMAID_CODE_BLOCK_RE = /(?:^|\n)[ \t]*(?:```|~~~)\s*(?:mermaid|mmd)\b/i;
 
+// Streamdown does not expose a download-menu render slot. Keep its export
+// implementation and mirror the shared DropdownMenu design tokens here.
+const STREAMDOWN_MERMAID_DROPDOWN_CLASSNAME = cn(
+  "[&_[data-streamdown='mermaid-block-actions']>div>div]:!z-50 [&_[data-streamdown='mermaid-block-actions']>div>div]:!mt-1.5 [&_[data-streamdown='mermaid-block-actions']>div>div]:!min-w-32 [&_[data-streamdown='mermaid-block-actions']>div>div]:!rounded-xl [&_[data-streamdown='mermaid-block-actions']>div>div]:!border-[0.5px] [&_[data-streamdown='mermaid-block-actions']>div>div]:!border-border [&_[data-streamdown='mermaid-block-actions']>div>div]:!bg-popover [&_[data-streamdown='mermaid-block-actions']>div>div]:!p-1.5 [&_[data-streamdown='mermaid-block-actions']>div>div]:!font-sans [&_[data-streamdown='mermaid-block-actions']>div>div]:!text-popover-foreground [&_[data-streamdown='mermaid-block-actions']>div>div]:!shadow-xs [&_[data-streamdown='mermaid-block-actions']>div>div]:animate-in [&_[data-streamdown='mermaid-block-actions']>div>div]:fade-in-0 [&_[data-streamdown='mermaid-block-actions']>div>div]:zoom-in-95 [&_[data-streamdown='mermaid-block-actions']>div>div]:slide-in-from-top-2",
+  "[&_[data-streamdown='mermaid-block-actions']>div>div>button]:!rounded-md [&_[data-streamdown='mermaid-block-actions']>div>div>button]:!px-2 [&_[data-streamdown='mermaid-block-actions']>div>div>button]:!py-1.5 [&_[data-streamdown='mermaid-block-actions']>div>div>button]:!text-xs [&_[data-streamdown='mermaid-block-actions']>div>div>button]:!leading-5 [&_[data-streamdown='mermaid-block-actions']>div>div>button]:outline-none [&_[data-streamdown='mermaid-block-actions']>div>div>button:hover]:!bg-accent/40 [&_[data-streamdown='mermaid-block-actions']>div>div>button:hover]:!text-accent-foreground [&_[data-streamdown='mermaid-block-actions']>div>div>button:focus-visible]:!bg-accent/40 [&_[data-streamdown='mermaid-block-actions']>div>div>button:focus-visible]:!text-accent-foreground",
+);
+
 const BASE_MARKDOWN_CLASSNAME = cn(
   "chat-font-content min-w-0 max-w-full overflow-hidden leading-6 text-foreground [overflow-wrap:anywhere]",
+  STREAMDOWN_MERMAID_DROPDOWN_CLASSNAME,
   "[&>*:last-child]:after:text-muted-foreground/55",
   "[&_p]:min-w-0 [&_p]:max-w-full [&_p]:break-words [&_p]:[overflow-wrap:anywhere]",
   "[&_li]:min-w-0 [&_li]:max-w-full [&_li]:break-words [&_li]:[overflow-wrap:anywhere]",
@@ -539,7 +547,7 @@ function ThinkingSegmentBlock({
               parseIncompleteMarkdown={streaming || incomplete}
               shikiTheme={["github-light", "github-dark"]}
               animated={false}
-              isAnimating={false}
+              isAnimating={active}
               translations={translations}
             >
               {content}
