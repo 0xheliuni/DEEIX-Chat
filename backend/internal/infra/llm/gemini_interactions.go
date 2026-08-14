@@ -935,7 +935,7 @@ func updateGeminiInteractionStreamToolCall(result *GenerateOutput, parsed map[st
 			return
 		}
 		if result.geminiInteractionStreamToolCallIndexes == nil {
-			result.geminiInteractionStreamToolCallIndexes = make(map[int]int)
+			result.geminiInteractionStreamToolCallIndexes = make(map[int64]int)
 		}
 		result.ToolCalls = append(result.ToolCalls, ToolCall{
 			ToolCallID: firstString(step, "id", "call_id"),
@@ -967,16 +967,16 @@ func updateGeminiInteractionStreamToolCall(result *GenerateOutput, parsed map[st
 	}
 }
 
-func geminiInteractionStreamStepIndex(parsed map[string]interface{}) (int, bool) {
+func geminiInteractionStreamStepIndex(parsed map[string]interface{}) (int64, bool) {
 	rawIndex, ok := parsed["index"]
 	if !ok {
 		return 0, false
 	}
-	index := int(toInt64(rawIndex))
+	index := toInt64(rawIndex)
 	return index, index >= 0
 }
 
-func geminiInteractionStreamToolCallIndex(result *GenerateOutput, index int) (int, bool) {
+func geminiInteractionStreamToolCallIndex(result *GenerateOutput, index int64) (int, bool) {
 	if result == nil || result.geminiInteractionStreamToolCallIndexes == nil {
 		return 0, false
 	}

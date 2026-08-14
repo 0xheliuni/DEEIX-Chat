@@ -653,7 +653,7 @@ type GenerateOutput struct {
 	Debug               *UpstreamDebugSnapshot `json:"-"`
 
 	chatTextBuffer                         string
-	geminiInteractionStreamToolCallIndexes map[int]int
+	geminiInteractionStreamToolCallIndexes map[int64]int
 }
 
 // GeneratedImage 表示图片生成/编辑接口返回的一张图片。
