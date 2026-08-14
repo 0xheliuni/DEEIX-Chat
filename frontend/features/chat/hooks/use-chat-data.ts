@@ -74,10 +74,8 @@ export function useChatData(
   conversationID: string | null,
   {
     activeGenerationRunsRef,
-    failedGenerationRunsRef,
   }: {
     activeGenerationRunsRef?: React.RefObject<Set<string>>;
-    failedGenerationRunsRef?: React.RefObject<Set<string>>;
   } = {},
 ) {
   const t = useTranslations("chat.data");
@@ -329,8 +327,7 @@ export function useChatData(
     if (
       !conversationID ||
       !pendingRunID ||
-      activeGenerationRunsRef?.current.has(pendingRunID) ||
-      failedGenerationRunsRef?.current.has(pendingRunID)
+      activeGenerationRunsRef?.current.has(pendingRunID)
     ) {
       setResumingRunID("");
       return;
@@ -513,7 +510,6 @@ export function useChatData(
     activeGenerationRunsRef,
     clearResumeCheckpoint,
     conversationID,
-    failedGenerationRunsRef,
     pendingRunID,
     reload,
     tSubmit,
@@ -524,7 +520,6 @@ export function useChatData(
       !conversationID ||
       !pendingAssistant ||
       activeGenerationRunsRef?.current.has(pendingRunID) ||
-      failedGenerationRunsRef?.current.has(pendingRunID) ||
       (pendingRunID && pendingRunID === resumingRunID)
     ) {
       return;
@@ -535,7 +530,7 @@ export function useChatData(
     return () => {
       window.clearTimeout(timer);
     };
-  }, [activeGenerationRunsRef, conversationID, failedGenerationRunsRef, pendingAssistant, pendingRunID, reload, resumingRunID]);
+  }, [activeGenerationRunsRef, conversationID, pendingAssistant, pendingRunID, reload, resumingRunID]);
 
   return {
     ...state,
