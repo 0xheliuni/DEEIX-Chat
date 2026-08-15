@@ -2665,6 +2665,76 @@
                 }
             }
         },
+        "/admin/llm/models/{id}/protocols": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "在单个数据库事务中更新平台模型能力类型，并将该模型全部上游绑定替换为指定的完整协议集合",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "llm"
+                ],
+                "summary": "管理员替换模型全部来源的协议集合",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "模型ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "完整协议集合与模型能力类型",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/SetModelProtocolsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/SetModelProtocolsResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/llm/models/{id}/sources": {
             "get": {
                 "security": [
@@ -21341,6 +21411,44 @@
                 }
             }
         },
+        "SetModelProtocolsRequest": {
+            "type": "object",
+            "required": [
+                "kindsJSON",
+                "protocols"
+            ],
+            "properties": {
+                "kindsJSON": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "minLength": 2
+                },
+                "protocols": {
+                    "type": "array",
+                    "maxItems": 2,
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "SetModelProtocolsResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ModelDataResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
         "SetModelsDisplayGroupRequest": {
             "type": "object",
             "required": [
@@ -22818,17 +22926,21 @@
             "type": "object",
             "required": [
                 "platformModelName",
+                "protocols",
                 "upstreamModelName"
             ],
             "properties": {
                 "cbDurationMin": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 0
                 },
                 "cbFailureThreshold": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 0
                 },
                 "cbWindowMin": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 0
                 },
                 "headersJSON": {
                     "type": "string",
@@ -22846,21 +22958,19 @@
                 "priority": {
                     "type": "integer"
                 },
-                "protocol": {
-                    "type": "string",
-                    "maxLength": 64
-                },
                 "protocols": {
+                    "description": "Protocols 为空数组时根据模型能力和上游默认配置自动推断完整协议集合。",
                     "type": "array",
+                    "maxItems": 2,
+                    "uniqueItems": true,
                     "items": {
                         "type": "string"
                     }
                 },
-                "routeID": {
-                    "type": "integer"
-                },
                 "routeIDs": {
                     "type": "array",
+                    "maxItems": 2,
+                    "uniqueItems": true,
                     "items": {
                         "type": "integer"
                     }
@@ -22870,6 +22980,7 @@
                     "maxLength": 64
                 },
                 "status": {
+                    "description": "路由配置字段省略时保留已有协议各自的配置；新增协议使用服务端默认值或现有绑定模板。",
                     "type": "string",
                     "enum": [
                         "active",

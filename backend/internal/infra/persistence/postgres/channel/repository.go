@@ -7,12 +7,14 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // translateError 将 gorm 底层错误统一映射为仓储语义错误。
@@ -33,7 +35,25 @@ func translateError(err error) error {
 
 // Repo 封装上游域数据访问。
 type Repo struct {
-	db *gorm.DB
+	db            *gorm.DB
+	inTransaction bool
+}
+
+// WithinTransaction 在同一数据库事务中执行渠道仓储操作。
+func (r *Repo) WithinTransaction(ctx context.Context, fn func(repository.ChannelRepository) error) error {
+	if fn == nil {
+		return repository.ErrInvalidInput
+	}
+	return translateError(r.transact(ctx, func(tx *gorm.DB) error {
+		return fn(&Repo{db: tx, inTransaction: true})
+	}))
+}
+
+func (r *Repo) transact(ctx context.Context, fn func(*gorm.DB) error) error {
+	if r.inTransaction {
+		return fn(r.db.WithContext(ctx))
+	}
+	return r.db.WithContext(ctx).Transaction(fn)
 }
 
 // UpstreamRouteRow 是上游路由查询结果。
@@ -683,6 +703,28 @@ func modelPresentationOrderKey(prefix string) string {
 // 上游真实模型与平台路由
 // ---------------------------------------------------------------------------
 
+// CreateUpstreamModel 新增上游真实模型，不覆盖同名目录项。
+func (r *Repo) CreateUpstreamModel(ctx context.Context, item *domainchannel.UpstreamModel) error {
+	entity := toUpstreamModelModel(item)
+	if entity.UpstreamID == 0 || strings.TrimSpace(entity.UpstreamModelName) == "" || strings.TrimSpace(entity.BindingCode) == "" {
+		return repository.ErrInvalidInput
+	}
+	result := r.db.WithContext(ctx).
+		Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "upstream_id"}, {Name: "upstream_model_name"}},
+			DoNothing: true,
+		}).
+		Create(&entity)
+	if result.Error != nil {
+		return translateError(result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return repository.ErrDuplicate
+	}
+	*item = toUpstreamModelDomain(entity)
+	return nil
+}
+
 // UpsertUpstreamModel 新增或更新上游真实模型。
 func (r *Repo) UpsertUpstreamModel(ctx context.Context, item *domainchannel.UpstreamModel) error {
 	entity := toUpstreamModelModel(item)
@@ -763,56 +805,6 @@ func (r *Repo) GetUpstreamModelByUpstreamName(ctx context.Context, upstreamID ui
 	return &result, nil
 }
 
-// UpdateUpstreamModelByID 更新单条上游真实模型。
-func (r *Repo) UpdateUpstreamModelByID(
-	ctx context.Context,
-	sourceID uint,
-	upstreamID uint,
-	input repository.UpdateChannelUpstreamModelInput,
-) error {
-	updates := upstreamModelUpdates(input)
-	if len(updates) == 0 {
-		return nil
-	}
-	result := r.db.WithContext(ctx).
-		Model(&model.LLMUpstreamModel{}).
-		Where("id = ? AND upstream_id = ?", sourceID, upstreamID).
-		Updates(updates)
-	if result.Error != nil {
-		return translateError(result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return ErrUpstreamModelNotFound
-	}
-	return nil
-}
-
-func upstreamModelUpdates(input repository.UpdateChannelUpstreamModelInput) map[string]interface{} {
-	updates := make(map[string]interface{})
-	if input.UpstreamModelName != nil {
-		updates["upstream_model_name"] = *input.UpstreamModelName
-	}
-	if input.Status != nil {
-		updates["status"] = *input.Status
-	}
-	if input.Source != nil {
-		updates["source"] = *input.Source
-	}
-	if input.SuggestedProtocol != nil {
-		updates["suggested_protocol"] = *input.SuggestedProtocol
-	}
-	if input.KindsJSON != nil {
-		updates["kinds_json"] = *input.KindsJSON
-	}
-	if input.LastSyncedAt != nil {
-		updates["last_synced_at"] = *input.LastSyncedAt
-	}
-	if input.RawJSON != nil {
-		updates["raw_json"] = *input.RawJSON
-	}
-	return updates
-}
-
 // DeleteUpstreamModel 硬删除单条上游真实模型及其平台路由。
 func (r *Repo) DeleteUpstreamModel(ctx context.Context, sourceID uint, upstreamID uint) error {
 	return translateError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -857,16 +849,7 @@ type upstreamModelBindingPageKey struct {
 // ListUpstreamModels 查询上游真实模型及其路由绑定。分页单位是平台模型与上游真实模型组成的绑定；
 // 返回结果仍为扁平行：每条路由一行，无路由的上游模型单独一行。
 func (r *Repo) ListUpstreamModels(ctx context.Context, upstreamID uint, input repository.ListChannelUpstreamModelsInput) ([]UpstreamModelListRow, int64, error) {
-	baseQuery := r.db.WithContext(ctx).
-		Table("llm_upstream_models AS um").
-		Joins("LEFT JOIN llm_model_routes r ON r.upstream_model_id = um.id").
-		Joins("LEFT JOIN llm_platform_models pm ON pm.id = r.platform_model_id").
-		Where("um.upstream_id = ?", upstreamID)
-	baseQuery = applyUpstreamModelListFilters(baseQuery, input)
-
-	groupedQuery := baseQuery.
-		Select("um.id AS upstream_model_id, COALESCE(r.platform_model_id, 0) AS platform_model_id").
-		Group("um.id, r.platform_model_id, pm.name")
+	groupedQuery := r.upstreamModelBindingGroupsQuery(ctx, upstreamID, input)
 	var total int64
 	if err := r.db.WithContext(ctx).
 		Table("(?) AS binding_groups", groupedQuery).
@@ -876,7 +859,7 @@ func (r *Repo) ListUpstreamModels(ctx context.Context, upstreamID uint, input re
 
 	pageKeys := make([]upstreamModelBindingPageKey, 0)
 	if input.Limit > 0 {
-		if err := groupedQuery.
+		if err := r.upstreamModelBindingGroupsQuery(ctx, upstreamID, input).
 			Order(upstreamModelBindingListOrder(input.Sort)).
 			Offset(input.Offset).
 			Limit(input.Limit).
@@ -888,6 +871,10 @@ func (r *Repo) ListUpstreamModels(ctx context.Context, upstreamID uint, input re
 		return []UpstreamModelListRow{}, total, nil
 	}
 
+	pagedGroups := r.upstreamModelBindingGroupsQuery(ctx, upstreamID, input).
+		Order(upstreamModelBindingListOrder(input.Sort)).
+		Offset(input.Offset).
+		Limit(input.Limit)
 	items := make([]UpstreamModelListRow, 0)
 	listQuery := r.db.WithContext(ctx).
 		Table("llm_upstream_models AS um").
@@ -898,14 +885,11 @@ func (r *Repo) ListUpstreamModels(ctx context.Context, upstreamID uint, input re
 		).
 		Joins("LEFT JOIN llm_model_routes r ON r.upstream_model_id = um.id").
 		Joins("LEFT JOIN llm_platform_models pm ON pm.id = r.platform_model_id").
+		Joins(
+			"JOIN (?) AS page_bindings ON page_bindings.upstream_model_id = um.id AND page_bindings.platform_model_id = COALESCE(r.platform_model_id, 0)",
+			pagedGroups,
+		).
 		Where("um.upstream_id = ?", upstreamID)
-	conditions := make([]string, 0, len(pageKeys))
-	args := make([]interface{}, 0, len(pageKeys)*2)
-	for _, key := range pageKeys {
-		conditions = append(conditions, "(um.id = ? AND COALESCE(r.platform_model_id, 0) = ?)")
-		args = append(args, key.UpstreamModelID, key.PlatformModelID)
-	}
-	listQuery = listQuery.Where(strings.Join(conditions, " OR "), args...)
 	if err := listQuery.
 		Order("um.id ASC, r.id ASC NULLS LAST").
 		Scan(&items).Error; err != nil {
@@ -923,6 +907,17 @@ func (r *Repo) ListUpstreamModels(ctx context.Context, upstreamID uint, input re
 		orderedItems = append(orderedItems, itemsByKey[key]...)
 	}
 	return orderedItems, total, nil
+}
+
+func (r *Repo) upstreamModelBindingGroupsQuery(ctx context.Context, upstreamID uint, input repository.ListChannelUpstreamModelsInput) *gorm.DB {
+	query := r.db.WithContext(ctx).
+		Table("llm_upstream_models AS um").
+		Joins("LEFT JOIN llm_model_routes r ON r.upstream_model_id = um.id").
+		Joins("LEFT JOIN llm_platform_models pm ON pm.id = r.platform_model_id").
+		Where("um.upstream_id = ?", upstreamID)
+	return applyUpstreamModelListFilters(query, input).
+		Select("um.id AS upstream_model_id, COALESCE(r.platform_model_id, 0) AS platform_model_id").
+		Group("um.id, r.platform_model_id, pm.name")
 }
 
 func upstreamModelBindingKey(upstreamModelID uint, platformModelID uint) string {
@@ -1110,136 +1105,338 @@ func (r *Repo) UpsertPlatformModelRoute(ctx context.Context, item *domainchannel
 	return nil
 }
 
-// ReplacePlatformModelRoutes 原子替换一个平台模型与上游真实模型绑定下的完整协议集合。
+// ReplacePlatformModelRoutes 原子替换一组平台模型与上游真实模型绑定的完整协议集合。
 func (r *Repo) ReplacePlatformModelRoutes(
 	ctx context.Context,
-	upstreamID uint,
-	input repository.ReplaceChannelPlatformRoutesInput,
+	inputs []repository.ReplaceChannelPlatformRoutesInput,
 ) ([]domainchannel.PlatformModelRoute, error) {
-	if upstreamID == 0 || len(input.Routes) == 0 {
-		return nil, repository.ErrInvalidInput
-	}
-	targetPlatformModelID := input.Routes[0].PlatformModelID
-	targetUpstreamModelID := input.Routes[0].UpstreamModelID
-	if targetPlatformModelID == 0 || targetUpstreamModelID == 0 {
-		return nil, repository.ErrInvalidInput
-	}
-	seenProtocols := make(map[string]struct{}, len(input.Routes))
-	for _, route := range input.Routes {
-		if route.PlatformModelID != targetPlatformModelID || route.UpstreamModelID != targetUpstreamModelID || strings.TrimSpace(route.Protocol) == "" {
-			return nil, repository.ErrInvalidInput
-		}
-		if _, exists := seenProtocols[route.Protocol]; exists {
-			return nil, repository.ErrInvalidInput
-		}
-		seenProtocols[route.Protocol] = struct{}{}
-	}
-	existingRouteIDs, ok := normalizePlatformRouteIDs(input.ExistingRouteIDs)
-	if !ok {
+	if len(inputs) == 0 {
 		return nil, repository.ErrInvalidInput
 	}
 
-	replaced := make([]domainchannel.PlatformModelRoute, 0, len(input.Routes))
-	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var targetModelCount int64
-		if err := tx.Model(&model.LLMUpstreamModel{}).
-			Where("id = ? AND upstream_id = ?", targetUpstreamModelID, upstreamID).
-			Count(&targetModelCount).Error; err != nil {
+	replaced := make([]domainchannel.PlatformModelRoute, 0, len(inputs))
+	err := r.transact(ctx, func(tx *gorm.DB) error {
+		plans, err := loadPlatformRouteReplacementPlans(tx, inputs)
+		if err != nil {
 			return err
 		}
-		if targetModelCount == 0 {
-			return ErrUpstreamModelNotFound
-		}
-
-		candidateRows := make(map[uint]model.LLMPlatformModelRoute)
-		if len(existingRouteIDs) > 0 {
-			var selectedRows []model.LLMPlatformModelRoute
-			if err := tx.Table("llm_model_routes AS r").
-				Select("r.*").
-				Joins("JOIN llm_upstream_models um ON um.id = r.upstream_model_id").
-				Where("um.upstream_id = ? AND r.id IN ?", upstreamID, existingRouteIDs).
-				Scan(&selectedRows).Error; err != nil {
-				return err
-			}
-			if len(selectedRows) != len(existingRouteIDs) {
-				return ErrUpstreamModelNotFound
-			}
-			sourcePlatformModelID := selectedRows[0].PlatformModelID
-			sourceUpstreamModelID := selectedRows[0].UpstreamModelID
-			for _, row := range selectedRows {
-				if row.PlatformModelID != sourcePlatformModelID || row.UpstreamModelID != sourceUpstreamModelID {
-					return repository.ErrInvalidInput
-				}
-			}
-			var sourceRows []model.LLMPlatformModelRoute
-			if err := tx.Where("platform_model_id = ? AND upstream_model_id = ?", sourcePlatformModelID, sourceUpstreamModelID).
-				Order("id ASC").
-				Find(&sourceRows).Error; err != nil {
-				return err
-			}
-			if len(sourceRows) != len(existingRouteIDs) {
-				return repository.ErrInvalidInput
-			}
-			for _, row := range sourceRows {
-				candidateRows[row.ID] = row
-			}
-		}
-
-		var targetRows []model.LLMPlatformModelRoute
-		if err := tx.Where("platform_model_id = ? AND upstream_model_id = ?", targetPlatformModelID, targetUpstreamModelID).
-			Order("id ASC").
-			Find(&targetRows).Error; err != nil {
-			return err
-		}
-		for _, row := range targetRows {
-			candidateRows[row.ID] = row
-		}
-
-		candidates := make([]model.LLMPlatformModelRoute, 0, len(candidateRows))
-		for _, row := range candidateRows {
-			candidates = append(candidates, row)
-		}
-		sort.Slice(candidates, func(i int, j int) bool { return candidates[i].ID < candidates[j].ID })
-		usedIDs := make(map[uint]struct{}, len(input.Routes))
-
-		for _, desired := range input.Routes {
-			candidateIndex := selectPlatformRouteCandidate(candidates, usedIDs, targetPlatformModelID, targetUpstreamModelID, desired.Protocol)
-			if candidateIndex >= 0 {
-				candidate := candidates[candidateIndex]
-				if err := tx.Model(&model.LLMPlatformModelRoute{}).
-					Where("id = ?", candidate.ID).
-					Updates(platformRouteReplacementValues(desired)).Error; err != nil {
-					return err
-				}
-				desired.ID = candidate.ID
-				usedIDs[candidate.ID] = struct{}{}
-			} else {
-				entity := toPlatformModelRouteModel(&desired)
-				if err := tx.Create(&entity).Error; err != nil {
-					return err
-				}
-				desired = toPlatformModelRouteDomain(entity)
-			}
-			replaced = append(replaced, desired)
-		}
-
-		staleIDs := make([]uint, 0, len(candidates))
-		for _, candidate := range candidates {
-			if _, used := usedIDs[candidate.ID]; !used {
-				staleIDs = append(staleIDs, candidate.ID)
-			}
-		}
-		if len(staleIDs) > 0 {
-			if err := tx.Unscoped().Where("id IN ?", staleIDs).Delete(&model.LLMPlatformModelRoute{}).Error; err != nil {
-				return err
-			}
-		}
-		return nil
+		replaced, err = applyPlatformRouteReplacementPlans(tx, plans)
+		return err
 	})
 	if err != nil {
 		return nil, translateError(err)
 	}
 	return replaced, nil
+}
+
+type platformRouteBindingKey struct {
+	platformModelID uint
+	upstreamModelID uint
+}
+
+type platformRouteReplacementPlan struct {
+	input      repository.ReplaceChannelPlatformRoutesInput
+	sourceKey  platformRouteBindingKey
+	targetKey  platformRouteBindingKey
+	candidates []model.LLMPlatformModelRoute
+}
+
+func loadPlatformRouteReplacementPlans(
+	tx *gorm.DB,
+	inputs []repository.ReplaceChannelPlatformRoutesInput,
+) ([]platformRouteReplacementPlan, error) {
+	normalizedInputs := make([]repository.ReplaceChannelPlatformRoutesInput, len(inputs))
+	targetBindings := make(map[platformRouteBindingKey]struct{}, len(inputs))
+	selectedRouteSet := make(map[uint]struct{})
+	selectedRouteIDs := make([]uint, 0)
+
+	for index, rawInput := range inputs {
+		input, targetKey, err := normalizePlatformRouteReplacement(rawInput)
+		if err != nil {
+			return nil, err
+		}
+		if _, exists := targetBindings[targetKey]; exists {
+			return nil, repository.ErrInvalidInput
+		}
+		targetBindings[targetKey] = struct{}{}
+		for _, routeID := range input.ExistingRouteIDs {
+			if _, exists := selectedRouteSet[routeID]; exists {
+				return nil, repository.ErrInvalidInput
+			}
+			selectedRouteSet[routeID] = struct{}{}
+			selectedRouteIDs = append(selectedRouteIDs, routeID)
+		}
+		normalizedInputs[index] = input
+	}
+
+	selectedRows := make([]model.LLMPlatformModelRoute, 0, len(selectedRouteIDs))
+	if len(selectedRouteIDs) > 0 {
+		// 此处仅解析来源归属；先锁父模型、再锁完整路由集合，避免并发写入时形成 route -> model / model -> route 的交叉锁顺序。
+		if err := tx.Where("id IN ?", selectedRouteIDs).
+			Find(&selectedRows).Error; err != nil {
+			return nil, err
+		}
+		if len(selectedRows) != len(selectedRouteIDs) {
+			return nil, repository.ErrConflict
+		}
+	}
+	selectedByID := make(map[uint]model.LLMPlatformModelRoute, len(selectedRows))
+	for _, row := range selectedRows {
+		selectedByID[row.ID] = row
+	}
+
+	plans := make([]platformRouteReplacementPlan, len(normalizedInputs))
+	platformModelIDs := make(map[uint]struct{})
+	upstreamModelIDs := make(map[uint]struct{})
+	expectedUpstreamIDs := make(map[uint]uint)
+	for index, input := range normalizedInputs {
+		targetKey := platformRouteBindingKey{
+			platformModelID: input.Routes[0].PlatformModelID,
+			upstreamModelID: input.Routes[0].UpstreamModelID,
+		}
+		sourceKey := targetKey
+		if len(input.ExistingRouteIDs) > 0 {
+			first := selectedByID[input.ExistingRouteIDs[0]]
+			sourceKey = platformRouteBindingKey{platformModelID: first.PlatformModelID, upstreamModelID: first.UpstreamModelID}
+			for _, routeID := range input.ExistingRouteIDs[1:] {
+				row := selectedByID[routeID]
+				if row.PlatformModelID != sourceKey.platformModelID || row.UpstreamModelID != sourceKey.upstreamModelID {
+					return nil, repository.ErrConflict
+				}
+			}
+		}
+		plans[index] = platformRouteReplacementPlan{input: input, sourceKey: sourceKey, targetKey: targetKey}
+		platformModelIDs[sourceKey.platformModelID] = struct{}{}
+		platformModelIDs[targetKey.platformModelID] = struct{}{}
+		upstreamModelIDs[sourceKey.upstreamModelID] = struct{}{}
+		upstreamModelIDs[targetKey.upstreamModelID] = struct{}{}
+		if expected, exists := expectedUpstreamIDs[sourceKey.upstreamModelID]; exists && expected != input.UpstreamID {
+			return nil, repository.ErrInvalidInput
+		}
+		expectedUpstreamIDs[sourceKey.upstreamModelID] = input.UpstreamID
+		if expected, exists := expectedUpstreamIDs[targetKey.upstreamModelID]; exists && expected != input.UpstreamID {
+			return nil, repository.ErrInvalidInput
+		}
+		expectedUpstreamIDs[targetKey.upstreamModelID] = input.UpstreamID
+	}
+
+	platformIDs := uintSetValues(platformModelIDs)
+	lockedModels := make([]model.LLMPlatformModel, 0, len(platformIDs))
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("id").
+		Where("id IN ?", platformIDs).
+		Find(&lockedModels).Error; err != nil {
+		return nil, err
+	}
+	if len(lockedModels) != len(platformIDs) {
+		return nil, ErrModelNotFound
+	}
+
+	upstreamModelIDList := uintSetValues(upstreamModelIDs)
+	lockedUpstreamModels := make([]model.LLMUpstreamModel, 0, len(upstreamModelIDList))
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("id", "upstream_id").
+		Where("id IN ?", upstreamModelIDList).
+		Find(&lockedUpstreamModels).Error; err != nil {
+		return nil, err
+	}
+	if len(lockedUpstreamModels) != len(upstreamModelIDList) {
+		return nil, ErrUpstreamModelNotFound
+	}
+	for _, upstreamModel := range lockedUpstreamModels {
+		if upstreamModel.UpstreamID != expectedUpstreamIDs[upstreamModel.ID] {
+			return nil, ErrUpstreamModelNotFound
+		}
+	}
+
+	allRows := make([]model.LLMPlatformModelRoute, 0, len(selectedRows))
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("platform_model_id IN ? AND upstream_model_id IN ?", platformIDs, upstreamModelIDList).
+		Order("id ASC").
+		Find(&allRows).Error; err != nil {
+		return nil, err
+	}
+	rowsByBinding := make(map[platformRouteBindingKey][]model.LLMPlatformModelRoute)
+	for _, row := range allRows {
+		key := platformRouteBindingKey{platformModelID: row.PlatformModelID, upstreamModelID: row.UpstreamModelID}
+		rowsByBinding[key] = append(rowsByBinding[key], row)
+	}
+
+	bindingOwners := make(map[platformRouteBindingKey]int, len(plans)*2)
+	for index := range plans {
+		plan := &plans[index]
+		if owner, exists := bindingOwners[plan.sourceKey]; exists && owner != index {
+			return nil, repository.ErrInvalidInput
+		}
+		bindingOwners[plan.sourceKey] = index
+		if owner, exists := bindingOwners[plan.targetKey]; exists && owner != index {
+			return nil, repository.ErrInvalidInput
+		}
+		bindingOwners[plan.targetKey] = index
+
+		sourceRows := rowsByBinding[plan.sourceKey]
+		if len(plan.input.ExistingRouteIDs) > 0 && !samePlatformRouteIDs(sourceRows, plan.input.ExistingRouteIDs) {
+			return nil, repository.ErrConflict
+		}
+		targetRows := rowsByBinding[plan.targetKey]
+		if len(plan.input.ExistingRouteIDs) > 0 && plan.sourceKey != plan.targetKey && len(targetRows) > 0 {
+			return nil, repository.ErrDuplicate
+		}
+
+		candidateRows := make(map[uint]model.LLMPlatformModelRoute, len(sourceRows)+len(targetRows))
+		for _, row := range sourceRows {
+			candidateRows[row.ID] = row
+		}
+		for _, row := range targetRows {
+			candidateRows[row.ID] = row
+		}
+		plan.candidates = make([]model.LLMPlatformModelRoute, 0, len(candidateRows))
+		for _, row := range candidateRows {
+			plan.candidates = append(plan.candidates, row)
+		}
+		sort.Slice(plan.candidates, func(i int, j int) bool { return plan.candidates[i].ID < plan.candidates[j].ID })
+	}
+	return plans, nil
+}
+
+func normalizePlatformRouteReplacement(
+	input repository.ReplaceChannelPlatformRoutesInput,
+) (repository.ReplaceChannelPlatformRoutesInput, platformRouteBindingKey, error) {
+	if input.UpstreamID == 0 || len(input.Routes) == 0 {
+		return repository.ReplaceChannelPlatformRoutesInput{}, platformRouteBindingKey{}, repository.ErrInvalidInput
+	}
+	targetKey := platformRouteBindingKey{
+		platformModelID: input.Routes[0].PlatformModelID,
+		upstreamModelID: input.Routes[0].UpstreamModelID,
+	}
+	if targetKey.platformModelID == 0 || targetKey.upstreamModelID == 0 {
+		return repository.ReplaceChannelPlatformRoutesInput{}, platformRouteBindingKey{}, repository.ErrInvalidInput
+	}
+	seenProtocols := make(map[string]struct{}, len(input.Routes))
+	for _, route := range input.Routes {
+		if route.PlatformModelID != targetKey.platformModelID || route.UpstreamModelID != targetKey.upstreamModelID || strings.TrimSpace(route.Protocol) == "" {
+			return repository.ReplaceChannelPlatformRoutesInput{}, platformRouteBindingKey{}, repository.ErrInvalidInput
+		}
+		if _, exists := seenProtocols[route.Protocol]; exists {
+			return repository.ReplaceChannelPlatformRoutesInput{}, platformRouteBindingKey{}, repository.ErrInvalidInput
+		}
+		seenProtocols[route.Protocol] = struct{}{}
+	}
+	existingRouteIDs, ok := normalizePlatformRouteIDs(input.ExistingRouteIDs)
+	if !ok {
+		return repository.ReplaceChannelPlatformRoutesInput{}, platformRouteBindingKey{}, repository.ErrInvalidInput
+	}
+	input.ExistingRouteIDs = existingRouteIDs
+	return input, targetKey, nil
+}
+
+func applyPlatformRouteReplacementPlans(
+	tx *gorm.DB,
+	plans []platformRouteReplacementPlan,
+) ([]domainchannel.PlatformModelRoute, error) {
+	const batchSize = 200
+	now := time.Now()
+	updatedRows := make([]model.LLMPlatformModelRoute, 0)
+	createdRows := make([]model.LLMPlatformModelRoute, 0)
+	createdResultIndexes := make([]int, 0)
+	staleIDs := make([]uint, 0)
+	replaced := make([]domainchannel.PlatformModelRoute, 0)
+
+	for _, plan := range plans {
+		usedIDs := make(map[uint]struct{}, len(plan.input.Routes))
+		for _, desired := range plan.input.Routes {
+			candidateIndex := selectPlatformRouteCandidate(
+				plan.candidates,
+				usedIDs,
+				plan.targetKey.platformModelID,
+				plan.targetKey.upstreamModelID,
+				desired.Protocol,
+			)
+			if candidateIndex >= 0 {
+				candidate := plan.candidates[candidateIndex]
+				entity := toPlatformModelRouteModel(&desired)
+				entity.ControlPlaneModel = candidate.ControlPlaneModel
+				entity.UpdatedAt = now
+				updatedRows = append(updatedRows, entity)
+				desired.ID = candidate.ID
+				desired.CreatedAt = candidate.CreatedAt
+				desired.UpdatedAt = now
+				usedIDs[candidate.ID] = struct{}{}
+			} else {
+				createdRows = append(createdRows, toPlatformModelRouteModel(&desired))
+				createdResultIndexes = append(createdResultIndexes, len(replaced))
+			}
+			replaced = append(replaced, desired)
+		}
+		for _, candidate := range plan.candidates {
+			if _, used := usedIDs[candidate.ID]; !used {
+				staleIDs = append(staleIDs, candidate.ID)
+			}
+		}
+	}
+
+	if len(updatedRows) > 0 {
+		if err := tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			DoUpdates: clause.AssignmentColumns(platformRouteMutableColumns),
+		}).CreateInBatches(&updatedRows, batchSize).Error; err != nil {
+			return nil, err
+		}
+	}
+	if len(createdRows) > 0 {
+		if err := tx.CreateInBatches(&createdRows, batchSize).Error; err != nil {
+			return nil, err
+		}
+		for index, row := range createdRows {
+			replaced[createdResultIndexes[index]] = toPlatformModelRouteDomain(row)
+		}
+	}
+	if len(staleIDs) > 0 {
+		if err := tx.Unscoped().Where("id IN ?", staleIDs).Delete(&model.LLMPlatformModelRoute{}).Error; err != nil {
+			return nil, err
+		}
+	}
+	return replaced, nil
+}
+
+var platformRouteMutableColumns = []string{
+	"platform_model_id",
+	"upstream_model_id",
+	"protocol",
+	"status",
+	"priority",
+	"weight",
+	"source",
+	"cb_failure_threshold",
+	"cb_duration_min",
+	"cb_window_min",
+	"headers_json",
+	"updated_at",
+}
+
+func uintSetValues(values map[uint]struct{}) []uint {
+	result := make([]uint, 0, len(values))
+	for value := range values {
+		result = append(result, value)
+	}
+	sort.Slice(result, func(i int, j int) bool { return result[i] < result[j] })
+	return result
+}
+
+func samePlatformRouteIDs(rows []model.LLMPlatformModelRoute, expected []uint) bool {
+	if len(rows) != len(expected) {
+		return false
+	}
+	seen := make(map[uint]struct{}, len(rows))
+	for _, row := range rows {
+		seen[row.ID] = struct{}{}
+	}
+	for _, routeID := range expected {
+		if _, exists := seen[routeID]; !exists {
+			return false
+		}
+	}
+	return true
 }
 
 func normalizePlatformRouteIDs(routeIDs []uint) ([]uint, bool) {
@@ -1287,22 +1484,6 @@ func selectPlatformRouteCandidate(
 		}
 	}
 	return -1
-}
-
-func platformRouteReplacementValues(route domainchannel.PlatformModelRoute) map[string]interface{} {
-	return map[string]interface{}{
-		"platform_model_id":    route.PlatformModelID,
-		"upstream_model_id":    route.UpstreamModelID,
-		"protocol":             route.Protocol,
-		"status":               route.Status,
-		"priority":             route.Priority,
-		"weight":               route.Weight,
-		"source":               route.Source,
-		"cb_failure_threshold": route.CbFailureThreshold,
-		"cb_duration_min":      route.CbDurationMin,
-		"cb_window_min":        route.CbWindowMin,
-		"headers_json":         route.HeadersJSON,
-	}
 }
 
 // ListPlatformModelRoutesByPair 查询同一平台模型和同一上游真实模型之间的全部协议绑定。
@@ -1432,24 +1613,10 @@ func (r *Repo) ListModelUpstreamSources(ctx context.Context, platformModelName s
 	var total int64
 
 	name := strings.TrimSpace(platformModelName)
-	query := r.db.WithContext(ctx).
-		Table("llm_model_routes AS r").
-		Joins("JOIN llm_platform_models pm ON pm.id = r.platform_model_id").
-		Where("pm.name = ?", name)
-	if err := query.Count(&total).Error; err != nil {
+	if err := r.modelUpstreamSourcesBaseQuery(ctx, name).Count(&total).Error; err != nil {
 		return nil, 0, translateError(err)
 	}
-	if err := r.db.WithContext(ctx).
-		Table("llm_model_routes AS r").
-		Select(
-			"r.*, um.upstream_id, u.name AS upstream_name, u.status AS upstream_status, u.base_url AS base_url, "+
-				"um.binding_code, um.upstream_model_name, um.vendor AS upstream_model_vendor, um.icon AS upstream_model_icon, "+
-				"um.kinds_json AS upstream_model_kinds_json, um.suggested_protocol, um.status AS upstream_model_status",
-		).
-		Joins("JOIN llm_platform_models pm ON pm.id = r.platform_model_id").
-		Joins("JOIN llm_upstream_models um ON um.id = r.upstream_model_id").
-		Joins("JOIN llm_upstreams u ON u.id = um.upstream_id").
-		Where("pm.name = ?", name).
+	if err := r.modelUpstreamSourcesQuery(ctx, name).
 		Order("r.priority ASC, r.id DESC").
 		Offset(offset).
 		Limit(limit).
@@ -1459,20 +1626,42 @@ func (r *Repo) ListModelUpstreamSources(ctx context.Context, platformModelName s
 	return items, total, nil
 }
 
+// ListModelUpstreamSourcesForUpdate 锁定并返回平台模型的完整来源集合，用于原子批量更新。
+func (r *Repo) ListModelUpstreamSourcesForUpdate(ctx context.Context, platformModelName string) ([]ModelSourceRow, error) {
+	items := make([]ModelSourceRow, 0)
+	if err := r.modelUpstreamSourcesQuery(ctx, strings.TrimSpace(platformModelName)).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Order("r.id ASC").
+		Scan(&items).Error; err != nil {
+		return nil, translateError(err)
+	}
+	return items, nil
+}
+
+func (r *Repo) modelUpstreamSourcesBaseQuery(ctx context.Context, platformModelName string) *gorm.DB {
+	return r.db.WithContext(ctx).
+		Table("llm_model_routes AS r").
+		Joins("JOIN llm_platform_models pm ON pm.id = r.platform_model_id").
+		Where("pm.name = ?", platformModelName)
+}
+
+func (r *Repo) modelUpstreamSourcesQuery(ctx context.Context, platformModelName string) *gorm.DB {
+	return r.modelUpstreamSourcesBaseQuery(ctx, platformModelName).
+		Select(
+			"r.*, um.upstream_id, u.name AS upstream_name, u.status AS upstream_status, " +
+				"u.compatible AS upstream_compatible, u.protocol_defaults_json AS upstream_protocol_defaults_json, u.base_url AS base_url, " +
+				"um.binding_code, um.upstream_model_name, um.vendor AS upstream_model_vendor, um.icon AS upstream_model_icon, " +
+				"um.kinds_json AS upstream_model_kinds_json, um.suggested_protocol, um.status AS upstream_model_status",
+		).
+		Joins("JOIN llm_upstream_models um ON um.id = r.upstream_model_id").
+		Joins("JOIN llm_upstreams u ON u.id = um.upstream_id")
+}
+
 // GetModelUpstreamSourceByRouteID 按平台模型名和路由 ID 精确查询模型来源。
 func (r *Repo) GetModelUpstreamSourceByRouteID(ctx context.Context, platformModelName string, routeID uint) (*ModelSourceRow, error) {
 	var item ModelSourceRow
-	if err := r.db.WithContext(ctx).
-		Table("llm_model_routes AS r").
-		Select(
-			"r.*, um.upstream_id, u.name AS upstream_name, u.status AS upstream_status, u.base_url AS base_url, "+
-				"um.binding_code, um.upstream_model_name, um.vendor AS upstream_model_vendor, um.icon AS upstream_model_icon, "+
-				"um.kinds_json AS upstream_model_kinds_json, um.suggested_protocol, um.status AS upstream_model_status",
-		).
-		Joins("JOIN llm_platform_models pm ON pm.id = r.platform_model_id").
-		Joins("JOIN llm_upstream_models um ON um.id = r.upstream_model_id").
-		Joins("JOIN llm_upstreams u ON u.id = um.upstream_id").
-		Where("pm.name = ? AND r.id = ?", strings.TrimSpace(platformModelName), routeID).
+	if err := r.modelUpstreamSourcesQuery(ctx, strings.TrimSpace(platformModelName)).
+		Where("r.id = ?", routeID).
 		Take(&item).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrUpstreamModelNotFound

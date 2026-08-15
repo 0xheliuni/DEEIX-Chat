@@ -2845,6 +2845,25 @@ export interface SetModelPermissionGroupsRequest {
   groupIDs?: number[];
 }
 
+export interface SetModelProtocolsRequest {
+  /**
+   * @minLength 2
+   * @maxLength 1000
+   */
+  kindsJSON: string;
+  /**
+   * @maxItems 2
+   * @minItems 1
+   * @uniqueItems true
+   */
+  protocols: string[];
+}
+
+export interface SetModelProtocolsResponseDoc {
+  data: ModelDataResponse;
+  errorMsg: string;
+}
+
 export interface SetModelsDisplayGroupRequest {
   displayGroupID: number;
   /**
@@ -3370,8 +3389,11 @@ export interface UpsertModelPricingRequest {
 }
 
 export interface UpsertUpstreamModelRequest {
+  /** @min 0 */
   cbDurationMin?: number;
+  /** @min 0 */
   cbFailureThreshold?: number;
+  /** @min 0 */
   cbWindowMin?: number;
   /** @maxLength 10000 */
   headersJSON?: string;
@@ -3383,13 +3405,20 @@ export interface UpsertUpstreamModelRequest {
    */
   platformModelName: string;
   priority?: number;
-  /** @maxLength 64 */
-  protocol?: string;
-  protocols?: string[];
-  routeID?: number;
+  /**
+   * Protocols 为空数组时根据模型能力和上游默认配置自动推断完整协议集合。
+   * @maxItems 2
+   * @uniqueItems true
+   */
+  protocols: string[];
+  /**
+   * @maxItems 2
+   * @uniqueItems true
+   */
   routeIDs?: number[];
   /** @maxLength 64 */
   source?: string;
+  /** 路由配置字段省略时保留已有协议各自的配置；新增协议使用服务端默认值或现有绑定模板。 */
   status?: "active" | "inactive";
   /**
    * @minLength 1
@@ -4839,6 +4868,25 @@ export namespace Admin {
     export type RequestBody = UpdateModelRequest;
     export type RequestHeaders = {};
     export type ResponseBody = UpdateModelResponseDoc;
+  }
+
+  /**
+   * @description 在单个数据库事务中更新平台模型能力类型，并将该模型全部上游绑定替换为指定的完整协议集合
+   * @tags llm
+   * @name LlmModelsProtocolsPartialUpdate
+   * @summary 管理员替换模型全部来源的协议集合
+   * @request PATCH:/admin/llm/models/{id}/protocols
+   * @secure
+   */
+  export namespace LlmModelsProtocolsPartialUpdate {
+    export type RequestParams = {
+      /** 模型ID */
+      id: number;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = SetModelProtocolsRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = SetModelProtocolsResponseDoc;
   }
 
   /**

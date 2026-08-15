@@ -332,9 +332,11 @@ type ModelRowProps = {
   isSelected: boolean;
   upstreamInactive: boolean;
   onSelect: (draftKey: string, checked: boolean) => void;
-  onUpdate: (draftKey: string, patch: Partial<Omit<RowDraft, "draftKey" | "isDirty">>) => void;
+  onUpdate: (draftKey: string, patch: RowDraftPatch) => void;
   onTest: (row: RowDraft, routeID: number) => void;
 };
+
+type RowDraftPatch = Partial<Omit<RowDraft, "draftKey" | "isDirty" | "routeStatusOverridden">>;
 
 const ModelRow = React.memo(function ModelRow({ row, isSelected, upstreamInactive, onSelect, onUpdate, onTest }: ModelRowProps) {
   const t = useTranslations("adminUpstreams");
@@ -847,14 +849,13 @@ function NewBindingDialog({
       const payload: UpsertAdminLLMUpstreamModelRequest = {
         upstreamModelName: form.upstreamModelName.trim(),
         platformModelName: form.platformModelName.trim(),
+        protocols: form.protocols,
         kindsJSON: displayToKindsJson(form.kindsDisplay),
         status: form.status,
         priority: 1,
         weight: 1,
       };
-      await upsertAdminLLMUpstreamModel(token, upstreamId, form.protocols.length > 0
-        ? { ...payload, protocols: form.protocols }
-        : payload);
+      await upsertAdminLLMUpstreamModel(token, upstreamId, payload);
       toast.success(t("modelsDialog.bindingCreated"));
       setForm(DEFAULT_NEW_BINDING);
       onOpenChange(false);
@@ -974,7 +975,7 @@ type RouteListParams = {
 };
 
 type BulkPatchConfirm = {
-  patch: Partial<Omit<RowDraft, "draftKey" | "isDirty">>;
+  patch: RowDraftPatch;
 };
 
 const DEFAULT_ROUTE_LIST_PARAMS: RouteListParams = {
@@ -1230,21 +1231,33 @@ export function UpstreamModelsDialog({
 
   const updateRow = React.useCallback((
     draftKey: string,
-    patch: Partial<Omit<RowDraft, "draftKey" | "isDirty">>,
+    patch: RowDraftPatch,
   ) => {
     setRows((prev) =>
       prev.map((r) =>
-        r.draftKey === draftKey ? { ...r, ...patch, isDirty: true } : r,
+        r.draftKey === draftKey
+          ? {
+              ...r,
+              ...patch,
+              isDirty: true,
+              routeStatusOverridden: r.routeStatusOverridden || patch.routeStatus !== undefined,
+            }
+          : r,
       ),
     );
   }, []);
 
-  const applyBulkPatch = React.useCallback((patch: Partial<Omit<RowDraft, "draftKey" | "isDirty">>) => {
+  const applyBulkPatch = React.useCallback((patch: RowDraftPatch) => {
     if (selected.size === 0) return;
     setRows((prev) =>
       prev.map((row) =>
         routeIDsForRow(row).length > 0 && selected.has(row.draftKey)
-          ? { ...row, ...patch, isDirty: true }
+          ? {
+              ...row,
+              ...patch,
+              isDirty: true,
+              routeStatusOverridden: row.routeStatusOverridden || patch.routeStatus !== undefined,
+            }
           : row,
       ),
     );
@@ -1342,27 +1355,13 @@ export function UpstreamModelsDialog({
           continue;
         }
 
-        const basePayload: UpsertAdminLLMUpstreamModelRequest = {
+        const basePayload: Omit<UpsertAdminLLMUpstreamModelRequest, "protocols"> = {
           platformModelName,
           upstreamModelName: row.upstreamModelName.trim(),
           kindsJSON: displayToKindsJson(row.kindsDisplay),
-          status: row.routeStatus || "active",
-          priority: row.priority || 1,
-          weight: row.weight || 1,
+          ...(row.routeStatusOverridden ? { status: row.routeStatus || "active" } : {}),
         };
         const desiredProtocols = selectedProtocolsForSave(row);
-        if (desiredProtocols.length === 0) {
-          upsertOperations.push(() =>
-            upsertAdminLLMUpstreamModel(token, upstream.id, {
-              ...basePayload,
-              routeIDs: existingRouteIDs,
-              protocols: [],
-            }),
-          );
-          savedCount += 1;
-          continue;
-        }
-
         upsertOperations.push(() =>
           upsertAdminLLMUpstreamModel(token, upstream.id, {
             ...basePayload,
@@ -1414,7 +1413,7 @@ export function UpstreamModelsDialog({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
-          className="flex max-h-[min(90svh,800px)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 md:w-[calc(100vw-8rem)] sm:max-w-[860px]"
+          className="flex h-[min(90svh,800px)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 md:w-[calc(100vw-8rem)] sm:max-w-[860px]"
         >
           <DialogHeader className="shrink-0 px-4 py-4">
             <DialogTitle>{t("modelsDialog.manageTitle")}</DialogTitle>
@@ -1560,12 +1559,13 @@ export function UpstreamModelsDialog({
             </TableToolbar>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-hidden px-4 py-2">
+          <div className="flex min-h-0 flex-1 overflow-hidden px-4 py-2">
             <Table
               className="min-w-[800px]"
+              shellClassName="min-h-0 flex-1"
               viewportRef={virtualRows.viewportRef}
-              viewportClassName={cn(virtualRows.viewportClassName, "overscroll-contain")}
-              viewportStyle={{ ...virtualRows.viewportStyle, maxHeight: "min(54svh, 540px)" }}
+              viewportClassName={cn(virtualRows.viewportClassName, "h-full max-h-none overscroll-contain")}
+              viewportStyle={{ ...virtualRows.viewportStyle, height: "100%", maxHeight: "none" }}
             >
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">

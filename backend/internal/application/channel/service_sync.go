@@ -420,15 +420,19 @@ func (s *Service) importSingleUpstreamModel(ctx context.Context, upstreamItem *d
 			result.ExistingRoutes++
 		}
 	}
+	status := input.Status
+	priority := input.Priority
+	weight := 1
+	source := "import"
 	view, err := s.UpsertUpstreamModel(ctx, upstreamItem.ID, UpsertUpstreamModelInput{
 		PlatformModelName: platformModelName,
 		UpstreamModelName: upstreamModelName,
 		Protocols:         protocols,
 		KindsJSON:         kindsJSON,
-		Status:            input.Status,
-		Priority:          input.Priority,
-		Weight:            1,
-		Source:            "import",
+		Status:            &status,
+		Priority:          &priority,
+		Weight:            &weight,
+		Source:            &source,
 	})
 	if err != nil {
 		return ImportUpstreamModelResultView{}, err

@@ -41,6 +41,7 @@ func (m *Module) RegisterAdminRoutes(adminGroup *gin.RouterGroup) {
 	adminGroup.POST("/llm/models/batch-delete", m.Handler.BatchDeleteModels)
 	adminGroup.PATCH("/llm/models/display-group", m.Handler.SetModelsDisplayGroup)
 	adminGroup.PATCH("/llm/models/:id", m.Handler.UpdateModel)
+	adminGroup.PATCH("/llm/models/:id/protocols", m.Handler.SetModelProtocols)
 	adminGroup.DELETE("/llm/models/:id", m.Handler.DeleteModel)
 	adminGroup.POST("/llm/models/:id/test", m.Handler.TestModel)
 	adminGroup.POST("/llm/models/:id/test-all", m.Handler.TestModelAll)
