@@ -22,6 +22,7 @@ import type {
   ModelUpstreamSourceDataResponse,
   ModelUpstreamSourceResponse,
   ReorderModelsRequest,
+  SetModelProtocolsRequest,
   SetModelsDisplayGroupRequest,
   UpdateModelDisplayGroupRequest,
   UpdateModelRequest,
@@ -227,9 +228,12 @@ export type UpdateAdminLLMModelVendorRequest = UpdateModelVendorRequest;
 export type CreateAdminLLMModelDisplayGroupRequest = CreateModelDisplayGroupRequest;
 export type UpdateAdminLLMModelDisplayGroupRequest = UpdateModelDisplayGroupRequest;
 export type SetAdminLLMModelsDisplayGroupRequest = SetModelsDisplayGroupRequest;
+export type SetAdminLLMModelProtocolsRequest = Omit<SetModelProtocolsRequest, "protocols"> & {
+  protocols: AdminLLMAdapter[];
+};
 
-export type UpsertAdminLLMUpstreamModelRequest = Omit<UpsertUpstreamModelRequest, "protocol" | "status"> & {
-  protocol?: AdminLLMAdapter;
+export type UpsertAdminLLMUpstreamModelRequest = Omit<UpsertUpstreamModelRequest, "protocols" | "status"> & {
+  protocols: AdminLLMAdapter[];
   status?: AdminLLMStatus;
 };
 

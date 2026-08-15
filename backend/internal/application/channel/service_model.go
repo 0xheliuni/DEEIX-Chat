@@ -253,6 +253,10 @@ func filterPricedModelViews(items []ModelView, pricingByPlatformModelName map[st
 }
 
 func (s *Service) normalizeModelAvailability(ctx context.Context, items []ModelView) error {
+	return s.normalizeModelAvailabilityWithRepo(ctx, s.repo, items)
+}
+
+func (s *Service) normalizeModelAvailabilityWithRepo(ctx context.Context, repo repository.ChannelRepository, items []ModelView) error {
 	for index := range items {
 		if items[index].Status != "active" {
 			items[index].ActiveSourceCount = 0
@@ -261,7 +265,7 @@ func (s *Service) normalizeModelAvailability(ctx context.Context, items []ModelV
 		if s.cache == nil || items[index].SourceCount <= 0 || items[index].ActiveSourceCount <= 0 {
 			continue
 		}
-		sources, _, err := s.repo.ListModelUpstreamSources(ctx, items[index].PlatformModelName, 0, int(items[index].SourceCount))
+		sources, _, err := repo.ListModelUpstreamSources(ctx, items[index].PlatformModelName, 0, int(items[index].SourceCount))
 		if err != nil {
 			return err
 		}
