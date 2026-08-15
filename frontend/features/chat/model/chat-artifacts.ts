@@ -1,9 +1,9 @@
 import type { ChatAreaMessage } from "@/features/chat/types/messages";
-import {
-  resolveArtifactPreviewKind,
-  type ArtifactPreviewKind,
-} from "@/shared/lib/artifact-preview";
 import { getBrandingSnapshot } from "@/shared/config/branding";
+import {
+  type ArtifactPreviewKind,
+  resolveArtifactPreviewKind,
+} from "@/shared/lib/artifact-preview";
 import type { HTMLVisualThemeSnapshot } from "@/shared/lib/html-visual-theme";
 
 export type { ArtifactPreviewKind } from "@/shared/lib/artifact-preview";
@@ -233,6 +233,35 @@ body { margin: 0; font: 14px/1.5 var(--font-sans); color: var(--foreground); bac
 </html>`;
 }
 
+function svgPreviewDocument(code: string, theme: HTMLVisualThemeSnapshot): string {
+  return `<!doctype html>
+<html>
+<head>
+${previewHead("SVG Preview", theme)}
+<style>
+body { margin: 0; min-height: 100%; }
+.artifact-svg-preview {
+  box-sizing: border-box;
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+.artifact-svg-preview > svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+</style>
+</head>
+<body>
+<main class="artifact-svg-preview">${code}</main>
+</body>
+</html>`;
+}
+
 export function buildArtifactPreviewDocument(
   kind: ArtifactPreviewKind,
   code: string,
@@ -240,17 +269,23 @@ export function buildArtifactPreviewDocument(
 ): string {
   if (kind === "css") return cssPreviewDocument(code, theme);
   if (kind === "javascript") return javascriptPreviewDocument(code, theme);
+  if (kind === "svg") return svgPreviewDocument(code, theme);
   return htmlPreviewDocument(code, theme);
 }
 
 export function resolveArtifactDownloadName(kind: ArtifactPreviewKind): string {
   if (kind === "css") return "artifact-css-preview.html";
   if (kind === "javascript") return "artifact-js-preview.html";
+  if (kind === "svg") return "artifact.svg";
   return "artifact-preview.html";
 }
 
-export function downloadArtifactHTML(fileName: string, value: string): void {
-  const blob = new Blob([value], { type: "text/html;charset=utf-8" });
+export function downloadArtifactHTML(
+  fileName: string,
+  value: string,
+  mimeType: string = "text/html;charset=utf-8",
+): void {
+  const blob = new Blob([value], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

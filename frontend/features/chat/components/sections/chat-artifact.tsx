@@ -177,8 +177,16 @@ function ChatArtifactPanel({
 
   const handleDownload = React.useCallback(() => {
     if (!canPreview) return;
+    if (artifact.kind === "svg") {
+      downloadArtifactHTML(
+        resolveArtifactDownloadName(artifact.kind),
+        artifact.code,
+        "image/svg+xml;charset=utf-8",
+      );
+      return;
+    }
     downloadArtifactHTML(resolveArtifactDownloadName(artifact.kind), previewHTML);
-  }, [artifact.kind, canPreview, previewHTML]);
+  }, [artifact.kind, artifact.code, canPreview, previewHTML]);
 
   return (
     <aside
@@ -232,7 +240,11 @@ function ChatArtifactPanel({
               </TooltipTrigger>
               <TooltipContent side="bottom">{t("copySource")}</TooltipContent>
             </Tooltip>
-            <ArtifactActionButton label={t("downloadHtml")} disabled={!canPreview} onClick={handleDownload}>
+            <ArtifactActionButton
+              label={artifact.kind === "svg" ? t("downloadSvg") : t("downloadHtml")}
+              disabled={!canPreview}
+              onClick={handleDownload}
+            >
               <Download className="size-3" />
             </ArtifactActionButton>
             <ArtifactActionButton label={t("close")} onClick={onClose}>

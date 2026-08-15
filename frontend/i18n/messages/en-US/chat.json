@@ -176,6 +176,7 @@
     "sourceCopied": "Source copied",
     "copyFailed": "Could not copy source",
     "downloadHtml": "Download HTML",
+    "downloadSvg": "Download SVG",
     "close": "Close",
     "resize": "Resize Artifact",
     "empty": "This artifact is empty and cannot be previewed yet.",
