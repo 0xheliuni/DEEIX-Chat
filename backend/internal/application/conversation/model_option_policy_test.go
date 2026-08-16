@@ -1051,6 +1051,88 @@ func TestFilterModelOptionsGeminiInteractionsPreservesConfiguredNativeTools(t *t
 	}
 }
 
+func TestFilterModelOptionsSelectsGeminiToolsForResolvedRouteProtocol(t *testing.T) {
+	options := map[string]interface{}{
+		"tools": []interface{}{
+			map[string]interface{}{"google_search": map[string]interface{}{}},
+			map[string]interface{}{"code_execution": map[string]interface{}{}},
+			map[string]interface{}{"url_context": map[string]interface{}{}},
+			map[string]interface{}{"type": "google_search"},
+			map[string]interface{}{"type": "code_execution"},
+			map[string]interface{}{"type": "url_context"},
+		},
+	}
+	capabilities := `{
+		"nativeTools": [
+			{"key":"google.google_search","protocols":["gemini_generate_content"],"type":"google_search","payload":{"google_search":{}}},
+			{"key":"google.code_execution","protocols":["gemini_generate_content"],"type":"code_execution","payload":{"code_execution":{}}},
+			{"key":"google.url_context","protocols":["gemini_generate_content"],"type":"url_context","payload":{"url_context":{}}},
+			{"key":"google.google_search","protocols":["gemini_interactions"],"type":"google_search","payload":{"type":"google_search"}},
+			{"key":"google.code_execution","protocols":["gemini_interactions"],"type":"code_execution","payload":{"type":"code_execution"}},
+			{"key":"google.url_context","protocols":["gemini_interactions"],"type":"url_context","payload":{"type":"url_context"}}
+		]
+	}`
+
+	generateContent := filterModelOptions(options, llm.AdapterGoogleGenerateContent, modelOptionPolicyConfig{
+		Mode:                  modelOptionPolicyAllowlist,
+		AllowedPathsJSON:      config.DefaultModelOptionAllowedPathsJSON(),
+		DeniedPathsJSON:       config.DefaultModelOptionDeniedPathsJSON(),
+		ModelCapabilitiesJSON: capabilities,
+	})
+	generateContentTools, ok := generateContent["tools"].([]map[string]interface{})
+	if !ok || len(generateContentTools) != 3 {
+		t.Fatalf("expected three Generate Content tools, got %#v", generateContent["tools"])
+	}
+	missingGenerateContentTools := map[string]struct{}{
+		"google_search":  {},
+		"code_execution": {},
+		"url_context":    {},
+	}
+	for _, tool := range generateContentTools {
+		if _, exists := tool["type"]; exists {
+			t.Fatalf("Generate Content tool must use field-style payload: %#v", tool)
+		}
+		for key := range missingGenerateContentTools {
+			if _, exists := tool[key]; exists {
+				delete(missingGenerateContentTools, key)
+				break
+			}
+		}
+	}
+	if len(missingGenerateContentTools) != 0 {
+		t.Fatalf("missing Generate Content tools: %#v", missingGenerateContentTools)
+	}
+
+	interactions := filterModelOptions(options, llm.AdapterGeminiInteractions, modelOptionPolicyConfig{
+		Mode:                  modelOptionPolicyAllowlist,
+		AllowedPathsJSON:      config.DefaultModelOptionAllowedPathsJSON(),
+		DeniedPathsJSON:       config.DefaultModelOptionDeniedPathsJSON(),
+		ModelCapabilitiesJSON: capabilities,
+	})
+	interactionTools, ok := interactions["tools"].([]map[string]interface{})
+	if !ok || len(interactionTools) != 3 {
+		t.Fatalf("expected three Interactions tools, got %#v", interactions["tools"])
+	}
+	missingInteractionTools := map[string]struct{}{
+		"google_search":  {},
+		"code_execution": {},
+		"url_context":    {},
+	}
+	for _, tool := range interactionTools {
+		toolType, ok := tool["type"].(string)
+		if !ok {
+			t.Fatalf("Interactions tool missing type: %#v", tool)
+		}
+		if _, expected := missingInteractionTools[toolType]; !expected {
+			t.Fatalf("unexpected or duplicate Interactions tool type %q: %#v", toolType, tool)
+		}
+		delete(missingInteractionTools, toolType)
+	}
+	if len(missingInteractionTools) != 0 {
+		t.Fatalf("missing Interactions tools: %#v", missingInteractionTools)
+	}
+}
+
 func TestFilterModelOptionsGeminiInteractionsAllowsCamelCaseVideoConfig(t *testing.T) {
 	filtered := filterModelOptions(map[string]interface{}{
 		"generationConfig": map[string]interface{}{

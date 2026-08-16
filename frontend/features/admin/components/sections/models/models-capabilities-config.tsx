@@ -32,6 +32,7 @@ import type { AdminLLMModelDTO } from "@/features/admin/api/llm.types";
 import { ModelCapabilitiesPresetDialog } from "@/features/admin/components/sections/models/models-capabilities-presets";
 import type { NativeToolDefinition } from "@/shared/lib/model-option-policy";
 import { MODEL_OPTION_POLICY_PROTOCOL_LABELS, resolveModelOptionPolicyProtocol } from "@/shared/lib/model-option-policy";
+import { nativeToolPayloadMatchesShape, nativeToolPayloadSignature } from "@/shared/lib/native-tool-payload";
 
 export const MODEL_CAPABILITIES_PLACEHOLDER = `{
   "defaultOptions": {},
@@ -528,19 +529,6 @@ function sortNativeToolOptionsByRoute(
   });
 }
 
-function nativeToolPayloadSignature(value: unknown): string {
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => nativeToolPayloadSignature(item)).join(",")}]`;
-  }
-  if (isPlainJSONObject(value)) {
-    return `{${Object.keys(value)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${nativeToolPayloadSignature(value[key])}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(value) ?? String(value);
-}
-
 function nativeToolOptionsFromCatalog(
   nativeTools: NativeToolDefinition[],
   routeProtocols: string[] = [],
@@ -906,7 +894,7 @@ function parseNativeToolRows(
       rows.unshift({ ...row, id: row.id || createCapabilityRowID() });
       return;
     }
-    const configuredPayloadSignature = nativeToolPayloadSignature(JSON.parse(row.payload || "{}") as unknown);
+    const configuredPayload = JSON.parse(row.payload || "{}") as Record<string, unknown>;
     for (const index of matchingIndexes) {
       const catalogRow = rows[index];
       if (!catalogRow) {
@@ -914,7 +902,7 @@ function parseNativeToolRows(
       }
       const matchedProtocols = parseNativeToolProtocolsInput(catalogRow.protocols)
         .filter((protocol) => configuredProtocols.size === 0 || configuredProtocols.has(resolveModelOptionPolicyProtocol(protocol)));
-      const catalogPayloadSignature = nativeToolPayloadSignature(JSON.parse(catalogRow.payload || "{}") as unknown);
+      const catalogPayload = JSON.parse(catalogRow.payload || "{}") as Record<string, unknown>;
       rows[index] = {
         ...catalogRow,
         ...row,
@@ -922,7 +910,7 @@ function parseNativeToolRows(
         provider: row.provider || catalogRow.provider,
         description: row.description || catalogRow.description,
         protocols: formatNativeToolProtocolsInput(matchedProtocols),
-        payload: matchingIndexes.length === 1 || configuredPayloadSignature === catalogPayloadSignature
+        payload: matchingIndexes.length === 1 || nativeToolPayloadMatchesShape(configuredPayload, catalogPayload)
           ? row.payload
           : catalogRow.payload,
         catalog: true,

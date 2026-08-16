@@ -382,7 +382,7 @@ func TestParseGeminiInteractionOutputExtractsVideoURIAndInlineData(t *testing.T)
 			{"type": "video", "file_data": {"file_uri": "https://example.com/video.mp4", "mime_type": "video/mp4"}},
 			{"type": "video", "duration_seconds": 3, "inlineData": {"data": "` + inline + `", "mimeType": "video/webm"}}
 		],
-		"usageMetadata": {"promptTokenCount": 3, "candidatesTokenCount": 5}
+		"usage": {"total_input_tokens": 3, "total_output_tokens": 5}
 	}`)
 	output, err := parseGeminiInteractionOutput(body)
 	if err != nil {
@@ -472,6 +472,160 @@ func TestParseGeminiInteractionOutputExtractsFunctionCalls(t *testing.T) {
 	}
 }
 
+func TestParseGeminiInteractionOutputExtractsNativeToolTracesAndUsage(t *testing.T) {
+	body := []byte(`{
+		"id": "interaction-native-tools",
+		"steps": [
+			{"type": "thought", "signature": "thought_sig_1", "summary": [{"type": "text", "text": "I should verify the result."}]},
+			{"type": "google_search_call", "arguments": {"query": "Paris 2024 men's 100m winner"}, "id": "search_call_1"},
+			{"type": "google_search_result", "call_id": "search_call_1", "result": [{"title": "Olympics", "url": "https://example.com/olympics", "snippet": "Noah Lyles won."}]},
+			{"type": "code_execution_call", "arguments": {"code": "print(sum(range(1, 11)))", "language": "python"}, "id": "code_call_1"},
+			{"type": "code_execution_result", "call_id": "code_call_1", "result": "55\n"},
+			{"type": "url_context_call", "arguments": {"urls": ["https://example.com"]}, "id": "url_call_1"},
+			{"type": "url_context_result", "call_id": "url_call_1", "result": [{"title": "Example Domain", "url": "https://example.com", "snippet": "Example content."}]}
+		],
+		"usage": {
+			"total_input_tokens": 20,
+			"total_cached_tokens": 5,
+			"total_output_tokens": 8,
+			"total_thought_tokens": 3
+		},
+		"service_tier": "standard"
+	}`)
+	output, err := parseGeminiInteractionOutput(body)
+	if err != nil {
+		t.Fatalf("parse Gemini interaction output: %v", err)
+	}
+	if len(output.ServerToolCalls) != 3 {
+		t.Fatalf("expected three native tool traces, got %#v", output.ServerToolCalls)
+	}
+	for _, call := range output.ServerToolCalls {
+		if call.Status != "completed" || call.ArgumentsJSON == "" || call.OutputJSON == "" {
+			t.Fatalf("expected completed native tool trace, got %#v", call)
+		}
+		if output.ServerSideToolUsage[call.ToolName] != 1 {
+			t.Fatalf("expected one %s invocation, got %#v", call.ToolName, output.ServerSideToolUsage)
+		}
+	}
+	if output.Usage.InputTokens != 15 || output.Usage.CacheReadTokens != 5 || output.Usage.OutputTokens != 8 || output.Usage.ReasoningTokens != 3 {
+		t.Fatalf("unexpected Interactions usage: %#v", output.Usage)
+	}
+	if output.Usage.ServiceTier != "standard" {
+		t.Fatalf("expected service tier, got %#v", output.Usage)
+	}
+	if output.Reasoning == nil || output.Reasoning.Summary != "I should verify the result." || output.Reasoning.Signature != "thought_sig_1" {
+		t.Fatalf("expected Interactions thought summary, got %#v", output.Reasoning)
+	}
+}
+
+func TestApplyGeminiInteractionStreamEventMergesNativeToolDeltas(t *testing.T) {
+	result := &GenerateOutput{}
+	streamState := newGeminiInteractionStreamState()
+	events := make([]ToolCall, 0)
+	onEvent := func(event GenerateStreamEvent) error {
+		if event.ServerToolCall != nil {
+			events = append(events, *event.ServerToolCall)
+		}
+		return nil
+	}
+	chunks := []string{
+		`{"event_type":"step.start","index":2,"step":{"type":"google_search_call","arguments":{"queries":["latest Gemini news"]},"id":"search_call_1"}}`,
+		`{"event_type":"step.delta","index":2,"delta":{"type":"google_search_call","arguments":{"queries":["latest Gemini news"]}}}`,
+		`{"event_type":"step.start","index":3,"step":{"type":"google_search_result","call_id":"search_call_1"}}`,
+		`{"event_type":"step.delta","index":3,"delta":{"type":"google_search_result","result":[{"title":"Gemini","url":"https://example.com/gemini"}]}}`,
+		`{"event_type":"interaction.completed","interaction":{"id":"interaction-tools-stream","steps":[{"type":"google_search_call","arguments":{"query":"latest Gemini news"},"id":"search_call_1"},{"type":"google_search_result","call_id":"search_call_1","result":[{"title":"Gemini","url":"https://example.com/gemini"}]}]}}`,
+	}
+	for _, chunk := range chunks {
+		if err := applyGeminiInteractionStreamEvent(mustDecodeObject(t, chunk), result, streamState, onEvent); err != nil {
+			t.Fatalf("apply Gemini interaction stream event: %v", err)
+		}
+	}
+	if len(result.ServerToolCalls) != 1 {
+		t.Fatalf("expected one merged native tool trace, got %#v", result.ServerToolCalls)
+	}
+	call := result.ServerToolCalls[0]
+	if call.ToolCallID != "search_call_1" || call.Status != "completed" || call.ArgumentsJSON == "" || call.OutputJSON == "" {
+		t.Fatalf("unexpected merged native tool trace: %#v", call)
+	}
+	if result.ServerSideToolUsage["google_search"] != 1 {
+		t.Fatalf("expected one streamed search invocation, got %#v", result.ServerSideToolUsage)
+	}
+	if len(events) != 4 || events[len(events)-1].Status != "completed" {
+		t.Fatalf("unexpected native tool events: %#v", events)
+	}
+	for _, event := range events {
+		if event.ToolCallID != "search_call_1" {
+			t.Fatalf("expected a stable streamed tool-call id, got %#v", events)
+		}
+	}
+}
+
+func TestApplyGeminiInteractionStreamEventCapturesThoughtSummaryAndMetadataUsage(t *testing.T) {
+	result := &GenerateOutput{}
+	streamState := newGeminiInteractionStreamState()
+	reasoningEvents := make([]ReasoningDelta, 0)
+	usageEvents := make([]Usage, 0)
+	onEvent := func(event GenerateStreamEvent) error {
+		if event.Reasoning != nil {
+			reasoningEvents = append(reasoningEvents, *event.Reasoning)
+		}
+		if event.Usage != (Usage{}) {
+			usageEvents = append(usageEvents, event.Usage)
+		}
+		return nil
+	}
+	chunks := []string{
+		`{"event_type":"step.start","index":0,"step":{"type":"thought"}}`,
+		`{"event_type":"step.delta","index":0,"delta":{"type":"thought_summary","content":{"type":"text","text":"I should search first."}}}`,
+		`{"event_type":"step.delta","index":0,"delta":{"type":"thought_signature","signature":"thought_sig_stream"}}`,
+		`{"event_type":"step.delta","index":1,"delta":{"type":"text","text":"Answer"},"metadata":{"total_usage":{"total_input_tokens":12,"total_cached_tokens":2,"total_output_tokens":4,"total_thought_tokens":3,"total_tool_use_tokens":1}}}`,
+		`{"event_type":"interaction.completed","interaction":{"id":"interaction-thought-stream","model":"gemini-3.6-flash","status":"completed"}}`,
+	}
+	for _, chunk := range chunks {
+		if err := applyGeminiInteractionStreamEvent(mustDecodeObject(t, chunk), result, streamState, onEvent); err != nil {
+			t.Fatalf("apply Gemini interaction stream event: %v", err)
+		}
+	}
+	if result.Reasoning == nil || result.Reasoning.Summary != "I should search first." || result.Reasoning.Signature != "thought_sig_stream" {
+		t.Fatalf("unexpected streamed thought summary: %#v", result.Reasoning)
+	}
+	if len(reasoningEvents) != 2 || reasoningEvents[0].Kind != "summary_text" {
+		t.Fatalf("unexpected streamed reasoning events: %#v", reasoningEvents)
+	}
+	if result.Usage.InputTokens != 10 || result.Usage.CacheReadTokens != 2 || result.Usage.OutputTokens != 4 || result.Usage.ReasoningTokens != 3 {
+		t.Fatalf("unexpected metadata usage: %#v", result.Usage)
+	}
+	if len(usageEvents) != 1 || usageEvents[0].InputTokens != 10 {
+		t.Fatalf("unexpected usage events: %#v", usageEvents)
+	}
+	if result.ResponseID != "interaction-thought-stream" || result.Text != "Answer" {
+		t.Fatalf("unexpected final stream result: %#v", result)
+	}
+}
+
+func TestParseGeminiInteractionOutputPreservesNativeToolFailure(t *testing.T) {
+	output, err := parseGeminiInteractionOutput([]byte(`{
+		"id": "interaction-native-tool-error",
+		"steps": [
+			{"type": "code_execution_call", "arguments": {"code": "raise RuntimeError()"}, "id": "code_call_error"},
+			{"type": "code_execution_result", "call_id": "code_call_error", "result": "RuntimeError", "is_error": true}
+		]
+	}`))
+	if err != nil {
+		t.Fatalf("parse Gemini interaction output: %v", err)
+	}
+	if len(output.ServerToolCalls) != 1 {
+		t.Fatalf("expected one failed native tool trace, got %#v", output.ServerToolCalls)
+	}
+	call := output.ServerToolCalls[0]
+	if call.Status != "error" || call.ErrorJSON != `"RuntimeError"` || call.OutputJSON != `"RuntimeError"` {
+		t.Fatalf("unexpected failed native tool trace: %#v", call)
+	}
+	if output.ServerSideToolUsage["code_execution"] != 1 {
+		t.Fatalf("expected one code execution invocation, got %#v", output.ServerSideToolUsage)
+	}
+}
+
 func TestGenerateGeminiInteractionPostsInteractionsRequest(t *testing.T) {
 	var capturedPath string
 	var capturedPayload map[string]interface{}
@@ -529,15 +683,15 @@ func TestGenerateGeminiInteractionStreamPostsStreamRequest(t *testing.T) {
 			t.Fatalf("decode request payload: %v", err)
 		}
 		w.Header().Set("Content-Type", "text/event-stream")
-		_, _ = w.Write([]byte(`data: {"type":"interaction.created","interaction":{"id":"interaction-stream-1"}}
+		_, _ = w.Write([]byte(`data: {"event_type":"interaction.created","interaction":{"id":"interaction-stream-1"}}
 
-data: {"type":"step.delta","interaction_id":"interaction-stream-1","delta":{"type":"text","text":"Hello"}}
+data: {"event_type":"step.delta","interaction_id":"interaction-stream-1","delta":{"type":"text","text":"Hello"}}
 
-data: {"type":"step.delta","interaction_id":"interaction-stream-1","delta":{"type":"text","text":" world"}}
+data: {"event_type":"step.delta","interaction_id":"interaction-stream-1","delta":{"type":"text","text":" world"}}
 
-data: {"type":"interaction.completed","usage_metadata":{"prompt_token_count":4,"candidates_token_count":2},"interaction":{"id":"interaction-stream-1","output":[{"type":"text","text":"Hello world"}]}}
+data: {"event_type":"interaction.completed","interaction":{"id":"interaction-stream-1","steps":[{"type":"model_output","content":[{"type":"text","text":"Hello world"}]}],"usage":{"total_input_tokens":4,"total_output_tokens":2}}}
 
-data: {"type":"done"}
+data: {"event_type":"done"}
 
 `))
 	}))
