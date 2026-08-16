@@ -129,6 +129,11 @@ func (c *Client) generateGeminiInteractionStream(
 	if err = consumeGeminiInteractionStream(streamBody, result, onEvent); err != nil {
 		return nil, MarkRequestAccepted(attachUpstreamDebug(err, upstreamDebugSnapshot(req, payload, resp, streamErrorBody(streamBody, err))))
 	}
+	for index := range result.GeneratedImages {
+		if result.GeneratedImages[index].RevisedPrompt == "" {
+			result.GeneratedImages[index].RevisedPrompt = result.Text
+		}
+	}
 	return result, nil
 }
 
@@ -628,6 +633,11 @@ func consumeGeminiInteractionStream(
 ) error {
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 0, 64*1024), maxUpstreamBodyBytes)
+	streamState := geminiInteractionStreamState{
+		toolCallIndexes:      make(map[int64]int),
+		argumentDeltaStarted: make(map[int64]bool),
+		serverToolCallIDs:    make(map[int64]string),
+	}
 
 	var dataLines []string
 	flush := func() error {
@@ -643,7 +653,7 @@ func consumeGeminiInteractionStream(
 		if err := parseStreamUpstreamError(parsed, data); err != nil {
 			return err
 		}
-		return applyGeminiInteractionStreamEvent(parsed, result, onEvent)
+		return applyGeminiInteractionStreamEvent(parsed, result, &streamState, onEvent)
 	}
 
 	for scanner.Scan() {
@@ -667,6 +677,7 @@ func consumeGeminiInteractionStream(
 func applyGeminiInteractionStreamEvent(
 	parsed map[string]interface{},
 	result *GenerateOutput,
+	streamState *geminiInteractionStreamState,
 	onEvent func(GenerateStreamEvent) error,
 ) error {
 	if result == nil {
@@ -675,6 +686,9 @@ func applyGeminiInteractionStreamEvent(
 	eventType := strings.TrimSpace(getString(parsed["event_type"]))
 	if responseID := geminiInteractionStreamResponseID(parsed, eventType); responseID != "" {
 		result.ResponseID = responseID
+	}
+	if serviceTier := geminiInteractionStreamServiceTier(parsed); serviceTier != "" {
+		result.Usage.ServiceTier = serviceTier
 	}
 	if finalPayload := geminiInteractionStreamFinalPayload(parsed, eventType); len(finalPayload) > 0 {
 		return mergeGeminiInteractionStreamFinal(result, finalPayload, onEvent)
@@ -690,7 +704,7 @@ func applyGeminiInteractionStreamEvent(
 			}
 		}
 	}
-	if delta := geminiInteractionStreamTextDelta(parsed, eventType); delta != "" {
+	if delta := geminiInteractionStreamText(parsed, eventType); delta != "" {
 		result.Text += delta
 		if onEvent != nil {
 			if err := onEvent(GenerateStreamEvent{
@@ -701,7 +715,24 @@ func applyGeminiInteractionStreamEvent(
 			}
 		}
 	}
-	updateGeminiInteractionStreamToolCall(result, parsed, eventType)
+	if err := applyGeminiInteractionStreamMedia(parsed, eventType, result, onEvent); err != nil {
+		return err
+	}
+	updateGeminiInteractionStreamToolCall(result, streamState, parsed, eventType)
+	if call, ok := updateGeminiInteractionStreamServerToolCall(streamState, parsed, eventType); ok {
+		appendUniqueToolCall(&result.ServerToolCalls, call)
+		result.ServerSideToolUsage = geminiInteractionServerToolUsage(result.ServerToolCalls)
+		result.Citations = geminiInteractionServerToolCitations(result.ServerToolCalls)
+		if onEvent != nil {
+			merged := geminiInteractionServerToolCall(result.ServerToolCalls, call.ToolCallID)
+			if err := onEvent(GenerateStreamEvent{
+				ServerToolCall: &merged,
+				ResponseID:     result.ResponseID,
+			}); err != nil {
+				return err
+			}
+		}
+	}
 	for _, call := range parseGeminiInteractionFunctionCalls(parsed) {
 		result.ToolCalls = append(result.ToolCalls, call)
 	}
@@ -709,6 +740,9 @@ func applyGeminiInteractionStreamEvent(
 	result.GeneratedImages = dedupeGeminiInteractionImages(append(result.GeneratedImages, extractGeminiInteractionGeneratedImages(parsed)...))
 	result.GeneratedVideos = dedupeGeminiInteractionVideos(append(result.GeneratedVideos, extractGeminiInteractionGeneratedVideos(parsed)...))
 	if usage := parseGeminiInteractionUsage(parsed); usage != (Usage{}) {
+		if usage.ServiceTier == "" {
+			usage.ServiceTier = result.Usage.ServiceTier
+		}
 		result.Usage = usage
 		if onEvent != nil {
 			return onEvent(GenerateStreamEvent{
@@ -720,19 +754,26 @@ func applyGeminiInteractionStreamEvent(
 	return nil
 }
 
+func geminiInteractionStreamServiceTier(parsed map[string]interface{}) string {
+	if interaction := asMap(parsed["interaction"]); len(interaction) > 0 {
+		return strings.TrimSpace(getString(interaction["service_tier"]))
+	}
+	return strings.TrimSpace(getString(parsed["service_tier"]))
+}
+
 func geminiInteractionStreamResponseID(parsed map[string]interface{}, eventType string) string {
 	if interaction := asMap(parsed["interaction"]); len(interaction) > 0 {
-		return firstString(interaction, "id", "name")
+		return strings.TrimSpace(getString(interaction["id"]))
 	}
-	if strings.HasPrefix(strings.ToLower(eventType), "interaction.") {
-		return firstString(parsed, "id", "name", "interaction_id", "interactionId")
+	if strings.EqualFold(strings.TrimSpace(eventType), "interaction.status_update") {
+		return strings.TrimSpace(getString(parsed["interaction_id"]))
 	}
-	return firstString(parsed, "interaction_id", "interactionId")
+	return ""
 }
 
 func geminiInteractionStreamFinalPayload(parsed map[string]interface{}, eventType string) map[string]interface{} {
 	eventType = strings.ToLower(strings.TrimSpace(eventType))
-	if eventType != "interaction.completed" && eventType != "completed" {
+	if eventType != "interaction.completed" {
 		return nil
 	}
 	return parsed
@@ -765,56 +806,180 @@ func mergeGeminiInteractionStreamFinal(
 		}
 	}
 	if finalOutput.Usage != (Usage{}) {
-		result.Usage = finalOutput.Usage
+		usage := finalOutput.Usage
+		if usage.ServiceTier == "" {
+			usage.ServiceTier = result.Usage.ServiceTier
+		}
+		result.Usage = usage
 		if onEvent != nil {
 			if err := onEvent(GenerateStreamEvent{
-				Usage:      finalOutput.Usage,
+				Usage:      usage,
 				ResponseID: result.ResponseID,
 			}); err != nil {
 				return err
 			}
 		}
 	}
-	result.ToolCalls = dedupeGeminiInteractionToolCalls(append(result.ToolCalls, finalOutput.ToolCalls...))
+	mergeReasoningOutput(&result.Reasoning, finalOutput.Reasoning)
+	for _, call := range finalOutput.ToolCalls {
+		appendUniqueToolCall(&result.ToolCalls, call)
+	}
+	for _, call := range finalOutput.ServerToolCalls {
+		appendUniqueToolCall(&result.ServerToolCalls, call)
+	}
+	result.ServerSideToolUsage = geminiInteractionServerToolUsage(result.ServerToolCalls)
+	result.Citations = appendUniqueStrings(result.Citations, finalOutput.Citations...)
 	result.GeneratedImages = dedupeGeminiInteractionImages(append(result.GeneratedImages, finalOutput.GeneratedImages...))
 	result.GeneratedVideos = dedupeGeminiInteractionVideos(append(result.GeneratedVideos, finalOutput.GeneratedVideos...))
 	return nil
 }
 
-func geminiInteractionStreamTextDelta(parsed map[string]interface{}, eventType string) string {
-	if strings.ToLower(strings.TrimSpace(eventType)) != "step.delta" {
-		return ""
+func applyGeminiInteractionStreamMedia(
+	parsed map[string]interface{},
+	eventType string,
+	result *GenerateOutput,
+	onEvent func(GenerateStreamEvent) error,
+) error {
+	if result == nil {
+		return nil
 	}
-	delta := asMap(parsed["delta"])
-	if strings.ToLower(strings.TrimSpace(getString(delta["type"]))) != "text" {
-		return ""
+	images, videos := geminiInteractionStreamMedia(parsed, eventType)
+	for _, image := range images {
+		if geminiInteractionImageExists(result.GeneratedImages, image) {
+			continue
+		}
+		image.RevisedPrompt = result.Text
+		imageIndex := int64(len(result.GeneratedImages))
+		result.GeneratedImages = append(result.GeneratedImages, image)
+		if onEvent != nil {
+			if err := onEvent(GenerateStreamEvent{
+				GeneratedImage:        &image,
+				GeneratedImageIndex:   imageIndex,
+				GeneratedImagePartial: true,
+				ResponseID:            result.ResponseID,
+			}); err != nil {
+				return err
+			}
+		}
 	}
-	return getString(delta["text"])
+	result.GeneratedVideos = dedupeGeminiInteractionVideos(append(result.GeneratedVideos, videos...))
+	return nil
+}
+
+func geminiInteractionStreamMedia(parsed map[string]interface{}, eventType string) ([]GeneratedImage, []GeneratedVideo) {
+	var value interface{}
+	switch strings.ToLower(strings.TrimSpace(eventType)) {
+	case "step.start":
+		step := asMap(parsed["step"])
+		if strings.ToLower(strings.TrimSpace(getString(step["type"]))) != "model_output" {
+			return nil, nil
+		}
+		value = step["content"]
+	case "step.delta":
+		delta := asMap(parsed["delta"])
+		switch strings.ToLower(strings.TrimSpace(getString(delta["type"]))) {
+		case "image", "video":
+			value = delta
+		default:
+			return nil, nil
+		}
+	default:
+		return nil, nil
+	}
+	images := make([]GeneratedImage, 0)
+	videos := make([]GeneratedVideo, 0)
+	walkGeminiInteractionImages(value, &images)
+	walkGeminiInteractionVideos(value, &videos)
+	return dedupeGeminiInteractionImages(images), dedupeGeminiInteractionVideos(videos)
+}
+
+func geminiInteractionImageExists(images []GeneratedImage, candidate GeneratedImage) bool {
+	key := strings.TrimSpace(candidate.URL)
+	if key == "" {
+		key = strings.TrimSpace(candidate.B64JSON)
+	}
+	if key == "" {
+		return true
+	}
+	for _, image := range images {
+		current := strings.TrimSpace(image.URL)
+		if current == "" {
+			current = strings.TrimSpace(image.B64JSON)
+		}
+		if current == key {
+			return true
+		}
+	}
+	return false
+}
+
+func geminiInteractionStreamText(parsed map[string]interface{}, eventType string) string {
+	switch strings.ToLower(strings.TrimSpace(eventType)) {
+	case "step.start":
+		step := asMap(parsed["step"])
+		if strings.ToLower(strings.TrimSpace(getString(step["type"]))) != "model_output" {
+			return ""
+		}
+		var text strings.Builder
+		for _, rawContent := range asSlice(step["content"]) {
+			content := asMap(rawContent)
+			if strings.ToLower(strings.TrimSpace(getString(content["type"]))) == "text" {
+				text.WriteString(getString(content["text"]))
+			}
+		}
+		return text.String()
+	case "step.delta":
+		delta := asMap(parsed["delta"])
+		if strings.ToLower(strings.TrimSpace(getString(delta["type"]))) == "text" {
+			return getString(delta["text"])
+		}
+	}
+	return ""
 }
 
 func geminiInteractionStreamReasoningDelta(parsed map[string]interface{}, eventType string) *ReasoningDelta {
-	if strings.ToLower(strings.TrimSpace(eventType)) != "step.delta" {
-		return nil
-	}
-	delta := asMap(parsed["delta"])
-	if strings.ToLower(strings.TrimSpace(getString(delta["type"]))) != "thought_summary" {
-		return nil
-	}
-	content := asMap(delta["content"])
-	if strings.ToLower(strings.TrimSpace(getString(content["type"]))) != "text" {
-		return nil
-	}
-	text := getString(content["text"])
-	if text == "" {
-		return nil
-	}
-	return &ReasoningDelta{
+	result := &ReasoningDelta{
 		EventType: eventType,
 		ItemID:    fmt.Sprintf("%v", parsed["index"]),
 		Status:    "streaming",
-		Kind:      "summary_text",
-		Text:      text,
 	}
+	switch strings.ToLower(strings.TrimSpace(eventType)) {
+	case "step.start":
+		step := asMap(parsed["step"])
+		if strings.ToLower(strings.TrimSpace(getString(step["type"]))) != "thought" {
+			return nil
+		}
+		result.Kind = "summary_text"
+		result.Text = geminiInteractionSummaryText(step["summary"])
+		result.Signature = strings.TrimSpace(getString(step["signature"]))
+		if result.Text == "" && result.Signature == "" {
+			return nil
+		}
+	case "step.delta":
+		delta := asMap(parsed["delta"])
+		switch strings.ToLower(strings.TrimSpace(getString(delta["type"]))) {
+		case "thought_summary":
+			content := asMap(delta["content"])
+			if strings.ToLower(strings.TrimSpace(getString(content["type"]))) != "text" {
+				return nil
+			}
+			result.Kind = "summary_text"
+			result.Text = getString(content["text"])
+			if result.Text == "" {
+				return nil
+			}
+		case "thought_signature":
+			result.Signature = strings.TrimSpace(getString(delta["signature"]))
+			if result.Signature == "" {
+				return nil
+			}
+		default:
+			return nil
+		}
+	default:
+		return nil
+	}
+	return result
 }
 
 func parseGeminiInteractionOutput(body []byte) (*GenerateOutput, error) {
@@ -841,11 +1006,15 @@ func parseGeminiInteractionPayload(parsed map[string]interface{}) *GenerateOutpu
 	output := &GenerateOutput{
 		ResponseID:      firstString(payload, "id", "name"),
 		Text:            strings.TrimSpace(firstString(payload, "text", "output_text")),
+		Reasoning:       parseGeminiInteractionReasoning(payload),
 		Usage:           usage,
 		ToolCalls:       parseGeminiInteractionFunctionCalls(payload),
+		ServerToolCalls: parseGeminiInteractionServerToolCalls(payload),
 		GeneratedImages: extractGeminiInteractionGeneratedImages(payload),
 		GeneratedVideos: extractGeminiInteractionGeneratedVideos(payload),
 	}
+	output.ServerSideToolUsage = geminiInteractionServerToolUsage(output.ServerToolCalls)
+	output.Citations = geminiInteractionServerToolCitations(output.ServerToolCalls)
 	if output.Text == "" {
 		output.Text = geminiInteractionTextFromOutput(payload["output"])
 	}
@@ -861,41 +1030,59 @@ func parseGeminiInteractionPayload(parsed map[string]interface{}) *GenerateOutpu
 }
 
 func parseGeminiInteractionUsage(parsed map[string]interface{}) Usage {
-	if usage := parseGeminiUsage(parsed); usage != (Usage{}) {
-		return usage
+	usage := asMap(parsed["usage"])
+	if len(usage) == 0 {
+		usage = asMap(asMap(parsed["metadata"])["total_usage"])
 	}
-	if metadata := asMap(parsed["usage_metadata"]); len(metadata) > 0 {
-		totalInputTokens := firstGeminiInteractionInt64(metadata, "promptTokenCount", "prompt_token_count", "inputTokens", "input_tokens", "prompt_tokens")
-		cacheReadTokens := firstGeminiInteractionInt64(metadata, "cachedContentTokenCount", "cached_content_token_count", "cacheReadTokens", "cache_read_tokens")
-		return Usage{
-			InputTokens:     nonCachedInputTokens(totalInputTokens, cacheReadTokens),
-			OutputTokens:    firstGeminiInteractionInt64(metadata, "candidatesTokenCount", "candidates_token_count", "outputTokens", "output_tokens", "completion_tokens"),
-			CacheReadTokens: cacheReadTokens,
-			ReasoningTokens: firstGeminiInteractionInt64(metadata, "thoughtsTokenCount", "thoughts_token_count", "reasoningTokens", "reasoning_tokens"),
-			RawUsageJSON:    rawJSONFromValue(metadata),
-		}
+	if len(usage) == 0 {
+		return Usage{}
 	}
-	if usage := asMap(parsed["usage"]); len(usage) > 0 {
-		totalInputTokens := firstGeminiInteractionInt64(usage, "total_input_tokens", "inputTokens", "input_tokens", "prompt_tokens", "promptTokenCount", "prompt_token_count")
-		cacheReadTokens := firstGeminiInteractionInt64(usage, "total_cached_tokens", "cacheReadTokens", "cache_read_tokens", "cachedContentTokenCount", "cached_content_token_count")
-		return Usage{
-			InputTokens:     nonCachedInputTokens(totalInputTokens, cacheReadTokens),
-			OutputTokens:    firstGeminiInteractionInt64(usage, "total_output_tokens", "outputTokens", "output_tokens", "completion_tokens", "candidatesTokenCount", "candidates_token_count"),
-			CacheReadTokens: cacheReadTokens,
-			ReasoningTokens: firstGeminiInteractionInt64(usage, "total_thought_tokens", "reasoningTokens", "reasoning_tokens", "thoughtsTokenCount", "thoughts_token_count"),
-			RawUsageJSON:    rawJSONFromValue(usage),
-		}
+	totalInputTokens := toInt64(usage["total_input_tokens"])
+	cacheReadTokens := toInt64(usage["total_cached_tokens"])
+	return Usage{
+		InputTokens:     nonCachedInputTokens(totalInputTokens, cacheReadTokens),
+		OutputTokens:    toInt64(usage["total_output_tokens"]),
+		CacheReadTokens: cacheReadTokens,
+		ReasoningTokens: toInt64(usage["total_thought_tokens"]),
+		ServiceTier:     strings.TrimSpace(getString(parsed["service_tier"])),
+		RawUsageJSON:    rawJSONFromValue(usage),
 	}
-	return Usage{}
 }
 
-func firstGeminiInteractionInt64(payload map[string]interface{}, keys ...string) int64 {
-	for _, key := range keys {
-		if value := toInt64(payload[key]); value > 0 {
-			return value
+func parseGeminiInteractionReasoning(parsed map[string]interface{}) *ReasoningOutput {
+	result := &ReasoningOutput{}
+	summaryParts := make([]string, 0)
+	for _, rawStep := range asSlice(parsed["steps"]) {
+		step := asMap(rawStep)
+		if strings.ToLower(strings.TrimSpace(getString(step["type"]))) != "thought" {
+			continue
+		}
+		if summary := geminiInteractionSummaryText(step["summary"]); summary != "" {
+			summaryParts = append(summaryParts, summary)
+		}
+		if signature := strings.TrimSpace(getString(step["signature"])); signature != "" {
+			result.Signature = signature
 		}
 	}
-	return 0
+	result.Summary = strings.Join(summaryParts, "\n\n")
+	if result.Summary == "" && result.Signature == "" {
+		return nil
+	}
+	return result
+}
+
+func geminiInteractionSummaryText(raw interface{}) string {
+	parts := make([]string, 0)
+	for _, rawContent := range asSlice(raw) {
+		content := asMap(rawContent)
+		if strings.ToLower(strings.TrimSpace(getString(content["type"]))) != "text" {
+			continue
+		}
+		if text := strings.TrimSpace(getString(content["text"])); text != "" {
+			parts = append(parts, text)
+		}
+	}
+	return strings.Join(parts, "\n\n")
 }
 
 func rawJSONFromValue(value interface{}) string {
@@ -916,8 +1103,189 @@ func parseGeminiInteractionFunctionCalls(parsed map[string]interface{}) []ToolCa
 	return dedupeGeminiInteractionToolCalls(calls)
 }
 
-func updateGeminiInteractionStreamToolCall(result *GenerateOutput, parsed map[string]interface{}, eventType string) {
-	if result == nil {
+type geminiInteractionStreamState struct {
+	toolCallIndexes      map[int64]int
+	argumentDeltaStarted map[int64]bool
+	serverToolCallIDs    map[int64]string
+}
+
+func parseGeminiInteractionServerToolCalls(parsed map[string]interface{}) []ToolCall {
+	calls := make([]ToolCall, 0)
+	for _, rawStep := range asSlice(parsed["steps"]) {
+		if call, ok := parseGeminiInteractionServerToolCall(asMap(rawStep), false); ok {
+			appendUniqueToolCall(&calls, call)
+		}
+	}
+	for _, rawStep := range asSlice(parsed["output"]) {
+		if call, ok := parseGeminiInteractionServerToolCall(asMap(rawStep), false); ok {
+			appendUniqueToolCall(&calls, call)
+		}
+	}
+	return calls
+}
+
+func updateGeminiInteractionStreamServerToolCall(
+	state *geminiInteractionStreamState,
+	parsed map[string]interface{},
+	eventType string,
+) (ToolCall, bool) {
+	if state == nil {
+		return ToolCall{}, false
+	}
+	index, ok := geminiInteractionStreamStepIndex(parsed)
+	if !ok {
+		return ToolCall{}, false
+	}
+	var payload map[string]interface{}
+	switch strings.ToLower(strings.TrimSpace(eventType)) {
+	case "step.start":
+		payload = asMap(parsed["step"])
+	case "step.delta":
+		payload = asMap(parsed["delta"])
+	default:
+		return ToolCall{}, false
+	}
+	call, ok := parseGeminiInteractionServerToolCall(payload, true)
+	if !ok {
+		return ToolCall{}, false
+	}
+	if call.ToolCallID == "" {
+		call.ToolCallID = state.serverToolCallIDs[index]
+	}
+	if call.ToolCallID == "" {
+		return ToolCall{}, false
+	}
+	if state.serverToolCallIDs == nil {
+		state.serverToolCallIDs = make(map[int64]string)
+	}
+	state.serverToolCallIDs[index] = call.ToolCallID
+	return call, true
+}
+
+func parseGeminiInteractionServerToolCall(item map[string]interface{}, streaming bool) (ToolCall, bool) {
+	itemType := strings.ToLower(strings.TrimSpace(getString(item["type"])))
+	toolName, isResult := geminiInteractionServerToolName(itemType)
+	if toolName == "" {
+		return ToolCall{}, false
+	}
+	callID := strings.TrimSpace(getString(item["id"]))
+	if isResult {
+		callID = strings.TrimSpace(getString(item["call_id"]))
+	}
+	status := "in_progress"
+	outputJSON := ""
+	errorJSON := ""
+	if isResult {
+		_, hasResult := item["result"]
+		if !streaming || hasResult {
+			status = "completed"
+		}
+		outputJSON = normalizeJSONString(item["result"])
+		if isError, _ := item["is_error"].(bool); isError {
+			status = "error"
+			errorJSON = outputJSON
+		}
+	}
+	return ToolCall{
+		ToolCallID:       callID,
+		ToolType:         toolName,
+		ToolName:         toolName,
+		ArgumentsJSON:    normalizeJSONString(item["arguments"]),
+		ThoughtSignature: strings.TrimSpace(getString(item["signature"])),
+		Status:           status,
+		OutputJSON:       outputJSON,
+		ErrorJSON:        errorJSON,
+	}, true
+}
+
+func geminiInteractionServerToolName(itemType string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(itemType)) {
+	case "google_search_call":
+		return "google_search", false
+	case "google_search_result":
+		return "google_search", true
+	case "code_execution_call":
+		return "code_execution", false
+	case "code_execution_result":
+		return "code_execution", true
+	case "url_context_call":
+		return "url_context", false
+	case "url_context_result":
+		return "url_context", true
+	default:
+		return "", false
+	}
+}
+
+func geminiInteractionServerToolCall(calls []ToolCall, callID string) ToolCall {
+	for _, call := range calls {
+		if strings.TrimSpace(call.ToolCallID) == strings.TrimSpace(callID) {
+			return call
+		}
+	}
+	return ToolCall{ToolCallID: strings.TrimSpace(callID)}
+}
+
+func geminiInteractionServerToolUsage(calls []ToolCall) map[string]int64 {
+	if len(calls) == 0 {
+		return nil
+	}
+	usage := make(map[string]int64)
+	for _, call := range calls {
+		name := strings.TrimSpace(call.ToolName)
+		if name == "" {
+			name = strings.TrimSpace(call.ToolType)
+		}
+		if name != "" {
+			usage[name]++
+		}
+	}
+	if len(usage) == 0 {
+		return nil
+	}
+	return usage
+}
+
+func geminiInteractionServerToolCitations(calls []ToolCall) []string {
+	citations := make([]string, 0)
+	for _, call := range calls {
+		if call.ToolName != "google_search" && call.ToolName != "url_context" {
+			continue
+		}
+		var output interface{}
+		if err := json.Unmarshal([]byte(call.OutputJSON), &output); err != nil {
+			continue
+		}
+		walkGeminiInteractionCitationURLs(output, &citations)
+	}
+	return appendUniqueStrings(nil, citations...)
+}
+
+func walkGeminiInteractionCitationURLs(value interface{}, citations *[]string) {
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		for key, child := range typed {
+			if key == "url" || key == "uri" {
+				if citation := strings.TrimSpace(getString(child)); citation != "" {
+					*citations = append(*citations, citation)
+				}
+			}
+			walkGeminiInteractionCitationURLs(child, citations)
+		}
+	case []interface{}:
+		for _, child := range typed {
+			walkGeminiInteractionCitationURLs(child, citations)
+		}
+	}
+}
+
+func updateGeminiInteractionStreamToolCall(
+	result *GenerateOutput,
+	state *geminiInteractionStreamState,
+	parsed map[string]interface{},
+	eventType string,
+) {
+	if result == nil || state == nil {
 		return
 	}
 	index, ok := geminiInteractionStreamStepIndex(parsed)
@@ -934,32 +1302,41 @@ func updateGeminiInteractionStreamToolCall(result *GenerateOutput, parsed map[st
 		if name == "" {
 			return
 		}
-		if result.geminiInteractionStreamToolCallIndexes == nil {
-			result.geminiInteractionStreamToolCallIndexes = make(map[int64]int)
+		if state.toolCallIndexes == nil {
+			state.toolCallIndexes = make(map[int64]int)
 		}
+		arguments := normalizeJSONString(step["arguments"])
 		result.ToolCalls = append(result.ToolCalls, ToolCall{
-			ToolCallID: firstString(step, "id", "call_id"),
-			ToolType:   "function",
-			ToolName:   name,
-			Status:     "requested",
+			ToolCallID:    strings.TrimSpace(getString(step["id"])),
+			ToolType:      "function",
+			ToolName:      name,
+			ArgumentsJSON: arguments,
+			Status:        "requested",
 		})
-		result.geminiInteractionStreamToolCallIndexes[index] = len(result.ToolCalls) - 1
+		state.toolCallIndexes[index] = len(result.ToolCalls) - 1
 	case "step.delta":
 		delta := asMap(parsed["delta"])
-		if strings.ToLower(strings.TrimSpace(getString(delta["type"]))) != "arguments" {
+		if strings.ToLower(strings.TrimSpace(getString(delta["type"]))) != "arguments_delta" {
 			return
 		}
-		partial := getString(delta["arguments_delta"])
+		partial := getString(delta["arguments"])
 		if partial == "" {
 			return
 		}
-		callIndex, ok := geminiInteractionStreamToolCallIndex(result, index)
+		callIndex, ok := geminiInteractionStreamToolCallIndex(result, state, index)
 		if !ok {
 			return
 		}
+		if !state.argumentDeltaStarted[index] {
+			if state.argumentDeltaStarted == nil {
+				state.argumentDeltaStarted = make(map[int64]bool)
+			}
+			result.ToolCalls[callIndex].ArgumentsJSON = ""
+			state.argumentDeltaStarted[index] = true
+		}
 		result.ToolCalls[callIndex].ArgumentsJSON += partial
 	case "step.stop":
-		callIndex, ok := geminiInteractionStreamToolCallIndex(result, index)
+		callIndex, ok := geminiInteractionStreamToolCallIndex(result, state, index)
 		if !ok || strings.TrimSpace(result.ToolCalls[callIndex].ArgumentsJSON) != "" {
 			return
 		}
@@ -976,11 +1353,11 @@ func geminiInteractionStreamStepIndex(parsed map[string]interface{}) (int64, boo
 	return index, index >= 0
 }
 
-func geminiInteractionStreamToolCallIndex(result *GenerateOutput, index int64) (int, bool) {
-	if result == nil || result.geminiInteractionStreamToolCallIndexes == nil {
+func geminiInteractionStreamToolCallIndex(result *GenerateOutput, state *geminiInteractionStreamState, index int64) (int, bool) {
+	if result == nil || state == nil {
 		return 0, false
 	}
-	callIndex, ok := result.geminiInteractionStreamToolCallIndexes[index]
+	callIndex, ok := state.toolCallIndexes[index]
 	if !ok || callIndex >= len(result.ToolCalls) {
 		return 0, false
 	}

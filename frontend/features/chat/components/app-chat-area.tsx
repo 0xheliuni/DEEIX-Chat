@@ -212,6 +212,11 @@ export function AppChatArea() {
     router.push(projectID ? `/chat?project_id=${encodeURIComponent(projectID)}` : "/chat");
   }, [requestNewConversation, routeProjectID, router]);
   const activeGenerationRunsRef = React.useRef<Set<string>>(new Set());
+  // Set 的原地增删不会触发 effect，revision 用于同步断流恢复判断。
+  const [activeGenerationRunsRevision, setActiveGenerationRunsRevision] = React.useState(0);
+  const onActiveGenerationRunsChange = React.useCallback(() => {
+    setActiveGenerationRunsRevision((current) => current + 1);
+  }, []);
   const {
     autoGenerateLabels,
     deleteFilesByDefault,
@@ -244,6 +249,7 @@ export function AppChatArea() {
     resumingRunID,
   } = useChatData(conversationID, {
     activeGenerationRunsRef,
+    activeGenerationRunsRevision,
   });
   const { greetingTitle } = useChatViewerProfile();
   const [manualConversationTitle, setManualConversationTitle] = React.useState("");
@@ -639,6 +645,8 @@ export function AppChatArea() {
     setAttachments,
     releaseAttachments,
     activeGenerationRunsRef,
+    activeGenerationRunsRevision,
+    onActiveGenerationRunsChange,
     resumingRunID,
   });
   const generating = sending;

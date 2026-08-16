@@ -74,8 +74,10 @@ export function useChatData(
   conversationID: string | null,
   {
     activeGenerationRunsRef,
+    activeGenerationRunsRevision = 0,
   }: {
     activeGenerationRunsRef?: React.RefObject<Set<string>>;
+    activeGenerationRunsRevision?: number;
   } = {},
 ) {
   const t = useTranslations("chat.data");
@@ -318,6 +320,11 @@ export function useChatData(
   }, [state.messages]);
 
   const pendingRunID = pendingAssistant?.runID?.trim() || "";
+  // revision 仅用于重新读取可变 Set；effect 只依赖当前 pending run 的实际活动状态。
+  const pendingRunIsActive = React.useMemo(
+    () => Boolean(pendingRunID && activeGenerationRunsRef?.current.has(pendingRunID)),
+    [activeGenerationRunsRef, activeGenerationRunsRevision, pendingRunID],
+  );
 
   React.useEffect(() => {
     pendingAssistantContentRef.current = pendingAssistant?.content ?? "";
@@ -327,7 +334,7 @@ export function useChatData(
     if (
       !conversationID ||
       !pendingRunID ||
-      activeGenerationRunsRef?.current.has(pendingRunID)
+      pendingRunIsActive
     ) {
       setResumingRunID("");
       return;
@@ -507,10 +514,10 @@ export function useChatData(
       }
     };
   }, [
-    activeGenerationRunsRef,
     clearResumeCheckpoint,
     conversationID,
     pendingRunID,
+    pendingRunIsActive,
     reload,
     tSubmit,
   ]);
@@ -519,7 +526,7 @@ export function useChatData(
     if (
       !conversationID ||
       !pendingAssistant ||
-      activeGenerationRunsRef?.current.has(pendingRunID) ||
+      pendingRunIsActive ||
       (pendingRunID && pendingRunID === resumingRunID)
     ) {
       return;
@@ -530,7 +537,7 @@ export function useChatData(
     return () => {
       window.clearTimeout(timer);
     };
-  }, [activeGenerationRunsRef, conversationID, pendingAssistant, pendingRunID, reload, resumingRunID]);
+  }, [conversationID, pendingAssistant, pendingRunID, pendingRunIsActive, reload, resumingRunID]);
 
   return {
     ...state,

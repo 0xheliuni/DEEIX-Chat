@@ -331,7 +331,7 @@ func TestParseGeminiInteractionOutputExtractsVideoURIAndInlineData(t *testing.T)
 			{"type": "video", "file_data": {"file_uri": "https://example.com/video.mp4", "mime_type": "video/mp4"}},
 			{"type": "video", "duration_seconds": 3, "inlineData": {"data": "` + inline + `", "mimeType": "video/webm"}}
 		],
-		"usageMetadata": {"promptTokenCount": 3, "candidatesTokenCount": 5}
+		"usage": {"total_input_tokens": 3, "total_output_tokens": 5}
 	}`)
 	output, err := parseGeminiInteractionOutput(body)
 	if err != nil {
@@ -351,6 +351,41 @@ func TestParseGeminiInteractionOutputExtractsVideoURIAndInlineData(t *testing.T)
 	}
 	if output.Usage.InputTokens != 3 || output.Usage.OutputTokens != 5 {
 		t.Fatalf("unexpected usage: %#v", output.Usage)
+	}
+}
+
+func TestParseGeminiInteractionOutputExtractsReasoningAndOfficialUsage(t *testing.T) {
+	body := []byte(`{
+		"id": "interaction-reasoning",
+		"service_tier": "priority",
+		"steps": [{
+			"type": "thought",
+			"summary": [
+				{"type": "text", "text": "Check the inputs."},
+				{"type": "text", "text": " Then answer."}
+			],
+			"signature": "thought-signature"
+		}],
+		"usage": {
+			"total_input_tokens": 10,
+			"total_cached_tokens": 4,
+			"total_output_tokens": 6,
+			"total_thought_tokens": 3,
+			"total_tool_use_tokens": 2
+		}
+	}`)
+	output, err := parseGeminiInteractionOutput(body)
+	if err != nil {
+		t.Fatalf("parse Gemini interaction output: %v", err)
+	}
+	if output.Reasoning == nil || output.Reasoning.Summary != "Check the inputs.\n\nThen answer." || output.Reasoning.Signature != "thought-signature" {
+		t.Fatalf("unexpected reasoning: %#v", output.Reasoning)
+	}
+	if output.Usage.InputTokens != 6 || output.Usage.CacheReadTokens != 4 || output.Usage.OutputTokens != 6 || output.Usage.ReasoningTokens != 3 || output.Usage.ServiceTier != "priority" {
+		t.Fatalf("unexpected usage: %#v", output.Usage)
+	}
+	if !strings.Contains(output.Usage.RawUsageJSON, `"total_tool_use_tokens":2`) {
+		t.Fatalf("expected raw usage to preserve tool-use tokens, got %q", output.Usage.RawUsageJSON)
 	}
 }
 
@@ -478,23 +513,43 @@ func TestGenerateGeminiInteractionStreamPostsStreamRequest(t *testing.T) {
 			t.Fatalf("decode request payload: %v", err)
 		}
 		w.Header().Set("Content-Type", "text/event-stream")
-		_, _ = w.Write([]byte(`data: {"event_type":"interaction.created","interaction":{"id":"interaction-stream-1"}}
+		_, _ = w.Write([]byte(`data: {"event_type":"interaction.created","interaction":{"id":"interaction-stream-1","service_tier":"standard"}}
 
-data: {"event_type":"step.delta","index":0,"delta":{"type":"thought_summary","content":{"type":"text","text":"I should check the weather."}}}
+data: {"event_type":"step.start","index":0,"step":{"type":"thought","summary":[{"type":"text","text":"I should check"}],"signature":""}}
 
-data: {"event_type":"step.start","index":1,"step":{"type":"function_call","id":"call_weather","name":"get_weather"}}
+data: {"event_type":"step.delta","index":0,"delta":{"type":"thought_summary","content":{"type":"text","text":" the weather."}}}
 
-data: {"event_type":"step.delta","index":1,"delta":{"type":"arguments","arguments_delta":"{\"location\":\""}}
+data: {"event_type":"step.delta","index":0,"delta":{"type":"thought_signature","signature":"stream-signature"}}
 
-data: {"event_type":"step.delta","index":1,"delta":{"type":"arguments","arguments_delta":"Paris\"}"}}
+data: {"event_type":"step.start","index":1,"step":{"type":"function_call","id":"call_weather","name":"get_weather","arguments":{"stale":true}}}
+
+data: {"event_type":"step.delta","index":1,"delta":{"type":"arguments_delta","arguments":"{\"location\":\""}}
+
+data: {"event_type":"step.delta","index":1,"delta":{"type":"arguments_delta","arguments":"Paris\"}"}}
 
 data: {"event_type":"step.stop","index":1,"status":"waiting"}
 
-data: {"event_type":"step.delta","index":2,"delta":{"type":"text","text":"Hello"}}
+data: {"event_type":"step.start","index":2,"step":{"type":"model_output","content":[{"type":"text","text":"Hello"}]}}
 
-data: {"event_type":"step.delta","index":2,"delta":{"type":"text","text":" world"}}
+data: {"event_type":"step.delta","index":2,"delta":{"type":"text","text":" world"},"metadata":{"total_usage":{"total_input_tokens":4,"total_cached_tokens":1,"total_output_tokens":2,"total_thought_tokens":3,"total_tool_use_tokens":1}}}
 
-data: {"event_type":"interaction.completed","interaction":{"id":"interaction-stream-1","usage":{"total_input_tokens":4,"total_output_tokens":2,"total_thought_tokens":3}}}
+data: {"event_type":"step.start","index":3,"step":{"type":"google_search_call","id":"search_call_1","arguments":{}}}
+
+data: {"event_type":"step.delta","index":3,"delta":{"type":"google_search_call","arguments":{"queries":["Gemini streaming"]},"signature":"search-signature"}}
+
+data: {"event_type":"step.start","index":4,"step":{"type":"google_search_result","call_id":"search_call_1"}}
+
+data: {"event_type":"step.delta","index":4,"delta":{"type":"google_search_result","result":[{"title":"Gemini","url":"https://ai.google.dev/gemini-api/docs/streaming"}],"signature":"result-signature"}}
+
+data: {"event_type":"step.start","index":5,"step":{"type":"model_output"}}
+
+data: {"event_type":"step.delta","index":5,"delta":{"type":"image","mime_type":"image/jpeg","data":"aW1hZ2U="}}
+
+data: {"event_type":"step.start","index":6,"step":{"type":"model_output"}}
+
+data: {"event_type":"step.delta","index":6,"delta":{"type":"video","mime_type":"video/mp4","uri":"https://example.com/video.mp4"}}
+
+data: {"event_type":"interaction.completed","interaction":{"id":"interaction-stream-1","status":"completed","usage":{"total_input_tokens":4,"total_cached_tokens":1,"total_output_tokens":2,"total_thought_tokens":3,"total_tool_use_tokens":1}}}
 
 data: [DONE]
 
@@ -505,6 +560,8 @@ data: [DONE]
 	var deltas []string
 	var reasoningDeltas []ReasoningDelta
 	var usageEvents []Usage
+	var serverToolEvents []ToolCall
+	var imageEvents []GenerateStreamEvent
 	output, err := newTestClient().GenerateStream(context.Background(), RouteConfig{
 		Protocol:      AdapterGeminiInteractions,
 		BaseURL:       server.URL,
@@ -522,6 +579,12 @@ data: [DONE]
 		if event.Usage != (Usage{}) {
 			usageEvents = append(usageEvents, event.Usage)
 		}
+		if event.ServerToolCall != nil {
+			serverToolEvents = append(serverToolEvents, *event.ServerToolCall)
+		}
+		if event.GeneratedImage != nil {
+			imageEvents = append(imageEvents, event)
+		}
 		return nil
 	})
 	if err != nil {
@@ -536,17 +599,128 @@ data: [DONE]
 	if strings.Join(deltas, "") != "Hello world" {
 		t.Fatalf("unexpected stream deltas: %#v", deltas)
 	}
-	if output.Reasoning == nil || output.Reasoning.Summary != "I should check the weather." {
+	if output.Reasoning == nil || output.Reasoning.Summary != "I should check the weather." || output.Reasoning.Signature != "stream-signature" {
 		t.Fatalf("unexpected stream reasoning: %#v", output.Reasoning)
 	}
-	if len(reasoningDeltas) != 1 || reasoningDeltas[0].Kind != "summary_text" || reasoningDeltas[0].Text != "I should check the weather." {
+	if len(reasoningDeltas) != 3 || reasoningDeltas[0].Kind != "summary_text" || reasoningDeltas[0].Text != "I should check" || reasoningDeltas[1].Text != " the weather." || reasoningDeltas[2].Signature != "stream-signature" {
 		t.Fatalf("unexpected reasoning deltas: %#v", reasoningDeltas)
 	}
 	if len(output.ToolCalls) != 1 || output.ToolCalls[0].ToolCallID != "call_weather" || output.ToolCalls[0].ToolName != "get_weather" || output.ToolCalls[0].ArgumentsJSON != `{"location":"Paris"}` {
 		t.Fatalf("unexpected stream tool calls: %#v", output.ToolCalls)
 	}
-	if len(usageEvents) != 1 || output.Usage.InputTokens != 4 || output.Usage.OutputTokens != 2 || output.Usage.ReasoningTokens != 3 {
+	if len(output.ServerToolCalls) != 1 || output.ServerToolCalls[0].ToolCallID != "search_call_1" || output.ServerToolCalls[0].ToolName != "google_search" || output.ServerToolCalls[0].Status != "completed" {
+		t.Fatalf("unexpected stream server tool calls: %#v", output.ServerToolCalls)
+	}
+	if output.ServerToolCalls[0].ArgumentsJSON != `{"queries":["Gemini streaming"]}` || !strings.Contains(output.ServerToolCalls[0].OutputJSON, `"https://ai.google.dev/gemini-api/docs/streaming"`) {
+		t.Fatalf("unexpected stream server tool payload: %#v", output.ServerToolCalls[0])
+	}
+	if len(serverToolEvents) != 4 || serverToolEvents[len(serverToolEvents)-1].Status != "completed" || output.ServerSideToolUsage["google_search"] != 1 {
+		t.Fatalf("unexpected server tool events=%#v usage=%#v", serverToolEvents, output.ServerSideToolUsage)
+	}
+	if len(output.Citations) != 1 || output.Citations[0] != "https://ai.google.dev/gemini-api/docs/streaming" {
+		t.Fatalf("unexpected citations: %#v", output.Citations)
+	}
+	if len(output.GeneratedImages) != 1 || output.GeneratedImages[0].B64JSON != "aW1hZ2U=" || output.GeneratedImages[0].MIMEType != "image/jpeg" || output.GeneratedImages[0].RevisedPrompt != "Hello world" {
+		t.Fatalf("unexpected streamed images: %#v", output.GeneratedImages)
+	}
+	if len(imageEvents) != 1 || !imageEvents[0].GeneratedImagePartial || imageEvents[0].GeneratedImageIndex != 0 {
+		t.Fatalf("unexpected streamed image events: %#v", imageEvents)
+	}
+	if len(output.GeneratedVideos) != 1 || output.GeneratedVideos[0].URL != "https://example.com/video.mp4" || output.GeneratedVideos[0].MIMEType != "video/mp4" {
+		t.Fatalf("unexpected streamed videos: %#v", output.GeneratedVideos)
+	}
+	if len(usageEvents) != 2 || output.Usage.InputTokens != 3 || output.Usage.CacheReadTokens != 1 || output.Usage.OutputTokens != 2 || output.Usage.ReasoningTokens != 3 || output.Usage.ServiceTier != "standard" {
 		t.Fatalf("unexpected stream usage events=%#v output=%#v", usageEvents, output.Usage)
+	}
+}
+
+func TestParseGeminiInteractionUsageReadsOfficialStepShapes(t *testing.T) {
+	tests := []struct {
+		name    string
+		payload map[string]interface{}
+	}{
+		{
+			name: "accumulated step usage",
+			payload: map[string]interface{}{
+				"usage": map[string]interface{}{
+					"total_input_tokens":  float64(8),
+					"total_cached_tokens": float64(3),
+					"total_output_tokens": float64(5),
+				},
+			},
+		},
+		{
+			name: "delta metadata total usage",
+			payload: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"total_usage": map[string]interface{}{
+						"total_input_tokens":   float64(8),
+						"total_cached_tokens":  float64(3),
+						"total_output_tokens":  float64(5),
+						"total_thought_tokens": float64(2),
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			usage := parseGeminiInteractionUsage(tt.payload)
+			if usage.InputTokens != 5 || usage.CacheReadTokens != 3 || usage.OutputTokens != 5 {
+				t.Fatalf("unexpected usage: %#v", usage)
+			}
+		})
+	}
+}
+
+func TestParseGeminiInteractionOutputExtractsOfficialServerToolSteps(t *testing.T) {
+	body := []byte(`{
+		"id":"interaction-native-tools",
+		"steps":[
+			{"type":"code_execution_call","id":"code_call_1","arguments":{"code":"print(42)","language":"python"}},
+			{"type":"code_execution_result","call_id":"code_call_1","result":"42\n"},
+			{"type":"url_context_call","id":"url_call_1","arguments":{"urls":["https://example.com"]}},
+			{"type":"url_context_result","call_id":"url_call_1","result":[{"url":"https://example.com","status":"success"}]}
+		]
+	}`)
+	output, err := parseGeminiInteractionOutput(body)
+	if err != nil {
+		t.Fatalf("parse Gemini interaction output: %v", err)
+	}
+	if len(output.ServerToolCalls) != 2 {
+		t.Fatalf("unexpected server tool calls: %#v", output.ServerToolCalls)
+	}
+	if output.ServerToolCalls[0].ToolName != "code_execution" || output.ServerToolCalls[0].Status != "completed" || output.ServerToolCalls[0].ArgumentsJSON != `{"code":"print(42)","language":"python"}` || output.ServerToolCalls[0].OutputJSON != "42" {
+		t.Fatalf("unexpected code execution call: %#v", output.ServerToolCalls[0])
+	}
+	if output.ServerToolCalls[1].ToolName != "url_context" || output.ServerToolCalls[1].Status != "completed" || !strings.Contains(output.ServerToolCalls[1].OutputJSON, `"https://example.com"`) {
+		t.Fatalf("unexpected URL context call: %#v", output.ServerToolCalls[1])
+	}
+	if output.ServerSideToolUsage["code_execution"] != 1 || output.ServerSideToolUsage["url_context"] != 1 {
+		t.Fatalf("unexpected server-side tool usage: %#v", output.ServerSideToolUsage)
+	}
+	if len(output.Citations) != 1 || output.Citations[0] != "https://example.com" {
+		t.Fatalf("unexpected citations: %#v", output.Citations)
+	}
+}
+
+func TestGeminiInteractionStreamToolCallKeepsStepStartArgumentsWithoutDeltas(t *testing.T) {
+	result := &GenerateOutput{}
+	state := &geminiInteractionStreamState{}
+	updateGeminiInteractionStreamToolCall(result, state, map[string]interface{}{
+		"index": float64(0),
+		"step": map[string]interface{}{
+			"type":      "function_call",
+			"id":        "call-1",
+			"name":      "lookup",
+			"arguments": map[string]interface{}{"query": "weather"},
+		},
+	}, "step.start")
+	updateGeminiInteractionStreamToolCall(result, state, map[string]interface{}{
+		"index": float64(0),
+	}, "step.stop")
+	if len(result.ToolCalls) != 1 || result.ToolCalls[0].ArgumentsJSON != `{"query":"weather"}` {
+		t.Fatalf("unexpected tool calls: %#v", result.ToolCalls)
 	}
 }
 
