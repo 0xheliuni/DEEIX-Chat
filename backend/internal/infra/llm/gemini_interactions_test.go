@@ -560,6 +560,26 @@ func TestApplyGeminiInteractionStreamEventMergesNativeToolDeltas(t *testing.T) {
 	}
 }
 
+func TestApplyGeminiInteractionStreamEventPreservesInt64StepIndex(t *testing.T) {
+	result := &GenerateOutput{}
+	streamState := newGeminiInteractionStreamState()
+	chunks := []string{
+		`{"event_type":"step.start","index":"9223372036854775807","step":{"type":"google_search_call","arguments":{"queries":["Gemini"]}}}`,
+		`{"event_type":"step.delta","index":"9223372036854775807","delta":{"type":"google_search_call","arguments":{"queries":["Gemini"]}}}`,
+	}
+	for _, chunk := range chunks {
+		if err := applyGeminiInteractionStreamEvent(mustDecodeObject(t, chunk), result, streamState, nil); err != nil {
+			t.Fatalf("apply Gemini interaction stream event: %v", err)
+		}
+	}
+	if len(result.ServerToolCalls) != 1 {
+		t.Fatalf("expected one merged native tool trace, got %#v", result.ServerToolCalls)
+	}
+	if got := result.ServerToolCalls[0].ToolCallID; got != "gemini_interaction_google_search_9223372036854775807" {
+		t.Fatalf("expected full int64 index in stable tool-call id, got %q", got)
+	}
+}
+
 func TestApplyGeminiInteractionStreamEventCapturesThoughtSummaryAndMetadataUsage(t *testing.T) {
 	result := &GenerateOutput{}
 	streamState := newGeminiInteractionStreamState()

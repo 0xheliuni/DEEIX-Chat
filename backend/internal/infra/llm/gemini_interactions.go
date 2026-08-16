@@ -676,11 +676,11 @@ type geminiInteractionStreamToolStep struct {
 }
 
 type geminiInteractionStreamState struct {
-	toolSteps map[int]geminiInteractionStreamToolStep
+	toolSteps map[int64]geminiInteractionStreamToolStep
 }
 
 func newGeminiInteractionStreamState() *geminiInteractionStreamState {
-	return &geminiInteractionStreamState{toolSteps: make(map[int]geminiInteractionStreamToolStep)}
+	return &geminiInteractionStreamState{toolSteps: make(map[int64]geminiInteractionStreamToolStep)}
 }
 
 // applyGeminiInteractionStreamEvent 将单个官方 event_type 事件归并到统一生成结果并向会话层发送增量。
@@ -1024,7 +1024,7 @@ func parseGeminiInteractionServerToolCalls(parsed map[string]interface{}) []Tool
 		call, isResult, ok := geminiInteractionServerToolCallFromStep(asMap(raw))
 		if ok {
 			if !isResult && call.ToolCallID == "" {
-				call.ToolCallID = geminiInteractionStreamToolCallID(call.ToolName, index)
+				call.ToolCallID = geminiInteractionStreamToolCallID(call.ToolName, int64(index))
 			}
 			appendUniqueToolCall(&calls, call)
 		}
@@ -1040,7 +1040,7 @@ func parseGeminiInteractionStreamServerToolCalls(
 	if state == nil {
 		state = newGeminiInteractionStreamState()
 	}
-	index := int(toInt64(parsed["index"]))
+	index := toInt64(parsed["index"])
 	switch strings.ToLower(strings.TrimSpace(getString(parsed["event_type"]))) {
 	case "step.start":
 		step := asMap(parsed["step"])
@@ -1121,7 +1121,7 @@ func geminiInteractionServerToolCallFromStep(step map[string]interface{}) (ToolC
 	}, false, true
 }
 
-func geminiInteractionStreamToolCallID(name string, index int) string {
+func geminiInteractionStreamToolCallID(name string, index int64) string {
 	return fmt.Sprintf("gemini_interaction_%s_%d", name, index)
 }
 
