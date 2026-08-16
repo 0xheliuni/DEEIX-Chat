@@ -53,7 +53,8 @@ export function useChatSubmitStream({
   combinedMessages,
   serverMessagePublicIDs,
   activeGenerationRunsRef,
-  failedGenerationRunsRef,
+  activeGenerationRunsRevision,
+  onActiveGenerationRunsChange,
   resumeGenerationActive,
 }: {
   conversationID: string | null;
@@ -91,7 +92,8 @@ export function useChatSubmitStream({
   combinedMessages: ChatAreaMessage[];
   serverMessagePublicIDs: Set<string>;
   activeGenerationRunsRef?: React.RefObject<Set<string>>;
-  failedGenerationRunsRef?: React.RefObject<Set<string>>;
+  activeGenerationRunsRevision: number;
+  onActiveGenerationRunsChange?: () => void;
   resumeGenerationActive?: boolean;
 }) {
   const streamBuffer = useChatStreamBuffer({
@@ -140,7 +142,8 @@ export function useChatSubmitStream({
     resetStreamBuffer: streamBuffer.resetStreamBuffer,
     startStream: streamBuffer.startStream,
     activeGenerationRunsRef,
-    failedGenerationRunsRef,
+    activeGenerationRunsRevision,
+    onActiveGenerationRunsChange,
     resumeGenerationActive,
   });
 
