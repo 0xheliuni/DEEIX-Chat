@@ -263,15 +263,12 @@ generationConfig.safetySettings.threshold`}
     "generation_config.top_p",
     "generation_config.max_output_tokens",
     "generation_config.thinking_level",
+    "generation_config.thinking_summaries",
     "response_format.type",
     "response_format.aspect_ratio",
     "response_format.image_size",
     "response_format.mime_type",
-    "responseFormat.type",
-    "responseFormat.aspectRatio",
-    "responseFormat.imageSize",
-    "responseFormat.mimeType",
-    "generationConfig.videoConfig.task",
+    "response_format.schema",
     "generation_config.video_config.task"
   ],
   "xai_image": [

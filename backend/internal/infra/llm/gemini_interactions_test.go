@@ -132,20 +132,28 @@ func TestBuildGeminiInteractionRequestBodySupportsUniversalOptionsAndTools(t *te
 		}},
 		Options: map[string]interface{}{
 			"response_format": []interface{}{
-				map[string]interface{}{"type": "text"},
+				map[string]interface{}{
+					"type":      "text",
+					"mime_type": "application/json",
+					"schema": map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"summary": map[string]interface{}{"type": "string"},
+						},
+					},
+				},
 				map[string]interface{}{
 					"type":         "image",
 					"aspect_ratio": "1:1",
 					"image_size":   "1K",
-					"mime_type":    "image/png",
+					"mime_type":    "image/jpeg",
 				},
 			},
-			"temperature":       0.4,
-			"top_p":             0.9,
-			"max_output_tokens": 512,
-			"thinking_level":    "low",
 			"generation_config": map[string]interface{}{
-				"thinkingLevel":      "high",
+				"temperature":        0.4,
+				"top_p":              0.9,
+				"max_output_tokens":  512,
+				"thinking_level":     "low",
 				"thinking_summaries": "auto",
 			},
 		},
@@ -160,8 +168,12 @@ func TestBuildGeminiInteractionRequestBodySupportsUniversalOptionsAndTools(t *te
 	if _, leaked := asMap(payload["response_format"])["_list"]; leaked {
 		t.Fatalf("response_format must not use private _list wrapper: %#v", payload["response_format"])
 	}
+	textFormat := asMap(formats[0])
+	if textFormat["mime_type"] != "application/json" || asMap(textFormat["schema"])["type"] != "object" {
+		t.Fatalf("unexpected structured text response_format: %#v", textFormat)
+	}
 	imageFormat := asMap(formats[1])
-	if imageFormat["type"] != "image" || imageFormat["aspect_ratio"] != "1:1" || imageFormat["image_size"] != "1K" || imageFormat["mime_type"] != "image/png" {
+	if imageFormat["type"] != "image" || imageFormat["aspect_ratio"] != "1:1" || imageFormat["image_size"] != "1K" || imageFormat["mime_type"] != "image/jpeg" {
 		t.Fatalf("unexpected image response_format: %#v", imageFormat)
 	}
 	config, ok := payload["generation_config"].(map[string]interface{})
@@ -377,11 +389,14 @@ func TestParseGeminiInteractionOutputExtractsVideoURIAndInlineData(t *testing.T)
 	inline := base64.StdEncoding.EncodeToString([]byte("video"))
 	body := []byte(`{
 		"id": "interaction-1",
-		"output": [
-			{"type": "video", "durationSeconds": 5.2, "fileData": {"fileUri": "https://example.com/video.mp4", "mimeType": "video/mp4"}},
-			{"type": "video", "file_data": {"file_uri": "https://example.com/video.mp4", "mime_type": "video/mp4"}},
-			{"type": "video", "duration_seconds": 3, "inlineData": {"data": "` + inline + `", "mimeType": "video/webm"}}
-		],
+		"steps": [{
+			"type": "model_output",
+			"content": [
+				{"type": "video", "uri": "https://example.com/video.mp4", "mime_type": "video/mp4"},
+				{"type": "video", "uri": "https://example.com/video.mp4", "mime_type": "video/mp4"},
+				{"type": "video", "data": "` + inline + `", "mime_type": "video/webm"}
+			]
+		}],
 		"usage": {"total_input_tokens": 3, "total_output_tokens": 5}
 	}`)
 	output, err := parseGeminiInteractionOutput(body)
@@ -394,10 +409,10 @@ func TestParseGeminiInteractionOutputExtractsVideoURIAndInlineData(t *testing.T)
 	if got := len(output.GeneratedVideos); got != 2 {
 		t.Fatalf("expected duplicate URI to be deduped, got %d videos: %#v", got, output.GeneratedVideos)
 	}
-	if output.GeneratedVideos[0].URL != "https://example.com/video.mp4" || output.GeneratedVideos[0].MIMEType != "video/mp4" || output.GeneratedVideos[0].DurationSeconds != 6 {
+	if output.GeneratedVideos[0].URL != "https://example.com/video.mp4" || output.GeneratedVideos[0].MIMEType != "video/mp4" {
 		t.Fatalf("unexpected URI video: %#v", output.GeneratedVideos[0])
 	}
-	if output.GeneratedVideos[1].B64JSON != inline || output.GeneratedVideos[1].MIMEType != "video/webm" || output.GeneratedVideos[1].DurationSeconds != 3 {
+	if output.GeneratedVideos[1].B64JSON != inline || output.GeneratedVideos[1].MIMEType != "video/webm" {
 		t.Fatalf("unexpected inline video: %#v", output.GeneratedVideos[1])
 	}
 	if output.Usage.InputTokens != 3 || output.Usage.OutputTokens != 5 {
@@ -447,12 +462,12 @@ func TestParseGeminiInteractionOutputExtractsTextAndImages(t *testing.T) {
 		"id": "interaction-2",
 		"steps": [
 			{"type": "user_input", "content": [
-				{"type": "image", "inlineData": {"data": "` + inputInline + `", "mimeType": "image/png"}}
+				{"type": "image", "data": "` + inputInline + `", "mime_type": "image/png"}
 			]},
 			{"type": "model_output", "content": [
 				{"type": "text", "text": "A revised prompt"},
-				{"type": "image", "inlineData": {"data": "` + inline + `", "mimeType": "image/png"}},
-				{"type": "image", "fileData": {"fileUri": "https://example.com/image.png", "mimeType": "image/png"}}
+				{"type": "image", "data": "` + inline + `", "mime_type": "image/png"},
+				{"type": "image", "uri": "https://example.com/image.png", "mime_type": "image/png"}
 			]}
 		]
 	}`)
@@ -481,11 +496,8 @@ func TestParseGeminiInteractionOutputExtractsFunctionCalls(t *testing.T) {
 	body := []byte(`{
 		"id": "interaction-tools",
 		"steps": [
-			{"type": "model_output", "content": "Let me check."},
-			{"type": "function_call", "id": "call_weather", "name": "get_weather", "arguments": {"location": "Paris"}},
-			{"type": "model_output", "content": [
-				{"type": "function_call", "id": "call_weather", "name": "get_weather", "arguments": {"location": "Paris"}}
-			]}
+			{"type": "model_output", "content": [{"type": "text", "text": "Let me check."}]},
+			{"type": "function_call", "id": "call_weather", "name": "get_weather", "arguments": {"location": "Paris"}}
 		]
 	}`)
 	output, err := parseGeminiInteractionOutput(body)
@@ -496,7 +508,7 @@ func TestParseGeminiInteractionOutputExtractsFunctionCalls(t *testing.T) {
 		t.Fatalf("expected text from model_output only, got %q", output.Text)
 	}
 	if len(output.ToolCalls) != 1 {
-		t.Fatalf("expected deduped function call, got %#v", output.ToolCalls)
+		t.Fatalf("expected function call, got %#v", output.ToolCalls)
 	}
 	call := output.ToolCalls[0]
 	if call.ToolCallID != "call_weather" || call.ToolType != "function" || call.ToolName != "get_weather" || call.Status != "requested" {
@@ -699,7 +711,7 @@ func TestGenerateGeminiInteractionPostsInteractionsRequest(t *testing.T) {
 			t.Fatalf("decode request payload: %v", err)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"interaction-1","output":[{"fileData":{"fileUri":"https://example.com/video.mp4","mimeType":"video/mp4"}}]}`))
+		_, _ = w.Write([]byte(`{"id":"interaction-1","steps":[{"type":"model_output","content":[{"type":"video","uri":"https://example.com/video.mp4","mime_type":"video/mp4"}]}]}`))
 	}))
 	defer server.Close()
 

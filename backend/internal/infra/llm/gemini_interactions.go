@@ -357,9 +357,6 @@ func buildGeminiInteractionResponseFormat(route RouteConfig, options map[string]
 		}
 	}
 	raw := modelParamMap(options, "response_format")
-	if len(raw) == 0 {
-		raw = modelParamMap(options, "responseFormat")
-	}
 	return normalizeGeminiInteractionResponseFormat(route, raw)
 }
 
@@ -383,53 +380,46 @@ func normalizeGeminiInteractionResponseFormat(route RouteConfig, raw map[string]
 	if aspectRatio := geminiInteractionAspectRatio(getString(raw["aspect_ratio"]), responseType); aspectRatio != "" {
 		format["aspect_ratio"] = aspectRatio
 	}
-	if aspectRatio := geminiInteractionAspectRatio(getString(raw["aspectRatio"]), responseType); aspectRatio != "" {
-		format["aspect_ratio"] = aspectRatio
-	}
 	if imageSize := geminiInteractionImageSize(getString(raw["image_size"])); imageSize != "" {
-		format["image_size"] = imageSize
-	}
-	if imageSize := geminiInteractionImageSize(getString(raw["imageSize"])); imageSize != "" {
 		format["image_size"] = imageSize
 	}
 	if mimeType := geminiInteractionMIMEType(getString(raw["mime_type"]), responseType); mimeType != "" {
 		format["mime_type"] = mimeType
 	}
-	if mimeType := geminiInteractionMIMEType(getString(raw["mimeType"]), responseType); mimeType != "" {
-		format["mime_type"] = mimeType
+	if responseType == "text" && format["mime_type"] == "application/json" {
+		if schema := asMap(raw["schema"]); len(schema) > 0 {
+			format["schema"] = schema
+		}
 	}
 	return format
 }
 
 func firstGeminiInteractionResponseFormatList(options map[string]interface{}) ([]map[string]interface{}, bool) {
-	for _, key := range []string{"response_format", "responseFormat"} {
-		value, ok := options[key]
-		if !ok {
-			continue
-		}
-		switch typed := value.(type) {
-		case []map[string]interface{}:
-			items := make([]map[string]interface{}, 0, len(typed))
-			for _, item := range typed {
-				if len(item) > 0 {
-					items = append(items, item)
-				}
-			}
-			return items, len(items) > 0
-		case []interface{}:
-			items := make([]map[string]interface{}, 0, len(typed))
-			for _, raw := range typed {
-				item := asMap(raw)
-				if len(item) > 0 {
-					items = append(items, item)
-				}
-			}
-			return items, len(items) > 0
-		default:
-			return nil, false
-		}
+	value, ok := options["response_format"]
+	if !ok {
+		return nil, false
 	}
-	return nil, false
+	switch typed := value.(type) {
+	case []map[string]interface{}:
+		items := make([]map[string]interface{}, 0, len(typed))
+		for _, item := range typed {
+			if len(item) > 0 {
+				items = append(items, item)
+			}
+		}
+		return items, len(items) > 0
+	case []interface{}:
+		items := make([]map[string]interface{}, 0, len(typed))
+		for _, raw := range typed {
+			item := asMap(raw)
+			if len(item) > 0 {
+				items = append(items, item)
+			}
+		}
+		return items, len(items) > 0
+	default:
+		return nil, false
+	}
 }
 
 func geminiInteractionResponseType(value string) string {
@@ -448,35 +438,12 @@ func geminiInteractionResponseType(value string) string {
 func buildGeminiInteractionGenerationConfig(options map[string]interface{}) map[string]interface{} {
 	config := map[string]interface{}{}
 	raw := modelParamMap(options, "generation_config")
-	if len(raw) == 0 {
-		raw = modelParamMap(options, "generationConfig")
-	}
 	for key, value := range raw {
-		if strings.TrimSpace(key) != "" {
-			config[camelToSnakeGeminiInteractionKey(key)] = value
+		if strings.TrimSpace(key) != "" && key != "video_config" {
+			config[key] = value
 		}
 	}
-	if maxTokens, ok := firstGeminiIntOption(options, "max_output_tokens", "max_completion_tokens", "maxOutputTokens"); ok && maxTokens > 0 {
-		config["max_output_tokens"] = maxTokens
-	}
-	if value, ok := modelParamFloat(options, "temperature"); ok {
-		config["temperature"] = value
-	}
-	if value, ok := firstGeminiFloatOption(options, "top_p", "topP"); ok {
-		config["top_p"] = value
-	}
-	if topK, ok := firstGeminiIntOption(options, "top_k", "topK"); ok && topK > 0 {
-		config["top_k"] = topK
-	}
-	if stops := firstGeminiStringListOption(options, "stop", "stop_sequences", "stopSequences"); len(stops) > 0 {
-		config["stop_sequences"] = stops
-	}
-	if level := firstGeminiStringOption(options, "thinking_level", "thinkingLevel"); level != "" {
-		config["thinking_level"] = level
-	}
 	if videoConfig := buildGeminiInteractionVideoConfig(modelParamMap(raw, "video_config")); len(videoConfig) > 0 {
-		config["video_config"] = videoConfig
-	} else if videoConfig := buildGeminiInteractionVideoConfig(modelParamMap(raw, "videoConfig")); len(videoConfig) > 0 {
 		config["video_config"] = videoConfig
 	}
 	return config
@@ -540,36 +507,17 @@ func geminiInteractionMIMEType(value string, responseType string) string {
 		return ""
 	}
 	switch responseType {
-	case "image":
+	case "text":
 		switch normalized {
-		case "image/png", "image/jpeg", "image/webp":
+		case "application/json", "text/plain":
 			return normalized
 		}
-	case "video":
-		if strings.HasPrefix(normalized, "video/") {
+	case "image":
+		if normalized == "image/jpeg" {
 			return normalized
 		}
 	}
 	return ""
-}
-
-func camelToSnakeGeminiInteractionKey(value string) string {
-	switch strings.TrimSpace(value) {
-	case "maxOutputTokens":
-		return "max_output_tokens"
-	case "topP":
-		return "top_p"
-	case "topK":
-		return "top_k"
-	case "stopSequences":
-		return "stop_sequences"
-	case "videoConfig":
-		return "video_config"
-	case "thinkingLevel":
-		return "thinking_level"
-	default:
-		return value
-	}
 }
 
 func buildGeminiInteractionTools(tools []ToolDefinition) []map[string]interface{} {
@@ -597,27 +545,11 @@ func geminiInteractionsProtectedProviderOptionKeys() []string {
 		"input",
 		"model",
 		"response_format",
-		"responseFormat",
-		"thinking_level",
-		"thinkingLevel",
 		"generation_config",
-		"generationConfig",
-		"max_completion_tokens",
-		"max_output_tokens",
-		"maxOutputTokens",
 		"previous_interaction_id",
-		"previousInteractionId",
-		"stop",
-		"stopSequences",
 		"stream",
 		"system_instruction",
-		"systemInstruction",
-		"temperature",
 		"tools",
-		"top_k",
-		"top_p",
-		"topK",
-		"topP",
 	}
 }
 
@@ -749,12 +681,6 @@ func applyGeminiInteractionStreamEvent(
 			}
 		}
 	}
-	for _, call := range parseGeminiInteractionFunctionCalls(parsed) {
-		result.ToolCalls = append(result.ToolCalls, call)
-	}
-	result.ToolCalls = dedupeGeminiInteractionToolCalls(result.ToolCalls)
-	result.GeneratedImages = dedupeGeminiInteractionImages(append(result.GeneratedImages, extractGeminiInteractionGeneratedImages(parsed)...))
-	result.GeneratedVideos = dedupeGeminiInteractionVideos(append(result.GeneratedVideos, extractGeminiInteractionGeneratedVideos(parsed)...))
 	if usage := parseGeminiInteractionUsage(parsed); usage != (Usage{}) {
 		if usage.ServiceTier == "" {
 			usage.ServiceTier = result.Usage.ServiceTier
@@ -1015,8 +941,8 @@ func parseGeminiInteractionPayload(parsed map[string]interface{}) *GenerateOutpu
 	}
 	usage := parseGeminiInteractionUsage(parsed)
 	output := &GenerateOutput{
-		ResponseID:      firstString(payload, "id", "name"),
-		Text:            strings.TrimSpace(firstString(payload, "text", "output_text")),
+		ResponseID:      strings.TrimSpace(getString(payload["id"])),
+		Text:            geminiInteractionTextFromSteps(payload["steps"]),
 		Reasoning:       parseGeminiInteractionReasoning(payload),
 		Usage:           usage,
 		ToolCalls:       parseGeminiInteractionFunctionCalls(payload),
@@ -1026,12 +952,6 @@ func parseGeminiInteractionPayload(parsed map[string]interface{}) *GenerateOutpu
 	}
 	output.ServerSideToolUsage = geminiInteractionServerToolUsage(output.ServerToolCalls)
 	output.Citations = geminiInteractionServerToolCitations(output.ServerToolCalls)
-	if output.Text == "" {
-		output.Text = geminiInteractionTextFromOutput(payload["output"])
-	}
-	if output.Text == "" {
-		output.Text = geminiInteractionTextFromSteps(payload["steps"])
-	}
 	for i := range output.GeneratedImages {
 		if output.GeneratedImages[i].RevisedPrompt == "" {
 			output.GeneratedImages[i].RevisedPrompt = output.Text
@@ -1114,19 +1034,17 @@ func rawJSONFromValue(value interface{}) string {
 
 func parseGeminiInteractionFunctionCalls(parsed map[string]interface{}) []ToolCall {
 	calls := make([]ToolCall, 0)
-	walkGeminiInteractionFunctionCalls(parsed["steps"], &calls)
-	walkGeminiInteractionFunctionCalls(parsed["output"], &calls)
+	for _, rawStep := range asSlice(parsed["steps"]) {
+		if call, ok := geminiInteractionToolCallFromMap(asMap(rawStep)); ok {
+			calls = append(calls, call)
+		}
+	}
 	return dedupeGeminiInteractionToolCalls(calls)
 }
 
 func parseGeminiInteractionServerToolCalls(parsed map[string]interface{}) []ToolCall {
 	calls := make([]ToolCall, 0)
 	for _, rawStep := range asSlice(parsed["steps"]) {
-		if call, ok := parseGeminiInteractionServerToolCall(asMap(rawStep), false); ok {
-			appendUniqueToolCall(&calls, call)
-		}
-	}
-	for _, rawStep := range asSlice(parsed["output"]) {
 		if call, ok := parseGeminiInteractionServerToolCall(asMap(rawStep), false); ok {
 			appendUniqueToolCall(&calls, call)
 		}
@@ -1423,22 +1341,6 @@ func geminiInteractionStreamToolCallIndex(result *GenerateOutput, state *geminiI
 	return callIndex, true
 }
 
-func walkGeminiInteractionFunctionCalls(value interface{}, calls *[]ToolCall) {
-	switch typed := value.(type) {
-	case map[string]interface{}:
-		if call, ok := geminiInteractionToolCallFromMap(typed); ok {
-			*calls = append(*calls, call)
-		}
-		for _, child := range typed {
-			walkGeminiInteractionFunctionCalls(child, calls)
-		}
-	case []interface{}:
-		for _, child := range typed {
-			walkGeminiInteractionFunctionCalls(child, calls)
-		}
-	}
-}
-
 func geminiInteractionToolCallFromMap(item map[string]interface{}) (ToolCall, bool) {
 	if strings.TrimSpace(strings.ToLower(getString(item["type"]))) != "function_call" {
 		return ToolCall{}, false
@@ -1449,13 +1351,10 @@ func geminiInteractionToolCallFromMap(item map[string]interface{}) (ToolCall, bo
 	}
 	arguments := normalizeJSONString(item["arguments"])
 	if arguments == "" {
-		arguments = normalizeJSONString(item["args"])
-	}
-	if arguments == "" {
 		arguments = "{}"
 	}
 	return ToolCall{
-		ToolCallID:    firstString(item, "id", "call_id", "tool_call_id"),
+		ToolCallID:    strings.TrimSpace(getString(item["id"])),
 		ToolType:      "function",
 		ToolName:      name,
 		ArgumentsJSON: arguments,
@@ -1485,7 +1384,6 @@ func dedupeGeminiInteractionToolCalls(calls []ToolCall) []ToolCall {
 
 func extractGeminiInteractionGeneratedImages(parsed map[string]interface{}) []GeneratedImage {
 	images := make([]GeneratedImage, 0)
-	walkGeminiInteractionImages(parsed["output"], &images)
 	walkGeminiInteractionModelOutputContent(parsed["steps"], func(content interface{}) {
 		walkGeminiInteractionImages(content, &images)
 	})
@@ -1521,14 +1419,10 @@ func walkGeminiInteractionModelOutputContent(raw interface{}, walk func(interfac
 	}
 	for _, rawStep := range asSlice(raw) {
 		step := asMap(rawStep)
-		if stepType := strings.TrimSpace(strings.ToLower(getString(step["type"]))); stepType != "" && stepType != "model_output" {
+		if strings.TrimSpace(strings.ToLower(getString(step["type"]))) != "model_output" {
 			continue
 		}
-		if content, ok := step["content"]; ok {
-			walk(content)
-			continue
-		}
-		walk(step)
+		walk(step["content"])
 	}
 }
 
@@ -1538,71 +1432,28 @@ func walkGeminiInteractionImages(value interface{}, images *[]GeneratedImage) {
 		if image, ok := geminiImageFromInteractionMap(typed); ok {
 			*images = append(*images, image)
 		}
-		for _, child := range typed {
-			walkGeminiInteractionImages(child, images)
-		}
 	case []interface{}:
 		for _, child := range typed {
-			walkGeminiInteractionImages(child, images)
+			if image, ok := geminiImageFromInteractionMap(asMap(child)); ok {
+				*images = append(*images, image)
+			}
 		}
 	}
 }
 
 func geminiImageFromInteractionMap(item map[string]interface{}) (GeneratedImage, bool) {
-	mimeType := strings.TrimSpace(firstString(item, "mime_type", "mimeType"))
-	if mimeType == "" {
-		if inlineData := asMap(item["inlineData"]); len(inlineData) > 0 {
-			mimeType = strings.TrimSpace(firstString(inlineData, "mimeType", "mime_type"))
-		}
+	if strings.TrimSpace(strings.ToLower(getString(item["type"]))) != "image" {
+		return GeneratedImage{}, false
 	}
+	mimeType := strings.TrimSpace(getString(item["mime_type"]))
 	if mimeType != "" && !strings.HasPrefix(strings.ToLower(mimeType), "image/") {
 		return GeneratedImage{}, false
 	}
-
-	url := strings.TrimSpace(firstString(item, "uri", "url", "file_uri", "fileUri"))
-	b64 := strings.TrimSpace(firstString(item, "b64_json", "b64Json", "data"))
-	if fileData := asMap(item["fileData"]); len(fileData) > 0 {
-		if url == "" {
-			url = strings.TrimSpace(firstString(fileData, "fileUri", "file_uri", "uri", "url"))
-		}
-		if mimeType == "" {
-			mimeType = strings.TrimSpace(firstString(fileData, "mimeType", "mime_type"))
-		}
-	}
-	if fileData := asMap(item["file_data"]); len(fileData) > 0 {
-		if url == "" {
-			url = strings.TrimSpace(firstString(fileData, "fileUri", "file_uri", "uri", "url"))
-		}
-		if mimeType == "" {
-			mimeType = strings.TrimSpace(firstString(fileData, "mimeType", "mime_type"))
-		}
-	}
-	if inlineData := asMap(item["inlineData"]); len(inlineData) > 0 {
-		if b64 == "" {
-			b64 = strings.TrimSpace(firstString(inlineData, "data", "b64_json", "b64Json"))
-		}
-		if mimeType == "" {
-			mimeType = strings.TrimSpace(firstString(inlineData, "mimeType", "mime_type"))
-		}
-	}
-	if inlineData := asMap(item["inline_data"]); len(inlineData) > 0 {
-		if b64 == "" {
-			b64 = strings.TrimSpace(firstString(inlineData, "data", "b64_json", "b64Json"))
-		}
-		if mimeType == "" {
-			mimeType = strings.TrimSpace(firstString(inlineData, "mimeType", "mime_type"))
-		}
-	}
-	if nested := asMap(item["image"]); len(nested) > 0 {
-		image, ok := geminiImageFromInteractionMap(nested)
-		if ok {
-			return image, true
-		}
-	}
-	itemType := strings.TrimSpace(strings.ToLower(firstString(item, "type")))
-	if mimeType == "" && itemType == "image" {
+	if mimeType == "" {
 		mimeType = "image/png"
 	}
+	url := strings.TrimSpace(getString(item["uri"]))
+	b64 := strings.TrimSpace(getString(item["data"]))
 	if !strings.HasPrefix(strings.ToLower(mimeType), "image/") || (url == "" && b64 == "") {
 		return GeneratedImage{}, false
 	}
@@ -1615,7 +1466,6 @@ func geminiImageFromInteractionMap(item map[string]interface{}) (GeneratedImage,
 
 func extractGeminiInteractionGeneratedVideos(parsed map[string]interface{}) []GeneratedVideo {
 	videos := make([]GeneratedVideo, 0)
-	walkGeminiInteractionVideos(parsed["output"], &videos)
 	walkGeminiInteractionModelOutputContent(parsed["steps"], func(content interface{}) {
 		walkGeminiInteractionVideos(content, &videos)
 	})
@@ -1651,53 +1501,25 @@ func walkGeminiInteractionVideos(value interface{}, videos *[]GeneratedVideo) {
 		if video, ok := geminiVideoFromMap(typed); ok {
 			*videos = append(*videos, video)
 		}
-		for _, child := range typed {
-			walkGeminiInteractionVideos(child, videos)
-		}
 	case []interface{}:
 		for _, child := range typed {
-			walkGeminiInteractionVideos(child, videos)
+			if video, ok := geminiVideoFromMap(asMap(child)); ok {
+				*videos = append(*videos, video)
+			}
 		}
 	}
 }
 
 func geminiVideoFromMap(item map[string]interface{}) (GeneratedVideo, bool) {
-	fileData := asMap(item["fileData"])
-	if len(fileData) == 0 {
-		fileData = asMap(item["file_data"])
+	if strings.TrimSpace(strings.ToLower(getString(item["type"]))) != "video" {
+		return GeneratedVideo{}, false
 	}
-	inlineData := asMap(item["inlineData"])
-	if len(inlineData) == 0 {
-		inlineData = asMap(item["inline_data"])
-	}
-	mimeType := strings.TrimSpace(firstString(item, "mime_type", "mimeType"))
-	if mimeType == "" {
-		if len(inlineData) > 0 {
-			mimeType = strings.TrimSpace(firstString(inlineData, "mimeType", "mime_type"))
-		}
-	}
+	mimeType := strings.TrimSpace(getString(item["mime_type"]))
 	if mimeType != "" && !strings.HasPrefix(strings.ToLower(mimeType), "video/") {
 		return GeneratedVideo{}, false
 	}
-
-	url := strings.TrimSpace(firstString(item, "uri", "url", "file_uri", "fileUri"))
-	b64 := strings.TrimSpace(firstString(item, "b64_json", "b64Json", "data"))
-	if len(fileData) > 0 {
-		if url == "" {
-			url = strings.TrimSpace(firstString(fileData, "fileUri", "file_uri", "uri", "url"))
-		}
-		if mimeType == "" {
-			mimeType = strings.TrimSpace(firstString(fileData, "mimeType", "mime_type"))
-		}
-	}
-	if len(inlineData) > 0 {
-		if b64 == "" {
-			b64 = strings.TrimSpace(firstString(inlineData, "data", "b64_json", "b64Json"))
-		}
-		if mimeType == "" {
-			mimeType = strings.TrimSpace(firstString(inlineData, "mimeType", "mime_type"))
-		}
-	}
+	url := strings.TrimSpace(getString(item["uri"]))
+	b64 := strings.TrimSpace(getString(item["data"]))
 	if mimeType == "" {
 		mimeType = "video/mp4"
 	}
@@ -1708,67 +1530,25 @@ func geminiVideoFromMap(item map[string]interface{}) (GeneratedVideo, bool) {
 		URL:      url,
 		B64JSON:  b64,
 		MIMEType: mimeType,
-		FileName: strings.TrimSpace(firstString(item, "file_name", "fileName", "name")),
-		DurationSeconds: generatedMediaDurationSeconds(
-			item["duration_seconds"],
-			item["durationSeconds"],
-			item["duration"],
-			fileData["duration_seconds"],
-			fileData["durationSeconds"],
-		),
 	}, true
 }
 
-func geminiInteractionTextFromOutput(raw interface{}) string {
-	items, ok := raw.([]interface{})
-	if !ok {
-		return ""
-	}
-	parts := make([]string, 0, len(items))
-	for _, item := range items {
-		if text := strings.TrimSpace(getString(asMap(item)["text"])); text != "" {
-			parts = append(parts, text)
-		}
-	}
-	return strings.Join(parts, "\n\n")
-}
-
 func geminiInteractionTextFromSteps(raw interface{}) string {
-	steps, ok := raw.([]interface{})
-	if !ok {
-		return ""
-	}
-	parts := make([]string, 0, len(steps))
-	for _, rawStep := range steps {
+	parts := make([]string, 0)
+	for _, rawStep := range asSlice(raw) {
 		step := asMap(rawStep)
-		if stepType := strings.TrimSpace(strings.ToLower(getString(step["type"]))); stepType != "" && stepType != "model_output" {
+		if strings.TrimSpace(strings.ToLower(getString(step["type"]))) != "model_output" {
 			continue
 		}
-		parts = appendGeminiInteractionTextParts(parts, step["content"])
+		for _, rawContent := range asSlice(step["content"]) {
+			content := asMap(rawContent)
+			if strings.TrimSpace(strings.ToLower(getString(content["type"]))) != "text" {
+				continue
+			}
+			if text := strings.TrimSpace(getString(content["text"])); text != "" {
+				parts = append(parts, text)
+			}
+		}
 	}
 	return strings.Join(parts, "\n\n")
-}
-
-func appendGeminiInteractionTextParts(parts []string, raw interface{}) []string {
-	switch typed := raw.(type) {
-	case string:
-		if text := strings.TrimSpace(typed); text != "" {
-			return append(parts, text)
-		}
-	case map[string]interface{}:
-		if itemType := strings.TrimSpace(strings.ToLower(getString(typed["type"]))); itemType != "" && itemType != "text" {
-			return parts
-		}
-		if text := strings.TrimSpace(getString(typed["text"])); text != "" {
-			return append(parts, text)
-		}
-		if content, ok := typed["content"]; ok {
-			parts = appendGeminiInteractionTextParts(parts, content)
-		}
-	case []interface{}:
-		for _, child := range typed {
-			parts = appendGeminiInteractionTextParts(parts, child)
-		}
-	}
-	return parts
 }

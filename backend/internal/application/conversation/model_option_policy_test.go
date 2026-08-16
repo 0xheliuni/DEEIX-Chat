@@ -72,7 +72,16 @@ func TestFilterModelOptionsAllowlistUsesDefaultAndProtocolPaths(t *testing.T) {
 func TestFilterModelOptionsAllowsGeminiInteractionResponseFormatArray(t *testing.T) {
 	filtered := filterModelOptions(map[string]interface{}{
 		"response_format": []interface{}{
-			map[string]interface{}{"type": "text"},
+			map[string]interface{}{
+				"type":      "text",
+				"mime_type": "application/json",
+				"schema": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"answer": map[string]interface{}{"type": "string"},
+					},
+				},
+			},
 			map[string]interface{}{"type": "image", "image_size": "1K", "delivery": "b64_json"},
 		},
 	}, llm.AdapterGeminiInteractions, modelOptionPolicyConfig{
@@ -84,6 +93,11 @@ func TestFilterModelOptionsAllowsGeminiInteractionResponseFormatArray(t *testing
 	formats, ok := filtered["response_format"].([]interface{})
 	if !ok || len(formats) != 2 {
 		t.Fatalf("expected Gemini Interactions response_format array to pass, got %#v", filtered)
+	}
+	textFormat := formats[0].(map[string]interface{})
+	schema, ok := textFormat["schema"].(map[string]interface{})
+	if !ok || schema["type"] != "object" {
+		t.Fatalf("expected whitelisted text schema to pass, got %#v", textFormat)
 	}
 	imageFormat := formats[1].(map[string]interface{})
 	if imageFormat["image_size"] != "1K" {
@@ -976,7 +990,7 @@ func TestFilterModelOptionsGeminiInteractionsAllowsVideoParams(t *testing.T) {
 		"response_format": map[string]interface{}{
 			"aspect_ratio": "16:9",
 			"image_size":   "1K",
-			"mime_type":    "image/png",
+			"mime_type":    "image/jpeg",
 			"delivery":     "b64_json",
 		},
 		"generation_config": map[string]interface{}{
@@ -997,7 +1011,7 @@ func TestFilterModelOptionsGeminiInteractionsAllowsVideoParams(t *testing.T) {
 	})
 
 	responseFormat, ok := filtered["response_format"].(map[string]interface{})
-	if !ok || responseFormat["aspect_ratio"] != "16:9" || responseFormat["image_size"] != "1K" || responseFormat["mime_type"] != "image/png" {
+	if !ok || responseFormat["aspect_ratio"] != "16:9" || responseFormat["image_size"] != "1K" || responseFormat["mime_type"] != "image/jpeg" {
 		t.Fatalf("expected Gemini response_format aspect ratio to pass, got %#v", filtered)
 	}
 	if _, ok := responseFormat["delivery"]; ok {
@@ -1133,7 +1147,7 @@ func TestFilterModelOptionsSelectsGeminiToolsForResolvedRouteProtocol(t *testing
 	}
 }
 
-func TestFilterModelOptionsGeminiInteractionsAllowsCamelCaseVideoConfig(t *testing.T) {
+func TestFilterModelOptionsGeminiInteractionsRejectsLegacyCamelCaseConfig(t *testing.T) {
 	filtered := filterModelOptions(map[string]interface{}{
 		"generationConfig": map[string]interface{}{
 			"videoConfig": map[string]interface{}{
@@ -1146,13 +1160,8 @@ func TestFilterModelOptionsGeminiInteractionsAllowsCamelCaseVideoConfig(t *testi
 		DeniedPathsJSON:  config.DefaultModelOptionDeniedPathsJSON(),
 	})
 
-	generationConfig, ok := filtered["generationConfig"].(map[string]interface{})
-	if !ok {
-		t.Fatalf("expected camelCase Gemini generationConfig to pass, got %#v", filtered)
-	}
-	videoConfig, ok := generationConfig["videoConfig"].(map[string]interface{})
-	if !ok || videoConfig["task"] != "text_to_video" {
-		t.Fatalf("expected camelCase Gemini video task to pass, got %#v", filtered)
+	if len(filtered) != 0 {
+		t.Fatalf("expected legacy camelCase Interactions options to be rejected, got %#v", filtered)
 	}
 }
 

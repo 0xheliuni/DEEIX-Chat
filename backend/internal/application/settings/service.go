@@ -220,10 +220,29 @@ func isLegacyDefaultModelOptionAllowedPaths(value string) bool {
 		previousCombinedDefault["gemini_interactions"],
 		"generation_config.thinking_summaries",
 	)
+	legacyInteractionsDefault := cloneStringSliceMap(latestDefault)
+	legacyInteractionsDefault["gemini_interactions"] = append(
+		removeStringValue(legacyInteractionsDefault["gemini_interactions"], "response_format.schema"),
+		"responseFormat.type",
+		"responseFormat.aspectRatio",
+		"responseFormat.imageSize",
+		"responseFormat.mimeType",
+		"generationConfig.videoConfig.task",
+	)
+	legacyInteractionsWithoutSummaries := cloneStringSliceMap(legacyInteractionsDefault)
+	legacyInteractionsWithoutSummaries["gemini_interactions"] = removeStringValue(
+		legacyInteractionsWithoutSummaries["gemini_interactions"],
+		"generation_config.thinking_summaries",
+	)
+	legacyCombinedDefault := cloneStringSliceMap(legacyInteractionsWithoutSummaries)
+	legacyCombinedDefault["gemini_generate_content"] = previousGenerateContentDefault["gemini_generate_content"]
 	previousDefaults := []map[string][]string{
 		previousGenerateContentDefault,
 		previousInteractionsDefault,
 		previousCombinedDefault,
+		legacyInteractionsDefault,
+		legacyInteractionsWithoutSummaries,
+		legacyCombinedDefault,
 	}
 	for _, previousDefault := range previousDefaults {
 		if sameStringSliceMap(current, previousDefault) {
