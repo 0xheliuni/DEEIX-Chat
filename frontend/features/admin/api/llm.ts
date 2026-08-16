@@ -28,6 +28,7 @@ import type {
   ImportAdminLLMUpstreamModelsRequest,
   ListAdminLLMRemoteModelsData,
   ReorderAdminLLMModelsRequest,
+  SetAdminLLMModelProtocolsRequest,
   SetAdminLLMModelsDisplayGroupRequest,
   ResetAdminLLMCircuitData,
   UpdateAdminLLMModelRequest,
@@ -369,6 +370,18 @@ export async function updateAdminLLMModel(
 ): Promise<AdminLLMModelData> {
   return authedRequest<AdminLLMModelData>(
     `/api/v1/admin/llm/models/${modelID}`,
+    { method: "PATCH", accessToken, body: payload },
+    true,
+  );
+}
+
+export async function setAdminLLMModelProtocols(
+  accessToken: string,
+  modelID: number,
+  payload: SetAdminLLMModelProtocolsRequest,
+): Promise<AdminLLMModelData> {
+  return authedRequest<AdminLLMModelData>(
+    `/api/v1/admin/llm/models/${modelID}/protocols`,
     { method: "PATCH", accessToken, body: payload },
     true,
   );

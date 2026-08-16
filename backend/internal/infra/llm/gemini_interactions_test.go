@@ -145,7 +145,8 @@ func TestBuildGeminiInteractionRequestBodySupportsUniversalOptionsAndTools(t *te
 			"max_output_tokens": 512,
 			"thinking_level":    "low",
 			"generation_config": map[string]interface{}{
-				"thinkingLevel": "high",
+				"thinkingLevel":      "high",
+				"thinking_summaries": "auto",
 			},
 		},
 	})
@@ -164,7 +165,7 @@ func TestBuildGeminiInteractionRequestBodySupportsUniversalOptionsAndTools(t *te
 		t.Fatalf("unexpected image response_format: %#v", imageFormat)
 	}
 	config, ok := payload["generation_config"].(map[string]interface{})
-	if !ok || config["temperature"] != 0.4 || config["top_p"] != 0.9 || config["max_output_tokens"] != 512 || config["thinking_level"] != "low" {
+	if !ok || config["temperature"] != 0.4 || config["top_p"] != 0.9 || config["max_output_tokens"] != 512 || config["thinking_level"] != "low" || config["thinking_summaries"] != "auto" {
 		t.Fatalf("unexpected generation_config: %#v", payload["generation_config"])
 	}
 	tools, ok := payload["tools"].([]map[string]interface{})
@@ -190,6 +191,56 @@ func TestBuildGeminiInteractionRequestBodySupportsUniversalOptionsAndTools(t *te
 	resultContent, ok := steps[3]["result"].([]map[string]interface{})
 	if !ok || len(resultContent) != 1 || resultContent[0]["type"] != "text" || resultContent[0]["text"] != `{"temperature":"20C"}` {
 		t.Fatalf("expected function result content blocks, got %#v", steps[3]["result"])
+	}
+}
+
+func TestBuildGeminiInteractionRequestBodyMergesNativeAndFunctionTools(t *testing.T) {
+	input := GenerateInput{
+		Messages: []Message{{Role: "user", Content: "Research and calculate."}},
+		Options: map[string]interface{}{
+			"tools": []interface{}{
+				map[string]interface{}{"type": "google_search"},
+				map[string]interface{}{"type": "code_execution"},
+				map[string]interface{}{"type": "url_context"},
+			},
+		},
+		Tools: []ToolDefinition{{
+			Name:        "get_weather",
+			Description: "Gets weather.",
+			InputSchema: json.RawMessage(`{"type":"object"}`),
+		}},
+	}
+	payload, err := buildGeminiInteractionRequestBody(RouteConfig{
+		Endpoint:      EndpointInteractions,
+		UpstreamModel: "gemini-3.5-flash",
+	}, input)
+	if err != nil {
+		t.Fatalf("build Gemini interaction request body: %v", err)
+	}
+	tools, ok := payload["tools"].([]map[string]interface{})
+	if !ok || len(tools) != 4 {
+		t.Fatalf("expected three native tools and one function, got %#v", payload["tools"])
+	}
+	wantTypes := []string{"google_search", "code_execution", "url_context", "function"}
+	for index, wantType := range wantTypes {
+		if tools[index]["type"] != wantType {
+			t.Fatalf("tool %d type = %#v, want %q", index, tools[index]["type"], wantType)
+		}
+	}
+	if tools[3]["name"] != "get_weather" {
+		t.Fatalf("expected function tool to be preserved, got %#v", tools[3])
+	}
+
+	input.DisableTools = true
+	disabledPayload, err := buildGeminiInteractionRequestBody(RouteConfig{
+		Endpoint:      EndpointInteractions,
+		UpstreamModel: "gemini-3.5-flash",
+	}, input)
+	if err != nil {
+		t.Fatalf("build disabled-tools Gemini interaction request body: %v", err)
+	}
+	if _, exists := disabledPayload["tools"]; exists {
+		t.Fatalf("expected DisableTools to remove native and function tools, got %#v", disabledPayload["tools"])
 	}
 }
 
@@ -456,6 +507,180 @@ func TestParseGeminiInteractionOutputExtractsFunctionCalls(t *testing.T) {
 	}
 }
 
+func TestParseGeminiInteractionOutputExtractsNativeToolTracesAndUsage(t *testing.T) {
+	body := []byte(`{
+		"id": "interaction-native-tools",
+		"steps": [
+			{"type": "thought", "signature": "thought_sig_1", "summary": [{"type": "text", "text": "I should verify the result."}]},
+			{"type": "google_search_call", "arguments": {"query": "Paris 2024 men's 100m winner"}, "id": "search_call_1"},
+			{"type": "google_search_result", "call_id": "search_call_1", "result": [{"title": "Olympics", "url": "https://example.com/olympics", "snippet": "Noah Lyles won."}]},
+			{"type": "code_execution_call", "arguments": {"code": "print(sum(range(1, 11)))", "language": "python"}, "id": "code_call_1"},
+			{"type": "code_execution_result", "call_id": "code_call_1", "result": "55\n"},
+			{"type": "url_context_call", "arguments": {"urls": ["https://example.com"]}, "id": "url_call_1"},
+			{"type": "url_context_result", "call_id": "url_call_1", "result": [{"title": "Example Domain", "url": "https://example.com", "snippet": "Example content."}]}
+		],
+		"usage": {
+			"total_input_tokens": 20,
+			"total_cached_tokens": 5,
+			"total_output_tokens": 8,
+			"total_thought_tokens": 3
+		},
+		"service_tier": "standard"
+	}`)
+	output, err := parseGeminiInteractionOutput(body)
+	if err != nil {
+		t.Fatalf("parse Gemini interaction output: %v", err)
+	}
+	if len(output.ServerToolCalls) != 3 {
+		t.Fatalf("expected three native tool traces, got %#v", output.ServerToolCalls)
+	}
+	for _, call := range output.ServerToolCalls {
+		if call.Status != "completed" || call.ArgumentsJSON == "" || call.OutputJSON == "" {
+			t.Fatalf("expected completed native tool trace, got %#v", call)
+		}
+		if output.ServerSideToolUsage[call.ToolName] != 1 {
+			t.Fatalf("expected one %s invocation, got %#v", call.ToolName, output.ServerSideToolUsage)
+		}
+	}
+	if output.Usage.InputTokens != 15 || output.Usage.CacheReadTokens != 5 || output.Usage.OutputTokens != 8 || output.Usage.ReasoningTokens != 3 {
+		t.Fatalf("unexpected Interactions usage: %#v", output.Usage)
+	}
+	if output.Usage.ServiceTier != "standard" {
+		t.Fatalf("expected service tier, got %#v", output.Usage)
+	}
+	if output.Reasoning == nil || output.Reasoning.Summary != "I should verify the result." || output.Reasoning.Signature != "thought_sig_1" {
+		t.Fatalf("expected Interactions thought summary, got %#v", output.Reasoning)
+	}
+}
+
+func TestApplyGeminiInteractionStreamEventMergesNativeToolDeltas(t *testing.T) {
+	result := &GenerateOutput{}
+	streamState := newGeminiInteractionStreamState()
+	events := make([]ToolCall, 0)
+	onEvent := func(event GenerateStreamEvent) error {
+		if event.ServerToolCall != nil {
+			events = append(events, *event.ServerToolCall)
+		}
+		return nil
+	}
+	chunks := []string{
+		`{"event_type":"step.start","index":2,"step":{"type":"google_search_call","arguments":{"queries":["latest Gemini news"]},"id":"search_call_1"}}`,
+		`{"event_type":"step.delta","index":2,"delta":{"type":"google_search_call","arguments":{"queries":["latest Gemini news"]}}}`,
+		`{"event_type":"step.start","index":3,"step":{"type":"google_search_result","call_id":"search_call_1"}}`,
+		`{"event_type":"step.delta","index":3,"delta":{"type":"google_search_result","result":[{"title":"Gemini","url":"https://example.com/gemini"}]}}`,
+		`{"event_type":"interaction.completed","interaction":{"id":"interaction-tools-stream","steps":[{"type":"google_search_call","arguments":{"query":"latest Gemini news"},"id":"search_call_1"},{"type":"google_search_result","call_id":"search_call_1","result":[{"title":"Gemini","url":"https://example.com/gemini"}]}]}}`,
+	}
+	for _, chunk := range chunks {
+		if err := applyGeminiInteractionStreamEvent(mustDecodeObject(t, chunk), result, streamState, onEvent); err != nil {
+			t.Fatalf("apply Gemini interaction stream event: %v", err)
+		}
+	}
+	if len(result.ServerToolCalls) != 1 {
+		t.Fatalf("expected one merged native tool trace, got %#v", result.ServerToolCalls)
+	}
+	call := result.ServerToolCalls[0]
+	if call.ToolCallID != "search_call_1" || call.Status != "completed" || call.ArgumentsJSON == "" || call.OutputJSON == "" {
+		t.Fatalf("unexpected merged native tool trace: %#v", call)
+	}
+	if result.ServerSideToolUsage["google_search"] != 1 {
+		t.Fatalf("expected one streamed search invocation, got %#v", result.ServerSideToolUsage)
+	}
+	if len(events) != 4 || events[len(events)-1].Status != "completed" {
+		t.Fatalf("unexpected native tool events: %#v", events)
+	}
+	for _, event := range events {
+		if event.ToolCallID != "search_call_1" {
+			t.Fatalf("expected a stable streamed tool-call id, got %#v", events)
+		}
+	}
+}
+
+func TestApplyGeminiInteractionStreamEventPreservesInt64StepIndex(t *testing.T) {
+	result := &GenerateOutput{}
+	streamState := newGeminiInteractionStreamState()
+	chunks := []string{
+		`{"event_type":"step.start","index":"9223372036854775807","step":{"type":"google_search_call","arguments":{"queries":["Gemini"]}}}`,
+		`{"event_type":"step.delta","index":"9223372036854775807","delta":{"type":"google_search_call","arguments":{"queries":["Gemini"]}}}`,
+	}
+	for _, chunk := range chunks {
+		if err := applyGeminiInteractionStreamEvent(mustDecodeObject(t, chunk), result, streamState, nil); err != nil {
+			t.Fatalf("apply Gemini interaction stream event: %v", err)
+		}
+	}
+	if len(result.ServerToolCalls) != 1 {
+		t.Fatalf("expected one merged native tool trace, got %#v", result.ServerToolCalls)
+	}
+	if got := result.ServerToolCalls[0].ToolCallID; got != "gemini_interaction_google_search_9223372036854775807" {
+		t.Fatalf("expected full int64 index in stable tool-call id, got %q", got)
+	}
+}
+
+func TestApplyGeminiInteractionStreamEventCapturesThoughtSummaryAndMetadataUsage(t *testing.T) {
+	result := &GenerateOutput{}
+	streamState := newGeminiInteractionStreamState()
+	reasoningEvents := make([]ReasoningDelta, 0)
+	usageEvents := make([]Usage, 0)
+	onEvent := func(event GenerateStreamEvent) error {
+		if event.Reasoning != nil {
+			reasoningEvents = append(reasoningEvents, *event.Reasoning)
+		}
+		if event.Usage != (Usage{}) {
+			usageEvents = append(usageEvents, event.Usage)
+		}
+		return nil
+	}
+	chunks := []string{
+		`{"event_type":"step.start","index":0,"step":{"type":"thought"}}`,
+		`{"event_type":"step.delta","index":0,"delta":{"type":"thought_summary","content":{"type":"text","text":"I should search first."}}}`,
+		`{"event_type":"step.delta","index":0,"delta":{"type":"thought_signature","signature":"thought_sig_stream"}}`,
+		`{"event_type":"step.delta","index":1,"delta":{"type":"text","text":"Answer"},"metadata":{"total_usage":{"total_input_tokens":12,"total_cached_tokens":2,"total_output_tokens":4,"total_thought_tokens":3,"total_tool_use_tokens":1}}}`,
+		`{"event_type":"interaction.completed","interaction":{"id":"interaction-thought-stream","model":"gemini-3.6-flash","status":"completed"}}`,
+	}
+	for _, chunk := range chunks {
+		if err := applyGeminiInteractionStreamEvent(mustDecodeObject(t, chunk), result, streamState, onEvent); err != nil {
+			t.Fatalf("apply Gemini interaction stream event: %v", err)
+		}
+	}
+	if result.Reasoning == nil || result.Reasoning.Summary != "I should search first." || result.Reasoning.Signature != "thought_sig_stream" {
+		t.Fatalf("unexpected streamed thought summary: %#v", result.Reasoning)
+	}
+	if len(reasoningEvents) != 2 || reasoningEvents[0].Kind != "summary_text" {
+		t.Fatalf("unexpected streamed reasoning events: %#v", reasoningEvents)
+	}
+	if result.Usage.InputTokens != 10 || result.Usage.CacheReadTokens != 2 || result.Usage.OutputTokens != 4 || result.Usage.ReasoningTokens != 3 {
+		t.Fatalf("unexpected metadata usage: %#v", result.Usage)
+	}
+	if len(usageEvents) != 1 || usageEvents[0].InputTokens != 10 {
+		t.Fatalf("unexpected usage events: %#v", usageEvents)
+	}
+	if result.ResponseID != "interaction-thought-stream" || result.Text != "Answer" {
+		t.Fatalf("unexpected final stream result: %#v", result)
+	}
+}
+
+func TestParseGeminiInteractionOutputPreservesNativeToolFailure(t *testing.T) {
+	output, err := parseGeminiInteractionOutput([]byte(`{
+		"id": "interaction-native-tool-error",
+		"steps": [
+			{"type": "code_execution_call", "arguments": {"code": "raise RuntimeError()"}, "id": "code_call_error"},
+			{"type": "code_execution_result", "call_id": "code_call_error", "result": "RuntimeError", "is_error": true}
+		]
+	}`))
+	if err != nil {
+		t.Fatalf("parse Gemini interaction output: %v", err)
+	}
+	if len(output.ServerToolCalls) != 1 {
+		t.Fatalf("expected one failed native tool trace, got %#v", output.ServerToolCalls)
+	}
+	call := output.ServerToolCalls[0]
+	if call.Status != "error" || call.ErrorJSON != `"RuntimeError"` || call.OutputJSON != `"RuntimeError"` {
+		t.Fatalf("unexpected failed native tool trace: %#v", call)
+	}
+	if output.ServerSideToolUsage["code_execution"] != 1 {
+		t.Fatalf("expected one code execution invocation, got %#v", output.ServerSideToolUsage)
+	}
+}
+
 func TestGenerateGeminiInteractionPostsInteractionsRequest(t *testing.T) {
 	var capturedPath string
 	var capturedPayload map[string]interface{}
@@ -690,7 +915,7 @@ func TestParseGeminiInteractionOutputExtractsOfficialServerToolSteps(t *testing.
 	if len(output.ServerToolCalls) != 2 {
 		t.Fatalf("unexpected server tool calls: %#v", output.ServerToolCalls)
 	}
-	if output.ServerToolCalls[0].ToolName != "code_execution" || output.ServerToolCalls[0].Status != "completed" || output.ServerToolCalls[0].ArgumentsJSON != `{"code":"print(42)","language":"python"}` || output.ServerToolCalls[0].OutputJSON != "42" {
+	if output.ServerToolCalls[0].ToolName != "code_execution" || output.ServerToolCalls[0].Status != "completed" || output.ServerToolCalls[0].ArgumentsJSON != `{"code":"print(42)","language":"python"}` || output.ServerToolCalls[0].OutputJSON != `"42\n"` {
 		t.Fatalf("unexpected code execution call: %#v", output.ServerToolCalls[0])
 	}
 	if output.ServerToolCalls[1].ToolName != "url_context" || output.ServerToolCalls[1].Status != "completed" || !strings.Contains(output.ServerToolCalls[1].OutputJSON, `"https://example.com"`) {

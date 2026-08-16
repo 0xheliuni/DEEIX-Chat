@@ -166,8 +166,12 @@ func buildGeminiInteractionRequestBody(route RouteConfig, input GenerateInput) (
 	if previousID := strings.TrimSpace(input.PreviousResponseID); previousID != "" {
 		payload["previous_interaction_id"] = previousID
 	}
-	if tools := buildGeminiInteractionTools(input.Tools); len(tools) > 0 && !input.DisableTools {
-		payload["tools"] = tools
+	providerTools, toolDefinitions, toolsEnabled, err := toolDeclarationsForInput(input)
+	if err != nil {
+		return nil, err
+	}
+	if toolsEnabled {
+		appendToolDeclarations(payload, providerTools, buildGeminiInteractionTools(toolDefinitions))
 	}
 	applyProviderOptions(payload, input.Options, geminiInteractionsProtectedProviderOptionKeys()...)
 	return payload, nil
@@ -626,6 +630,7 @@ func firstString(payload map[string]interface{}, keys ...string) string {
 	return ""
 }
 
+// consumeGeminiInteractionStream 按 SSE 事件边界消费 Interactions 流，并保留跨事件的工具步骤关联状态。
 func consumeGeminiInteractionStream(
 	reader io.Reader,
 	result *GenerateOutput,
@@ -633,11 +638,7 @@ func consumeGeminiInteractionStream(
 ) error {
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 0, 64*1024), maxUpstreamBodyBytes)
-	streamState := geminiInteractionStreamState{
-		toolCallIndexes:      make(map[int64]int),
-		argumentDeltaStarted: make(map[int64]bool),
-		serverToolCallIDs:    make(map[int64]string),
-	}
+	streamState := newGeminiInteractionStreamState()
 
 	var dataLines []string
 	flush := func() error {
@@ -653,7 +654,7 @@ func consumeGeminiInteractionStream(
 		if err := parseStreamUpstreamError(parsed, data); err != nil {
 			return err
 		}
-		return applyGeminiInteractionStreamEvent(parsed, result, &streamState, onEvent)
+		return applyGeminiInteractionStreamEvent(parsed, result, streamState, onEvent)
 	}
 
 	for scanner.Scan() {
@@ -674,6 +675,21 @@ func consumeGeminiInteractionStream(
 	return flush()
 }
 
+type geminiInteractionStreamState struct {
+	toolCallIndexes      map[int64]int
+	argumentDeltaStarted map[int64]bool
+	serverToolCallIDs    map[int64]string
+}
+
+func newGeminiInteractionStreamState() *geminiInteractionStreamState {
+	return &geminiInteractionStreamState{
+		toolCallIndexes:      make(map[int64]int),
+		argumentDeltaStarted: make(map[int64]bool),
+		serverToolCallIDs:    make(map[int64]string),
+	}
+}
+
+// applyGeminiInteractionStreamEvent 将单个官方 event_type 事件归并到统一生成结果并向会话层发送增量。
 func applyGeminiInteractionStreamEvent(
 	parsed map[string]interface{},
 	result *GenerateOutput,
@@ -779,6 +795,7 @@ func geminiInteractionStreamFinalPayload(parsed map[string]interface{}, eventTyp
 	return parsed
 }
 
+// mergeGeminiInteractionStreamFinal 使用完成事件补齐文本、用量与工具轨迹，不重复发送已累计的文本增量。
 func mergeGeminiInteractionStreamFinal(
 	result *GenerateOutput,
 	payload map[string]interface{},
@@ -824,9 +841,7 @@ func mergeGeminiInteractionStreamFinal(
 	for _, call := range finalOutput.ToolCalls {
 		appendUniqueToolCall(&result.ToolCalls, call)
 	}
-	for _, call := range finalOutput.ServerToolCalls {
-		appendUniqueToolCall(&result.ServerToolCalls, call)
-	}
+	result.ServerToolCalls = mergeGeminiInteractionFinalServerToolCalls(result.ServerToolCalls, finalOutput.ServerToolCalls)
 	result.ServerSideToolUsage = geminiInteractionServerToolUsage(result.ServerToolCalls)
 	result.Citations = appendUniqueStrings(result.Citations, finalOutput.Citations...)
 	result.GeneratedImages = dedupeGeminiInteractionImages(append(result.GeneratedImages, finalOutput.GeneratedImages...))
@@ -992,17 +1007,13 @@ func parseGeminiInteractionOutput(body []byte) (*GenerateOutput, error) {
 	return output, nil
 }
 
+// parseGeminiInteractionPayload 将 Interactions 完整响应映射为项目统一的生成结果。
 func parseGeminiInteractionPayload(parsed map[string]interface{}) *GenerateOutput {
 	payload := parsed
-	hasInteractionWrapper := false
 	if interaction := asMap(parsed["interaction"]); len(interaction) > 0 {
 		payload = interaction
-		hasInteractionWrapper = true
 	}
 	usage := parseGeminiInteractionUsage(parsed)
-	if usage == (Usage{}) && hasInteractionWrapper {
-		usage = parseGeminiInteractionUsage(payload)
-	}
 	output := &GenerateOutput{
 		ResponseID:      firstString(payload, "id", "name"),
 		Text:            strings.TrimSpace(firstString(payload, "text", "output_text")),
@@ -1029,8 +1040,13 @@ func parseGeminiInteractionPayload(parsed map[string]interface{}) *GenerateOutpu
 	return output
 }
 
+// parseGeminiInteractionUsage 按 Interactions 官方 usage 字段拆分缓存输入、输出和思考 token。
 func parseGeminiInteractionUsage(parsed map[string]interface{}) Usage {
-	usage := asMap(parsed["usage"])
+	payload := parsed
+	if interaction := asMap(parsed["interaction"]); len(interaction) > 0 {
+		payload = interaction
+	}
+	usage := asMap(payload["usage"])
 	if len(usage) == 0 {
 		usage = asMap(asMap(parsed["metadata"])["total_usage"])
 	}
@@ -1044,7 +1060,7 @@ func parseGeminiInteractionUsage(parsed map[string]interface{}) Usage {
 		OutputTokens:    toInt64(usage["total_output_tokens"]),
 		CacheReadTokens: cacheReadTokens,
 		ReasoningTokens: toInt64(usage["total_thought_tokens"]),
-		ServiceTier:     strings.TrimSpace(getString(parsed["service_tier"])),
+		ServiceTier:     strings.TrimSpace(getString(payload["service_tier"])),
 		RawUsageJSON:    rawJSONFromValue(usage),
 	}
 }
@@ -1103,12 +1119,6 @@ func parseGeminiInteractionFunctionCalls(parsed map[string]interface{}) []ToolCa
 	return dedupeGeminiInteractionToolCalls(calls)
 }
 
-type geminiInteractionStreamState struct {
-	toolCallIndexes      map[int64]int
-	argumentDeltaStarted map[int64]bool
-	serverToolCallIDs    map[int64]string
-}
-
 func parseGeminiInteractionServerToolCalls(parsed map[string]interface{}) []ToolCall {
 	calls := make([]ToolCall, 0)
 	for _, rawStep := range asSlice(parsed["steps"]) {
@@ -1153,7 +1163,11 @@ func updateGeminiInteractionStreamServerToolCall(
 		call.ToolCallID = state.serverToolCallIDs[index]
 	}
 	if call.ToolCallID == "" {
-		return ToolCall{}, false
+		_, isResult := geminiInteractionServerToolName(getString(payload["type"]))
+		if isResult {
+			return ToolCall{}, false
+		}
+		call.ToolCallID = geminiInteractionStreamToolCallID(call.ToolName, index)
 	}
 	if state.serverToolCallIDs == nil {
 		state.serverToolCallIDs = make(map[int64]string)
@@ -1180,7 +1194,7 @@ func parseGeminiInteractionServerToolCall(item map[string]interface{}, streaming
 		if !streaming || hasResult {
 			status = "completed"
 		}
-		outputJSON = normalizeJSONString(item["result"])
+		outputJSON = rawJSONFromValue(item["result"])
 		if isError, _ := item["is_error"].(bool); isError {
 			status = "error"
 			errorJSON = outputJSON
@@ -1190,12 +1204,57 @@ func parseGeminiInteractionServerToolCall(item map[string]interface{}, streaming
 		ToolCallID:       callID,
 		ToolType:         toolName,
 		ToolName:         toolName,
-		ArgumentsJSON:    normalizeJSONString(item["arguments"]),
+		ArgumentsJSON:    rawJSONFromValue(item["arguments"]),
 		ThoughtSignature: strings.TrimSpace(getString(item["signature"])),
 		Status:           status,
 		OutputJSON:       outputJSON,
 		ErrorJSON:        errorJSON,
 	}, true
+}
+
+func geminiInteractionStreamToolCallID(name string, index int64) string {
+	return fmt.Sprintf("gemini_interaction_%s_%d", name, index)
+}
+
+// mergeGeminiInteractionFinalServerToolCalls uses the completed interaction to fill streamed
+// native-tool traces while preserving any stable ID already emitted to conversation consumers.
+func mergeGeminiInteractionFinalServerToolCalls(current []ToolCall, final []ToolCall) []ToolCall {
+	if len(current) == 0 {
+		return final
+	}
+	merged := append([]ToolCall(nil), current...)
+	matched := make([]bool, len(merged))
+	for _, incoming := range final {
+		matchIndex := -1
+		if incoming.ToolCallID != "" {
+			for index, existing := range merged {
+				if !matched[index] && existing.ToolCallID == incoming.ToolCallID {
+					matchIndex = index
+					break
+				}
+			}
+		}
+		if matchIndex < 0 {
+			for index, existing := range merged {
+				if !matched[index] && existing.ToolName == incoming.ToolName {
+					matchIndex = index
+					break
+				}
+			}
+		}
+		if matchIndex < 0 {
+			merged = append(merged, incoming)
+			matched = append(matched, true)
+			continue
+		}
+		stableID := merged[matchIndex].ToolCallID
+		merged[matchIndex] = mergeToolCall(merged[matchIndex], incoming)
+		if stableID != "" {
+			merged[matchIndex].ToolCallID = stableID
+		}
+		matched[matchIndex] = true
+	}
+	return merged
 }
 
 func geminiInteractionServerToolName(itemType string) (string, bool) {
