@@ -492,6 +492,12 @@ export function useSidebarConversationsController({
     return item;
   }, [newConversationTitle, publishChange]);
 
+  const upsertConversation = React.useCallback((incoming: ConversationDTO) => {
+    setRecentItems((prev) => mergeUniqueByPublicID([incoming], prev, sortByUpdatedAtDesc));
+    publishChange({ type: "upsert", publicID: incoming.publicID, item: incoming });
+    return incoming;
+  }, [publishChange]);
+
   const renameByPublicID = React.useCallback(
     async (publicID: string, title: string): Promise<ConversationDTO | null> => {
       const token = await resolveAccessToken();
@@ -886,6 +892,7 @@ export function useSidebarConversationsController({
       loadMore,
       retryLoadMore,
       prependNewConversation,
+      upsertConversation,
       touchByPublicID,
       renameByPublicID,
       regenerateTitleByPublicID,
@@ -919,6 +926,7 @@ export function useSidebarConversationsController({
       projects,
       regenerateTitleByPublicID,
       updateLabelsByPublicID,
+      upsertConversation,
       recentItems,
       reorderProjects,
       retryLoadMore,

@@ -73,6 +73,8 @@ var (
 	ErrMessageEditTargetInvalid = errors.New("invalid message edit target")
 	// ErrMessageEditStateInvalid 当前消息状态不允许编辑。
 	ErrMessageEditStateInvalid = errors.New("invalid message edit state")
+	// ErrMessageForkStateInvalid 当前消息状态不允许 fork。
+	ErrMessageForkStateInvalid = errors.New("invalid message fork state")
 	// ErrModelRouteNotConfigured 模型路由未配置。
 	ErrModelRouteNotConfigured = errors.New("model route not configured")
 	// ErrModelAccessDenied 当前用户无权使用此模型。

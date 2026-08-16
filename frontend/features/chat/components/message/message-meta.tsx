@@ -23,6 +23,7 @@ import { ChevronLeft } from "@/components/animate-ui/icons/chevron-left";
 import { ChevronRight } from "@/components/animate-ui/icons/chevron-right";
 import { Check } from "@/components/animate-ui/icons/check";
 import { Copy } from "@/components/animate-ui/icons/copy";
+import { GitFork } from "@/components/animate-ui/icons/git-fork";
 import { Heart } from "@/components/animate-ui/icons/heart";
 import { RotateCcw } from "@/components/animate-ui/icons/rotate-ccw";
 import { ThumbsDown } from "@/components/animate-ui/icons/thumbs-down";
@@ -250,6 +251,7 @@ export function UserMessageMeta({
   onRetry,
   onEdit,
   onCopy,
+  onFork,
   copySucceeded = false,
   readOnly = false,
   alwaysVisible = false,
@@ -261,6 +263,7 @@ export function UserMessageMeta({
   onRetry: () => void;
   onEdit: () => void;
   onCopy: () => void;
+  onFork?: () => void;
   copySucceeded?: boolean;
   readOnly?: boolean;
   alwaysVisible?: boolean;
@@ -305,6 +308,15 @@ export function UserMessageMeta({
               <Copy size={14} strokeWidth={1.8} animateOnHover="default" />
             )}
           </MetaIconButton>
+          {hasPersistedMessage && onFork ? (
+            <MetaIconButton
+              label={t("forkMessage")}
+              disabled={messagePending}
+              onClick={onFork}
+            >
+              <GitFork size={14} strokeWidth={1.8} animateOnHover="default" />
+            </MetaIconButton>
+          ) : null}
         </div>
       ) : null}
       {canShowBranchNavigator ? <BranchSwitcher item={item} onCycle={onCycleBranch} /> : null}
@@ -946,6 +958,7 @@ export function AssistantMessageMeta({
   onContinue,
   onEdit,
   onCopy,
+  onFork,
   copySucceeded = false,
   onReact,
   showModelInfo = true,
@@ -966,6 +979,7 @@ export function AssistantMessageMeta({
   onContinue?: () => void;
   onEdit?: () => void;
   onCopy: () => void;
+  onFork?: () => void;
   copySucceeded?: boolean;
   onReact: (value: AssistantReaction) => void;
   showModelInfo?: boolean;
@@ -990,6 +1004,7 @@ export function AssistantMessageMeta({
   const canRetry = !readOnly && !messagePending && hasPersistedMessage;
   const canEdit = Boolean(canRetry && !busy && onEdit);
   const canContinue = Boolean(canRetry && !busy && item.status === "interrupted");
+  const canFork = Boolean(canRetry && onFork);
   const canShowBranchNavigator = Boolean(showBranchNavigator && item.branchNavigator);
   const hasTokenUsage = Boolean(
     (item.inputTokens ?? 0) > 0 ||
@@ -1095,6 +1110,14 @@ export function AssistantMessageMeta({
                     onClick={onContinue}
                   >
                     <Forward className="size-3.5" strokeWidth={1.8} />
+                  </MetaIconButton>
+                ) : null}
+                {canFork ? (
+                  <MetaIconButton
+                    label={t("forkMessage")}
+                    onClick={onFork}
+                  >
+                    <GitFork size={14} strokeWidth={1.8} animateOnHover="default" />
                   </MetaIconButton>
                 ) : null}
                 <QuickMemoryPin disabled={messagePending} />

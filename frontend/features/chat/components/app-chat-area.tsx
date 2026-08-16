@@ -229,6 +229,7 @@ export function AppChatArea() {
     prependNewConversation,
     touchByPublicID,
     renameByPublicID,
+    upsertConversation,
     regenerateTitleByPublicID,
     updateLabelsByPublicID,
     setStarByPublicID,
@@ -309,6 +310,25 @@ export function AppChatArea() {
   const prependNewConversationInContext = React.useCallback(
     (platformModelName?: string) => prependNewConversation(platformModelName, newConversationProjectID || undefined),
     [newConversationProjectID, prependNewConversation],
+  );
+
+  const handleConversationForked = React.useCallback(
+    async (forked: ConversationDTO) => {
+      const baseTitle = forked.title?.trim() || "";
+      let item = forked;
+      if (baseTitle) {
+        try {
+          item = (await renameByPublicID(forked.publicID, `${baseTitle} ${t("messages.forkTitleSuffix")}`)) ?? forked;
+        } catch {
+          item = forked;
+        }
+      }
+      if (item === forked) {
+        upsertConversation(forked);
+      }
+      router.push(`/chat?conversation_id=${forked.publicID}`);
+    },
+    [renameByPublicID, router, t, upsertConversation],
   );
 
   const {
@@ -607,6 +627,7 @@ export function AppChatArea() {
     onEditAssistantMessage,
     onEditUserMessage,
     onContinueAssistantMessage,
+    onForkMessage,
     onRetryAssistantMessage,
     onRetryUserMessage,
     onSendMessage,
@@ -638,6 +659,7 @@ export function AppChatArea() {
     autoGenerateLabels,
     prependNewConversation: prependNewConversationInContext,
     onConversationCreated: setLocallyCreatedConversationID,
+    onConversationForked: handleConversationForked,
     touchByPublicID,
     reload,
     replaceMessage,
@@ -1244,6 +1266,7 @@ export function AppChatArea() {
                   onContinueAssistantMessage={onContinueAssistantMessage}
                   onEditAssistantMessage={onEditAssistantMessage}
                   onEditUserMessage={onEditUserMessage}
+                  onForkMessage={onForkMessage}
                   modelOptions={modelOptions}
                   selectedPlatformModelName={selectedPlatformModelName}
                   onModelChange={setSelectedPlatformModelName}
