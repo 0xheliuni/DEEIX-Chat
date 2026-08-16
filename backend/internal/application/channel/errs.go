@@ -67,6 +67,8 @@ var (
 	ErrUpstreamModelNotFound = repository.ErrUpstreamModelNotFound
 	// ErrUpstreamModelConflict 上游模型路由绑定冲突。
 	ErrUpstreamModelConflict = repository.ErrUpstreamModelConflict
+	// ErrUpstreamModelBindingChanged 上游模型绑定已被其他操作修改。
+	ErrUpstreamModelBindingChanged = errors.New("upstream model binding changed")
 	// ErrUpstreamSourceUnavailable 上游或上游模型当前不可用。
 	ErrUpstreamSourceUnavailable = errors.New("upstream source unavailable")
 	// ErrRemoteModelsUnavailable 上游远程模型目录不可用。
