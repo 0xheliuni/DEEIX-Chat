@@ -236,6 +236,161 @@ func TestSetModelsDisplayGroupNormalizesIDsAndMapsRepositoryErrors(t *testing.T)
 	}
 }
 
+func TestSetModelProtocolsReplacesEveryBindingInOneTransaction(t *testing.T) {
+	templateRoute := modelProtocolSource(1, 10, 100, "openai_image_edits")
+	templateRoute.Priority = 2
+	templateRoute.Weight = 3
+	retainedRoute := modelProtocolSource(2, 10, 100, "openai_image_generations")
+	retainedRoute.Status = "inactive"
+	retainedRoute.Priority = 7
+	retainedRoute.Weight = 11
+	retainedRoute.Source = "manual"
+	retainedRoute.CbFailureThreshold = 13
+	retainedRoute.CbDurationMin = 17
+	retainedRoute.CbWindowMin = 19
+	retainedRoute.HeadersJSON = `{"X-Route":"generation"}`
+	repo := &modelUpdateRepo{
+		model: domainchannel.PlatformModel{
+			ID:                1,
+			PlatformModelName: "image-model",
+			KindsJSON:         `["image_gen","image_edit"]`,
+			Status:            "active",
+		},
+		sources: []repository.ChannelModelSourceRow{
+			templateRoute,
+			retainedRoute,
+			modelProtocolSource(3, 20, 200, "openai_image_generations"),
+		},
+	}
+	service := NewService(config.Config{}, repo, repo, nil, nil)
+
+	view, err := service.SetModelProtocols(t.Context(), 1, SetModelProtocolsInput{
+		Protocols: []string{"openai_image_generations"},
+		KindsJSON: `["image_gen"]`,
+	})
+	if err != nil {
+		t.Fatalf("SetModelProtocols() error = %v", err)
+	}
+	if !repo.transactionCommitted {
+		t.Fatal("expected protocol update transaction to commit")
+	}
+	if view.KindsJSON != `["image_gen"]` {
+		t.Fatalf("expected updated kinds, got %q", view.KindsJSON)
+	}
+	if len(repo.routeReplacements) != 2 {
+		t.Fatalf("expected two complete binding replacements, got %d", len(repo.routeReplacements))
+	}
+	if !reflect.DeepEqual(repo.routeReplacements[0].ExistingRouteIDs, []uint{1, 2}) {
+		t.Fatalf("expected complete first binding route IDs, got %v", repo.routeReplacements[0].ExistingRouteIDs)
+	}
+	if !reflect.DeepEqual(repo.routeReplacements[1].ExistingRouteIDs, []uint{3}) {
+		t.Fatalf("expected complete second binding route IDs, got %v", repo.routeReplacements[1].ExistingRouteIDs)
+	}
+	for _, replacement := range repo.routeReplacements {
+		if len(replacement.Routes) != 1 || replacement.Routes[0].Protocol != "openai_image_generations" {
+			t.Fatalf("unexpected replacement routes: %#v", replacement.Routes)
+		}
+	}
+	preserved := repo.routeReplacements[0].Routes[0]
+	if preserved.Status != retainedRoute.Status ||
+		preserved.Priority != retainedRoute.Priority ||
+		preserved.Weight != retainedRoute.Weight ||
+		preserved.Source != retainedRoute.Source ||
+		preserved.CbFailureThreshold != retainedRoute.CbFailureThreshold ||
+		preserved.CbDurationMin != retainedRoute.CbDurationMin ||
+		preserved.CbWindowMin != retainedRoute.CbWindowMin ||
+		preserved.HeadersJSON != retainedRoute.HeadersJSON {
+		t.Fatalf("expected retained protocol configuration to be preserved, got %#v", preserved)
+	}
+}
+
+func TestSetModelProtocolsDoesNotLimitSourceCount(t *testing.T) {
+	const sourceCount = 1001
+	sources := make([]repository.ChannelModelSourceRow, 0, sourceCount)
+	for index := 0; index < sourceCount; index++ {
+		sources = append(sources, modelProtocolSource(uint(index+1), uint(index+10), uint(index+100), "openai_responses"))
+	}
+	repo := &modelUpdateRepo{
+		model:   domainchannel.PlatformModel{ID: 1, PlatformModelName: "large-model", KindsJSON: `["chat"]`, Status: "active"},
+		sources: sources,
+	}
+	service := NewService(config.Config{}, repo, repo, nil, nil)
+
+	if _, err := service.SetModelProtocols(t.Context(), 1, SetModelProtocolsInput{
+		Protocols: []string{"openai_responses"},
+		KindsJSON: `["chat"]`,
+	}); err != nil {
+		t.Fatalf("SetModelProtocols() error = %v", err)
+	}
+	if len(repo.routeReplacements) != sourceCount {
+		t.Fatalf("expected all %d bindings to be replaced, got %d", sourceCount, len(repo.routeReplacements))
+	}
+}
+
+func TestSetModelProtocolsRollsBackWhenAReplacementConflicts(t *testing.T) {
+	repo := &modelUpdateRepo{
+		model: domainchannel.PlatformModel{ID: 1, PlatformModelName: "conflict-model", KindsJSON: `["chat"]`, Status: "active"},
+		sources: []repository.ChannelModelSourceRow{
+			modelProtocolSource(1, 10, 100, "openai_chat_completions"),
+			modelProtocolSource(2, 20, 200, "openai_chat_completions"),
+		},
+		replaceErrAt: 2,
+	}
+	service := NewService(config.Config{}, repo, repo, nil, nil)
+
+	_, err := service.SetModelProtocols(t.Context(), 1, SetModelProtocolsInput{
+		Protocols: []string{"openai_responses"},
+		KindsJSON: `["chat"]`,
+	})
+	if !errors.Is(err, ErrUpstreamModelBindingChanged) {
+		t.Fatalf("expected binding changed error, got %v", err)
+	}
+	if repo.transactionCommitted {
+		t.Fatal("expected outer transaction to roll back")
+	}
+}
+
+func TestSetModelProtocolsRejectsMalformedExplicitSets(t *testing.T) {
+	service := NewService(config.Config{}, &modelUpdateRepo{}, &modelUpdateRepo{}, nil, nil)
+	tests := []struct {
+		name      string
+		protocols []string
+		want      error
+	}{
+		{name: "missing", want: ErrProtocolRequired},
+		{name: "blank", protocols: []string{" "}, want: ErrInvalidAdapter},
+		{name: "normalized duplicate", protocols: []string{"openai_responses", " OPENAI_RESPONSES "}, want: ErrInvalidRouteProtocolCombination},
+		{name: "too many", protocols: []string{"openai_responses", "openai_chat_completions", "anthropic_messages"}, want: ErrInvalidRouteProtocolCombination},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := service.SetModelProtocols(t.Context(), 1, SetModelProtocolsInput{
+				Protocols: test.protocols,
+				KindsJSON: `["chat"]`,
+			})
+			if !errors.Is(err, test.want) {
+				t.Fatalf("expected %v, got %v", test.want, err)
+			}
+		})
+	}
+}
+
+func modelProtocolSource(routeID uint, upstreamID uint, upstreamModelID uint, protocol string) repository.ChannelModelSourceRow {
+	return repository.ChannelModelSourceRow{
+		PlatformModelRoute: domainchannel.PlatformModelRoute{
+			ID:              routeID,
+			PlatformModelID: 1,
+			UpstreamModelID: upstreamModelID,
+			Protocol:        protocol,
+			Status:          "active",
+			Priority:        1,
+			Weight:          1,
+		},
+		UpstreamID:         upstreamID,
+		UpstreamCompatible: "openai",
+	}
+}
+
 type modelUpdateRepo struct {
 	model                    domainchannel.PlatformModel
 	modelRows                []repository.ChannelModelListRow
@@ -248,6 +403,15 @@ type modelUpdateRepo struct {
 	lastDisplayGroupModelIDs []uint
 	lastDisplayGroupID       uint
 	setDisplayGroupErr       error
+	transactionCommitted     bool
+	routeReplacements        []repository.ReplaceChannelPlatformRoutesInput
+	replaceErrAt             int
+}
+
+func (r *modelUpdateRepo) WithinTransaction(ctx context.Context, fn func(repository.ChannelRepository) error) error {
+	err := fn(r)
+	r.transactionCommitted = err == nil
+	return err
 }
 
 func (r *modelUpdateRepo) CreateUpstream(context.Context, *domainchannel.Upstream) error {
@@ -356,16 +520,16 @@ func (r *modelUpdateRepo) UpsertUpstreamModel(context.Context, *domainchannel.Up
 	return nil
 }
 
+func (r *modelUpdateRepo) CreateUpstreamModel(context.Context, *domainchannel.UpstreamModel) error {
+	return nil
+}
+
 func (r *modelUpdateRepo) GetUpstreamModelByID(context.Context, uint, uint) (*domainchannel.UpstreamModel, error) {
 	return nil, repository.ErrNotFound
 }
 
 func (r *modelUpdateRepo) GetUpstreamModelByUpstreamName(context.Context, uint, string) (*domainchannel.UpstreamModel, error) {
 	return nil, repository.ErrNotFound
-}
-
-func (r *modelUpdateRepo) UpdateUpstreamModelByID(context.Context, uint, uint, repository.UpdateChannelUpstreamModelInput) error {
-	return nil
 }
 
 func (r *modelUpdateRepo) DeleteUpstreamModel(context.Context, uint, uint) error {
@@ -394,6 +558,18 @@ func (r *modelUpdateRepo) GetUpstreamModelRouteByNames(context.Context, uint, st
 
 func (r *modelUpdateRepo) UpsertPlatformModelRoute(context.Context, *domainchannel.PlatformModelRoute) error {
 	return nil
+}
+
+func (r *modelUpdateRepo) ReplacePlatformModelRoutes(_ context.Context, inputs []repository.ReplaceChannelPlatformRoutesInput) ([]domainchannel.PlatformModelRoute, error) {
+	replaced := make([]domainchannel.PlatformModelRoute, 0)
+	for _, input := range inputs {
+		r.routeReplacements = append(r.routeReplacements, input)
+		if r.replaceErrAt > 0 && len(r.routeReplacements) == r.replaceErrAt {
+			return nil, repository.ErrConflict
+		}
+		replaced = append(replaced, input.Routes...)
+	}
+	return replaced, nil
 }
 
 func (r *modelUpdateRepo) GetModelUpstreamSourceByRouteID(context.Context, string, uint) (*repository.ChannelModelSourceRow, error) {
@@ -444,6 +620,10 @@ func (r *modelUpdateRepo) DeletePlatformModelRoute(context.Context, uint, uint) 
 
 func (r *modelUpdateRepo) ListModelUpstreamSources(context.Context, string, int, int) ([]repository.ChannelModelSourceRow, int64, error) {
 	return r.sources, int64(len(r.sources)), nil
+}
+
+func (r *modelUpdateRepo) ListModelUpstreamSourcesForUpdate(context.Context, string) ([]repository.ChannelModelSourceRow, error) {
+	return r.sources, nil
 }
 
 func (r *modelUpdateRepo) ListActiveRoutesByModel(context.Context, string) ([]repository.ChannelUpstreamRouteRow, error) {

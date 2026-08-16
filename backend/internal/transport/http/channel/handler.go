@@ -439,10 +439,10 @@ func (h *Handler) UpsertUpstreamModel(c *gin.Context) {
 	}
 
 	item, err := h.service.UpsertUpstreamModel(c.Request.Context(), upstreamID, appchannel.UpsertUpstreamModelInput{
-		RouteID:            req.RouteID,
+		RouteIDs:           req.RouteIDs,
 		PlatformModelName:  req.PlatformModelName,
 		UpstreamModelName:  req.UpstreamModelName,
-		Protocol:           req.Protocol,
+		Protocols:          *req.Protocols,
 		KindsJSON:          req.KindsJSON,
 		Status:             req.Status,
 		Priority:           req.Priority,
@@ -461,6 +461,8 @@ func (h *Handler) UpsertUpstreamModel(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, "model not found")
 		case errors.Is(err, appchannel.ErrUpstreamModelConflict):
 			response.Error(c, http.StatusConflict, "target model already bound on this upstream")
+		case errors.Is(err, appchannel.ErrUpstreamModelBindingChanged):
+			response.ErrorWithCode(c, http.StatusConflict, "llm.upstream_model_binding_changed", "upstream model binding changed; reload and retry")
 		case errors.Is(err, appchannel.ErrInvalidJSONConfig):
 			response.Error(c, http.StatusBadRequest, "invalid json config")
 		case errors.Is(err, appchannel.ErrInvalidAdapter):
@@ -1075,6 +1077,64 @@ func (h *Handler) UpdateModel(c *gin.Context) {
 			response.Error(c, http.StatusBadRequest, "model display group not found")
 		default:
 			response.Error(c, http.StatusInternalServerError, "update model failed")
+		}
+		return
+	}
+	response.Success(c, ModelDataResponse{Model: toModelResponse(*item)})
+}
+
+// SetModelProtocols godoc
+// @Summary 管理员替换模型全部来源的协议集合
+// @Description 在单个数据库事务中更新平台模型能力类型，并将该模型全部上游绑定替换为指定的完整协议集合
+// @Tags llm
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "模型ID"
+// @Param body body SetModelProtocolsRequest true "完整协议集合与模型能力类型"
+// @Success 200 {object} SetModelProtocolsResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 409 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /admin/llm/models/{id}/protocols [patch]
+func (h *Handler) SetModelProtocols(c *gin.Context) {
+	modelID, err := uintParam(c, "id")
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "invalid model id")
+		return
+	}
+
+	var req SetModelProtocolsRequest
+	if err = c.ShouldBindJSON(&req); err != nil {
+		response.InvalidRequestBody(c, err)
+		return
+	}
+
+	item, err := h.service.SetModelProtocols(c.Request.Context(), modelID, appchannel.SetModelProtocolsInput{
+		Protocols: req.Protocols,
+		KindsJSON: req.KindsJSON,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, appchannel.ErrModelNotFound):
+			response.Error(c, http.StatusNotFound, "model not found")
+		case errors.Is(err, appchannel.ErrUpstreamModelNotFound):
+			response.Error(c, http.StatusNotFound, "model upstream sources not found")
+		case errors.Is(err, appchannel.ErrUpstreamModelConflict):
+			response.ErrorWithCode(c, http.StatusConflict, "llm.upstream_model_conflict", "model upstream source conflict")
+		case errors.Is(err, appchannel.ErrUpstreamModelBindingChanged):
+			response.ErrorWithCode(c, http.StatusConflict, "llm.upstream_model_binding_changed", "upstream model binding changed; reload and retry")
+		case errors.Is(err, appchannel.ErrInvalidAdapter):
+			response.Error(c, http.StatusBadRequest, "invalid adapter")
+		case errors.Is(err, appchannel.ErrInvalidRouteProtocolCombination):
+			response.Error(c, http.StatusBadRequest, "invalid route protocol combination")
+		case errors.Is(err, appchannel.ErrInvalidKinds):
+			response.Error(c, http.StatusBadRequest, "invalid kinds")
+		case errors.Is(err, appchannel.ErrProtocolRequired):
+			response.Error(c, http.StatusBadRequest, "protocol required")
+		default:
+			response.Error(c, http.StatusInternalServerError, "set model protocols failed")
 		}
 		return
 	}
