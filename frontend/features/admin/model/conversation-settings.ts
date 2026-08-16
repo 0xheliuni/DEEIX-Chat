@@ -150,11 +150,7 @@ export const DEFAULT_MODEL_OPTION_ALLOWED_PATHS = `{
     "response_format.aspect_ratio",
     "response_format.image_size",
     "response_format.mime_type",
-    "responseFormat.type",
-    "responseFormat.aspectRatio",
-    "responseFormat.imageSize",
-    "responseFormat.mimeType",
-    "generationConfig.videoConfig.task",
+    "response_format.schema",
     "generation_config.video_config.task"
   ],
   "xai_responses": [
