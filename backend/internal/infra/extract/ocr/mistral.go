@@ -205,11 +205,9 @@ func buildMistralOCRRequestEnvelope(mimeType string, payload mistralOCRRequest) 
 		return nil, nil, err
 	}
 
-	prefix := make([]byte, 0, valueIndex+len(dataURIPrefix)-1)
-	prefix = append(prefix, envelope[:valueIndex]...)
+	prefix := bytes.Clone(envelope[:valueIndex])
 	prefix = append(prefix, dataURIPrefix[:len(dataURIPrefix)-1]...)
-	suffix := make([]byte, 0, len(envelope)-valueIndex-len(placeholder)+1)
-	suffix = append(suffix, '"')
+	suffix := []byte{'"'}
 	suffix = append(suffix, envelope[valueIndex+len(placeholder):]...)
 	return prefix, suffix, nil
 }
