@@ -1,15 +1,18 @@
 package ocr
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
@@ -34,8 +37,18 @@ func TestMistralOCRPDFRequestAndResponse(t *testing.T) {
 			}
 		}
 
+		rawBody, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read request: %v", err)
+		}
+		if r.ContentLength != int64(len(rawBody)) {
+			t.Fatalf("Content-Length = %d, body length = %d", r.ContentLength, len(rawBody))
+		}
+		if len(r.TransferEncoding) != 0 {
+			t.Fatalf("Transfer-Encoding = %v, want none", r.TransferEncoding)
+		}
 		var payload mistralOCRRequest
-		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		if err := json.Unmarshal(rawBody, &payload); err != nil {
 			t.Fatalf("decode request: %v", err)
 		}
 		if payload.Model != "mistral-ocr-latest" {
@@ -83,6 +96,68 @@ func TestMistralOCRPDFRequestAndResponse(t *testing.T) {
 	}
 	if got := []int{result.Pages[0].PageNumber, result.Pages[1].PageNumber, result.Pages[2].PageNumber}; !reflect.DeepEqual(got, []int{1, 2, 4}) {
 		t.Fatalf("page numbers = %v, want [1 2 4]", got)
+	}
+}
+
+func TestParseMistralOCRResponsePreservesMarkdown(t *testing.T) {
+	markdown := "    indented code\n\n# Heading\n\n- parent\n  - child\n\n```go\n  fmt.Println(\"value\")\n```\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n"
+	body, err := json.Marshal(mistralOCRResponse{Pages: []mistralOCRPage{{Index: 0, Markdown: markdown}}})
+	if err != nil {
+		t.Fatalf("marshal response: %v", err)
+	}
+
+	result, err := parseMistralOCRResponse(bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("parse response: %v", err)
+	}
+	if result.Text != markdown {
+		t.Fatalf("text = %q, want exact Markdown %q", result.Text, markdown)
+	}
+	if len(result.Pages) != 1 || result.Pages[0].Text != markdown {
+		t.Fatalf("pages = %+v, want exact page Markdown", result.Pages)
+	}
+}
+
+func TestMistralOCRRequestBodyReplaysAcrossRedirect(t *testing.T) {
+	pdf := []byte("redirected-pdf-content")
+	filePath := writeMistralOCRTestFile(t, "document.pdf", pdf)
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		switch r.URL.Path {
+		case "/redirect":
+			w.Header().Set("Location", "/ocr")
+			w.WriteHeader(http.StatusTemporaryRedirect)
+		case "/ocr":
+			var payload mistralOCRRequest
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode redirected request: %v", err)
+			}
+			wantURL := "data:application/pdf;base64," + base64.StdEncoding.EncodeToString(pdf)
+			if payload.Document.DocumentURL != wantURL {
+				t.Fatalf("redirected document_url = %q, want %q", payload.Document.DocumentURL, wantURL)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"pages":[{"index":0,"markdown":"redirected"}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	result, err := newMistralOCRTestClient(t, server.URL+"/redirect").ExtractText(context.Background(), Request{
+		AbsolutePath: filePath,
+		FileName:     "document.pdf",
+		MimeType:     "application/pdf",
+	})
+	if err != nil {
+		t.Fatalf("extract redirected document: %v", err)
+	}
+	if result.Text != "redirected" {
+		t.Fatalf("text = %q, want redirected", result.Text)
+	}
+	if got := requests.Load(); got != 2 {
+		t.Fatalf("request count = %d, want 2", got)
 	}
 }
 

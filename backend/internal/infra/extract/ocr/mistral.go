@@ -7,13 +7,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"sort"
 	"strings"
 )
 
-const defaultMistralOCRModel = "mistral-ocr-latest"
+const (
+	defaultMistralOCRModel        = "mistral-ocr-latest"
+	mistralOCRDocumentPlaceholder = "__deeix_mistral_ocr_document_data__"
+)
 
 type mistralOCRRequest struct {
 	Model              string             `json:"model"`
@@ -47,28 +51,23 @@ func (c *Client) extractTextWithMistral(ctx context.Context, req Request) (Respo
 		model = defaultMistralOCRModel
 	}
 
-	data, err := os.ReadFile(strings.TrimSpace(req.AbsolutePath))
-	if err != nil {
-		return Response{}, err
-	}
 	payload := mistralOCRRequest{
 		Model:              model,
 		IncludeImageBase64: false,
 		IncludeBlocks:      false,
 	}
+	mimeType := "application/pdf"
 	if isImageRequest(req) {
-		mimeType := strings.TrimSpace(req.MimeType)
+		mimeType = strings.TrimSpace(req.MimeType)
 		if mimeType == "" {
 			mimeType = "image/jpeg"
 		}
 		payload.Document = mistralOCRDocument{
-			Type:     "image_url",
-			ImageURL: buildMistralDataURI(mimeType, data),
+			Type: "image_url",
 		}
 	} else {
 		payload.Document = mistralOCRDocument{
-			Type:        "document_url",
-			DocumentURL: buildMistralDataURI("application/pdf", data),
+			Type: "document_url",
 		}
 		pageNumbers := resolveOCRPageNumbers(req.PageRanges)
 		if len(pageNumbers) > 0 {
@@ -79,13 +78,27 @@ func (c *Client) extractTextWithMistral(ctx context.Context, req Request) (Respo
 		}
 	}
 
-	body, err := json.Marshal(payload)
+	filePath := strings.TrimSpace(req.AbsolutePath)
+	body, contentLength, err := newMistralOCRRequestBody(filePath, mimeType, payload)
 	if err != nil {
 		return Response{}, err
 	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL, bytes.NewReader(body))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL, body)
 	if err != nil {
+		_ = body.Close()
 		return Response{}, err
+	}
+	httpReq.ContentLength = contentLength
+	httpReq.GetBody = func() (io.ReadCloser, error) {
+		replayBody, replayLength, replayErr := newMistralOCRRequestBody(filePath, mimeType, payload)
+		if replayErr != nil {
+			return nil, replayErr
+		}
+		if replayLength != contentLength {
+			_ = replayBody.Close()
+			return nil, fmt.Errorf("ocr_file_changed_during_request")
+		}
+		return replayBody, nil
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "application/json")
@@ -104,8 +117,101 @@ func (c *Client) extractTextWithMistral(ctx context.Context, req Request) (Respo
 	return parseMistralOCRResponse(io.LimitReader(resp.Body, 50*1024*1024))
 }
 
-func buildMistralDataURI(mimeType string, data []byte) string {
-	return "data:" + strings.TrimSpace(mimeType) + ";base64," + base64.StdEncoding.EncodeToString(data)
+func newMistralOCRRequestBody(filePath string, mimeType string, payload mistralOCRRequest) (io.ReadCloser, int64, error) {
+	prefix, suffix, err := buildMistralOCRRequestEnvelope(mimeType, payload)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, 0, err
+	}
+	fileInfo, err := file.Stat()
+	if err != nil {
+		_ = file.Close()
+		return nil, 0, err
+	}
+	if !fileInfo.Mode().IsRegular() {
+		_ = file.Close()
+		return nil, 0, fmt.Errorf("ocr_invalid_file_path")
+	}
+
+	fileSize := fileInfo.Size()
+	if fileSize < 0 || fileSize > (math.MaxInt64-2)/4*3 {
+		_ = file.Close()
+		return nil, 0, fmt.Errorf("ocr_unprocessable: file is too large")
+	}
+	encodedSize := ((fileSize + 2) / 3) * 4
+	envelopeSize := int64(len(prefix) + len(suffix))
+	if encodedSize > math.MaxInt64-envelopeSize {
+		_ = file.Close()
+		return nil, 0, fmt.Errorf("ocr_unprocessable: file is too large")
+	}
+
+	reader, writer := io.Pipe()
+	go func() {
+		defer file.Close()
+		if _, writeErr := writer.Write(prefix); writeErr != nil {
+			_ = writer.CloseWithError(writeErr)
+			return
+		}
+		encoder := base64.NewEncoder(base64.StdEncoding, writer)
+		_, copyErr := io.Copy(encoder, file)
+		closeErr := encoder.Close()
+		if copyErr != nil {
+			_ = writer.CloseWithError(copyErr)
+			return
+		}
+		if closeErr != nil {
+			_ = writer.CloseWithError(closeErr)
+			return
+		}
+		_, writeErr := writer.Write(suffix)
+		_ = writer.CloseWithError(writeErr)
+	}()
+
+	return reader, envelopeSize + encodedSize, nil
+}
+
+func buildMistralOCRRequestEnvelope(mimeType string, payload mistralOCRRequest) ([]byte, []byte, error) {
+	fieldName := "document_url"
+	switch payload.Document.Type {
+	case "document_url":
+		payload.Document.DocumentURL = mistralOCRDocumentPlaceholder
+	case "image_url":
+		fieldName = "image_url"
+		payload.Document.ImageURL = mistralOCRDocumentPlaceholder
+	default:
+		return nil, nil, fmt.Errorf("ocr_unprocessable: unsupported Mistral document type")
+	}
+
+	envelope, err := json.Marshal(payload)
+	if err != nil {
+		return nil, nil, err
+	}
+	placeholder, err := json.Marshal(mistralOCRDocumentPlaceholder)
+	if err != nil {
+		return nil, nil, err
+	}
+	marker := append([]byte(`"`+fieldName+`":`), placeholder...)
+	markerIndex := bytes.Index(envelope, marker)
+	if markerIndex < 0 {
+		return nil, nil, fmt.Errorf("ocr_unprocessable: invalid Mistral request envelope")
+	}
+	valueIndex := markerIndex + len(marker) - len(placeholder)
+	dataURIPrefix, err := json.Marshal("data:" + strings.TrimSpace(mimeType) + ";base64,")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	prefix := make([]byte, 0, valueIndex+len(dataURIPrefix)-1)
+	prefix = append(prefix, envelope[:valueIndex]...)
+	prefix = append(prefix, dataURIPrefix[:len(dataURIPrefix)-1]...)
+	suffix := make([]byte, 0, len(envelope)-valueIndex-len(placeholder)+1)
+	suffix = append(suffix, '"')
+	suffix = append(suffix, envelope[valueIndex+len(placeholder):]...)
+	return prefix, suffix, nil
 }
 
 func mistralHTTPError(resp *http.Response) error {
@@ -136,8 +242,8 @@ func parseMistralOCRResponse(body io.Reader) (Response, error) {
 	}
 	pages := make([]PageText, 0, len(payload.Pages))
 	for _, page := range payload.Pages {
-		text := normalizeOCRText(page.Markdown)
-		if text == "" {
+		text := strings.ReplaceAll(page.Markdown, "\x00", "")
+		if strings.TrimSpace(text) == "" {
 			continue
 		}
 		pages = append(pages, PageText{
