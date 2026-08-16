@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"time"
 
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 )
@@ -197,17 +196,19 @@ type ChannelUpstreamModelListRow struct {
 // ChannelModelSourceRow 定义模型来源列表查询结果。
 type ChannelModelSourceRow struct {
 	domainchannel.PlatformModelRoute
-	UpstreamID             uint
-	UpstreamName           string
-	UpstreamStatus         string
-	BaseURL                string
-	BindingCode            string
-	UpstreamModelName      string
-	UpstreamModelVendor    string
-	UpstreamModelIcon      string
-	UpstreamModelKindsJSON string
-	SuggestedProtocol      string
-	UpstreamModelStatus    string
+	UpstreamID                   uint
+	UpstreamName                 string
+	UpstreamStatus               string
+	UpstreamCompatible           string
+	UpstreamProtocolDefaultsJSON string
+	BaseURL                      string
+	BindingCode                  string
+	UpstreamModelName            string
+	UpstreamModelVendor          string
+	UpstreamModelIcon            string
+	UpstreamModelKindsJSON       string
+	SuggestedProtocol            string
+	UpstreamModelStatus          string
 }
 
 // ListChannelUpstreamModelsInput 定义上游模型路由绑定列表查询条件。
@@ -283,17 +284,6 @@ type UpdateChannelUpstreamInput struct {
 	HeadersJSON          *string
 }
 
-// UpdateChannelUpstreamModelInput 定义上游真实模型更新字段。
-type UpdateChannelUpstreamModelInput struct {
-	UpstreamModelName *string
-	Status            *string
-	Source            *string
-	SuggestedProtocol *string
-	KindsJSON         *string
-	LastSyncedAt      **time.Time
-	RawJSON           *string
-}
-
 // UpdateChannelPlatformRouteInput 定义平台模型路由绑定更新字段。
 type UpdateChannelPlatformRouteInput struct {
 	PlatformModelID    *uint
@@ -307,6 +297,13 @@ type UpdateChannelPlatformRouteInput struct {
 	CbDurationMin      *int
 	CbWindowMin        *int
 	HeadersJSON        *string
+}
+
+// ReplaceChannelPlatformRoutesInput 定义一个绑定的完整目标路由集合。
+type ReplaceChannelPlatformRoutesInput struct {
+	UpstreamID       uint
+	ExistingRouteIDs []uint
+	Routes           []domainchannel.PlatformModelRoute
 }
 
 // IsZero 判断是否没有任何上游配置更新字段。
@@ -326,17 +323,6 @@ func (input UpdateChannelUpstreamInput) IsZero() bool {
 		input.CbDurationMin == nil &&
 		input.CbWindowMin == nil &&
 		input.HeadersJSON == nil
-}
-
-// IsZero 判断是否没有任何路由绑定更新字段。
-func (input UpdateChannelUpstreamModelInput) IsZero() bool {
-	return input.UpstreamModelName == nil &&
-		input.Status == nil &&
-		input.Source == nil &&
-		input.SuggestedProtocol == nil &&
-		input.KindsJSON == nil &&
-		input.LastSyncedAt == nil &&
-		input.RawJSON == nil
 }
 
 func (input UpdateChannelPlatformRouteInput) IsZero() bool {
@@ -387,6 +373,7 @@ type ModelPresentationRepository interface {
 
 // ChannelRepository 定义渠道管理依赖的仓储能力。
 type ChannelRepository interface {
+	WithinTransaction(ctx context.Context, fn func(ChannelRepository) error) error
 	CreateUpstream(ctx context.Context, item *domainchannel.Upstream) error
 	UpdateUpstream(ctx context.Context, upstreamID uint, input UpdateChannelUpstreamInput) error
 	GetUpstreamByID(ctx context.Context, upstreamID uint) (*domainchannel.Upstream, error)
@@ -400,10 +387,10 @@ type ChannelRepository interface {
 	GetModelByName(ctx context.Context, platformModelName string) (*domainchannel.PlatformModel, error)
 	GetActiveModelByName(ctx context.Context, platformModelName string) (*domainchannel.PlatformModel, error)
 	ListModels(ctx context.Context, input ListChannelModelsInput) ([]ChannelModelListRow, int64, error)
+	CreateUpstreamModel(ctx context.Context, item *domainchannel.UpstreamModel) error
 	UpsertUpstreamModel(ctx context.Context, item *domainchannel.UpstreamModel) error
 	GetUpstreamModelByID(ctx context.Context, sourceID uint, upstreamID uint) (*domainchannel.UpstreamModel, error)
 	GetUpstreamModelByUpstreamName(ctx context.Context, upstreamID uint, upstreamModelName string) (*domainchannel.UpstreamModel, error)
-	UpdateUpstreamModelByID(ctx context.Context, sourceID uint, upstreamID uint, input UpdateChannelUpstreamModelInput) error
 	DeleteUpstreamModel(ctx context.Context, sourceID uint, upstreamID uint) error
 	MarkMissingSyncedUpstreamModelsInactive(ctx context.Context, upstreamID uint, activeNames []string) (int64, error)
 	ListUpstreamModels(ctx context.Context, upstreamID uint, input ListChannelUpstreamModelsInput) ([]ChannelUpstreamModelListRow, int64, error)
@@ -411,12 +398,14 @@ type ChannelRepository interface {
 	GetUpstreamModelRouteByID(ctx context.Context, upstreamID uint, routeID uint) (*ChannelUpstreamModelListRow, error)
 	GetUpstreamModelRouteByNames(ctx context.Context, upstreamID uint, platformModelName string, upstreamModelName string, protocol string) (*ChannelUpstreamModelListRow, error)
 	UpsertPlatformModelRoute(ctx context.Context, item *domainchannel.PlatformModelRoute) error
+	ReplacePlatformModelRoutes(ctx context.Context, inputs []ReplaceChannelPlatformRoutesInput) ([]domainchannel.PlatformModelRoute, error)
 	GetModelUpstreamSourceByRouteID(ctx context.Context, platformModelName string, routeID uint) (*ChannelModelSourceRow, error)
 	ListPlatformModelRoutesByPair(ctx context.Context, upstreamID uint, platformModelID uint, upstreamModelID uint) ([]domainchannel.PlatformModelRoute, error)
 	GetPlatformModelRouteByID(ctx context.Context, routeID uint, upstreamID uint) (*domainchannel.PlatformModelRoute, error)
 	UpdatePlatformModelRouteByID(ctx context.Context, routeID uint, upstreamID uint, input UpdateChannelPlatformRouteInput) error
 	DeletePlatformModelRoute(ctx context.Context, routeID uint, upstreamID uint) error
 	ListModelUpstreamSources(ctx context.Context, platformModelName string, offset int, limit int) ([]ChannelModelSourceRow, int64, error)
+	ListModelUpstreamSourcesForUpdate(ctx context.Context, platformModelName string) ([]ChannelModelSourceRow, error)
 	ListActiveRoutesByModel(ctx context.Context, platformModelName string) ([]ChannelUpstreamRouteRow, error)
 	ListActiveRouteBindingCodesForUpstream(ctx context.Context, upstreamID uint) ([]string, error)
 	GetLLMSetting(ctx context.Context, key string) (*domainchannel.LLMSetting, error)

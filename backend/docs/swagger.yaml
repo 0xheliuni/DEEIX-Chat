@@ -6442,6 +6442,33 @@ definitions:
           type: integer
         type: array
     type: object
+  SetModelProtocolsRequest:
+    properties:
+      kindsJSON:
+        maxLength: 1000
+        minLength: 2
+        type: string
+      protocols:
+        items:
+          type: string
+        maxItems: 2
+        minItems: 1
+        type: array
+        uniqueItems: true
+    required:
+    - kindsJSON
+    - protocols
+    type: object
+  SetModelProtocolsResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/ModelDataResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
   SetModelsDisplayGroupRequest:
     properties:
       displayGroupID:
@@ -7488,10 +7515,13 @@ definitions:
   UpsertUpstreamModelRequest:
     properties:
       cbDurationMin:
+        minimum: 0
         type: integer
       cbFailureThreshold:
+        minimum: 0
         type: integer
       cbWindowMin:
+        minimum: 0
         type: integer
       headersJSON:
         maxLength: 10000
@@ -7505,15 +7535,24 @@ definitions:
         type: string
       priority:
         type: integer
-      protocol:
-        maxLength: 64
-        type: string
-      routeID:
-        type: integer
+      protocols:
+        description: Protocols 为空数组时根据模型能力和上游默认配置自动推断完整协议集合。
+        items:
+          type: string
+        maxItems: 2
+        type: array
+        uniqueItems: true
+      routeIDs:
+        items:
+          type: integer
+        maxItems: 2
+        type: array
+        uniqueItems: true
       source:
         maxLength: 64
         type: string
       status:
+        description: 路由配置字段省略时保留已有协议各自的配置；新增协议使用服务端默认值或现有绑定模板。
         enum:
         - active
         - inactive
@@ -7526,6 +7565,7 @@ definitions:
         type: integer
     required:
     - platformModelName
+    - protocols
     - upstreamModelName
     type: object
   UpsertUpstreamModelResponseDoc:
@@ -8687,7 +8727,7 @@ info:
   contact: {}
   description: DEEIX Chat 后端 API 文档
   title: DEEIX Chat API
-  version: "0.3.4"
+  version: "0.3.5"
 paths:
   /admin/announcements:
     get:
@@ -10274,6 +10314,51 @@ paths:
       security:
       - BearerAuth: []
       summary: 管理员更新模型
+      tags:
+      - llm
+  /admin/llm/models/{id}/protocols:
+    patch:
+      consumes:
+      - application/json
+      description: 在单个数据库事务中更新平台模型能力类型，并将该模型全部上游绑定替换为指定的完整协议集合
+      parameters:
+      - description: 模型ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 完整协议集合与模型能力类型
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/SetModelProtocolsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/SetModelProtocolsResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员替换模型全部来源的协议集合
       tags:
       - llm
   /admin/llm/models/{id}/sources:

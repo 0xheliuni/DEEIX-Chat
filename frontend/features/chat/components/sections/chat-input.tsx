@@ -391,7 +391,7 @@ function ChatInputComponent({
     () => modelOptions.find((item) => item.platformModelName === selectedPlatformModelName) ?? null,
     [modelOptions, selectedPlatformModelName],
   );
-  const selectedProtocol = selectedModel?.protocols[0]?.trim() ?? "";
+  const selectedProtocols = React.useMemo(() => selectedModel?.protocols ?? [], [selectedModel]);
   const selectedModelName = selectedModel?.platformModelName || selectedPlatformModelName;
   const submitDecision = resolveChatSubmitDecision(selectedModel, attachments, options);
   const submitTask = submitDecision.task;
@@ -930,7 +930,7 @@ function ChatInputComponent({
                   nativeToolKeys={selectedModel?.nativeToolKeys ?? []}
                   nativeTools={selectedModel?.nativeTools ?? []}
                   modelOptionPolicy={modelOptionPolicy}
-                  selectedProtocol={selectedProtocol}
+                  selectedProtocols={selectedProtocols}
                   selectedModelName={selectedModelName}
                   onOptionsChange={onOptionsChange}
                   onOptionsReset={onOptionsReset}

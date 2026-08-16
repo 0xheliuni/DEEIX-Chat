@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -14,13 +16,19 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func TestListModelsSQLiteUsesPortableRouteStats(t *testing.T) {
 	db := openChannelSQLiteTestDB(t)
 	ctx := context.Background()
 
-	activeUpstream := model.LLMUpstream{Name: "active-upstream", Status: "active"}
+	activeUpstream := model.LLMUpstream{
+		Name:                 "active-upstream",
+		Status:               "active",
+		Compatible:           "openai",
+		ProtocolDefaultsJSON: `{"chat":"openai_responses"}`,
+	}
 	inactiveUpstream := model.LLMUpstream{Name: "inactive-upstream", Status: "inactive"}
 	if err := db.Create(&activeUpstream).Error; err != nil {
 		t.Fatalf("create active upstream: %v", err)
@@ -94,6 +102,85 @@ func TestListModelsSQLiteUsesPortableRouteStats(t *testing.T) {
 	}
 	if !reflect.DeepEqual(codes, []string{"active-a", "active-b"}) {
 		t.Fatalf("expected distinct active binding codes, got %v", codes)
+	}
+
+	sources, err := NewRepo(db).ListModelUpstreamSourcesForUpdate(ctx, platformModel.Name)
+	if err != nil {
+		t.Fatalf("ListModelUpstreamSourcesForUpdate() error = %v", err)
+	}
+	if len(sources) != len(routes) {
+		t.Fatalf("expected all %d model sources, got %d", len(routes), len(sources))
+	}
+	if sources[0].UpstreamCompatible != "openai" || sources[0].UpstreamProtocolDefaultsJSON != `{"chat":"openai_responses"}` {
+		t.Fatalf("expected upstream protocol metadata, got %#v", sources[0])
+	}
+}
+
+func TestWithinTransactionSQLiteRollsBackAllChannelWrites(t *testing.T) {
+	db := openChannelSQLiteTestDB(t)
+	ctx := context.Background()
+	repo := NewRepo(db)
+
+	err := repo.WithinTransaction(ctx, func(txRepo repository.ChannelRepository) error {
+		item := &domainchannel.PlatformModel{
+			PlatformModelName: "rollback-model",
+			Vendor:            "openai",
+			KindsJSON:         `["chat"]`,
+			Status:            "active",
+		}
+		if err := txRepo.CreateModel(ctx, item); err != nil {
+			return err
+		}
+		return repository.ErrConflict
+	})
+	if !errors.Is(err, repository.ErrConflict) {
+		t.Fatalf("expected transaction conflict, got %v", err)
+	}
+
+	var count int64
+	if err := db.Model(&model.LLMPlatformModel{}).Where("name = ?", "rollback-model").Count(&count).Error; err != nil {
+		t.Fatalf("count rolled-back model: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected all channel writes to roll back, got %d model rows", count)
+	}
+}
+
+func TestCreateUpstreamModelSQLiteDoesNotOverwriteExistingCatalogEntry(t *testing.T) {
+	db := openChannelSQLiteTestDB(t)
+	ctx := context.Background()
+	upstream := model.LLMUpstream{Name: "catalog-create-only", Status: "active"}
+	if err := db.Create(&upstream).Error; err != nil {
+		t.Fatalf("create upstream: %v", err)
+	}
+	repo := NewRepo(db)
+	original := &domainchannel.UpstreamModel{
+		UpstreamID: upstream.ID, BindingCode: "catalog-original", UpstreamModelName: "shared-model",
+		SuggestedProtocol: "openai_chat_completions", KindsJSON: `["chat"]`, Status: "active", Source: "sync", RawJSON: `{"source":"remote"}`,
+	}
+	if err := repo.CreateUpstreamModel(ctx, original); err != nil {
+		t.Fatalf("create upstream model: %v", err)
+	}
+	duplicate := &domainchannel.UpstreamModel{
+		UpstreamID: upstream.ID, BindingCode: "catalog-duplicate", UpstreamModelName: original.UpstreamModelName,
+		SuggestedProtocol: "openai_image_generations", KindsJSON: `["image_gen"]`, Status: "inactive", Source: "manual", RawJSON: `{}`,
+	}
+	if err := repo.CreateUpstreamModel(ctx, duplicate); !errors.Is(err, repository.ErrDuplicate) {
+		t.Fatalf("expected duplicate catalog error, got %v", err)
+	}
+
+	stored, err := repo.GetUpstreamModelByUpstreamName(ctx, upstream.ID, original.UpstreamModelName)
+	if err != nil {
+		t.Fatalf("load original upstream model: %v", err)
+	}
+	if stored.ID != original.ID ||
+		stored.BindingCode != original.BindingCode ||
+		stored.SuggestedProtocol != original.SuggestedProtocol ||
+		stored.KindsJSON != original.KindsJSON ||
+		stored.Status != original.Status ||
+		stored.Source != original.Source ||
+		stored.RawJSON != original.RawJSON {
+		t.Fatalf("expected existing catalog metadata to remain unchanged, got %#v", stored)
 	}
 }
 
@@ -579,6 +666,376 @@ func TestListUpstreamsSQLiteCountsOnlyRouteBindings(t *testing.T) {
 	if items[0].ActiveModelsCount != 0 {
 		t.Fatalf("expected unbound upstream active model count 0, got %d", items[0].ActiveModelsCount)
 	}
+}
+
+func TestListUpstreamsSQLiteCountsMultiProtocolBindingOnce(t *testing.T) {
+	db := openChannelSQLiteTestDB(t)
+	ctx := context.Background()
+
+	upstream := model.LLMUpstream{Name: "google", Status: "active"}
+	if err := db.Create(&upstream).Error; err != nil {
+		t.Fatalf("create upstream: %v", err)
+	}
+	upstreamModel := model.LLMUpstreamModel{
+		UpstreamID:        upstream.ID,
+		BindingCode:       "imagen",
+		UpstreamModelName: "imagen",
+		Status:            "active",
+	}
+	if err := db.Create(&upstreamModel).Error; err != nil {
+		t.Fatalf("create upstream model: %v", err)
+	}
+	platformModel := model.LLMPlatformModel{Name: "imagen", Vendor: "google", Status: "active", SortOrder: 1}
+	if err := db.Create(&platformModel).Error; err != nil {
+		t.Fatalf("create platform model: %v", err)
+	}
+	routes := []model.LLMPlatformModelRoute{
+		{PlatformModelID: platformModel.ID, UpstreamModelID: upstreamModel.ID, Protocol: "google_image_generation", Status: "active"},
+		{PlatformModelID: platformModel.ID, UpstreamModelID: upstreamModel.ID, Protocol: "google_image_edit", Status: "active"},
+	}
+	if err := db.Create(&routes).Error; err != nil {
+		t.Fatalf("create routes: %v", err)
+	}
+
+	items, _, err := NewRepo(db).ListUpstreams(ctx, repository.ListChannelUpstreamsInput{Limit: 10})
+	if err != nil {
+		t.Fatalf("ListUpstreams() error = %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 upstream, got %d", len(items))
+	}
+	if items[0].ModelsCount != 1 {
+		t.Fatalf("expected multi-protocol binding to count as 1 model, got %d", items[0].ModelsCount)
+	}
+	if items[0].ActiveModelsCount != 1 {
+		t.Fatalf("expected multi-protocol binding to count as 1 active model, got %d", items[0].ActiveModelsCount)
+	}
+}
+
+func TestListUpstreamModelsSQLitePaginatesCompleteBindings(t *testing.T) {
+	db := openChannelSQLiteTestDB(t)
+	ctx := context.Background()
+
+	upstream := model.LLMUpstream{Name: "google", Status: "active"}
+	if err := db.Create(&upstream).Error; err != nil {
+		t.Fatalf("create upstream: %v", err)
+	}
+	for index := 0; index < 1000; index++ {
+		name := fmt.Sprintf("model-%04d", index)
+		upstreamModel := model.LLMUpstreamModel{
+			UpstreamID:        upstream.ID,
+			BindingCode:       name,
+			UpstreamModelName: name,
+			Status:            "active",
+		}
+		if err := db.Create(&upstreamModel).Error; err != nil {
+			t.Fatalf("create upstream model %s: %v", name, err)
+		}
+		platformModel := model.LLMPlatformModel{Name: name, Vendor: "google", Status: "active", SortOrder: index + 1}
+		if err := db.Create(&platformModel).Error; err != nil {
+			t.Fatalf("create platform model %s: %v", name, err)
+		}
+		protocols := []string{"gemini_generate_content"}
+		if index == 0 {
+			protocols = []string{"google_image_generation", "google_image_edit"}
+		}
+		for _, protocol := range protocols {
+			route := model.LLMPlatformModelRoute{
+				PlatformModelID: platformModel.ID,
+				UpstreamModelID: upstreamModel.ID,
+				Protocol:        protocol,
+				Status:          "active",
+			}
+			if err := db.Create(&route).Error; err != nil {
+				t.Fatalf("create route %s/%s: %v", name, protocol, err)
+			}
+		}
+	}
+
+	repo := NewRepo(db)
+	firstPage, total, err := repo.ListUpstreamModels(ctx, upstream.ID, repository.ListChannelUpstreamModelsInput{
+		Limit: 25,
+		Sort:  "upstream_asc",
+	})
+	if err != nil {
+		t.Fatalf("ListUpstreamModels() first page error = %v", err)
+	}
+	if total != 1000 {
+		t.Fatalf("expected binding total 1000, got %d", total)
+	}
+	if len(firstPage) != 26 {
+		t.Fatalf("expected 25 bindings represented by 26 route rows, got %d rows", len(firstPage))
+	}
+	firstBindingProtocols := make(map[string]struct{})
+	bindingKeys := make(map[string]struct{})
+	for _, item := range firstPage {
+		bindingKeys[upstreamModelBindingKey(item.UpstreamModel.ID, item.PlatformModelID)] = struct{}{}
+		if item.UpstreamModelName == "model-0000" {
+			firstBindingProtocols[item.Protocol] = struct{}{}
+		}
+	}
+	if len(bindingKeys) != 25 {
+		t.Fatalf("expected 25 complete bindings on first page, got %d", len(bindingKeys))
+	}
+	if len(firstBindingProtocols) != 2 {
+		t.Fatalf("expected both protocols for model-00, got %v", firstBindingProtocols)
+	}
+
+	secondPage, _, err := repo.ListUpstreamModels(ctx, upstream.ID, repository.ListChannelUpstreamModelsInput{
+		Offset: 25,
+		Limit:  25,
+		Sort:   "upstream_asc",
+	})
+	if err != nil {
+		t.Fatalf("ListUpstreamModels() second page error = %v", err)
+	}
+	if len(secondPage) != 25 || secondPage[0].UpstreamModelName != "model-0025" {
+		t.Fatalf("expected second page to start with model-0025, got %#v", secondPage)
+	}
+
+	filtered, filteredTotal, err := repo.ListUpstreamModels(ctx, upstream.ID, repository.ListChannelUpstreamModelsInput{
+		Limit:    25,
+		Protocol: "google_image_generation",
+	})
+	if err != nil {
+		t.Fatalf("ListUpstreamModels() filtered error = %v", err)
+	}
+	if filteredTotal != 1 || len(filtered) != 2 {
+		t.Fatalf("expected one complete two-route binding after filtering, total=%d rows=%d", filteredTotal, len(filtered))
+	}
+
+	fullPage, fullTotal, err := repo.ListUpstreamModels(ctx, upstream.ID, repository.ListChannelUpstreamModelsInput{
+		Limit: 1000,
+		Sort:  "upstream_asc",
+	})
+	if err != nil {
+		t.Fatalf("ListUpstreamModels() 1000-binding page error = %v", err)
+	}
+	fullPageKeys := make(map[string]struct{}, 1000)
+	for _, item := range fullPage {
+		fullPageKeys[upstreamModelBindingKey(item.UpstreamModel.ID, item.PlatformModelID)] = struct{}{}
+	}
+	if fullTotal != 1000 || len(fullPageKeys) != 1000 || len(fullPage) != 1001 {
+		t.Fatalf("expected 1000 complete bindings represented by 1001 rows, total=%d bindings=%d rows=%d", fullTotal, len(fullPageKeys), len(fullPage))
+	}
+}
+
+func TestReplacePlatformModelRoutesSQLiteReplacesCompleteProtocolSet(t *testing.T) {
+	db := openChannelSQLiteTestDB(t)
+	ctx := context.Background()
+
+	upstream := model.LLMUpstream{Name: "openai", Status: "active"}
+	if err := db.Create(&upstream).Error; err != nil {
+		t.Fatalf("create upstream: %v", err)
+	}
+	upstreamModel := model.LLMUpstreamModel{
+		UpstreamID:        upstream.ID,
+		BindingCode:       "image-model",
+		UpstreamModelName: "image-model",
+		Status:            "active",
+	}
+	if err := db.Create(&upstreamModel).Error; err != nil {
+		t.Fatalf("create upstream model: %v", err)
+	}
+	platformModel := model.LLMPlatformModel{Name: "image-model", Vendor: "openai", Status: "active", SortOrder: 1}
+	if err := db.Create(&platformModel).Error; err != nil {
+		t.Fatalf("create platform model: %v", err)
+	}
+	existing := []model.LLMPlatformModelRoute{
+		{PlatformModelID: platformModel.ID, UpstreamModelID: upstreamModel.ID, Protocol: "openai_image_generations", Status: "active", Priority: 1, Weight: 1},
+		{PlatformModelID: platformModel.ID, UpstreamModelID: upstreamModel.ID, Protocol: "openai_image_edits", Status: "active", Priority: 1, Weight: 1},
+	}
+	if err := db.Create(&existing).Error; err != nil {
+		t.Fatalf("create existing routes: %v", err)
+	}
+
+	repo := NewRepo(db)
+	_, err := repo.ReplacePlatformModelRoutes(ctx, []repository.ReplaceChannelPlatformRoutesInput{{
+		UpstreamID:       upstream.ID,
+		ExistingRouteIDs: []uint{existing[0].ID},
+		Routes: []domainchannel.PlatformModelRoute{{
+			PlatformModelID: platformModel.ID,
+			UpstreamModelID: upstreamModel.ID,
+			Protocol:        "openai_responses",
+			Status:          "active",
+			Priority:        2,
+			Weight:          3,
+		}},
+	}})
+	if !errors.Is(err, repository.ErrConflict) {
+		t.Fatalf("expected incomplete route set to be rejected, got %v", err)
+	}
+	var unchangedCount int64
+	if err := db.Model(&model.LLMPlatformModelRoute{}).
+		Where("platform_model_id = ? AND upstream_model_id = ?", platformModel.ID, upstreamModel.ID).
+		Count(&unchangedCount).Error; err != nil {
+		t.Fatalf("count unchanged routes: %v", err)
+	}
+	if unchangedCount != 2 {
+		t.Fatalf("expected rejected replacement to keep both routes, got %d", unchangedCount)
+	}
+
+	replaced, err := repo.ReplacePlatformModelRoutes(ctx, []repository.ReplaceChannelPlatformRoutesInput{{
+		UpstreamID:       upstream.ID,
+		ExistingRouteIDs: []uint{existing[0].ID, existing[1].ID},
+		Routes: []domainchannel.PlatformModelRoute{{
+			PlatformModelID: platformModel.ID,
+			UpstreamModelID: upstreamModel.ID,
+			Protocol:        "openai_responses",
+			Status:          "active",
+			Priority:        2,
+			Weight:          3,
+			Source:          "manual",
+		}},
+	}})
+	if err != nil {
+		t.Fatalf("ReplacePlatformModelRoutes() error = %v", err)
+	}
+	if len(replaced) != 1 || replaced[0].Protocol != "openai_responses" {
+		t.Fatalf("unexpected replacement result: %#v", replaced)
+	}
+	if replaced[0].ID != existing[0].ID && replaced[0].ID != existing[1].ID {
+		t.Fatalf("expected replacement to preserve an existing route ID, got %d", replaced[0].ID)
+	}
+	var stored []model.LLMPlatformModelRoute
+	if err := db.Where("platform_model_id = ? AND upstream_model_id = ?", platformModel.ID, upstreamModel.ID).
+		Find(&stored).Error; err != nil {
+		t.Fatalf("load replaced routes: %v", err)
+	}
+	if len(stored) != 1 || stored[0].Protocol != "openai_responses" || stored[0].Priority != 2 || stored[0].Weight != 3 {
+		t.Fatalf("unexpected stored routes: %#v", stored)
+	}
+
+	targetPlatformModel := model.LLMPlatformModel{Name: "existing-target", Vendor: "openai", Status: "active", SortOrder: 2}
+	if err := db.Create(&targetPlatformModel).Error; err != nil {
+		t.Fatalf("create target platform model: %v", err)
+	}
+	targetRoute := model.LLMPlatformModelRoute{
+		PlatformModelID: targetPlatformModel.ID,
+		UpstreamModelID: upstreamModel.ID,
+		Protocol:        "openai_responses",
+		Status:          "active",
+		Priority:        9,
+		Weight:          9,
+	}
+	if err := db.Create(&targetRoute).Error; err != nil {
+		t.Fatalf("create target route: %v", err)
+	}
+	_, err = repo.ReplacePlatformModelRoutes(ctx, []repository.ReplaceChannelPlatformRoutesInput{{
+		UpstreamID:       upstream.ID,
+		ExistingRouteIDs: []uint{stored[0].ID},
+		Routes: []domainchannel.PlatformModelRoute{{
+			PlatformModelID: targetPlatformModel.ID,
+			UpstreamModelID: upstreamModel.ID,
+			Protocol:        "openai_responses",
+			Status:          "active",
+		}},
+	}})
+	if !errors.Is(err, repository.ErrDuplicate) {
+		t.Fatalf("expected occupied target binding to be rejected, got %v", err)
+	}
+	var preserved []model.LLMPlatformModelRoute
+	if err := db.Where("id IN ?", []uint{stored[0].ID, targetRoute.ID}).Order("id ASC").Find(&preserved).Error; err != nil {
+		t.Fatalf("load preserved routes: %v", err)
+	}
+	if len(preserved) != 2 || preserved[0].PlatformModelID == preserved[1].PlatformModelID {
+		t.Fatalf("expected source and target bindings to remain unchanged, got %#v", preserved)
+	}
+}
+
+func TestReplacePlatformModelRoutesSQLiteBatchesLargeModelUpdates(t *testing.T) {
+	const bindingCount = 1001
+	db := openChannelSQLiteTestDB(t)
+	ctx := context.Background()
+
+	upstream := model.LLMUpstream{Name: "large-upstream", Compatible: "openai", Status: "active"}
+	if err := db.Create(&upstream).Error; err != nil {
+		t.Fatalf("create upstream: %v", err)
+	}
+	platformModel := model.LLMPlatformModel{Name: "large-platform-model", Vendor: "openai", KindsJSON: `["chat"]`, Status: "active"}
+	if err := db.Create(&platformModel).Error; err != nil {
+		t.Fatalf("create platform model: %v", err)
+	}
+
+	upstreamModels := make([]model.LLMUpstreamModel, 0, bindingCount)
+	for index := 0; index < bindingCount; index++ {
+		name := fmt.Sprintf("large-upstream-model-%04d", index)
+		upstreamModels = append(upstreamModels, model.LLMUpstreamModel{
+			UpstreamID:        upstream.ID,
+			BindingCode:       name,
+			UpstreamModelName: name,
+			SuggestedProtocol: "openai_chat_completions",
+			KindsJSON:         `["chat"]`,
+			Status:            "active",
+		})
+	}
+	if err := db.CreateInBatches(&upstreamModels, 200).Error; err != nil {
+		t.Fatalf("create upstream models: %v", err)
+	}
+
+	routes := make([]model.LLMPlatformModelRoute, 0, bindingCount)
+	for _, upstreamModel := range upstreamModels {
+		routes = append(routes, model.LLMPlatformModelRoute{
+			PlatformModelID: platformModel.ID,
+			UpstreamModelID: upstreamModel.ID,
+			Protocol:        "openai_chat_completions",
+			Status:          "active",
+			Priority:        1,
+			Weight:          1,
+		})
+	}
+	if err := db.CreateInBatches(&routes, 200).Error; err != nil {
+		t.Fatalf("create routes: %v", err)
+	}
+
+	inputs := make([]repository.ReplaceChannelPlatformRoutesInput, 0, bindingCount)
+	for index, upstreamModel := range upstreamModels {
+		inputs = append(inputs, repository.ReplaceChannelPlatformRoutesInput{
+			UpstreamID:       upstream.ID,
+			ExistingRouteIDs: []uint{routes[index].ID},
+			Routes: []domainchannel.PlatformModelRoute{{
+				PlatformModelID: platformModel.ID,
+				UpstreamModelID: upstreamModel.ID,
+				Protocol:        "openai_responses",
+				Status:          "active",
+				Priority:        1,
+				Weight:          1,
+			}},
+		})
+	}
+
+	counter := &sqlStatementCounter{Interface: db.Logger}
+	countedDB := db.Session(&gorm.Session{Logger: counter})
+	replaced, err := NewRepo(countedDB).ReplacePlatformModelRoutes(ctx, inputs)
+	if err != nil {
+		t.Fatalf("ReplacePlatformModelRoutes() error = %v", err)
+	}
+	if len(replaced) != bindingCount {
+		t.Fatalf("expected %d replaced routes, got %d", bindingCount, len(replaced))
+	}
+	if statements := counter.count.Load(); statements > 20 {
+		t.Fatalf("expected batched replacement to use at most 20 SQL statements, got %d", statements)
+	}
+
+	var updatedCount int64
+	if err := db.Model(&model.LLMPlatformModelRoute{}).
+		Where("platform_model_id = ? AND protocol = ?", platformModel.ID, "openai_responses").
+		Count(&updatedCount).Error; err != nil {
+		t.Fatalf("count updated routes: %v", err)
+	}
+	if updatedCount != bindingCount {
+		t.Fatalf("expected %d updated routes, got %d", bindingCount, updatedCount)
+	}
+}
+
+type sqlStatementCounter struct {
+	logger.Interface
+	count atomic.Int64
+}
+
+func (counter *sqlStatementCounter) Trace(ctx context.Context, begin time.Time, fc func() (string, int64), err error) {
+	counter.count.Add(1)
+	counter.Interface.Trace(ctx, begin, fc, err)
 }
 
 func TestPermissionGroupDynamicModelRulesMatchCurrentModels(t *testing.T) {

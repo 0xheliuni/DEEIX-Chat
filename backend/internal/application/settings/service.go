@@ -198,16 +198,87 @@ func isLegacyDefaultModelOptionAllowedPaths(value string) bool {
 	if err := json.Unmarshal([]byte(strings.TrimSpace(value)), &current); err != nil {
 		return false
 	}
-	previousDefault := map[string][]string{}
-	if err := json.Unmarshal([]byte(config.DefaultModelOptionAllowedPathsJSON()), &previousDefault); err != nil {
+	latestDefault := map[string][]string{}
+	if err := json.Unmarshal([]byte(config.DefaultModelOptionAllowedPathsJSON()), &latestDefault); err != nil {
 		return false
 	}
-	delete(previousDefault, "xai_video")
-	if sameStringSliceMap(current, previousDefault) {
-		return true
+	previousGenerateContentDefault := cloneStringSliceMap(latestDefault)
+	previousGenerateContentDefault["gemini_generate_content"] = removeStringValue(
+		removeStringValue(
+			previousGenerateContentDefault["gemini_generate_content"],
+			"generationConfig.thinkingConfig.includeThoughts",
+		),
+		"generationConfig.thinkingConfig.thinkingLevel",
+	)
+	previousInteractionsDefault := cloneStringSliceMap(latestDefault)
+	previousInteractionsDefault["gemini_interactions"] = removeStringValue(
+		previousInteractionsDefault["gemini_interactions"],
+		"generation_config.thinking_summaries",
+	)
+	previousCombinedDefault := cloneStringSliceMap(previousGenerateContentDefault)
+	previousCombinedDefault["gemini_interactions"] = removeStringValue(
+		previousCombinedDefault["gemini_interactions"],
+		"generation_config.thinking_summaries",
+	)
+	legacyInteractionsDefault := cloneStringSliceMap(latestDefault)
+	legacyInteractionsDefault["gemini_interactions"] = append(
+		removeStringValue(legacyInteractionsDefault["gemini_interactions"], "response_format.schema"),
+		"responseFormat.type",
+		"responseFormat.aspectRatio",
+		"responseFormat.imageSize",
+		"responseFormat.mimeType",
+		"generationConfig.videoConfig.task",
+	)
+	legacyInteractionsWithoutSummaries := cloneStringSliceMap(legacyInteractionsDefault)
+	legacyInteractionsWithoutSummaries["gemini_interactions"] = removeStringValue(
+		legacyInteractionsWithoutSummaries["gemini_interactions"],
+		"generation_config.thinking_summaries",
+	)
+	legacyCombinedDefault := cloneStringSliceMap(legacyInteractionsWithoutSummaries)
+	legacyCombinedDefault["gemini_generate_content"] = previousGenerateContentDefault["gemini_generate_content"]
+	previousDefaults := []map[string][]string{
+		previousGenerateContentDefault,
+		previousInteractionsDefault,
+		previousCombinedDefault,
+		legacyInteractionsDefault,
+		legacyInteractionsWithoutSummaries,
+		legacyCombinedDefault,
 	}
-	previousDefault["xai_responses"] = []string{"reasoning.effort"}
-	return sameStringSliceMap(current, previousDefault)
+	for _, previousDefault := range previousDefaults {
+		if sameStringSliceMap(current, previousDefault) {
+			return true
+		}
+	}
+	olderDefaults := append([]map[string][]string{cloneStringSliceMap(latestDefault)}, previousDefaults...)
+	for _, olderDefault := range olderDefaults {
+		delete(olderDefault, "xai_video")
+		if sameStringSliceMap(current, olderDefault) {
+			return true
+		}
+		olderDefault["xai_responses"] = []string{"reasoning.effort"}
+		if sameStringSliceMap(current, olderDefault) {
+			return true
+		}
+	}
+	return false
+}
+
+func cloneStringSliceMap(value map[string][]string) map[string][]string {
+	result := make(map[string][]string, len(value))
+	for key, items := range value {
+		result[key] = append([]string(nil), items...)
+	}
+	return result
+}
+
+func removeStringValue(values []string, target string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if value != target {
+			result = append(result, value)
+		}
+	}
+	return result
 }
 
 func sameStringSliceMap(left map[string][]string, right map[string][]string) bool {
