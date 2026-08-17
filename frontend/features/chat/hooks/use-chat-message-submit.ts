@@ -504,7 +504,7 @@ export function useChatMessageSubmit({
   autoGenerateLabels: boolean;
   prependNewConversation: (platformModelName: string) => Promise<ConversationDTO | null | undefined>;
   onConversationCreated?: (conversationPublicID: string) => void;
-  onConversationForked?: (conversation: ConversationDTO) => void;
+  onConversationForked?: (conversation: ConversationDTO) => Promise<void> | void;
   touchByPublicID: (publicID: string, patch?: Partial<ConversationDTO>) => void;
   reload: () => void;
   replaceMessage: (message: MessageDTO) => void;
@@ -2069,7 +2069,7 @@ export function useChatMessageSubmit({
       }
       try {
         const forked = await forkConversationFromMessage(token, conversationPublicID, messagePublicID);
-        onConversationForked?.(forked);
+        await onConversationForked?.(forked);
       } catch (error) {
         toast.error(t("forkFailed"), {
           description: resolveErrorMessage(error, t("retryLater")),

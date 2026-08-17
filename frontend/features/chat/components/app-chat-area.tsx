@@ -315,15 +315,19 @@ export function AppChatArea() {
   const handleConversationForked = React.useCallback(
     async (forked: ConversationDTO) => {
       const baseTitle = forked.title?.trim() || "";
-      let item = forked;
+      let listed = false;
       if (baseTitle) {
         try {
-          item = (await renameByPublicID(forked.publicID, `${baseTitle} ${t("messages.forkTitleSuffix")}`)) ?? forked;
+          const suffix = t("messages.forkTitle", { title: "" });
+          const title = `${Array.from(baseTitle)
+            .slice(0, Math.max(0, 255 - Array.from(suffix).length))
+            .join("")}${suffix}`;
+          listed = Boolean(await renameByPublicID(forked.publicID, title));
         } catch {
-          item = forked;
+          listed = false;
         }
       }
-      if (item === forked) {
+      if (!listed) {
         upsertConversation(forked);
       }
       router.push(`/chat?conversation_id=${forked.publicID}`);

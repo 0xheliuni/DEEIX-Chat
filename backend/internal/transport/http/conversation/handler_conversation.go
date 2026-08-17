@@ -647,6 +647,8 @@ func (h *Handler) ForkConversationFromMessage(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, "message not found")
 		case errors.Is(err, appconversation.ErrMessageForkStateInvalid):
 			response.ErrorWithCode(c, http.StatusBadRequest, "conversation.message_fork_state_invalid", "message is still generating")
+		case errors.Is(err, appconversation.ErrMessageForkHistoryIncomplete):
+			response.ErrorWithCode(c, http.StatusBadRequest, "conversation.message_fork_history_incomplete", "message history is too deep or incomplete")
 		default:
 			response.Error(c, http.StatusInternalServerError, "fork conversation failed")
 		}

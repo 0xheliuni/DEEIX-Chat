@@ -244,6 +244,43 @@ function MetaIconButton({
   );
 }
 
+function ForkMessageButton({
+  disabled = false,
+  label,
+  onFork,
+}: {
+  disabled?: boolean;
+  label: string;
+  onFork: () => Promise<void> | void;
+}) {
+  const inFlightRef = React.useRef(false);
+  const [inFlight, setInFlight] = React.useState(false);
+
+  const handleFork = React.useCallback(async () => {
+    if (inFlightRef.current) {
+      return;
+    }
+    inFlightRef.current = true;
+    setInFlight(true);
+    try {
+      await onFork();
+    } finally {
+      inFlightRef.current = false;
+      setInFlight(false);
+    }
+  }, [onFork]);
+
+  return (
+    <MetaIconButton
+      label={label}
+      disabled={disabled || inFlight}
+      onClick={() => void handleFork()}
+    >
+      <GitFork size={14} strokeWidth={1.8} animateOnHover="default" />
+    </MetaIconButton>
+  );
+}
+
 export function UserMessageMeta({
   item,
   showRetry,
@@ -263,7 +300,7 @@ export function UserMessageMeta({
   onRetry: () => void;
   onEdit: () => void;
   onCopy: () => void;
-  onFork?: () => void;
+  onFork?: () => Promise<void> | void;
   copySucceeded?: boolean;
   readOnly?: boolean;
   alwaysVisible?: boolean;
@@ -309,13 +346,11 @@ export function UserMessageMeta({
             )}
           </MetaIconButton>
           {hasPersistedMessage && onFork ? (
-            <MetaIconButton
+            <ForkMessageButton
               label={t("forkMessage")}
               disabled={messagePending}
-              onClick={onFork}
-            >
-              <GitFork size={14} strokeWidth={1.8} animateOnHover="default" />
-            </MetaIconButton>
+              onFork={onFork}
+            />
           ) : null}
         </div>
       ) : null}
@@ -979,7 +1014,7 @@ export function AssistantMessageMeta({
   onContinue?: () => void;
   onEdit?: () => void;
   onCopy: () => void;
-  onFork?: () => void;
+  onFork?: () => Promise<void> | void;
   copySucceeded?: boolean;
   onReact: (value: AssistantReaction) => void;
   showModelInfo?: boolean;
@@ -1113,12 +1148,10 @@ export function AssistantMessageMeta({
                   </MetaIconButton>
                 ) : null}
                 {canFork ? (
-                  <MetaIconButton
+                  <ForkMessageButton
                     label={t("forkMessage")}
-                    onClick={onFork}
-                  >
-                    <GitFork size={14} strokeWidth={1.8} animateOnHover="default" />
-                  </MetaIconButton>
+                    onFork={onFork}
+                  />
                 ) : null}
                 <QuickMemoryPin disabled={messagePending} />
               </>

@@ -188,11 +188,10 @@ export function ChatMessageBot({
   const onContinue = React.useCallback(() => {
     void onContinueAssistantMessage?.(item);
   }, [item, onContinueAssistantMessage]);
-  const onFork = React.useCallback(() => {
-    if (onForkMessage) {
-      void onForkMessage(item);
-    }
-  }, [item, onForkMessage]);
+  const onFork = React.useCallback(
+    () => onForkMessage?.(item),
+    [item, onForkMessage],
+  );
   const onEditSave = React.useCallback(async () => {
     const nextContent = editingValue.trim();
     if (!nextContent || nextContent === item.content.trim()) {

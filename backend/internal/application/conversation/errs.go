@@ -75,6 +75,8 @@ var (
 	ErrMessageEditStateInvalid = errors.New("invalid message edit state")
 	// ErrMessageForkStateInvalid 当前消息状态不允许 fork。
 	ErrMessageForkStateInvalid = errors.New("invalid message fork state")
+	// ErrMessageForkHistoryIncomplete 消息祖先链超过安全上限或已损坏，无法完整 fork。
+	ErrMessageForkHistoryIncomplete = errors.New("message fork history incomplete")
 	// ErrModelRouteNotConfigured 模型路由未配置。
 	ErrModelRouteNotConfigured = errors.New("model route not configured")
 	// ErrModelAccessDenied 当前用户无权使用此模型。

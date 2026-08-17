@@ -137,11 +137,10 @@ export function ChatMessageUser({
     void onRetryUserMessage(item);
   }, [item, onRetryUserMessage]);
 
-  const onFork = React.useCallback(() => {
-    if (onForkMessage) {
-      void onForkMessage(item);
-    }
-  }, [item, onForkMessage]);
+  const onFork = React.useCallback(
+    () => onForkMessage?.(item),
+    [item, onForkMessage],
+  );
 
   const onEditSave = React.useCallback(async () => {
     const nextContent = editingValue.trim();

@@ -474,6 +474,10 @@ export function useSidebarConversationsController({
     await loadMore();
   }, [loadMore]);
 
+  const upsertConversation = React.useCallback((incoming: ConversationDTO) => {
+    return applyConversationUpdate(incoming.publicID, incoming);
+  }, [applyConversationUpdate]);
+
   const prependNewConversation = React.useCallback(async (platformModelName?: string, projectID?: string): Promise<ConversationDTO | null> => {
     const token = await resolveAccessToken();
     if (!token) {
@@ -487,16 +491,8 @@ export function useSidebarConversationsController({
       model: modelName,
       projectID: projectID?.trim() || "",
     });
-    setRecentItems((prev) => mergeUniqueByPublicID([item], prev, sortByUpdatedAtDesc));
-    publishChange({ type: "upsert", publicID: item.publicID, item });
-    return item;
-  }, [newConversationTitle, publishChange]);
-
-  const upsertConversation = React.useCallback((incoming: ConversationDTO) => {
-    setRecentItems((prev) => mergeUniqueByPublicID([incoming], prev, sortByUpdatedAtDesc));
-    publishChange({ type: "upsert", publicID: incoming.publicID, item: incoming });
-    return incoming;
-  }, [publishChange]);
+    return upsertConversation(item);
+  }, [newConversationTitle, upsertConversation]);
 
   const renameByPublicID = React.useCallback(
     async (publicID: string, title: string): Promise<ConversationDTO | null> => {

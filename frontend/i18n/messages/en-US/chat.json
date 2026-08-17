@@ -210,7 +210,7 @@
     "retryReply": "Retry",
     "continueReply": "Continue reply",
     "forkMessage": "Fork conversation here",
-    "forkTitleSuffix": "(Fork)",
+    "forkTitle": "{title} (Fork)",
     "rememberPreference": "Remember preference",
     "memorySaved": "Remembered",
     "memorySavedDescription": "This preference will apply to future conversations.",

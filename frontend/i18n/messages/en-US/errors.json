@@ -123,6 +123,8 @@
   "conversation": {
     "invalidId": "Invalid conversation ID.",
     "invalidTitle": "Invalid conversation title.",
+    "messageForkHistoryIncomplete": "This conversation is too deep or its message history is incomplete, so it cannot be forked here.",
+    "messageForkStateInvalid": "Wait for this message to finish generating before forking the conversation.",
     "noTitleableContent": "This conversation has no content that can be used to generate a title.",
     "notFound": "Conversation not found."
   },

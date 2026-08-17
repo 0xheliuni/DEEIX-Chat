@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"time"
 
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
@@ -29,7 +28,10 @@ func (s *Service) ForkConversationFromMessage(ctx context.Context, userID uint, 
 
 	conversation, err := s.repo.GetConversationByPublicID(ctx, normalizedConversationID, userID)
 	if err != nil {
-		return nil, ErrConversationNotFound
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, ErrConversationNotFound
+		}
+		return nil, err
 	}
 
 	message, err := s.repo.GetMessageByPublicIDForUser(ctx, userID, normalizedMessageID)
@@ -42,7 +44,7 @@ func (s *Service) ForkConversationFromMessage(ctx context.Context, userID uint, 
 	if message.ConversationID != conversation.ID {
 		return nil, ErrMessageNotFound
 	}
-	if message.Status == "pending" {
+	if strings.EqualFold(strings.TrimSpace(message.Status), "pending") {
 		return nil, ErrMessageForkStateInvalid
 	}
 
@@ -55,6 +57,9 @@ func (s *Service) ForkConversationFromMessage(ctx context.Context, userID uint, 
 	if len(path) == 0 {
 		return nil, ErrMessageNotFound
 	}
+	if path[len(path)-1].ID != message.ID {
+		return nil, ErrMessageForkHistoryIncomplete
+	}
 
 	target := &model.Conversation{
 		UserID:                userID,
@@ -66,65 +71,69 @@ func (s *Service) ForkConversationFromMessage(ctx context.Context, userID uint, 
 		Model:                 conversation.Model,
 		Provider:              conversation.Provider,
 		SessionKey:            uuid.NewString(),
-		MessageCount:          0,
+		MessageCount:          len(path),
 		Status:                "active",
 		ContextPolicy:         buildContextPolicyJSON(s.cfg.Snapshot()),
 		LastCompactedAt:       nil,
 		LastResponseID:        "",
 	}
-	if err = s.repo.CreateConversation(ctx, target); err != nil {
+	messages := make([]repository.ForkConversationMessage, 0, len(path))
+	seenSourceMessageIDs := make(map[uint]struct{}, len(path))
+	for index, sourceMessage := range path {
+		if sourceMessage.ID == 0 {
+			return nil, ErrMessageForkHistoryIncomplete
+		}
+		if _, exists := seenSourceMessageIDs[sourceMessage.ID]; exists {
+			return nil, ErrMessageForkHistoryIncomplete
+		}
+		if index == 0 {
+			if sourceMessage.ParentMessageID != nil {
+				return nil, ErrMessageForkHistoryIncomplete
+			}
+		} else if sourceMessage.ParentMessageID == nil {
+			return nil, ErrMessageForkHistoryIncomplete
+		} else if _, exists := seenSourceMessageIDs[*sourceMessage.ParentMessageID]; !exists {
+			return nil, ErrMessageForkHistoryIncomplete
+		}
+		seenSourceMessageIDs[sourceMessage.ID] = struct{}{}
+		messages = append(messages, repository.ForkConversationMessage{
+			SourceMessageID:       sourceMessage.ID,
+			SourceParentMessageID: sourceMessage.ParentMessageID,
+			Message:               buildForkedMessage(userID, sourceMessage),
+		})
+	}
+	if err = s.repo.CreateForkedConversation(ctx, repository.CreateForkedConversationInput{
+		SourceConversationID: conversation.ID,
+		Conversation:         target,
+		Messages:             messages,
+	}); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, ErrMessageNotFound
+		}
 		return nil, err
 	}
-
-	clonedMessageIDs := make(map[string]uint, len(path))
-	for _, sourceMessage := range path {
-		cloned, err := s.cloneForkedMessage(ctx, userID, target.ID, sourceMessage, clonedMessageIDs)
-		if err != nil {
-			return nil, err
-		}
-		clonedMessageIDs[strings.TrimSpace(sourceMessage.PublicID)] = cloned.ID
-		if err = s.cloneForkedMessageAttachments(ctx, userID, target.ID, cloned.ID, sourceMessage.Attachments); err != nil {
-			return nil, err
-		}
-	}
-	if err = s.repo.IncrementMessageCount(ctx, target.ID, len(path)); err != nil {
-		return nil, err
-	}
-	target.MessageCount = len(path)
+	target.ProjectPublicID = conversation.ProjectPublicID
+	target.ProjectName = conversation.ProjectName
+	target.ProjectSystemPrompt = conversation.ProjectSystemPrompt
 	return target, nil
 }
 
-func (s *Service) cloneForkedMessage(
-	ctx context.Context,
+func buildForkedMessage(
 	userID uint,
-	conversationID uint,
 	source model.Message,
-	clonedMessageIDs map[string]uint,
-) (*model.Message, error) {
-	var parentMessageID *uint
-	if parentID, ok := clonedMessageIDs[strings.TrimSpace(source.ParentPublicID)]; ok {
-		value := parentID
-		parentMessageID = &value
-	}
-	// 祖先链是线性路径：源消息的重试/编辑来源（SourceMessageID）不在路径内，置空即可。
-	branchReason := strings.TrimSpace(source.BranchReason)
-	if branchReason == "" {
-		branchReason = "default"
-	}
+) model.Message {
 	contentType := strings.TrimSpace(source.ContentType)
 	if contentType == "" {
 		contentType = "text"
 	}
-	message := &model.Message{
-		ConversationID:   conversationID,
+	return model.Message{
 		UserID:           userID,
 		PublicID:         normalizePublicID(uuid.NewString()),
-		ParentMessageID:  parentMessageID,
 		Role:             strings.TrimSpace(source.Role),
 		ContentType:      contentType,
 		Content:          source.Content,
 		ReasoningContent: source.ReasoningContent,
-		BranchReason:     branchReason,
+		BranchReason:     "default",
 		TokenUsage:       source.TokenUsage,
 		InputTokens:      source.InputTokens,
 		OutputTokens:     source.OutputTokens,
@@ -140,13 +149,6 @@ func (s *Service) cloneForkedMessage(
 		ErrorMessage:     source.ErrorMessage,
 		EditedAt:         source.EditedAt,
 	}
-	if message.Role == "" {
-		message.Role = "assistant"
-	}
-	if err := s.repo.CreateMessage(ctx, message); err != nil {
-		return nil, err
-	}
-	return message, nil
 }
 
 // normalizeForkedMessageStatus fork 不复制运行记录，pending 消息没有可续传的运行，
@@ -156,73 +158,8 @@ func normalizeForkedMessageStatus(status string) string {
 	if trimmed == "" {
 		return "success"
 	}
-	if trimmed == "pending" {
+	if strings.EqualFold(trimmed, "pending") {
 		return "interrupted"
 	}
 	return trimmed
-}
-
-func (s *Service) cloneForkedMessageAttachments(
-	ctx context.Context,
-	userID uint,
-	conversationID uint,
-	messageID uint,
-	rawAttachments string,
-) error {
-	snapshots := parseSharedAttachmentSnapshots(rawAttachments)
-	if len(snapshots) == 0 {
-		return nil
-	}
-	now := time.Now().UTC()
-	items := make([]model.Attachment, 0, len(snapshots))
-	for _, snapshot := range snapshots {
-		fileID := strings.TrimSpace(snapshot.FileID)
-		if fileID == "" {
-			continue
-		}
-		// 同用户 fork：附件直接引用原文件对象，不复制存储、不重复占用配额；
-		// 文件已被删除时跳过该附件，不阻断 fork。
-		file, err := s.repo.GetActiveFileObjectByID(ctx, userID, fileID)
-		if err != nil {
-			if isFileNotFoundError(err) {
-				continue
-			}
-			return err
-		}
-		kind := strings.TrimSpace(snapshot.Kind)
-		if kind == "" {
-			kind = "file"
-		}
-		fileName := strings.TrimSpace(snapshot.FileName)
-		if fileName == "" {
-			fileName = file.FileName
-		}
-		mimeType := strings.TrimSpace(snapshot.MimeType)
-		if mimeType == "" {
-			mimeType = file.MimeType
-		}
-		fileSize := snapshot.FileSize
-		if fileSize <= 0 {
-			fileSize = file.SizeBytes
-		}
-		items = append(items, model.Attachment{
-			ConversationID: conversationID,
-			MessageID:      messageID,
-			UserID:         userID,
-			FileID:         file.FileID,
-			Kind:           kind,
-			FileName:       fileName,
-			MimeType:       mimeType,
-			FileSize:       fileSize,
-			SHA256:         file.SHA256,
-			StoragePath:    file.StoragePath,
-			Status:         "active",
-			MetaJSON:       generatedVideoAttachmentMetaJSON(snapshot.DurationSeconds),
-			UploadedAt:     now,
-		})
-	}
-	if len(items) == 0 {
-		return nil
-	}
-	return s.repo.CreateAttachments(ctx, items)
 }
