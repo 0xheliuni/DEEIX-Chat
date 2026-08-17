@@ -383,7 +383,7 @@
       "toolsIntro": "Configure official native tools allowed for this model. Only tools enabled here can enter conversation settings.",
       "defaultsHelp": "Default parameters are written to defaultOptions. value is parsed as a JSON value, for example 0.7, true, null, \"high\", or an object.",
       "controlsHelp": "Parameter controls are written to optionControls. path maps to the real request option path, and final passthrough is still controlled by the option policy.",
-      "toolsHelp": "Official native tools are written to nativeTools. One tool can target multiple protocols; default-enabled tools are added to the user's default options automatically. User JSON tools are preserved by the backend only when they match these official tools.",
+      "toolsHelp": "Official native tools are written to nativeTools. Tools marked as default-enabled are added to the model's default request options; tools in user JSON are preserved only when they match an enabled official tool.",
       "addParameter": "Add",
       "addNativeTool": "Add",
       "emptyParameters": "No parameters",
@@ -454,7 +454,7 @@
       "policyTab": "Policy",
       "defaultsDescription": "defaultOptions becomes this model's default request parameters. The chat page uses it when the user has no saved local parameters for the model; backend option policy still applies before sending.",
       "controlsDescription": "optionControls only defines how the chat parameters dialog renders controls. It is not sent to the model by itself. path maps to the real options path.",
-      "toolsDescription": "nativeTools defines the provider-hosted official tools allowed for this model. Each tool is configured once, and protocols lists the applicable request protocols; a multi-protocol tool does not need duplicate rows.",
+      "toolsDescription": "nativeTools defines the provider-hosted official tools allowed for this model, and protocols specifies where each definition applies. Requests use only tool definitions that match the active protocol.",
       "toolsAutoDescription": "When users hand-write options.tools, only admin-allowed official tools are preserved. Parameters on allowed tools pass through; unknown tools and MCP/function tools cannot be injected through JSON.",
       "controlTypes": "type supports text, select, number, and boolean. select controls should provide options.",
       "policyDescription": "Rendering a control does not guarantee passthrough. The same path still needs to be allowed by the option policy; the backend filters options before sending."

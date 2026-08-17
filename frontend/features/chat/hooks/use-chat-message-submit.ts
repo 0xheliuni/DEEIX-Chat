@@ -481,7 +481,8 @@ export function useChatMessageSubmit({
   resetStreamBuffer,
   startStream,
   activeGenerationRunsRef,
-  failedGenerationRunsRef,
+  activeGenerationRunsRevision,
+  onActiveGenerationRunsChange,
   resumeGenerationActive = false,
 }: {
   conversationID: string | null;
@@ -525,11 +526,11 @@ export function useChatMessageSubmit({
   resetStreamBuffer: (exchangeKey?: string) => void;
   startStream: (exchangeKey: string, runID?: string) => void;
   activeGenerationRunsRef?: React.RefObject<Set<string>>;
-  failedGenerationRunsRef?: React.RefObject<Set<string>>;
+  activeGenerationRunsRevision: number;
+  onActiveGenerationRunsChange?: () => void;
   resumeGenerationActive?: boolean;
 }) {
   const t = useTranslations("chat.submit");
-  const [activeRunRevision, setActiveRunRevision] = React.useState(0);
   const activeStreamsRef = React.useRef(new Map<string, ActiveStream>());
   const conversationIDRef = React.useRef(conversationID);
   const conversationScopeKeyRef = React.useRef(conversationScopeKey);
@@ -570,12 +571,12 @@ export function useChatMessageSubmit({
           visibleMessages,
         ),
       ),
-    [activeRunRevision, conversationScopeKey, visibleBranchScopePath, visibleMessages],
+    [activeGenerationRunsRevision, conversationScopeKey, visibleBranchScopePath, visibleMessages],
   );
 
   const syncActiveRuns = React.useCallback(() => {
-    setActiveRunRevision((current) => current + 1);
-  }, []);
+    onActiveGenerationRunsChange?.();
+  }, [onActiveGenerationRunsChange]);
 
   const updatePendingExchange = React.useCallback(
     (exchangeKey: string, update: (current: PendingExchange) => PendingExchange) => {
@@ -1182,7 +1183,6 @@ export function useChatMessageSubmit({
               : await streamImageEdit(token, targetConversationID, mediaPayload, streamOptions);
         }
 
-        failedGenerationRunsRef?.current.delete(clientRunID);
         sentSuccessfully = true;
         flushStreamTextNow(exchangeKey);
         flushUpstreamThinkNow(exchangeKey);
@@ -1415,7 +1415,6 @@ export function useChatMessageSubmit({
         const errorMessage = resolveErrorMessage(error, t("retryLater"));
         const errorDetails = resolveErrorDetails(error);
         const errorSummary = resolveErrorSummary(error, t("retryLater"));
-        failedGenerationRunsRef?.current.add(clientRunID);
         shouldKeepConversationLayout = true;
         if (
           resetComposer &&
@@ -1494,7 +1493,6 @@ export function useChatMessageSubmit({
     [
       activeGenerationRunsRef,
       autoGenerateLabels,
-      failedGenerationRunsRef,
       enqueueUpstreamThinkDelta,
       enqueueStreamText,
       flushStreamTextNow,
@@ -1929,7 +1927,7 @@ export function useChatMessageSubmit({
         dispatchingQueuedSubmissionIDsRef.current.delete(queuedSubmission.id);
       });
   }, [
-    activeRunRevision,
+    activeGenerationRunsRevision,
     combinedMessages,
     conversationScopeKey,
     currentLeafMessage?.publicID,
