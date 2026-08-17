@@ -47,7 +47,6 @@ const ARTIFACT_CSP = [
   "connect-src 'none'",
   "manifest-src 'none'",
   "prefetch-src 'none'",
-  "navigate-to 'none'",
   "img-src data: blob:",
   "media-src data: blob:",
   "font-src data:",
@@ -233,43 +232,13 @@ body { margin: 0; font: 14px/1.5 var(--font-sans); color: var(--foreground); bac
 </html>`;
 }
 
-function svgPreviewDocument(code: string, theme: HTMLVisualThemeSnapshot): string {
-  return `<!doctype html>
-<html>
-<head>
-${previewHead("SVG Preview", theme)}
-<style>
-body { margin: 0; min-height: 100%; }
-.artifact-svg-preview {
-  box-sizing: border-box;
-  min-height: 100vh;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px;
-}
-.artifact-svg-preview > svg {
-  display: block;
-  max-width: 100%;
-  height: auto;
-}
-</style>
-</head>
-<body>
-<main class="artifact-svg-preview">${code}</main>
-</body>
-</html>`;
-}
-
 export function buildArtifactPreviewDocument(
-  kind: ArtifactPreviewKind,
+  kind: Exclude<ArtifactPreviewKind, "svg">,
   code: string,
   theme: HTMLVisualThemeSnapshot,
 ): string {
   if (kind === "css") return cssPreviewDocument(code, theme);
   if (kind === "javascript") return javascriptPreviewDocument(code, theme);
-  if (kind === "svg") return svgPreviewDocument(code, theme);
   return htmlPreviewDocument(code, theme);
 }
 
@@ -278,22 +247,6 @@ export function resolveArtifactDownloadName(kind: ArtifactPreviewKind): string {
   if (kind === "javascript") return "artifact-js-preview.html";
   if (kind === "svg") return "artifact.svg";
   return "artifact-preview.html";
-}
-
-export function downloadArtifactHTML(
-  fileName: string,
-  value: string,
-  mimeType: string = "text/html;charset=utf-8",
-): void {
-  const blob = new Blob([value], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 }
 
 export function extractArtifactsFromContent(

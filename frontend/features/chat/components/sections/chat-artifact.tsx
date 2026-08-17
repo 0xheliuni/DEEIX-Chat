@@ -15,10 +15,10 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ChatArtifactSVGPreview } from "@/features/chat/components/sections/chat-artifact-svg-preview";
 import {
   buildArtifactPreviewDocument,
   type ChatArtifact,
-  downloadArtifactHTML,
   resolveArtifactDownloadName,
 } from "@/features/chat/model/chat-artifacts";
 import {
@@ -29,6 +29,7 @@ import { useFontSizePreference } from "@/features/settings/utils/font-size";
 import { cn } from "@/lib/utils";
 import { CopyActionButton } from "@/shared/components/copy-action";
 import { useTheme } from "@/shared/components/theme-provider";
+import { downloadBlob } from "@/shared/lib/export-download";
 import {
   captureHTMLVisualThemeSnapshot,
   type HTMLVisualThemeSnapshot,
@@ -165,8 +166,18 @@ function ChatArtifactPanel({
     setPreviewTheme(captureHTMLVisualThemeSnapshot(resolvedTheme));
   }, [chatFont, chatFontWeight, fontSize, preset, resolvedTheme]);
 
-  const previewHTML = React.useMemo(
-    () => buildArtifactPreviewDocument(artifact.kind, artifact.code, previewTheme),
+  const artifactPreview = React.useMemo(
+    () =>
+      artifact.kind === "svg"
+        ? ({ mode: "svg" } as const)
+        : ({
+            documentHTML: buildArtifactPreviewDocument(
+              artifact.kind,
+              artifact.code,
+              previewTheme,
+            ),
+            mode: "frame",
+          } as const),
     [artifact.code, artifact.kind, previewTheme],
   );
   const canPreview = artifact.code.trim().length > 0;
@@ -177,16 +188,18 @@ function ChatArtifactPanel({
 
   const handleDownload = React.useCallback(() => {
     if (!canPreview) return;
-    if (artifact.kind === "svg") {
-      downloadArtifactHTML(
+    if (artifactPreview.mode === "svg") {
+      downloadBlob(
+        new Blob([artifact.code], { type: "image/svg+xml;charset=utf-8" }),
         resolveArtifactDownloadName(artifact.kind),
-        artifact.code,
-        "image/svg+xml;charset=utf-8",
       );
       return;
     }
-    downloadArtifactHTML(resolveArtifactDownloadName(artifact.kind), previewHTML);
-  }, [artifact.kind, artifact.code, canPreview, previewHTML]);
+    downloadBlob(
+      new Blob([artifactPreview.documentHTML], { type: "text/html;charset=utf-8" }),
+      resolveArtifactDownloadName(artifact.kind),
+    );
+  }, [artifact.kind, artifact.code, artifactPreview, canPreview]);
 
   return (
     <aside
@@ -255,11 +268,21 @@ function ChatArtifactPanel({
 
         <TabsContent value="preview" className="mt-0 min-h-0 flex-1 overflow-hidden">
           {canPreview ? (
-            <ArtifactPreviewFrame
-              key={artifact.id}
-              documentHTML={previewHTML}
-              title={t("previewTitle")}
-            />
+            artifactPreview.mode === "svg" ? (
+              <ChatArtifactSVGPreview
+                complete={artifact.complete}
+                invalidMessage={t("invalidSvg")}
+                source={artifact.code}
+                theme={previewTheme}
+                title={t("previewTitle")}
+              />
+            ) : (
+              <ArtifactPreviewFrame
+                key={artifact.id}
+                documentHTML={artifactPreview.documentHTML}
+                title={t("previewTitle")}
+              />
+            )
           ) : (
             <div className="flex h-full min-h-[320px] items-center justify-center bg-muted/15 px-6 text-center text-sm text-muted-foreground">
               {t("empty")}
