@@ -176,6 +176,8 @@
     "sourceCopied": "源码已复制",
     "copyFailed": "源码复制失败",
     "downloadHtml": "下载 HTML",
+    "downloadSvg": "下载 SVG",
+    "invalidSvg": "SVG 源码无效，无法预览。",
     "close": "关闭",
     "resize": "调整 Artifact 宽度",
     "empty": "当前 Artifact 为空，暂无法预览。",
