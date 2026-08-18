@@ -247,6 +247,7 @@
   },
   "payment": {
     "checkoutFailed": "Failed to create checkout.",
+    "epayGatewayInvalid": "The EPay redirect gateway URL is invalid.",
     "epayTypeUnsupported": "This EPay payment type is not supported.",
     "invalidEvent": "Invalid payment event.",
     "invalidSignature": "Invalid payment signature.",

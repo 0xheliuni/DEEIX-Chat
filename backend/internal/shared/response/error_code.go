@@ -253,6 +253,7 @@ var exactErrorSpecs = map[string]errorSpec{
 	"redemption user limit exceeded":                               {Code: "billing.redemption_user_limit_exceeded", Message: "redemption user limit exceeded"},
 	"payment is required":                                          {Code: CodeBillingPaymentRequired, Message: "payment is required"},
 	"payment provider is unavailable":                              {Code: "payment.provider_unavailable", Message: "payment provider is unavailable"},
+	"epay gateway url is invalid":                                  {Code: "payment.epay_gateway_invalid", Message: "epay gateway url is invalid"},
 	"create checkout failed":                                       {Code: "payment.checkout_failed", Message: "create checkout failed"},
 	"provider mismatch":                                            {Code: "payment.notification_mismatch", Message: "payment notification does not match the order"},
 	"checkout id mismatch":                                         {Code: "payment.notification_mismatch", Message: "payment notification does not match the order"},
@@ -622,6 +623,7 @@ var fallbackMessages = map[string]string{
 	"billing.redemption_code_exhausted":                 "redemption code exhausted",
 	"billing.redemption_user_limit_exceeded":            "redemption user limit exceeded",
 	"payment.provider_unavailable":                      "payment provider is unavailable",
+	"payment.epay_gateway_invalid":                      "epay gateway url is invalid",
 	"payment.checkout_failed":                           "create checkout failed",
 	"payment.notification_mismatch":                     "payment notification does not match the order",
 	"payment.epay_type_unsupported":                     "epay payment type is not supported",
@@ -669,7 +671,7 @@ func resolveErrorSpec(status int, msg string) (errorSpec, bool) {
 			return errorSpec{Code: "settings.invalid_key", Message: detail}, true
 		case strings.Contains(detail, "smtp"):
 			return errorSpec{Code: "settings.smtp_invalid", Message: detail}, true
-		case strings.Contains(detail, "payment_providers"):
+		case strings.Contains(detail, "payment_providers") || strings.Contains(detail, "billing:epay_"):
 			return errorSpec{Code: "settings.billing_payment_invalid", Message: detail}, true
 		case strings.Contains(detail, "model_option_"):
 			return errorSpec{Code: "settings.model_option_policy_invalid", Message: detail}, true

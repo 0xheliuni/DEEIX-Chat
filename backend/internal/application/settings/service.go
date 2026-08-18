@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/extraction"
+	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	domainsettings "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/settings"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	mineruextract "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extract/mineru"
@@ -457,7 +458,13 @@ func validatePatchItem(item PatchItem) error {
 		if err := validateStringMax(value, 512, key); err != nil {
 			return err
 		}
-		return validateOptionalHTTPURL(value, key)
+		if value == "" {
+			return nil
+		}
+		if _, err := domainbilling.ResolveEPaySubmitURL(value); err != nil {
+			return fmt.Errorf("%s must be an HTTP(S) EPay site URL or an exact submit.php URL without credentials, query, or fragment", key)
+		}
+		return nil
 	case "chat:model_option_policy_mode":
 		switch value {
 		case "allowlist", "denylist", "disabled":
@@ -1013,6 +1020,9 @@ func (s *Service) validateBillingPaymentSettings(ctx context.Context, patches []
 				{key: "billing:epay_key", label: "billing:epay_key"},
 			}); err != nil {
 				return err
+			}
+			if _, err := domainbilling.ResolveEPaySubmitURL(next["billing:epay_gateway_url"]); err != nil {
+				return fmt.Errorf("billing:epay_gateway_url must be an HTTP(S) EPay site URL or an exact submit.php URL without credentials, query, or fragment")
 			}
 		default:
 			return fmt.Errorf("billing:payment_providers must contain only: stripe, epay")
