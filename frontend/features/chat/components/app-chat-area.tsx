@@ -229,6 +229,7 @@ export function AppChatArea() {
     prependNewConversation,
     touchByPublicID,
     renameByPublicID,
+    upsertConversation,
     regenerateTitleByPublicID,
     updateLabelsByPublicID,
     setStarByPublicID,
@@ -309,6 +310,29 @@ export function AppChatArea() {
   const prependNewConversationInContext = React.useCallback(
     (platformModelName?: string) => prependNewConversation(platformModelName, newConversationProjectID || undefined),
     [newConversationProjectID, prependNewConversation],
+  );
+
+  const handleConversationForked = React.useCallback(
+    async (forked: ConversationDTO) => {
+      const baseTitle = forked.title?.trim() || "";
+      let listed = false;
+      if (baseTitle) {
+        try {
+          const suffix = t("messages.forkTitle", { title: "" });
+          const title = `${Array.from(baseTitle)
+            .slice(0, Math.max(0, 255 - Array.from(suffix).length))
+            .join("")}${suffix}`;
+          listed = Boolean(await renameByPublicID(forked.publicID, title));
+        } catch {
+          listed = false;
+        }
+      }
+      if (!listed) {
+        upsertConversation(forked);
+      }
+      router.push(`/chat?conversation_id=${forked.publicID}`);
+    },
+    [renameByPublicID, router, t, upsertConversation],
   );
 
   const {
@@ -607,6 +631,7 @@ export function AppChatArea() {
     onEditAssistantMessage,
     onEditUserMessage,
     onContinueAssistantMessage,
+    onForkMessage,
     onRetryAssistantMessage,
     onRetryUserMessage,
     onSendMessage,
@@ -638,6 +663,7 @@ export function AppChatArea() {
     autoGenerateLabels,
     prependNewConversation: prependNewConversationInContext,
     onConversationCreated: setLocallyCreatedConversationID,
+    onConversationForked: handleConversationForked,
     touchByPublicID,
     reload,
     replaceMessage,
@@ -1244,6 +1270,7 @@ export function AppChatArea() {
                   onContinueAssistantMessage={onContinueAssistantMessage}
                   onEditAssistantMessage={onEditAssistantMessage}
                   onEditUserMessage={onEditUserMessage}
+                  onForkMessage={onForkMessage}
                   modelOptions={modelOptions}
                   selectedPlatformModelName={selectedPlatformModelName}
                   onModelChange={setSelectedPlatformModelName}

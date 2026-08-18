@@ -7492,6 +7492,27 @@ export namespace Conversations {
   }
 
   /**
+   * @description 将会话从开头到指定消息（含）的祖先链复制为一个新会话；不携带原会话的运行记录与计费，附件以引用方式复用
+   * @tags chat
+   * @name MessagesForkCreate
+   * @summary 从指定消息 fork 新会话
+   * @request POST:/conversations/{id}/messages/{message_id}/fork
+   * @secure
+   */
+  export namespace MessagesForkCreate {
+    export type RequestParams = {
+      /** 会话 public_id */
+      id: string;
+      /** 消息 public_id */
+      messageId: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = ConversationUpdateResponseDoc;
+  }
+
+  /**
    * @description 设置当前用户单个会话的项目归属
    * @tags chat
    * @name ProjectPartialUpdate

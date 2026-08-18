@@ -105,6 +105,7 @@ export function useChatRuntime({
   autoGenerateLabels,
   prependNewConversation,
   onConversationCreated,
+  onConversationForked,
   touchByPublicID,
   reload,
   replaceMessage,
@@ -134,6 +135,7 @@ export function useChatRuntime({
   autoGenerateLabels: boolean;
   prependNewConversation: (platformModelName: string) => Promise<ConversationDTO | null | undefined>;
   onConversationCreated?: (conversationPublicID: string) => void;
+  onConversationForked?: (conversation: ConversationDTO) => Promise<void> | void;
   touchByPublicID: (publicID: string, patch?: Partial<ConversationDTO>) => void;
   reload: () => void;
   replaceMessage: (message: MessageDTO) => void;
@@ -199,6 +201,7 @@ export function useChatRuntime({
     autoGenerateLabels,
     prependNewConversation,
     onConversationCreated,
+    onConversationForked,
     touchByPublicID,
     reload,
     replaceMessage,
@@ -245,6 +248,7 @@ export function useChatRuntime({
     onCycleMessageBranch: submitState.onCycleMessageBranch,
     onEditAssistantMessage: submitState.onEditAssistantMessage,
     onEditUserMessage: submitState.onEditUserMessage,
+    onForkMessage: submitState.onForkMessage,
     onContinueAssistantMessage: submitState.onContinueAssistantMessage,
     onRetryAssistantMessage: submitState.onRetryAssistantMessage,
     onRetryUserMessage: submitState.onRetryUserMessage,
