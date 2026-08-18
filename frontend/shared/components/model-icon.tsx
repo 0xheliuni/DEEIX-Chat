@@ -79,9 +79,10 @@ export function ModelIcon({
   fallbackClassName?: string;
 }) {
   const dimension = `${size}px`;
-  const [runtimeApiBaseURL, setRuntimeApiBaseURL] = useState("");
-  const resolvedIconURL = iconUrl?.startsWith(MODEL_ICON_API_PREFIX) && runtimeApiBaseURL
-    ? `${runtimeApiBaseURL}${iconUrl}`
+  const managedIconNeedsRuntimeBaseURL = iconUrl?.startsWith(MODEL_ICON_API_PREFIX) ?? false;
+  const [runtimeApiBaseURL, setRuntimeApiBaseURL] = useState<string | null>(null);
+  const resolvedIconURL = managedIconNeedsRuntimeBaseURL
+    ? runtimeApiBaseURL === null ? null : `${runtimeApiBaseURL}${iconUrl}`
     : iconUrl;
   const symbolHref = resolvedIconURL ? resolveLobeHubSymbolHref(resolvedIconURL) : null;
   const [spriteLoaded, setSpriteLoaded] = useState(spriteReady);
@@ -90,12 +91,12 @@ export function ModelIcon({
   const shouldRenderSymbol = Boolean(symbolHref && (spriteReady || spriteLoaded));
 
   useEffect(() => {
-    if (iconUrl?.startsWith(MODEL_ICON_API_PREFIX)) {
+    if (managedIconNeedsRuntimeBaseURL) {
       setRuntimeApiBaseURL(resolveApiBaseURL());
     } else {
-      setRuntimeApiBaseURL("");
+      setRuntimeApiBaseURL(null);
     }
-  }, [iconUrl]);
+  }, [managedIconNeedsRuntimeBaseURL]);
 
   useEffect(() => {
     if (!symbolHref || spriteReady) {
@@ -114,7 +115,7 @@ export function ModelIcon({
 
   return (
     <span className={cn("inline-flex shrink-0 items-center justify-center", className)} style={{ width: dimension, height: dimension }}>
-      {symbolHref && shouldRenderSymbol ? (
+      {managedIconNeedsRuntimeBaseURL && runtimeApiBaseURL === null ? null : symbolHref && shouldRenderSymbol ? (
         <svg aria-hidden="true" className="block size-full dark:invert" focusable="false">
           <use href={symbolHref} />
         </svg>

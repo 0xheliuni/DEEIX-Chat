@@ -20,7 +20,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func TestGetModelIconAssetUsesMetadataForConditionalRequest(t *testing.T) {
+func TestGetModelIconAssetValidatesObjectBeforeConditionalResponse(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	data := []byte("validated image content")
 	digest := sha256.Sum256(data)
@@ -53,8 +53,8 @@ func TestGetModelIconAssetUsesMetadataForConditionalRequest(t *testing.T) {
 	if conditional.Code != http.StatusNotModified {
 		t.Fatalf("conditional status = %d, want 304", conditional.Code)
 	}
-	if provider.opens != 0 {
-		t.Fatalf("conditional request opened object store %d times", provider.opens)
+	if provider.opens != 1 {
+		t.Fatalf("conditional request opened object store %d times, want 1", provider.opens)
 	}
 	if conditional.Header().Get("ETag") != etag || conditional.Header().Get("Cache-Control") == "" {
 		t.Fatalf("conditional cache headers = %#v", conditional.Header())
@@ -65,14 +65,46 @@ func TestGetModelIconAssetUsesMetadataForConditionalRequest(t *testing.T) {
 	if response.Code != http.StatusOK || !bytes.Equal(response.Body.Bytes(), data) {
 		t.Fatalf("content response status=%d body=%q", response.Code, response.Body.Bytes())
 	}
-	if provider.opens != 1 {
-		t.Fatalf("content request opened object store %d times, want 1", provider.opens)
+	if provider.opens != 2 {
+		t.Fatalf("content request opened object store %d times, want 2", provider.opens)
 	}
 	if response.Header().Get("ETag") != etag ||
 		response.Header().Get("Cache-Control") != "public, max-age=31536000, immutable" ||
 		response.Header().Get("X-Content-Type-Options") != "nosniff" ||
 		response.Header().Get("Cross-Origin-Resource-Policy") != "cross-origin" {
 		t.Fatalf("content cache/security headers = %#v", response.Header())
+	}
+}
+
+func TestGetModelIconAssetDoesNotReturnNotModifiedWhenObjectIsMissing(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	data := []byte("missing image content")
+	digest := sha256.Sum256(data)
+	hash := hex.EncodeToString(digest[:])
+	readyAt := time.Now()
+	item := domainchannel.ModelIconAsset{
+		ID: 2, PublicID: "ico_00000000000000000000000000000002", SHA256: hash,
+		StoragePath: "model-icons/" + hash[:2] + "/" + hash + ".png", ContentType: "image/png", SizeBytes: int64(len(data)),
+		ReadyAt: &readyAt, LeaseExpiresAt: time.Now().Add(time.Hour),
+	}
+	provider := &countingModelIconStoreProvider{store: objectstore.NewLocal(t.TempDir())}
+	service := appchannel.NewService(config.Config{}, nil, nil, nil, nil)
+	service.SetModelIconAssetRepository(handlerModelIconAssetRepo{item: item})
+	service.SetObjectStoreProvider(provider)
+	handler := NewHandler(service)
+	router := gin.New()
+	router.GET("/api/v1/llm/icon-assets/:public_id", handler.GetModelIconAsset)
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/llm/icon-assets/"+item.PublicID, nil)
+	request.Header.Set("If-None-Match", `"`+hash+`"`)
+	responseRecorder := httptest.NewRecorder()
+	router.ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusNotFound {
+		t.Fatalf("missing object status = %d, want 404; body=%s", responseRecorder.Code, responseRecorder.Body.String())
+	}
+	if provider.opens != 1 {
+		t.Fatalf("missing object request opened object store %d times, want 1", provider.opens)
 	}
 }
 

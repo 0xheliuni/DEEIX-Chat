@@ -140,13 +140,6 @@ func (h *Handler) GetModelIconAsset(c *gin.Context) {
 		return
 	}
 
-	etag := fmt.Sprintf("\"%s\"", info.SHA256)
-	if c.GetHeader("If-None-Match") == etag {
-		c.Header("Cache-Control", "public, max-age=31536000, immutable")
-		c.Header("ETag", etag)
-		c.Status(http.StatusNotModified)
-		return
-	}
 	item, err := h.service.OpenModelIconAsset(c.Request.Context(), *info)
 	if err != nil {
 		if errors.Is(err, appchannel.ErrModelIconAssetNotFound) {
@@ -157,6 +150,14 @@ func (h *Handler) GetModelIconAsset(c *gin.Context) {
 		return
 	}
 	defer item.Reader.Close()
+
+	etag := fmt.Sprintf("\"%s\"", info.SHA256)
+	if c.GetHeader("If-None-Match") == etag {
+		c.Header("Cache-Control", "public, max-age=31536000, immutable")
+		c.Header("ETag", etag)
+		c.Status(http.StatusNotModified)
+		return
+	}
 
 	c.Header("Content-Type", item.ContentType)
 	c.Header("Content-Disposition", "inline")
