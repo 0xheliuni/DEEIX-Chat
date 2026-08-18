@@ -271,6 +271,27 @@ func TestValidateBillingDisplayCurrencySetting(t *testing.T) {
 	}
 }
 
+func TestValidateEPayGatewaySetting(t *testing.T) {
+	for _, gateway := range []string{
+		"https://pay.example.com",
+		"https://pay.example.com/epay/",
+		"https://pay.example.com/epay",
+		"https://pay.example.com/epay/submit.php",
+	} {
+		if err := validatePatchItem(PatchItem{Namespace: "billing", Key: "epay_gateway_url", Value: gateway}); err != nil {
+			t.Fatalf("expected %q to pass, got %v", gateway, err)
+		}
+	}
+	for _, gateway := range []string{
+		"https://user:secret@pay.example.com/",
+		"https://pay.example.com/?token=secret",
+	} {
+		if err := validatePatchItem(PatchItem{Namespace: "billing", Key: "epay_gateway_url", Value: gateway}); err == nil {
+			t.Fatalf("expected %q to fail", gateway)
+		}
+	}
+}
+
 func TestValidateMCPSelectedToolsSetting(t *testing.T) {
 	if err := validatePatchItem(PatchItem{Namespace: "mcp", Key: "mcp_max_selected_tools_per_message", Value: "32"}); err != nil {
 		t.Fatalf("expected selected tool limit to pass, got %v", err)

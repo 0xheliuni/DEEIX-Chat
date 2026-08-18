@@ -145,6 +145,16 @@ https://api.example.com/api/v1/billing/payments/stripe/webhook
 
 在 Stripe Dashboard 中监听 `checkout.session.completed`，并把生成的 `whsec_...` 填入后台「计费 / 支付配置 / Stripe Webhook Secret」。
 
+易支付当前采用 `submit.php` 页面跳转 + MD5 签名协议。后台「页面跳转网关」可填写易支付站点地址或完整的 `submit.php` 地址，例如：
+
+```text
+https://pay.example.com
+https://pay.example.com/epay/
+https://pay.example.com/epay/submit.php
+```
+
+系统会为站点地址自动追加 `/submit.php`，并兼容既有的子目录站点配置。要求直接提交商户密钥的私有支付 API 不属于该协议；商户密钥只用于服务端签名，不会加入支付跳转 URL。
+
 ## 本地启动
 
 先确保 PostgreSQL 和 Redis 可用。若本机已有依赖，可以只启动默认应用容器；若需要完整本地栈，使用 `docker-compose.full.yml`：

@@ -247,6 +247,7 @@
   },
   "payment": {
     "checkoutFailed": "创建支付订单失败。",
+    "epayGatewayInvalid": "易支付页面跳转网关地址无效。",
     "epayTypeUnsupported": "该易支付类型不受支持。",
     "invalidEvent": "支付事件无效。",
     "invalidSignature": "支付签名无效。",
