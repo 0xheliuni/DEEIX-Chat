@@ -116,6 +116,7 @@ export function useChatRuntime({
   activeGenerationRunsRevision,
   onActiveGenerationRunsChange,
   resumingRunID = "",
+  resumingActivityLabel = "",
 }: {
   conversationID: string | null;
   resetToken: number;
@@ -146,6 +147,7 @@ export function useChatRuntime({
   activeGenerationRunsRevision: number;
   onActiveGenerationRunsChange?: () => void;
   resumingRunID?: string;
+  resumingActivityLabel?: string;
 }) {
   const [showConversationLayout, setShowConversationLayout] = React.useState(false);
   const previousResetTokenRef = React.useRef(resetToken);
@@ -159,6 +161,11 @@ export function useChatRuntime({
     const normalized = resumingRunID.trim();
     return normalized ? new Set([normalized]) : undefined;
   }, [resumingRunID]);
+  const liveActivityLabels = React.useMemo(() => {
+    const runID = resumingRunID.trim();
+    const label = resumingActivityLabel.trim();
+    return runID && label ? new Map([[runID, label]]) : undefined;
+  }, [resumingActivityLabel, resumingRunID]);
 
   const branchState = useChatBranchState({
     conversationID,
@@ -166,6 +173,7 @@ export function useChatRuntime({
     resetToken,
     messages,
     pendingExchanges,
+    liveActivityLabels,
     liveRunIDs: liveServerRunIDs,
   });
   const visibleResumeGenerationActive = React.useMemo(() => {

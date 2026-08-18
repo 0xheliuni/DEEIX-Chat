@@ -392,7 +392,7 @@
     "copyFailed": "Copy failed"
   },
   "moderation": {
-    "searchPlaceholder": "Search event ID, user, result, run ID…",
+    "searchPlaceholder": "Search exact event ID, user, result, or run ID…",
     "empty": "No moderation events yet.",
     "loadFailed": "Could not load moderation events",
     "viewDetail": "View detail",
@@ -413,6 +413,10 @@
     "directions": {
       "input": "Input",
       "output": "Output"
+    },
+    "modalities": {
+      "text": "Text",
+      "image": "Image"
     },
     "columns": {
       "eventId": "Event ID",

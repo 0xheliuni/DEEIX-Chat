@@ -4415,6 +4415,8 @@ export namespace Admin {
       page?: number;
       /** Page size */
       pageSize?: number;
+      /** Exact event, user, run, model, result, or summary search */
+      query?: string;
       /** Result filter */
       result?: string;
       /** Run ID */

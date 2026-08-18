@@ -1449,6 +1449,12 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
+                        "description": "Exact event, user, run, model, result, or summary search",
+                        "name": "query",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
                         "description": "Result filter",
                         "name": "result",
                         "in": "query"
