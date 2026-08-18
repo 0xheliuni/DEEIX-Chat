@@ -189,10 +189,11 @@ func (scope HistoricalMessageScope) Valid() bool {
 
 // MessageChunkSearchInput 描述当前分支内的历史消息语义检索。
 type MessageChunkSearchInput struct {
-	Scope          HistoricalMessageScope
-	QueryEmbedding []float32
-	TopK           int
-	MinSimilarity  float64
+	Scope              HistoricalMessageScope
+	QueryEmbedding     []float32
+	EmbeddingSignature string
+	TopK               int
+	MinSimilarity      float64
 }
 
 // CompactRepository 封装上下文压缩快照能力。
