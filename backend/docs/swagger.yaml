@@ -14628,6 +14628,10 @@ paths:
         in: query
         name: after
         type: integer
+      - description: 是否返回可替换当前正文的权威文本快照
+        in: query
+        name: snapshot
+        type: boolean
       produces:
       - application/x-ndjson
       responses:

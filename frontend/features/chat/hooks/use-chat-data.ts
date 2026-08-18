@@ -26,50 +26,6 @@ type ActiveResumeStream = {
   accessToken: string | null;
 };
 
-type ResumeTextReplayState = {
-  baseContent: string;
-  replayedContent: string;
-  visibleContent: string;
-};
-
-function appendResumedTextDelta(state: ResumeTextReplayState, delta: string): string {
-  if (!delta) {
-    return state.visibleContent;
-  }
-
-  state.replayedContent += delta;
-  const { baseContent, replayedContent } = state;
-  if (!baseContent) {
-    state.visibleContent = replayedContent;
-    return state.visibleContent;
-  }
-
-  if (
-    replayedContent === baseContent ||
-    baseContent.startsWith(replayedContent) ||
-    baseContent.includes(replayedContent)
-  ) {
-    state.visibleContent = baseContent;
-    return state.visibleContent;
-  }
-
-  if (replayedContent.startsWith(baseContent)) {
-    state.visibleContent = replayedContent;
-    return state.visibleContent;
-  }
-
-  const maxOverlapLength = Math.min(baseContent.length, replayedContent.length);
-  for (let length = maxOverlapLength; length > 0; length -= 1) {
-    if (baseContent.endsWith(replayedContent.slice(0, length))) {
-      state.visibleContent = `${baseContent}${replayedContent.slice(length)}`;
-      return state.visibleContent;
-    }
-  }
-
-  state.visibleContent = `${state.visibleContent}${delta}`;
-  return state.visibleContent;
-}
-
 export function useChatData(
   conversationID: string | null,
   {
@@ -98,7 +54,7 @@ export function useChatData(
   const previousConversationIDRef = React.useRef<string | null>(conversationID);
   const resumeSeqByRunRef = React.useRef<Record<string, number>>({});
   const pendingAssistantContentRef = React.useRef("");
-  const resumeTextReplayByRunRef = React.useRef<Record<string, ResumeTextReplayState>>({});
+  const resumedTextByRunRef = React.useRef<Record<string, string>>({});
   const activeResumeStreamRef = React.useRef<ActiveResumeStream | null>(null);
   // 恢复游标只在对应的可见内容仍被保留时有效，两者必须同步清理。
   const clearResumeCheckpoint = React.useCallback((runID: string) => {
@@ -107,7 +63,7 @@ export function useChatData(
       return;
     }
     delete resumeSeqByRunRef.current[normalizedRunID];
-    delete resumeTextReplayByRunRef.current[normalizedRunID];
+    delete resumedTextByRunRef.current[normalizedRunID];
   }, []);
 
   React.useEffect(() => {
@@ -346,19 +302,15 @@ export function useChatData(
     let closed = false;
     const afterSeq = resumeSeqByRunRef.current[pendingRunID] ?? 0;
     const baseContent = pendingAssistantContentRef.current;
-    const resumeTextReplayByRun = resumeTextReplayByRunRef.current;
-    const clearResumeTextReplay = () => {
-      delete resumeTextReplayByRun[pendingRunID];
+    const resumedTextByRun = resumedTextByRunRef.current;
+    const clearResumedText = () => {
+      delete resumedTextByRun[pendingRunID];
     };
     const isResumeInactive = () => closed || controller.signal.aborted;
     const updateResumeState = (update: (current: ChatDataState) => ChatDataState) => {
       setState((current) => isResumeInactive() ? current : update(current));
     };
-    resumeTextReplayByRun[pendingRunID] = {
-      baseContent,
-      replayedContent: afterSeq > 0 ? baseContent : "",
-      visibleContent: baseContent,
-    };
+    resumedTextByRun[pendingRunID] = baseContent;
     activeResumeStreamRef.current = {
       controller,
       runID: pendingRunID,
@@ -413,7 +365,7 @@ export function useChatData(
             if (isResumeInactive()) {
               return;
             }
-            clearResumeTextReplay();
+            clearResumedText();
             const previewMarkdown = buildMediaImagePreviewMarkdown(event, tSubmit("imagePreviewAlt"));
             if (!previewMarkdown) {
               return;
@@ -428,21 +380,28 @@ export function useChatData(
               ),
             }));
           },
+          onTextSnapshot: (content) => {
+            if (isResumeInactive()) {
+              return;
+            }
+            setResumingActivityLabel("");
+            resumedTextByRun[pendingRunID] = content;
+            updateResumeState((prev) => ({
+              ...prev,
+              messages: prev.messages.map((message) =>
+                message.runID === pendingRunID && message.role === "assistant" && message.status === "pending"
+                  ? { ...message, content, contentType: "text" }
+                  : message,
+              ),
+            }));
+          },
           onDelta: (delta) => {
             if (isResumeInactive()) {
               return;
             }
             setResumingActivityLabel("");
-            let replayState = resumeTextReplayByRun[pendingRunID];
-            if (!replayState) {
-              replayState = {
-                baseContent: "",
-                replayedContent: "",
-                visibleContent: "",
-              };
-              resumeTextReplayByRun[pendingRunID] = replayState;
-            }
-            const nextContent = appendResumedTextDelta(replayState, delta);
+            const nextContent = `${resumedTextByRun[pendingRunID] ?? ""}${delta}`;
+            resumedTextByRun[pendingRunID] = nextContent;
             updateResumeState((prev) => ({
               ...prev,
               messages: prev.messages.map((message) =>
@@ -497,7 +456,7 @@ export function useChatData(
             if (isResumeInactive()) {
               return;
             }
-            clearResumeTextReplay();
+            clearResumedText();
             setResumingActivityLabel("");
             const categories = Array.isArray(event.categories) ? event.categories : [];
             updateResumeState((prev) => ({
