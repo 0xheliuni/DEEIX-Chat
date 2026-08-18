@@ -54,6 +54,17 @@ func upstreamConfigErrorMessage(err error) string {
 	}
 }
 
+func modelIconErrorMessage(err error) string {
+	switch {
+	case errors.Is(err, appchannel.ErrInvalidModelIconReference):
+		return "invalid model icon"
+	case errors.Is(err, appchannel.ErrModelIconAssetNotFound):
+		return "model icon asset not found"
+	default:
+		return ""
+	}
+}
+
 // ---------------------------------------------------------------------------
 // 用户侧模型目录
 // ---------------------------------------------------------------------------
@@ -1004,6 +1015,8 @@ func (h *Handler) CreateModel(c *gin.Context) {
 			response.Error(c, http.StatusBadRequest, "model vendor not found")
 		case errors.Is(err, appchannel.ErrModelDisplayGroupNotFound):
 			response.Error(c, http.StatusBadRequest, "model display group not found")
+		case modelIconErrorMessage(err) != "":
+			response.Error(c, http.StatusBadRequest, modelIconErrorMessage(err))
 		default:
 			response.Error(c, http.StatusInternalServerError, "create model failed")
 		}
@@ -1075,6 +1088,8 @@ func (h *Handler) UpdateModel(c *gin.Context) {
 			response.Error(c, http.StatusBadRequest, "model vendor not found")
 		case errors.Is(err, appchannel.ErrModelDisplayGroupNotFound):
 			response.Error(c, http.StatusBadRequest, "model display group not found")
+		case modelIconErrorMessage(err) != "":
+			response.Error(c, http.StatusBadRequest, modelIconErrorMessage(err))
 		default:
 			response.Error(c, http.StatusInternalServerError, "update model failed")
 		}

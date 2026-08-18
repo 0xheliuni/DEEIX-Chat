@@ -13,6 +13,8 @@ import type {
   ModelDataResponse,
   ModelDisplayGroupDataResponse,
   ModelDisplayGroupResponse,
+  ModelIconAssetResponse,
+  ModelIconAssetListItemResponse,
   ModelProbeBatchResponse,
   ModelProbeDebugRequestResponse,
   ModelProbeDebugResponse,
@@ -38,6 +40,7 @@ import type {
   UpstreamRemoteModelsResponse,
   UpstreamResponse,
   ModelVendorDataResponse,
+  ModelVendorDeleteConflictDetails,
   ModelVendorResponse,
 } from "@deeix/api-contract";
 
@@ -178,7 +181,10 @@ export type AdminLLMSetting = {
 };
 
 export type AdminLLMModelVendorDTO = ModelVendorResponse;
+export type AdminLLMModelVendorDeleteConflictDetails = ModelVendorDeleteConflictDetails;
 export type AdminLLMModelDisplayGroupDTO = ModelDisplayGroupResponse;
+export type AdminLLMModelIconAsset = ModelIconAssetResponse;
+export type AdminLLMModelIconAssetListItem = ModelIconAssetListItemResponse;
 
 // ---------------------------------------------------------------------------
 // Request types

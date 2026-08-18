@@ -1892,6 +1892,150 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/llm/icon-assets": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "分页查询仍在图标库中的已上传图标，按上传时间倒序返回",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "llm"
+                ],
+                "summary": "管理员查询已上传的模型展示图标",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页数量",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ModelIconAssetListResponseDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "上传 PNG、JPEG 或 WebP 图标；后端校验内容、尺寸并按 SHA-256 去重",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "llm"
+                ],
+                "summary": "管理员上传模型展示图标",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "图标文件，最大 1 MiB",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ModelIconAssetResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/llm/icon-assets/{public_id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "仅允许移除无引用图标；立即从图标库隐藏，持续 24 小时无引用后物理清理",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "llm"
+                ],
+                "summary": "管理员从图标库移除已上传图标",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "图标公开 ID",
+                        "name": "public_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/SuccessDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/ModelIconAssetDeleteConflictDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/llm/model-display-groups": {
             "get": {
                 "security": [
@@ -2200,6 +2344,56 @@ const docTemplate = `{
             }
         },
         "/admin/llm/model-vendors/{key}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "仅允许删除未被平台模型引用的非内置厂商；冲突响应包含关联模型预览",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "llm"
+                ],
+                "summary": "管理员删除自定义模型技术厂商",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "技术厂商 key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/SuccessDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/ModelVendorDeleteConflictDoc"
+                        }
+                    }
+                }
+            },
             "patch": {
                 "security": [
                     {
@@ -10715,6 +10909,43 @@ const docTemplate = `{
                 }
             }
         },
+        "/llm/icon-assets/{public_id}": {
+            "get": {
+                "description": "公开读取经过后端校验的不可变模型展示图标",
+                "produces": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp"
+                ],
+                "tags": [
+                    "llm"
+                ],
+                "summary": "读取模型展示图标",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "图标公开 ID",
+                        "name": "public_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/mcp/tools": {
             "get": {
                 "security": [
@@ -16081,7 +16312,7 @@ const docTemplate = `{
                 },
                 "icon": {
                     "type": "string",
-                    "maxLength": 128
+                    "maxLength": 2048
                 },
                 "kindsJSON": {
                     "type": "string",
@@ -18229,6 +18460,172 @@ const docTemplate = `{
                 }
             }
         },
+        "ModelIconAssetDeleteConflictDetails": {
+            "type": "object",
+            "required": [
+                "conversationRuns",
+                "displayGroups",
+                "models",
+                "referenceCount",
+                "vendors"
+            ],
+            "properties": {
+                "conversationRuns": {
+                    "type": "integer"
+                },
+                "displayGroups": {
+                    "type": "integer"
+                },
+                "models": {
+                    "type": "integer"
+                },
+                "referenceCount": {
+                    "type": "integer"
+                },
+                "vendors": {
+                    "type": "integer"
+                }
+            }
+        },
+        "ModelIconAssetDeleteConflictDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "details",
+                "errorCode",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {},
+                "details": {
+                    "$ref": "#/definitions/ModelIconAssetDeleteConflictDetails"
+                },
+                "errorCode": {
+                    "type": "string"
+                },
+                "errorMsg": {
+                    "type": "string"
+                },
+                "requestId": {
+                    "type": "string"
+                }
+            }
+        },
+        "ModelIconAssetListItemResponse": {
+            "type": "object",
+            "required": [
+                "contentType",
+                "createdAt",
+                "height",
+                "publicID",
+                "ref",
+                "sizeBytes",
+                "width"
+            ],
+            "properties": {
+                "contentType": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "height": {
+                    "type": "integer"
+                },
+                "publicID": {
+                    "type": "string"
+                },
+                "ref": {
+                    "type": "string"
+                },
+                "sizeBytes": {
+                    "type": "integer"
+                },
+                "width": {
+                    "type": "integer"
+                }
+            }
+        },
+        "ModelIconAssetListResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "required": [
+                        "results",
+                        "total"
+                    ],
+                    "properties": {
+                        "results": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/ModelIconAssetListItemResponse"
+                            }
+                        },
+                        "total": {
+                            "type": "integer"
+                        }
+                    }
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ModelIconAssetResponse": {
+            "type": "object",
+            "required": [
+                "contentType",
+                "height",
+                "publicID",
+                "ref",
+                "reused",
+                "sizeBytes",
+                "width"
+            ],
+            "properties": {
+                "contentType": {
+                    "type": "string"
+                },
+                "height": {
+                    "type": "integer"
+                },
+                "publicID": {
+                    "type": "string"
+                },
+                "ref": {
+                    "type": "string"
+                },
+                "reused": {
+                    "type": "boolean"
+                },
+                "sizeBytes": {
+                    "type": "integer"
+                },
+                "width": {
+                    "type": "integer"
+                }
+            }
+        },
+        "ModelIconAssetResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ModelIconAssetResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
         "ModelListResponseDoc": {
             "type": "object",
             "required": [
@@ -18939,6 +19336,56 @@ const docTemplate = `{
                 }
             }
         },
+        "ModelVendorDeleteConflictDetails": {
+            "type": "object",
+            "required": [
+                "models",
+                "reason",
+                "referenceCount"
+            ],
+            "properties": {
+                "models": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ModelVendorReferenceResponse"
+                    }
+                },
+                "reason": {
+                    "type": "string",
+                    "enum": [
+                        "built_in",
+                        "referenced_models"
+                    ]
+                },
+                "referenceCount": {
+                    "type": "integer"
+                }
+            }
+        },
+        "ModelVendorDeleteConflictDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "details",
+                "errorCode",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {},
+                "details": {
+                    "$ref": "#/definitions/ModelVendorDeleteConflictDetails"
+                },
+                "errorCode": {
+                    "type": "string"
+                },
+                "errorMsg": {
+                    "type": "string"
+                },
+                "requestId": {
+                    "type": "string"
+                }
+            }
+        },
         "ModelVendorListResponseDoc": {
             "type": "object",
             "required": [
@@ -18965,6 +19412,21 @@ const docTemplate = `{
                     }
                 },
                 "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ModelVendorReferenceResponse": {
+            "type": "object",
+            "required": [
+                "id",
+                "platformModelName"
+            ],
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "platformModelName": {
                     "type": "string"
                 }
             }
@@ -22506,7 +22968,7 @@ const docTemplate = `{
                 },
                 "icon": {
                     "type": "string",
-                    "maxLength": 128
+                    "maxLength": 2048
                 },
                 "kindsJSON": {
                     "type": "string",

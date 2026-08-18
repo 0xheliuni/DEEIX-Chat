@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 )
@@ -164,6 +165,34 @@ type ListModelDisplayGroupsInput struct {
 type UpdateModelVendorInput struct {
 	Name *string
 	Icon *string
+}
+
+const (
+	// ModelVendorDeleteReasonBuiltIn 表示内置厂商受系统保护。
+	ModelVendorDeleteReasonBuiltIn = "built_in"
+	// ModelVendorDeleteReasonReferencedModels 表示仍有平台模型引用该厂商。
+	ModelVendorDeleteReasonReferencedModels = "referenced_models"
+)
+
+// ModelVendorReference 描述阻止删除厂商的平台模型引用。
+type ModelVendorReference struct {
+	ID                uint
+	PlatformModelName string
+}
+
+// ModelVendorDeleteBlockedError 携带厂商无法删除的稳定原因和有界引用预览。
+type ModelVendorDeleteBlockedError struct {
+	Reason         string
+	ReferenceCount int64
+	Models         []ModelVendorReference
+}
+
+func (e *ModelVendorDeleteBlockedError) Error() string {
+	return "model vendor delete blocked"
+}
+
+func (e *ModelVendorDeleteBlockedError) Unwrap() error {
+	return ErrConflict
 }
 
 // UpdateModelDisplayGroupInput 定义模型展示分组可修改字段。
@@ -361,6 +390,7 @@ func (input UpdateChannelModelInput) IsZero() bool {
 type ModelPresentationRepository interface {
 	CreateModelVendor(ctx context.Context, item *domainchannel.ModelVendor) error
 	UpdateModelVendor(ctx context.Context, key string, input UpdateModelVendorInput) error
+	DeleteModelVendor(ctx context.Context, key string) error
 	GetModelVendorByKey(ctx context.Context, key string) (*domainchannel.ModelVendor, error)
 	ListModelVendors(ctx context.Context, input ListModelVendorsInput) ([]domainchannel.ModelVendor, int64, error)
 	CreateModelDisplayGroup(ctx context.Context, item *domainchannel.ModelDisplayGroup, modelIDs []uint) error
@@ -369,6 +399,37 @@ type ModelPresentationRepository interface {
 	GetModelDisplayGroupByID(ctx context.Context, groupID uint) (*domainchannel.ModelDisplayGroup, error)
 	ListModelDisplayGroups(ctx context.Context, input ListModelDisplayGroupsInput) ([]domainchannel.ModelDisplayGroup, int64, error)
 	DeleteModelDisplayGroup(ctx context.Context, groupID uint) error
+}
+
+// ModelIconAssetReferenceSummary 汇总阻止图标资产删除的业务引用。
+type ModelIconAssetReferenceSummary struct {
+	Models           int64
+	Vendors          int64
+	DisplayGroups    int64
+	ConversationRuns int64
+}
+
+// Total 返回所有引用位置的总数。
+func (s ModelIconAssetReferenceSummary) Total() int64 {
+	return s.Models + s.Vendors + s.DisplayGroups + s.ConversationRuns
+}
+
+// ModelIconAssetRepository 定义管理员自定义模型图标的持久化能力。
+type ModelIconAssetRepository interface {
+	CreateModelIconAsset(ctx context.Context, item *domainchannel.ModelIconAsset) error
+	GetModelIconAssetByPublicID(ctx context.Context, publicID string) (*domainchannel.ModelIconAsset, error)
+	GetModelIconAssetBySHA256(ctx context.Context, sha256 string) (*domainchannel.ModelIconAsset, error)
+	ListModelIconAssets(ctx context.Context, offset int, limit int) ([]domainchannel.ModelIconAsset, int64, error)
+	RefreshModelIconAssetUploadLease(ctx context.Context, publicID string, unreferencedAt time.Time, leaseExpiresAt time.Time) error
+	MarkModelIconAssetReady(ctx context.Context, publicID string, readyAt time.Time) error
+	ReserveModelIconAssetReference(ctx context.Context, publicID string, leaseExpiresAt time.Time) error
+	ListExpiredModelIconAssets(ctx context.Context, expiredBefore time.Time, limit int) ([]domainchannel.ModelIconAsset, error)
+	HasModelIconAssetReference(ctx context.Context, ref string) (bool, error)
+	GetModelIconAssetReferenceSummary(ctx context.Context, ref string) (ModelIconAssetReferenceSummary, error)
+	MarkModelIconAssetUnreferenced(ctx context.Context, assetID uint, expiredBefore time.Time, unreferencedAt time.Time, leaseExpiresAt time.Time) (bool, error)
+	RequestModelIconAssetDeletion(ctx context.Context, assetID uint, requestedAt time.Time, leaseExpiresAt time.Time) error
+	ClaimModelIconAssetDeletion(ctx context.Context, assetID uint, expiredBefore time.Time, deletingAt time.Time) (bool, error)
+	DeleteClaimedModelIconAsset(ctx context.Context, assetID uint) error
 }
 
 // ChannelRepository 定义渠道管理依赖的仓储能力。

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -120,6 +121,9 @@ func TestWithinTransactionSQLiteRollsBackAllChannelWrites(t *testing.T) {
 	db := openChannelSQLiteTestDB(t)
 	ctx := context.Background()
 	repo := NewRepo(db)
+	if err := db.Create(&model.LLMModelVendor{Key: "openai", Name: "OpenAI", BuiltIn: true}).Error; err != nil {
+		t.Fatalf("create model vendor: %v", err)
+	}
 
 	err := repo.WithinTransaction(ctx, func(txRepo repository.ChannelRepository) error {
 		item := &domainchannel.PlatformModel{
@@ -330,6 +334,59 @@ func TestModelVendorSQLiteAllowsDuplicateDisplayNames(t *testing.T) {
 	}
 	if err := repo.CreateModelVendor(ctx, &second); err != nil {
 		t.Fatalf("create second vendor with same display name: %v", err)
+	}
+}
+
+func TestModelVendorSQLiteDeleteProtectsBuiltInsAndReferences(t *testing.T) {
+	db := openChannelSQLiteTestDB(t)
+	ctx := context.Background()
+	repo := NewRepo(db)
+
+	builtIn := model.LLMModelVendor{Key: "openai", Name: "OpenAI", BuiltIn: true}
+	custom := model.LLMModelVendor{Key: "acme", Name: "Acme"}
+	if err := db.Create(&[]model.LLMModelVendor{builtIn, custom}).Error; err != nil {
+		t.Fatalf("create model vendors: %v", err)
+	}
+	if err := repo.DeleteModelVendor(ctx, builtIn.Key); err == nil {
+		t.Fatal("expected built-in vendor delete to be blocked")
+	} else {
+		var blocked *repository.ModelVendorDeleteBlockedError
+		if !errors.As(err, &blocked) || blocked.Reason != repository.ModelVendorDeleteReasonBuiltIn {
+			t.Fatalf("unexpected built-in delete error: %v", err)
+		}
+	}
+
+	platformModels := []model.LLMPlatformModel{
+		{Name: "acme-chat", Vendor: custom.Key, Status: "active"},
+		{Name: "acme-image", Vendor: custom.Key, Status: "active"},
+	}
+	if err := db.Create(&platformModels).Error; err != nil {
+		t.Fatalf("create referenced models: %v", err)
+	}
+	if err := repo.DeleteModelVendor(ctx, custom.Key); err == nil {
+		t.Fatal("expected referenced vendor delete to be blocked")
+	} else {
+		var blocked *repository.ModelVendorDeleteBlockedError
+		if !errors.As(err, &blocked) || blocked.Reason != repository.ModelVendorDeleteReasonReferencedModels {
+			t.Fatalf("unexpected referenced vendor delete error: %v", err)
+		}
+		if blocked.ReferenceCount != 2 || len(blocked.Models) != 2 || blocked.Models[0].PlatformModelName != "acme-chat" {
+			t.Fatalf("unexpected reference details: %#v", blocked)
+		}
+	}
+
+	if err := db.Delete(&platformModels).Error; err != nil {
+		t.Fatalf("delete referenced models: %v", err)
+	}
+	if err := repo.DeleteModelVendor(ctx, custom.Key); err != nil {
+		t.Fatalf("delete unreferenced custom vendor: %v", err)
+	}
+	if _, err := repo.GetModelVendorByKey(ctx, custom.Key); !errors.Is(err, repository.ErrNotFound) {
+		t.Fatalf("expected custom vendor to be deleted, got %v", err)
+	}
+	orphan := domainchannel.PlatformModel{PlatformModelName: "orphan", Vendor: custom.Key, Status: "active"}
+	if err := repo.CreateModel(ctx, &orphan); !errors.Is(err, repository.ErrModelVendorNotFound) {
+		t.Fatalf("expected missing vendor to reject model creation, got %v", err)
 	}
 }
 
@@ -1621,6 +1678,86 @@ func TestListActiveRoutesByModelIncludesPlatformCircuitDefaults(t *testing.T) {
 	}
 }
 
+func TestModelIconAssetLeaseAndDeletionLifecycleSQLite(t *testing.T) {
+	db := openChannelSQLiteTestDB(t)
+	repo := NewRepo(db)
+	now := time.Now()
+	readyAt := now.Add(-48 * time.Hour)
+	expiredAt := now.Add(-time.Hour)
+	unreferencedAt := expiredAt.Add(-24 * time.Hour)
+	temporary := domainchannel.ModelIconAsset{
+		PublicID: "ico_00000000000000000000000000000001", SHA256: "a" + strings.Repeat("0", 63),
+		StoragePath: "model-icons/a.png", ContentType: "image/png", SizeBytes: 10, Width: 1, Height: 1,
+		CreatedByUserID: 1, ReadyAt: &readyAt, LeaseExpiresAt: expiredAt, UnreferencedAt: &unreferencedAt,
+	}
+	retained := domainchannel.ModelIconAsset{
+		PublicID: "ico_00000000000000000000000000000002", SHA256: "b" + strings.Repeat("0", 63),
+		StoragePath: "model-icons/b.png", ContentType: "image/png", SizeBytes: 10, Width: 1, Height: 1,
+		CreatedByUserID: 1, ReadyAt: &readyAt, LeaseExpiresAt: expiredAt, UnreferencedAt: &unreferencedAt,
+	}
+	if err := repo.CreateModelIconAsset(t.Context(), &temporary); err != nil {
+		t.Fatalf("create temporary icon: %v", err)
+	}
+	if err := repo.CreateModelIconAsset(t.Context(), &retained); err != nil {
+		t.Fatalf("create retained icon: %v", err)
+	}
+	if err := db.Create(&model.LLMPlatformModel{
+		Name: "referenced-model", Vendor: "openai", Icon: "asset:" + retained.PublicID, Status: "active",
+	}).Error; err != nil {
+		t.Fatalf("create icon reference: %v", err)
+	}
+
+	items, err := repo.ListExpiredModelIconAssets(t.Context(), now, 10)
+	if err != nil {
+		t.Fatalf("list expired icons: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("expired icons = %#v", items)
+	}
+	referenced, err := repo.HasModelIconAssetReference(t.Context(), "asset:"+retained.PublicID)
+	if err != nil || !referenced {
+		t.Fatalf("referenced icon lookup: referenced=%v error=%v", referenced, err)
+	}
+	if err = repo.ReserveModelIconAssetReference(t.Context(), retained.PublicID, now.Add(24*time.Hour)); err != nil {
+		t.Fatalf("renew referenced icon lease: %v", err)
+	}
+	claimed, err := repo.ClaimModelIconAssetDeletion(t.Context(), temporary.ID, now, now)
+	if err != nil || !claimed {
+		t.Fatalf("claim expired icon: claimed=%v error=%v", claimed, err)
+	}
+	if err = repo.ReserveModelIconAssetReference(t.Context(), temporary.PublicID, now.Add(24*time.Hour)); !errors.Is(err, repository.ErrNotFound) {
+		t.Fatalf("deleting icon reservation error = %v", err)
+	}
+	if err = repo.DeleteClaimedModelIconAsset(t.Context(), temporary.ID); err != nil {
+		t.Fatalf("delete claimed icon: %v", err)
+	}
+	claimed, err = repo.ClaimModelIconAssetDeletion(t.Context(), retained.ID, now, now)
+	if err != nil || claimed {
+		t.Fatalf("renewed icon deletion claim: claimed=%v error=%v", claimed, err)
+	}
+}
+
+func TestModelIconAssetReferenceIncludesLiveConversationSnapshotSQLite(t *testing.T) {
+	db := openChannelSQLiteTestDB(t)
+	repo := NewRepo(db)
+	ref := "asset:ico_00000000000000000000000000000009"
+	run := model.ConversationRun{RunID: "run_icon_reference", ModelIcon: ref}
+	if err := db.Create(&run).Error; err != nil {
+		t.Fatalf("create conversation icon snapshot: %v", err)
+	}
+	referenced, err := repo.HasModelIconAssetReference(t.Context(), ref)
+	if err != nil || !referenced {
+		t.Fatalf("live conversation reference: referenced=%v error=%v", referenced, err)
+	}
+	if err = db.Delete(&run).Error; err != nil {
+		t.Fatalf("delete conversation icon snapshot: %v", err)
+	}
+	referenced, err = repo.HasModelIconAssetReference(t.Context(), ref)
+	if err != nil || referenced {
+		t.Fatalf("deleted conversation reference: referenced=%v error=%v", referenced, err)
+	}
+}
+
 func openChannelSQLiteTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
@@ -1642,7 +1779,9 @@ func openChannelSQLiteTestDB(t *testing.T) *gorm.DB {
 		&model.LLMUpstreamModel{},
 		&model.LLMModelVendor{},
 		&model.LLMModelDisplayGroup{},
+		&model.LLMModelIconAsset{},
 		&model.LLMPlatformModel{},
+		&model.ConversationRun{},
 		&model.LLMPlatformModelRoute{},
 		&model.PermissionGroup{},
 		&model.PermissionGroupModelAccess{},

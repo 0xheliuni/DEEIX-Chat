@@ -24,6 +24,7 @@ func Models() []interface{} {
 		&model.LLMUpstreamModel{},
 		&model.LLMModelVendor{},
 		&model.LLMModelDisplayGroup{},
+		&model.LLMModelIconAsset{},
 		&model.LLMPlatformModel{},
 		&model.LLMPlatformModelRoute{},
 		&model.MCPServer{},

@@ -114,7 +114,7 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 		c.Header("Pragma", "no-cache")
 		c.JSON(http.StatusOK, buildinfo.Snapshot())
 	})
-	if modules.Auth != nil || modules.Settings != nil || modules.Billing != nil || modules.Conversation != nil || modules.User != nil {
+	if modules.Auth != nil || modules.Settings != nil || modules.Billing != nil || modules.Conversation != nil || modules.User != nil || modules.Channel != nil {
 		publicAuth := api.Group("")
 		publicAuth.Use(middleware.PublicAuthRateLimit(limiter, cfg))
 		if modules.Auth != nil {
@@ -122,6 +122,9 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 		}
 		if modules.User != nil {
 			modules.User.RegisterPublicRoutes(publicAuth)
+		}
+		if modules.Channel != nil {
+			modules.Channel.RegisterPublicRoutes(publicAuth)
 		}
 		if modules.Conversation != nil {
 			modules.Conversation.RegisterPublicRoutes(publicAuth)

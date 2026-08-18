@@ -51,7 +51,7 @@ type CreateModelRequest struct {
 	Vendor             string `json:"vendor,omitempty" binding:"omitempty,max=64"`
 	DisplayGroupID     uint   `json:"displayGroupID,omitempty"`
 	KindsJSON          string `json:"kindsJSON,omitempty" binding:"omitempty,max=1000"`
-	Icon               string `json:"icon,omitempty" binding:"max=128"`
+	Icon               string `json:"icon,omitempty" binding:"max=2048"`
 	CapabilitiesJSON   string `json:"capabilitiesJSON,omitempty" binding:"max=10000"`
 	SystemPrompt       string `json:"systemPrompt,omitempty" binding:"max=20000"`
 	AccessScope        string `json:"accessScope,omitempty" binding:"omitempty,oneof=public internal"`
@@ -69,7 +69,7 @@ type UpdateModelRequest struct {
 	Vendor             *string `json:"vendor,omitempty" binding:"omitempty,max=64"`
 	DisplayGroupID     *uint   `json:"displayGroupID,omitempty"`
 	KindsJSON          *string `json:"kindsJSON,omitempty" binding:"omitempty,max=1000"`
-	Icon               *string `json:"icon,omitempty" binding:"omitempty,max=128"`
+	Icon               *string `json:"icon,omitempty" binding:"omitempty,max=2048"`
 	CapabilitiesJSON   *string `json:"capabilitiesJSON,omitempty" binding:"omitempty,max=10000"`
 	SystemPrompt       *string `json:"systemPrompt,omitempty" binding:"omitempty,max=20000"`
 	AccessScope        *string `json:"accessScope,omitempty" binding:"omitempty,oneof=public internal"`

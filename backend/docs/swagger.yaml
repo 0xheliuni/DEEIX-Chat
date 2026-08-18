@@ -2647,7 +2647,7 @@ definitions:
       displayGroupID:
         type: integer
       icon:
-        maxLength: 128
+        maxLength: 2048
         type: string
       kindsJSON:
         maxLength: 1000
@@ -4152,6 +4152,122 @@ definitions:
     - sortOrder
     - updatedAt
     type: object
+  ModelIconAssetDeleteConflictDetails:
+    properties:
+      conversationRuns:
+        type: integer
+      displayGroups:
+        type: integer
+      models:
+        type: integer
+      referenceCount:
+        type: integer
+      vendors:
+        type: integer
+    required:
+    - conversationRuns
+    - displayGroups
+    - models
+    - referenceCount
+    - vendors
+    type: object
+  ModelIconAssetDeleteConflictDoc:
+    properties:
+      data: {}
+      details:
+        $ref: '#/definitions/ModelIconAssetDeleteConflictDetails'
+      errorCode:
+        type: string
+      errorMsg:
+        type: string
+      requestId:
+        type: string
+    required:
+    - data
+    - details
+    - errorCode
+    - errorMsg
+    type: object
+  ModelIconAssetListItemResponse:
+    properties:
+      contentType:
+        type: string
+      createdAt:
+        type: string
+      height:
+        type: integer
+      publicID:
+        type: string
+      ref:
+        type: string
+      sizeBytes:
+        type: integer
+      width:
+        type: integer
+    required:
+    - contentType
+    - createdAt
+    - height
+    - publicID
+    - ref
+    - sizeBytes
+    - width
+    type: object
+  ModelIconAssetListResponseDoc:
+    properties:
+      data:
+        properties:
+          results:
+            items:
+              $ref: '#/definitions/ModelIconAssetListItemResponse'
+            type: array
+          total:
+            type: integer
+        required:
+        - results
+        - total
+        type: object
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  ModelIconAssetResponse:
+    properties:
+      contentType:
+        type: string
+      height:
+        type: integer
+      publicID:
+        type: string
+      ref:
+        type: string
+      reused:
+        type: boolean
+      sizeBytes:
+        type: integer
+      width:
+        type: integer
+    required:
+    - contentType
+    - height
+    - publicID
+    - ref
+    - reused
+    - sizeBytes
+    - width
+    type: object
+  ModelIconAssetResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/ModelIconAssetResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
   ModelListResponseDoc:
     properties:
       data:
@@ -4654,6 +4770,41 @@ definitions:
     - data
     - errorMsg
     type: object
+  ModelVendorDeleteConflictDetails:
+    properties:
+      models:
+        items:
+          $ref: '#/definitions/ModelVendorReferenceResponse'
+        type: array
+      reason:
+        enum:
+        - built_in
+        - referenced_models
+        type: string
+      referenceCount:
+        type: integer
+    required:
+    - models
+    - reason
+    - referenceCount
+    type: object
+  ModelVendorDeleteConflictDoc:
+    properties:
+      data: {}
+      details:
+        $ref: '#/definitions/ModelVendorDeleteConflictDetails'
+      errorCode:
+        type: string
+      errorMsg:
+        type: string
+      requestId:
+        type: string
+    required:
+    - data
+    - details
+    - errorCode
+    - errorMsg
+    type: object
   ModelVendorListResponseDoc:
     properties:
       data:
@@ -4673,6 +4824,16 @@ definitions:
     required:
     - data
     - errorMsg
+    type: object
+  ModelVendorReferenceResponse:
+    properties:
+      id:
+        type: integer
+      platformModelName:
+        type: string
+    required:
+    - id
+    - platformModelName
     type: object
   ModelVendorResponse:
     properties:
@@ -7157,7 +7318,7 @@ definitions:
       displayGroupID:
         type: integer
       icon:
-        maxLength: 128
+        maxLength: 2048
         type: string
       kindsJSON:
         maxLength: 1000
@@ -9917,6 +10078,97 @@ paths:
       summary: 管理员导出全量对话数据
       tags:
       - admin
+  /admin/llm/icon-assets:
+    get:
+      description: 分页查询仍在图标库中的已上传图标，按上传时间倒序返回
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ModelIconAssetListResponseDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员查询已上传的模型展示图标
+      tags:
+      - llm
+    post:
+      consumes:
+      - multipart/form-data
+      description: 上传 PNG、JPEG 或 WebP 图标；后端校验内容、尺寸并按 SHA-256 去重
+      parameters:
+      - description: 图标文件，最大 1 MiB
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ModelIconAssetResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员上传模型展示图标
+      tags:
+      - llm
+  /admin/llm/icon-assets/{public_id}:
+    delete:
+      description: 仅允许移除无引用图标；立即从图标库隐藏，持续 24 小时无引用后物理清理
+      parameters:
+      - description: 图标公开 ID
+        in: path
+        name: public_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/SuccessDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/ModelIconAssetDeleteConflictDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员从图标库移除已上传图标
+      tags:
+      - llm
   /admin/llm/model-display-groups:
     get:
       description: 分页查询自定义展示分组；未绑定分组的模型继续按技术厂商展示
@@ -10112,6 +10364,38 @@ paths:
       tags:
       - llm
   /admin/llm/model-vendors/{key}:
+    delete:
+      description: 仅允许删除未被平台模型引用的非内置厂商；冲突响应包含关联模型预览
+      parameters:
+      - description: 技术厂商 key
+        in: path
+        name: key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/SuccessDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/ModelVendorDeleteConflictDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员删除自定义模型技术厂商
+      tags:
+      - llm
     patch:
       consumes:
       - application/json
@@ -15525,6 +15809,31 @@ paths:
       summary: 获取文件内容
       tags:
       - chat
+  /llm/icon-assets/{public_id}:
+    get:
+      description: 公开读取经过后端校验的不可变模型展示图标
+      parameters:
+      - description: 图标公开 ID
+        in: path
+        name: public_id
+        required: true
+        type: string
+      produces:
+      - image/png
+      - image/jpeg
+      - image/webp
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+      summary: 读取模型展示图标
+      tags:
+      - llm
   /mcp/tools:
     get:
       description: 获取当前聊天侧可选择的 MCP 工具

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
+	appstorage "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/objectstorage"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
@@ -93,19 +94,31 @@ func (s *Service) isModelAccessible(ctx context.Context, platformModelID uint, u
 
 // Service 封装上游、平台模型与路由绑定业务能力。
 type Service struct {
-	cfg                *config.Runtime
-	repo               repository.ChannelRepository
-	presentationRepo   repository.ModelPresentationRepository
-	cache              repository.ChannelCacheRepository
-	llmClient          *llm.Client
-	modelPricingFilter billingModelPricingFilter
-	permGroupRepo      permissionGroupRepo
-	subGroupResolver   subscriptionGroupResolver
-	logger             *zap.Logger
+	cfg                 *config.Runtime
+	repo                repository.ChannelRepository
+	presentationRepo    repository.ModelPresentationRepository
+	iconAssetRepo       repository.ModelIconAssetRepository
+	cache               repository.ChannelCacheRepository
+	llmClient           *llm.Client
+	modelPricingFilter  billingModelPricingFilter
+	permGroupRepo       permissionGroupRepo
+	subGroupResolver    subscriptionGroupResolver
+	logger              *zap.Logger
+	objectStoreProvider appstorage.Provider
 
 	modelCatalogMu         sync.RWMutex
 	modelCatalog           []ModelView
 	modelCatalogValidUntil time.Time
+}
+
+// SetObjectStoreProvider 注入运行时对象存储，用于管理员自定义模型图标。
+func (s *Service) SetObjectStoreProvider(provider appstorage.Provider) {
+	s.objectStoreProvider = provider
+}
+
+// SetModelIconAssetRepository 注入自定义模型图标元数据仓储。
+func (s *Service) SetModelIconAssetRepository(repo repository.ModelIconAssetRepository) {
+	s.iconAssetRepo = repo
 }
 
 func (s *Service) llmAttribution() (string, string) {
