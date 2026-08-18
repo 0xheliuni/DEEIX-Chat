@@ -136,6 +136,7 @@
       "login": "登录",
       "stream_message": "发送消息",
       "create_conversation": "创建会话",
+      "fork_conversation": "分支会话",
       "rename_conversation": "重命名会话",
       "update_conversation_labels": "更新会话标签",
       "export_conversation": "导出会话",

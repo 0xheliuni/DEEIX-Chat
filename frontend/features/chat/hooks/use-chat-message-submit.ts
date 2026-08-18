@@ -39,6 +39,7 @@ import {
 import {
   type ConversationStreamOptions,
   cancelMessageGeneration,
+  forkConversationFromMessage,
   getConversation,
   streamMessage as streamConversationMessage,
   streamImageEdit,
@@ -457,6 +458,7 @@ export function useChatMessageSubmit({
   autoGenerateLabels,
   prependNewConversation,
   onConversationCreated,
+  onConversationForked,
   touchByPublicID,
   reload,
   replaceMessage,
@@ -502,6 +504,7 @@ export function useChatMessageSubmit({
   autoGenerateLabels: boolean;
   prependNewConversation: (platformModelName: string) => Promise<ConversationDTO | null | undefined>;
   onConversationCreated?: (conversationPublicID: string) => void;
+  onConversationForked?: (conversation: ConversationDTO) => Promise<void> | void;
   touchByPublicID: (publicID: string, patch?: Partial<ConversationDTO>) => void;
   reload: () => void;
   replaceMessage: (message: MessageDTO) => void;
@@ -2051,6 +2054,31 @@ export function useChatMessageSubmit({
     [replaceMessage, t],
   );
 
+  const onForkMessage = React.useCallback(
+    async (message: ChatAreaMessage) => {
+      const messagePublicID = resolvePersistedPublicID(message.publicID);
+      const conversationPublicID = conversationIDRef.current?.trim() || "";
+      if (!messagePublicID || !conversationPublicID) {
+        toast.error(t("forkFailed"), { description: t("continueReplyUnavailable") });
+        return;
+      }
+      const token = await resolveAccessToken();
+      if (!token) {
+        toast.error(t("forkFailed"), { description: t("signInRequired") });
+        return;
+      }
+      try {
+        const forked = await forkConversationFromMessage(token, conversationPublicID, messagePublicID);
+        await onConversationForked?.(forked);
+      } catch (error) {
+        toast.error(t("forkFailed"), {
+          description: resolveErrorMessage(error, t("retryLater")),
+        });
+      }
+    },
+    [onConversationForked, t],
+  );
+
   const onCycleMessageBranch = React.useCallback(
     (parentPublicID: string | null, direction: "previous" | "next") => {
       const siblings = buildChildrenIndex(combinedMessages).get(toBranchKey(parentPublicID)) ?? [];
@@ -2082,6 +2110,7 @@ export function useChatMessageSubmit({
     onEditAssistantMessage,
     onEditUserMessage,
     onContinueAssistantMessage,
+    onForkMessage,
     onRetryAssistantMessage,
     onRetryUserMessage,
     onSendMessage,
