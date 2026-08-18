@@ -9059,6 +9059,12 @@
                         "description": "已接收的最后事件序号",
                         "name": "after",
                         "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "是否返回可替换当前正文的权威文本快照",
+                        "name": "snapshot",
+                        "in": "query"
                     }
                 ],
                 "responses": {

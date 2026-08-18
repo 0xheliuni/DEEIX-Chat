@@ -7319,6 +7319,8 @@ export namespace ConversationRuns {
     export type RequestQuery = {
       /** 已接收的最后事件序号 */
       after?: number;
+      /** 是否返回可替换当前正文的权威文本快照 */
+      snapshot?: boolean;
     };
     export type RequestBody = never;
     export type RequestHeaders = {};

@@ -649,6 +649,7 @@ func (h *Handler) CancelMessageGeneration(c *gin.Context) {
 // @Security BearerAuth
 // @Param run_id path string true "运行 ID"
 // @Param after query int false "已接收的最后事件序号"
+// @Param snapshot query bool false "是否返回可替换当前正文的权威文本快照"
 // @Success 200 {string} string "NDJSON stream"
 // @Failure 404 {object} ErrorDoc
 // @Router /conversation-runs/{run_id}/stream [get]
@@ -663,11 +664,13 @@ func (h *Handler) ResumeMessageGenerationStream(c *gin.Context) {
 		afterSeq = 0
 	}
 	userID := middleware.MustUserID(c)
+	includeTextSnapshot, _ := strconv.ParseBool(strings.TrimSpace(c.Query("snapshot")))
 	replay, events, unsubscribe, ok := h.service.SubscribeMessageGeneration(
 		c.Request.Context(),
 		userID,
 		runID,
 		afterSeq,
+		includeTextSnapshot,
 	)
 	if !ok {
 		h.service.MarkMessageGenerationInterrupted(c.Request.Context(), userID, runID)
