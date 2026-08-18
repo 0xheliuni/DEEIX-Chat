@@ -176,6 +176,8 @@
     "sourceCopied": "Source copied",
     "copyFailed": "Could not copy source",
     "downloadHtml": "Download HTML",
+    "downloadSvg": "Download SVG",
+    "invalidSvg": "This SVG source is invalid and cannot be previewed.",
     "close": "Close",
     "resize": "Resize Artifact",
     "empty": "This artifact is empty and cannot be previewed yet.",
