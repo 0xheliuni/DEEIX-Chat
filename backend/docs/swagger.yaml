@@ -11204,6 +11204,10 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/ChannelErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
         "500":
           description: Internal Server Error
           schema:
@@ -11424,6 +11428,10 @@ paths:
             $ref: '#/definitions/ChannelErrorDoc'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+        "409":
+          description: Conflict
           schema:
             $ref: '#/definitions/ChannelErrorDoc'
         "500":

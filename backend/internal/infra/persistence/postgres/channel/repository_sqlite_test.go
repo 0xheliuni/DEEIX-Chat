@@ -1758,6 +1758,80 @@ func TestModelIconAssetReferenceIncludesLiveConversationSnapshotSQLite(t *testin
 	}
 }
 
+func TestGetBreakerDefaultsDefaultsToDisabledForLegacySettings(t *testing.T) {
+	db := openChannelSQLiteTestDB(t)
+	if err := db.AutoMigrate(&model.SystemSetting{}); err != nil {
+		t.Fatalf("migrate system settings: %v", err)
+	}
+	repo := NewRepo(db)
+
+	defaults, err := repo.GetBreakerDefaults(t.Context())
+	if err != nil {
+		t.Fatalf("GetBreakerDefaults() without setting error = %v", err)
+	}
+	if defaults.Enabled {
+		t.Fatal("expected missing setting to keep circuit breaker disabled")
+	}
+
+	setting := model.SystemSetting{
+		Namespace: "llm",
+		Key:       "circuit_breaker.defaults",
+		Value:     `{"model_failure_threshold":9}`,
+		ValueType: "json",
+	}
+	if err := db.Create(&setting).Error; err != nil {
+		t.Fatalf("create legacy circuit setting: %v", err)
+	}
+	legacy, err := repo.GetBreakerDefaults(t.Context())
+	if err != nil {
+		t.Fatalf("GetBreakerDefaults() legacy error = %v", err)
+	}
+	if legacy.Enabled || legacy.ModelFailureThreshold != 9 {
+		t.Fatalf("unexpected legacy defaults: %#v", legacy)
+	}
+
+	if err := db.Model(&setting).Update("value", `{"enabled":true,"model_failure_threshold":9}`).Error; err != nil {
+		t.Fatalf("enable circuit setting: %v", err)
+	}
+	enabled, err := repo.GetBreakerDefaults(t.Context())
+	if err != nil {
+		t.Fatalf("GetBreakerDefaults() enabled error = %v", err)
+	}
+	if !enabled.Enabled {
+		t.Fatal("expected explicit enabled setting to enable circuit breaker")
+	}
+}
+
+func TestGetBreakerDefaultsRejectsInvalidStoredJSON(t *testing.T) {
+	db := openChannelSQLiteTestDB(t)
+	if err := db.AutoMigrate(&model.SystemSetting{}); err != nil {
+		t.Fatalf("migrate system settings: %v", err)
+	}
+	repo := NewRepo(db)
+	setting := model.SystemSetting{
+		Namespace: "llm",
+		Key:       "circuit_breaker.defaults",
+		Value:     `{"enabled":false}`,
+		ValueType: "json",
+	}
+	if err := db.Create(&setting).Error; err != nil {
+		t.Fatalf("create invalid circuit setting: %v", err)
+	}
+
+	for _, value := range []string{
+		`{"enabled":"true"}`,
+		`{"model_failure_threshold":-1}`,
+		`{"upstream_threshold_logic":"xor"}`,
+	} {
+		if err := db.Model(&setting).Update("value", value).Error; err != nil {
+			t.Fatalf("store invalid circuit setting %q: %v", value, err)
+		}
+		if _, err := repo.GetBreakerDefaults(t.Context()); err == nil {
+			t.Fatalf("expected invalid stored circuit breaker defaults %q to return an error", value)
+		}
+	}
+}
+
 func openChannelSQLiteTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 

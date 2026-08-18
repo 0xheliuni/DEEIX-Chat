@@ -9,7 +9,9 @@ import (
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/channelconfig"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/nativetool"
+	"go.uber.org/zap"
 )
 
 // ---------------------------------------------------------------------------
@@ -257,12 +259,13 @@ func (s *Service) normalizeModelAvailability(ctx context.Context, items []ModelV
 }
 
 func (s *Service) normalizeModelAvailabilityWithRepo(ctx context.Context, repo repository.ChannelRepository, items []ModelView) error {
+	breakerEnabled := s.cache != nil && s.loadBreakerDefaults(ctx).Enabled
 	for index := range items {
 		if items[index].Status != "active" {
 			items[index].ActiveSourceCount = 0
 			continue
 		}
-		if s.cache == nil || items[index].SourceCount <= 0 || items[index].ActiveSourceCount <= 0 {
+		if !breakerEnabled || items[index].SourceCount <= 0 || items[index].ActiveSourceCount <= 0 {
 			continue
 		}
 		sources, _, err := repo.ListModelUpstreamSources(ctx, items[index].PlatformModelName, 0, int(items[index].SourceCount))
@@ -801,7 +804,7 @@ func (s *Service) UpdateModelUpstreamSource(ctx context.Context, modelID uint, r
 }
 
 func (s *Service) applyModelSourceCircuitStatus(ctx context.Context, view *ModelUpstreamSourceView) {
-	if view == nil || s.cache == nil {
+	if view == nil || s.cache == nil || !s.loadBreakerDefaults(ctx).Enabled {
 		return
 	}
 	if upstreamOpen, upstreamUntil := s.cache.QueryUpstreamCircuitStatus(ctx, view.UpstreamID); upstreamOpen {
@@ -836,12 +839,50 @@ func (s *Service) UpdateLLMSetting(ctx context.Context, key string, value string
 	if err != nil {
 		return nil, err
 	}
-	if err := validateOptionalJSON(strings.TrimSpace(value)); err != nil {
+	normalizedValue := strings.TrimSpace(value)
+	if err := validateOptionalJSON(normalizedValue); err != nil {
 		return nil, ErrInvalidJSONConfig
 	}
-	current.Value = strings.TrimSpace(value)
+	isBreakerDefaults := key == channelconfig.BreakerDefaultsKey
+	currentBreakerDefaults := domainchannel.DefaultBreakerDefaults()
+	nextBreakerDefaults := domainchannel.DefaultBreakerDefaults()
+	if isBreakerDefaults {
+		// 非法历史值按关闭处理，但不能阻止管理员用有效配置修复它。
+		if parsed, parseErr := parseCircuitBreakerDefaults(current.Value); parseErr == nil {
+			currentBreakerDefaults = parsed
+		}
+		nextBreakerDefaults, err = parseCircuitBreakerDefaults(normalizedValue)
+		if err != nil {
+			return nil, ErrInvalidJSONConfig
+		}
+		// 从关闭切换到开启前清理不会生效的历史状态。写入失败时熔断仍为关闭，
+		// 清理失败时则中止开启，避免旧状态在新配置下立即生效。
+		if !currentBreakerDefaults.Enabled && nextBreakerDefaults.Enabled && s.cache != nil {
+			if err := s.cache.ResetAllCircuitStates(ctx); err != nil {
+				return nil, err
+			}
+		}
+	}
+	current.Value = normalizedValue
 	if err := s.repo.UpsertLLMSetting(ctx, current); err != nil {
 		return nil, err
 	}
+	if isBreakerDefaults {
+		s.storeBreakerDefaults(nextBreakerDefaults)
+		// 关闭后不会再读取旧熔断状态，因此这里只做尽力清理，清理失败不回滚已持久化配置。
+		if currentBreakerDefaults.Enabled && !nextBreakerDefaults.Enabled && s.cache != nil {
+			if err := s.cache.ResetAllCircuitStates(ctx); err != nil {
+				s.warn("reset_circuit_states_after_settings_update_failed", zap.Error(err))
+			}
+		}
+	}
 	return current, nil
+}
+
+func parseCircuitBreakerDefaults(value string) (domainchannel.BreakerDefaults, error) {
+	defaults, err := channelconfig.ParseBreakerDefaults(value)
+	if err != nil {
+		return domainchannel.BreakerDefaults{}, ErrInvalidJSONConfig
+	}
+	return defaults, nil
 }
