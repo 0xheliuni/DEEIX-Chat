@@ -246,6 +246,7 @@ export function AppChatArea() {
     messages,
     reload,
     replaceMessage,
+    resumingActivityLabel,
     resumingRunID,
   } = useChatData(conversationID, {
     activeGenerationRunsRef,
@@ -647,6 +648,7 @@ export function AppChatArea() {
     activeGenerationRunsRef,
     activeGenerationRunsRevision,
     onActiveGenerationRunsChange,
+    resumingActivityLabel,
     resumingRunID,
   });
   const generating = sending;

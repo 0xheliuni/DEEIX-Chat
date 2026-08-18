@@ -92,6 +92,7 @@ export function useChatData(
   });
   const [reloadToken, setReloadToken] = React.useState(0);
   const [resumingRunID, setResumingRunID] = React.useState("");
+  const [resumingActivityLabel, setResumingActivityLabel] = React.useState("");
   const stateRef = React.useRef(state);
   stateRef.current = state;
   const previousConversationIDRef = React.useRef<string | null>(conversationID);
@@ -337,6 +338,7 @@ export function useChatData(
       pendingRunIsActive
     ) {
       setResumingRunID("");
+      setResumingActivityLabel("");
       return;
     }
 
@@ -363,6 +365,7 @@ export function useChatData(
       accessToken: null,
     };
     setResumingRunID(pendingRunID);
+    setResumingActivityLabel("");
 
     async function resume() {
       try {
@@ -373,7 +376,7 @@ export function useChatData(
         if (activeResumeStreamRef.current?.controller === controller) {
           activeResumeStreamRef.current.accessToken = token;
         }
-        const completed = await resumeMessageGenerationStream(token, pendingRunID, {
+        await resumeMessageGenerationStream(token, pendingRunID, {
           signal: controller.signal,
           afterSeq,
           onEventSeq: (seq) => {
@@ -383,6 +386,9 @@ export function useChatData(
             resumeSeqByRunRef.current[pendingRunID] = Math.max(resumeSeqByRunRef.current[pendingRunID] ?? 0, seq);
           },
           onMediaStatus: (event) => {
+            if (isResumeInactive()) {
+              return;
+            }
             const status = event.status.trim();
             const contentType = event.content_type === "video" ? "video" : "image";
             const activityLabel =
@@ -393,11 +399,12 @@ export function useChatData(
                   : status === "saving_artifact"
                     ? tSubmit(contentType === "video" ? "mediaStatus.videoSavingArtifact" : "mediaStatus.savingArtifact")
                     : event.message.trim() || status;
+            setResumingActivityLabel(activityLabel);
             updateResumeState((prev) => ({
               ...prev,
               messages: prev.messages.map((message) =>
                 message.runID === pendingRunID && message.role === "assistant" && message.status === "pending"
-                  ? { ...message, activityLabel, contentType }
+                  ? { ...message, contentType }
                   : message,
               ),
             }));
@@ -411,11 +418,12 @@ export function useChatData(
             if (!previewMarkdown) {
               return;
             }
+            setResumingActivityLabel("");
             updateResumeState((prev) => ({
               ...prev,
               messages: prev.messages.map((message) =>
                 message.runID === pendingRunID && message.role === "assistant" && message.status === "pending"
-                  ? { ...message, content: previewMarkdown, contentType: "image", activityLabel: "" }
+                  ? { ...message, content: previewMarkdown, contentType: "image" }
                   : message,
               ),
             }));
@@ -424,6 +432,7 @@ export function useChatData(
             if (isResumeInactive()) {
               return;
             }
+            setResumingActivityLabel("");
             let replayState = resumeTextReplayByRun[pendingRunID];
             if (!replayState) {
               replayState = {
@@ -479,12 +488,45 @@ export function useChatData(
               ),
             }));
           },
+          onModerationChecking: () => {
+            if (!isResumeInactive()) {
+              setResumingActivityLabel(tSubmit("moderationChecking"));
+            }
+          },
+          onModerationBlocked: (event) => {
+            if (isResumeInactive()) {
+              return;
+            }
+            clearResumeTextReplay();
+            setResumingActivityLabel("");
+            const categories = Array.isArray(event.categories) ? event.categories : [];
+            updateResumeState((prev) => ({
+              ...prev,
+              messages: prev.messages.map((message) =>
+                message.runID === pendingRunID && message.role === "assistant"
+                  ? {
+                      ...message,
+                      status: "blocked",
+                      content: "",
+                      contentType: "text",
+                      attachments: "[]",
+                      processTrace: undefined,
+                      errorCode: "content_moderation.blocked",
+                      errorMessage: tSubmit("moderationBlockedDescription"),
+                      moderation: {
+                        state: "blocked",
+                        direction: event.direction,
+                        eventID: event.eventID,
+                        categories,
+                      },
+                    }
+                  : message,
+              ),
+            }));
+          },
         });
-        if (!controller.signal.aborted && completed === null) {
-          clearResumeCheckpoint(pendingRunID);
-          reload();
-        }
-        if (!controller.signal.aborted && completed) {
+        if (!controller.signal.aborted) {
+          setResumingActivityLabel("");
           clearResumeCheckpoint(pendingRunID);
           reload();
         }
@@ -492,6 +534,7 @@ export function useChatData(
         if (!controller.signal.aborted && error instanceof Error && error.name !== "AbortError") {
           clearResumeCheckpoint(pendingRunID);
           setResumingRunID("");
+          setResumingActivityLabel("");
           reload();
         }
       } finally {
@@ -500,6 +543,7 @@ export function useChatData(
         }
         if (!controller.signal.aborted && !closed) {
           setResumingRunID("");
+          setResumingActivityLabel("");
         }
       }
     }
@@ -508,6 +552,7 @@ export function useChatData(
     return () => {
       closed = true;
       controller.abort();
+      setResumingActivityLabel("");
       clearResumeCheckpoint(pendingRunID);
       if (activeResumeStreamRef.current?.controller === controller) {
         activeResumeStreamRef.current = null;
@@ -546,6 +591,7 @@ export function useChatData(
     loadAllOlderMessages,
     reload,
     replaceMessage,
+    resumingActivityLabel,
     resumingRunID,
   };
 }

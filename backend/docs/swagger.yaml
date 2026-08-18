@@ -9631,6 +9631,10 @@ paths:
         in: query
         name: pageSize
         type: integer
+      - description: Exact event, user, run, model, result, or summary search
+        in: query
+        name: query
+        type: string
       - description: Result filter
         in: query
         name: result
