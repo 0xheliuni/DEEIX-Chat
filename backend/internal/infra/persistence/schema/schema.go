@@ -125,10 +125,28 @@ func Migrate(db *gorm.DB) error {
 	if err := db.AutoMigrate(Models()...); err != nil {
 		return err
 	}
+	if err := invalidateUnsignedFileEmbeddings(db); err != nil {
+		return err
+	}
 	if err := backfillContextArtifactMessageIDs(db); err != nil {
 		return err
 	}
 	return backfillUsageLedgerBillingAt(db)
+}
+
+// invalidateUnsignedFileEmbeddings makes legacy vectors enter the existing reindex flow.
+// Message and memory vectors without a signature stay hidden until naturally regenerated.
+func invalidateUnsignedFileEmbeddings(db *gorm.DB) error {
+	return db.Exec(`
+		UPDATE file_objects
+		SET embed_status = 'stale'
+		WHERE embed_status = 'ready'
+		  AND EXISTS (
+			SELECT 1
+			FROM file_chunks
+			WHERE file_chunks.file_obj_id = file_objects.id
+			  AND file_chunks.embedding_signature = ''
+		  )`).Error
 }
 
 // backfillContextArtifactMessageIDs 将旧证据统一迁移到产生该证据的助手运行节点。

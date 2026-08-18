@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
 	models "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/sqlitevec"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/vectorutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -2947,8 +2947,8 @@ func (r *Repo) CloneFileEmbeddingArtifacts(ctx context.Context, source *domainco
 		}
 		if r.sqliteDialect() {
 			if err := tx.Exec(
-				`INSERT INTO "file_chunks" ("file_obj_id", "user_id", "chunk_index", "page_num", "char_offset", "content", "token_count", "created_at")
-				 SELECT ?, ?, "chunk_index", "page_num", "char_offset", "content", "token_count", CURRENT_TIMESTAMP
+				`INSERT INTO "file_chunks" ("file_obj_id", "user_id", "chunk_index", "page_num", "char_offset", "content", "token_count", "embedding_signature", "created_at")
+				 SELECT ?, ?, "chunk_index", "page_num", "char_offset", "content", "token_count", "embedding_signature", CURRENT_TIMESTAMP
 				 FROM "file_chunks"
 				 WHERE "file_obj_id" = ?`,
 				targetEntity.ID,
@@ -2958,8 +2958,8 @@ func (r *Repo) CloneFileEmbeddingArtifacts(ctx context.Context, source *domainco
 				return translateError(err)
 			}
 			result := tx.Exec(
-				fmt.Sprintf(`INSERT INTO %s (chunk_id, user_id, file_obj_id, embedding)
-					SELECT target_chunks.id, ?, ?, source_vectors.embedding
+				fmt.Sprintf(`INSERT INTO %s (chunk_id, user_id, file_obj_id, embedding_signature, embedding)
+					SELECT target_chunks.id, ?, ?, target_chunks.embedding_signature, source_vectors.embedding
 					FROM "file_chunks" AS source_chunks
 					JOIN "file_chunks" AS target_chunks
 						ON target_chunks.file_obj_id = ?
@@ -2984,8 +2984,8 @@ func (r *Repo) CloneFileEmbeddingArtifacts(ctx context.Context, source *domainco
 			return nil
 		}
 		return tx.Exec(
-			`INSERT INTO "file_chunks" ("file_obj_id", "user_id", "chunk_index", "page_num", "char_offset", "content", "token_count", "embedding", "created_at")
-			 SELECT ?, ?, "chunk_index", "page_num", "char_offset", "content", "token_count", "embedding", NOW()
+			`INSERT INTO "file_chunks" ("file_obj_id", "user_id", "chunk_index", "page_num", "char_offset", "content", "token_count", "embedding_signature", "embedding", "created_at")
+			 SELECT ?, ?, "chunk_index", "page_num", "char_offset", "content", "token_count", "embedding_signature", "embedding", NOW()
 			 FROM "file_chunks"
 			 WHERE "file_obj_id" = ?`,
 			targetEntity.ID,
@@ -3029,7 +3029,10 @@ func (r *Repo) ReplaceFileChunks(ctx context.Context, fileObjID uint, chunks []d
 			if len(embeddings[i]) == 0 {
 				return fmt.Errorf("empty embedding vector at chunk %d", i)
 			}
-			vec := float32SliceToPostgresVector(embeddings[i])
+			vec, err := float32SliceToPostgresVector(embeddings[i])
+			if err != nil {
+				return err
+			}
 			if err := tx.Exec(
 				`UPDATE "file_chunks" SET embedding = ? WHERE id = ?`,
 				vec, chunk.ID,
@@ -3071,21 +3074,9 @@ func (r *Repo) GetUpstreamByID(ctx context.Context, upstreamID uint) (*models.LL
 	return &item, nil
 }
 
-// float32SliceToPostgresVector 将 []float32 转为 pgvector 文本格式 "[1.0,2.0,...]"。
-func float32SliceToPostgresVector(v []float32) string {
-	if len(v) == 0 {
-		return "[]"
-	}
-	var sb strings.Builder
-	sb.WriteByte('[')
-	for i, f := range v {
-		if i > 0 {
-			sb.WriteByte(',')
-		}
-		sb.WriteString(strconv.FormatFloat(float64(f), 'f', -1, 32))
-	}
-	sb.WriteByte(']')
-	return sb.String()
+// float32SliceToPostgresVector 将向量对齐到物理存储维度并转换为 pgvector 文本格式。
+func float32SliceToPostgresVector(v []float32) (string, error) {
+	return vectorutil.PostgresLiteral(v)
 }
 
 // fileChunkSearchRow 是原始 SQL 扫描专用的本地类型，携带 gorm column tag 映射相似度列。
@@ -3124,10 +3115,11 @@ func insertSQLiteFileChunkVectors(tx *gorm.DB, entities []models.FileChunk, embe
 			return err
 		}
 		if err = tx.Exec(
-			fmt.Sprintf(`INSERT INTO %s (chunk_id, user_id, file_obj_id, embedding) VALUES (?, ?, ?, ?)`, sqlitevec.FileChunkVectorTable),
+			fmt.Sprintf(`INSERT INTO %s (chunk_id, user_id, file_obj_id, embedding_signature, embedding) VALUES (?, ?, ?, ?, ?)`, sqlitevec.FileChunkVectorTable),
 			chunk.ID,
 			chunk.UserID,
 			chunk.FileObjID,
+			chunk.EmbeddingSignature,
 			vector,
 		).Error; err != nil {
 			return translateError(err)
@@ -3136,7 +3128,7 @@ func insertSQLiteFileChunkVectors(tx *gorm.DB, entities []models.FileChunk, embe
 	return nil
 }
 
-func (r *Repo) searchSQLiteFileChunks(ctx context.Context, userID uint, fileObjIDs []uint, queryEmbedding []float32, topK int) ([]domainconversation.FileChunkSearchResult, error) {
+func (r *Repo) searchSQLiteFileChunks(ctx context.Context, userID uint, fileObjIDs []uint, queryEmbedding []float32, embeddingSignature string, topK int) ([]domainconversation.FileChunkSearchResult, error) {
 	vector, err := sqlitevec.SerializeFloat32(queryEmbedding)
 	if err != nil {
 		return nil, err
@@ -3160,10 +3152,12 @@ func (r *Repo) searchSQLiteFileChunks(ctx context.Context, userID uint, fileObjI
 				AND vectors.k = ?
 				AND vectors.user_id = ?
 				AND vectors.file_obj_id = ?
+				AND vectors.embedding_signature = ?
+				AND chunks.embedding_signature = ?
 			ORDER BY vectors.distance ASC`,
 			sqlitevec.FileChunkVectorTable,
 		)
-		if err := r.db.WithContext(ctx).Raw(query, vector, topK, userID, fileObjID).Scan(&rows).Error; err != nil {
+		if err := r.db.WithContext(ctx).Raw(query, vector, topK, userID, fileObjID, embeddingSignature, embeddingSignature).Scan(&rows).Error; err != nil {
 			return nil, translateError(err)
 		}
 		for _, row := range rows {
@@ -3194,26 +3188,49 @@ func (r *Repo) searchSQLiteFileChunks(ctx context.Context, userID uint, fileObjI
 
 // SearchFileChunks 使用向量存储的余弦距离检索最相关的文本分片。
 // 返回结果按相似度降序排列，已携带 Similarity 分数以供阈值过滤。
-func (r *Repo) SearchFileChunks(ctx context.Context, userID uint, fileObjIDs []uint, queryEmbedding []float32, topK int) ([]domainconversation.FileChunkSearchResult, error) {
-	if len(fileObjIDs) == 0 || len(queryEmbedding) == 0 {
+func (r *Repo) SearchFileChunks(ctx context.Context, userID uint, fileObjIDs []uint, queryEmbedding []float32, embeddingSignature string, topK int) ([]domainconversation.FileChunkSearchResult, error) {
+	if len(fileObjIDs) == 0 || len(queryEmbedding) == 0 || strings.TrimSpace(embeddingSignature) == "" {
 		return nil, nil
 	}
 	if topK <= 0 {
 		topK = 5
 	}
 	if r.sqliteDialect() {
-		return r.searchSQLiteFileChunks(ctx, userID, fileObjIDs, queryEmbedding, topK)
+		return r.searchSQLiteFileChunks(ctx, userID, fileObjIDs, queryEmbedding, embeddingSignature, topK)
 	}
-	vec := float32SliceToPostgresVector(queryEmbedding)
-	query := `
-		SELECT id, file_obj_id, user_id, chunk_index, page_num, char_offset, content, token_count, created_at,
-		       (1 - (embedding <=> ?::vector)) AS similarity
-		FROM file_chunks
-		WHERE user_id = ? AND file_obj_id IN ? AND embedding IS NOT NULL
+	vec, err := float32SliceToPostgresVector(queryEmbedding)
+	if err != nil {
+		return nil, err
+	}
+	candidateLimit := vectorutil.CandidateLimit(topK)
+	query := fmt.Sprintf(`
+		WITH vector_candidates AS MATERIALIZED (
+			SELECT id
+			FROM file_chunks
+			WHERE user_id = ? AND file_obj_id IN ? AND embedding_signature = ? AND embedding IS NOT NULL
+			ORDER BY subvector(embedding, 1, %d)::halfvec(%d)
+				<=> subvector(?::vector, 1, %d)::halfvec(%d)
+			LIMIT ?
+		)
+		SELECT chunks.id, chunks.file_obj_id, chunks.user_id, chunks.chunk_index, chunks.page_num,
+		       chunks.char_offset, chunks.content, chunks.token_count, chunks.created_at,
+		       (1 - (chunks.embedding <=> ?::vector)) AS similarity
+		FROM file_chunks AS chunks
+		JOIN vector_candidates AS candidates ON candidates.id = chunks.id
 		ORDER BY similarity DESC
-		LIMIT ?`
+		LIMIT ?`,
+		vectorutil.IndexDimensions,
+		vectorutil.IndexDimensions,
+		vectorutil.IndexDimensions,
+		vectorutil.IndexDimensions,
+	)
 	var rows []fileChunkSearchRow
-	if err := r.db.WithContext(ctx).Raw(query, vec, userID, fileObjIDs, topK).Scan(&rows).Error; err != nil {
+	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := vectorutil.ConfigurePostgresCandidateSearch(tx); err != nil {
+			return err
+		}
+		return tx.Raw(query, userID, fileObjIDs, embeddingSignature, vec, candidateLimit, vec, topK).Scan(&rows).Error
+	}); err != nil {
 		return nil, translateError(err)
 	}
 	results := make([]domainconversation.FileChunkSearchResult, 0, len(rows))
@@ -4253,14 +4270,15 @@ func toFileChunkModel(item *domainconversation.FileChunk) models.FileChunk {
 		return models.FileChunk{}
 	}
 	return models.FileChunk{
-		FileObjID:  item.FileObjID,
-		UserID:     item.UserID,
-		ChunkIndex: item.ChunkIndex,
-		PageNum:    item.PageNum,
-		CharOffset: item.CharOffset,
-		Content:    item.Content,
-		TokenCount: item.TokenCount,
-		CreatedAt:  item.CreatedAt,
+		FileObjID:          item.FileObjID,
+		UserID:             item.UserID,
+		ChunkIndex:         item.ChunkIndex,
+		PageNum:            item.PageNum,
+		CharOffset:         item.CharOffset,
+		Content:            item.Content,
+		TokenCount:         item.TokenCount,
+		EmbeddingSignature: item.EmbeddingSignature,
+		CreatedAt:          item.CreatedAt,
 	}
 }
 
@@ -4325,36 +4343,43 @@ func (r *Repo) VectorStoreAvailable(ctx context.Context) (bool, error) {
 	if r.sqliteDialect() {
 		return sqlitevec.Available(ctx, r.db)
 	}
-	checks := []string{
-		`SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')`,
-		`SELECT EXISTS (
-			SELECT 1 FROM information_schema.columns
-			WHERE table_schema = current_schema()
-				AND table_name = 'file_chunks'
-				AND column_name = 'embedding'
-				AND udt_name = 'vector'
-		)`,
-		`SELECT EXISTS (
-			SELECT 1 FROM information_schema.columns
-			WHERE table_schema = current_schema()
-				AND table_name = 'chat_message_chunks'
-				AND column_name = 'embedding'
-				AND udt_name = 'vector'
-		)`,
-		`SELECT EXISTS (
-			SELECT 1 FROM information_schema.columns
-			WHERE table_schema = current_schema()
-				AND table_name = 'user_memories'
-				AND column_name = 'embedding'
-				AND udt_name = 'vector'
-		)`,
-		`SELECT to_regclass('idx_file_chunks_embedding') IS NOT NULL`,
-		`SELECT to_regclass('idx_chat_message_chunks_embedding') IS NOT NULL`,
-		`SELECT to_regclass('idx_user_memories_embedding') IS NOT NULL`,
+	expectedType := fmt.Sprintf("vector(%d)", vectorutil.StorageDimensions)
+	type availabilityCheck struct {
+		query string
+		args  []any
 	}
-	for _, query := range checks {
+	columnQuery := `SELECT EXISTS (
+			SELECT 1 FROM pg_attribute AS attribute
+			JOIN pg_class AS relation ON relation.oid = attribute.attrelid
+			JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+			WHERE namespace.nspname = current_schema()
+				AND relation.relname = ?
+				AND attribute.attname = 'embedding'
+				AND attribute.attnum > 0
+				AND NOT attribute.attisdropped
+				AND format_type(attribute.atttypid, attribute.atttypmod) = ?
+		)`
+	indexQuery := `SELECT EXISTS (
+		SELECT 1 FROM pg_indexes
+		WHERE schemaname = current_schema()
+			AND indexname = ?
+			AND lower(indexdef) LIKE '% using hnsw %'
+			AND lower(indexdef) LIKE ?
+			AND lower(indexdef) LIKE '%halfvec_cosine_ops%'
+	)`
+	indexPattern := fmt.Sprintf("%%::halfvec(%d)%%", vectorutil.IndexDimensions)
+	checks := []availabilityCheck{
+		{query: `SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')`},
+		{query: columnQuery, args: []any{"file_chunks", expectedType}},
+		{query: columnQuery, args: []any{"chat_message_chunks", expectedType}},
+		{query: columnQuery, args: []any{"user_memories", expectedType}},
+		{query: indexQuery, args: []any{"idx_file_chunks_embedding", indexPattern}},
+		{query: indexQuery, args: []any{"idx_chat_message_chunks_embedding", indexPattern}},
+		{query: indexQuery, args: []any{"idx_user_memories_embedding", indexPattern}},
+	}
+	for _, check := range checks {
 		available := false
-		if err := r.db.WithContext(ctx).Raw(query).Scan(&available).Error; err != nil {
+		if err := r.db.WithContext(ctx).Raw(check.query, check.args...).Scan(&available).Error; err != nil {
 			return false, translateError(err)
 		}
 		if !available {
@@ -4391,13 +4416,14 @@ func (r *Repo) UpsertMessageChunks(ctx context.Context, chunks []domainconversat
 		entities := make([]models.MessageChunk, 0, len(chunks))
 		for i := range chunks {
 			entities = append(entities, models.MessageChunk{
-				ConversationID: chunks[i].ConversationID,
-				MessageID:      chunks[i].MessageID,
-				UserID:         chunks[i].UserID,
-				Role:           chunks[i].Role,
-				ChunkIndex:     chunks[i].ChunkIndex,
-				Content:        chunks[i].Content,
-				TokenCount:     chunks[i].TokenCount,
+				ConversationID:     chunks[i].ConversationID,
+				MessageID:          chunks[i].MessageID,
+				UserID:             chunks[i].UserID,
+				Role:               chunks[i].Role,
+				ChunkIndex:         chunks[i].ChunkIndex,
+				Content:            chunks[i].Content,
+				TokenCount:         chunks[i].TokenCount,
+				EmbeddingSignature: chunks[i].EmbeddingSignature,
 			})
 		}
 		if err := tx.Create(&entities).Error; err != nil {
@@ -4411,7 +4437,10 @@ func (r *Repo) UpsertMessageChunks(ctx context.Context, chunks []domainconversat
 			if i >= len(embeddings) || len(embeddings[i]) == 0 {
 				continue
 			}
-			vec := float32SliceToPostgresVector(embeddings[i])
+			vec, err := float32SliceToPostgresVector(embeddings[i])
+			if err != nil {
+				return err
+			}
 			if err := tx.Exec(`UPDATE "chat_message_chunks" SET embedding = ? WHERE id = ?`, vec, entity.ID).Error; err != nil {
 				return translateError(err)
 			}
@@ -4455,11 +4484,12 @@ func insertSQLiteMessageChunkVectors(tx *gorm.DB, entities []models.MessageChunk
 			return err
 		}
 		if err = tx.Exec(
-			fmt.Sprintf(`INSERT INTO %s (chunk_id, user_id, conversation_id, message_id, embedding) VALUES (?, ?, ?, ?, ?)`, sqlitevec.MessageChunkVectorTable),
+			fmt.Sprintf(`INSERT INTO %s (chunk_id, user_id, conversation_id, message_id, embedding_signature, embedding) VALUES (?, ?, ?, ?, ?, ?)`, sqlitevec.MessageChunkVectorTable),
 			chunk.ID,
 			chunk.UserID,
 			chunk.ConversationID,
 			chunk.MessageID,
+			chunk.EmbeddingSignature,
 			vector,
 		).Error; err != nil {
 			return translateError(err)
@@ -4484,6 +4514,8 @@ func (r *Repo) searchSQLiteMessageChunks(ctx context.Context, input repository.M
 			AND vectors.k = ?
 			AND vectors.user_id = ?
 			AND vectors.conversation_id = ?
+			AND vectors.embedding_signature = ?
+			AND chunks.embedding_signature = ?
 			AND vectors.message_id IN (
 				SELECT id
 				FROM valid_historical_message_scope
@@ -4497,6 +4529,8 @@ func (r *Repo) searchSQLiteMessageChunks(ctx context.Context, input repository.M
 		input.TopK,
 		input.Scope.UserID,
 		input.Scope.ConversationID,
+		input.EmbeddingSignature,
+		input.EmbeddingSignature,
 	)
 	var rows []messageChunkSearchRow
 	if err := r.db.WithContext(ctx).Raw(query, args...).Scan(&rows).Error; err != nil {
@@ -4525,40 +4559,60 @@ func (r *Repo) searchSQLiteMessageChunks(ctx context.Context, input repository.M
 
 // SearchMessageChunks 在当前活跃分支内按查询向量检索最相关的历史消息分片。
 func (r *Repo) SearchMessageChunks(ctx context.Context, input repository.MessageChunkSearchInput) ([]domainconversation.MessageChunk, error) {
-	if !input.Scope.Valid() || len(input.QueryEmbedding) == 0 || input.TopK <= 0 {
+	if !input.Scope.Valid() || len(input.QueryEmbedding) == 0 || strings.TrimSpace(input.EmbeddingSignature) == "" || input.TopK <= 0 {
 		return nil, nil
 	}
 	if r.sqliteDialect() {
 		return r.searchSQLiteMessageChunks(ctx, input)
 	}
-	vec := float32SliceToPostgresVector(input.QueryEmbedding)
-	// PostgreSQL 的 IVFFlat 会在近似索引扫描后应用普通过滤条件；直接 JOIN 分支范围可能让 sibling
-	// 候选先占满 Top-K。先物化当前分支分片，再执行精确距离排序，保证过滤严格发生在 Top-K 之前。
-	query := historicalMessageScopeCTE + `,
-		branch_message_chunks AS MATERIALIZED (
-			SELECT chunks.id, chunks.conversation_id, chunks.message_id, chunks.user_id, chunks.role,
-			       chunks.chunk_index, chunks.content, chunks.token_count, chunks.created_at, chunks.embedding
+	vec, err := float32SliceToPostgresVector(input.QueryEmbedding)
+	if err != nil {
+		return nil, err
+	}
+	candidateLimit := vectorutil.CandidateLimit(input.TopK)
+	// 候选阶段已经限定当前分支和向量签名，随后再按完整 4096 维向量精确重排。
+	query := historicalMessageScopeCTE + fmt.Sprintf(`,
+		vector_candidates AS MATERIALIZED (
+			SELECT chunks.id
 			FROM chat_message_chunks AS chunks
-			JOIN valid_historical_message_scope AS branch_scope ON branch_scope.id = chunks.message_id
 			WHERE chunks.conversation_id = ?
 			  AND chunks.user_id = ?
+			  AND chunks.embedding_signature = ?
 			  AND chunks.embedding IS NOT NULL
+			  AND chunks.message_id IN (SELECT id FROM valid_historical_message_scope)
+			ORDER BY subvector(chunks.embedding, 1, %d)::halfvec(%d)
+				<=> subvector(?::vector, 1, %d)::halfvec(%d)
+			LIMIT ?
 		)
-		SELECT id, conversation_id, message_id, user_id, role,
-		       chunk_index, content, token_count, created_at,
-		       (1 - (embedding <=> ?::vector)) AS similarity
-		FROM branch_message_chunks
+		SELECT chunks.id, chunks.conversation_id, chunks.message_id, chunks.user_id, chunks.role,
+		       chunks.chunk_index, chunks.content, chunks.token_count, chunks.created_at,
+		       (1 - (chunks.embedding <=> ?::vector)) AS similarity
+		FROM chat_message_chunks AS chunks
+		JOIN vector_candidates AS candidates ON candidates.id = chunks.id
 		ORDER BY similarity DESC
-		LIMIT ?`
+		LIMIT ?`,
+		vectorutil.IndexDimensions,
+		vectorutil.IndexDimensions,
+		vectorutil.IndexDimensions,
+		vectorutil.IndexDimensions,
+	)
 	args := historicalMessageScopeArgs(input.Scope)
 	args = append(args,
 		input.Scope.ConversationID,
 		input.Scope.UserID,
+		input.EmbeddingSignature,
+		vec,
+		candidateLimit,
 		vec,
 		input.TopK,
 	)
 	var rows []messageChunkSearchRow
-	if err := r.db.WithContext(ctx).Raw(query, args...).Scan(&rows).Error; err != nil {
+	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := vectorutil.ConfigurePostgresCandidateSearch(tx); err != nil {
+			return err
+		}
+		return tx.Raw(query, args...).Scan(&rows).Error
+	}); err != nil {
 		return nil, translateError(err)
 	}
 	results := make([]domainconversation.MessageChunk, 0, len(rows))
