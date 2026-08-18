@@ -234,19 +234,16 @@ export function AdminUpstreamsPage() {
         onDone={upstreams.handleCircuitDone}
       />
 
-      {upstreams.modelsOpen ? (
-        <UpstreamModelsDialog
-          open
-          onOpenChange={(open) => {
-            upstreams.setModelsOpen(open);
-            if (!open) upstreams.closeModels();
-          }}
-          upstream={upstreams.modelsTarget}
-          openRemoteOnOpen={syncOnOpenUpstreamID === upstreams.modelsTarget?.id}
-          onUpstreamUpdated={upstreams.handleUpstreamUpdated}
-          onRemoteOpenHandled={() => setSyncOnOpenUpstreamID(null)}
-        />
-      ) : null}
+      <UpstreamModelsDialog
+        open={upstreams.modelsOpen}
+        onOpenChange={(open) => {
+          if (!open) upstreams.closeModels();
+        }}
+        upstream={upstreams.modelsTarget}
+        openRemoteOnOpen={syncOnOpenUpstreamID === upstreams.modelsTarget?.id}
+        onUpstreamUpdated={upstreams.handleUpstreamUpdated}
+        onRemoteOpenHandled={() => setSyncOnOpenUpstreamID(null)}
+      />
 
       <AdminBulkConfirmDialog
         open={statusConfirmOpen}
