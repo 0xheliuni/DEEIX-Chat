@@ -261,7 +261,10 @@ func (r *Repo) CreateModel(ctx context.Context, item *domainchannel.PlatformMode
 		return repository.ErrInvalidInput
 	}
 	entity := toPlatformModelModel(item)
-	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := r.transact(ctx, func(tx *gorm.DB) error {
+		if err := lockModelPresentationReferences(tx, entity.Vendor, entity.DisplayGroupID); err != nil {
+			return err
+		}
 		if entity.SortOrder == 0 {
 			var maxSortOrder int
 			if err := tx.
@@ -335,17 +338,29 @@ func (r *Repo) UpdateModel(ctx context.Context, modelID uint, input repository.U
 	if len(updates) == 0 {
 		return nil
 	}
-	result := r.db.WithContext(ctx).
-		Model(&model.LLMPlatformModel{}).
-		Where("id = ?", modelID).
-		Updates(updates)
-	if result.Error != nil {
-		return translateError(result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return ErrModelNotFound
-	}
-	return nil
+	return r.transact(ctx, func(tx *gorm.DB) error {
+		vendor := ""
+		if input.Vendor != nil {
+			vendor = *input.Vendor
+		}
+		var displayGroupID *uint
+		if input.DisplayGroupID != nil && *input.DisplayGroupID > 0 {
+			displayGroupID = input.DisplayGroupID
+		}
+		if err := lockModelPresentationReferences(tx, vendor, displayGroupID); err != nil {
+			return err
+		}
+		result := tx.Model(&model.LLMPlatformModel{}).
+			Where("id = ?", modelID).
+			Updates(updates)
+		if result.Error != nil {
+			return translateError(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrModelNotFound
+		}
+		return nil
+	})
 }
 
 // ReorderModels 按指定子序列调整模型顺序，仅更新提交的模型。

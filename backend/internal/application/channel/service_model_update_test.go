@@ -236,6 +236,24 @@ func TestSetModelsDisplayGroupNormalizesIDsAndMapsRepositoryErrors(t *testing.T)
 	}
 }
 
+func TestDeleteModelVendorMapsStructuredBlockers(t *testing.T) {
+	repo := &modelUpdateRepo{deleteVendorErr: &repository.ModelVendorDeleteBlockedError{
+		Reason:         repository.ModelVendorDeleteReasonReferencedModels,
+		ReferenceCount: 2,
+		Models:         []repository.ModelVendorReference{{ID: 7, PlatformModelName: "acme-chat"}},
+	}}
+	service := NewService(config.Config{}, repo, repo, nil, nil)
+
+	err := service.DeleteModelVendor(t.Context(), "acme")
+	var blocked *ModelVendorDeleteBlockedError
+	if !errors.As(err, &blocked) || !errors.Is(err, ErrModelVendorInUse) {
+		t.Fatalf("expected model vendor in-use error, got %v", err)
+	}
+	if blocked.ReferenceCount != 2 || len(blocked.Models) != 1 || blocked.Models[0].PlatformModelName != "acme-chat" {
+		t.Fatalf("unexpected blocker details: %#v", blocked)
+	}
+}
+
 func TestSetModelProtocolsReplacesEveryBindingInOneTransaction(t *testing.T) {
 	templateRoute := modelProtocolSource(1, 10, 100, "openai_image_edits")
 	templateRoute.Priority = 2
@@ -403,6 +421,7 @@ type modelUpdateRepo struct {
 	lastDisplayGroupModelIDs []uint
 	lastDisplayGroupID       uint
 	setDisplayGroupErr       error
+	deleteVendorErr          error
 	transactionCommitted     bool
 	routeReplacements        []repository.ReplaceChannelPlatformRoutesInput
 	replaceErrAt             int
@@ -673,6 +692,10 @@ func (r *modelUpdateRepo) CreateModelVendor(_ context.Context, item *domainchann
 
 func (r *modelUpdateRepo) UpdateModelVendor(context.Context, string, repository.UpdateModelVendorInput) error {
 	return nil
+}
+
+func (r *modelUpdateRepo) DeleteModelVendor(context.Context, string) error {
+	return r.deleteVendorErr
 }
 
 func (r *modelUpdateRepo) GetModelVendorByKey(_ context.Context, key string) (*domainchannel.ModelVendor, error) {

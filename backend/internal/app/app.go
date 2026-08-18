@@ -251,6 +251,8 @@ func NewApp() (*App, error) {
 	mediaArtifactClient := mediaartifact.New(strictOutboundPolicy)
 	channelService := channel.NewServiceWithRuntime(runtimeCfg, channelRepo, channelRepo, channelCache, llmClient)
 	channelService.SetLogger(log)
+	channelService.SetObjectStoreProvider(objectStoreProvider)
+	channelService.SetModelIconAssetRepository(channelRepo)
 	channelService.SetBillingModelPricingFilter(billingService)
 	channelService.SetPermissionGroupRepo(channelRepo)
 	channelService.SetSubscriptionGroupResolver(&subscriptionGroupAdapter{billing: billingService})
@@ -391,6 +393,7 @@ func NewApp() (*App, error) {
 	backgroundCtx, backgroundCancel := context.WithCancel(context.Background())
 	conversationService.StartBackgroundWorkers(backgroundCtx)
 	contentModerationService.StartBackgroundWorkers(backgroundCtx)
+	channelService.StartModelIconAssetCleanup(backgroundCtx)
 
 	return &App{
 		cfg:                    runtimeCfg.Snapshot(),

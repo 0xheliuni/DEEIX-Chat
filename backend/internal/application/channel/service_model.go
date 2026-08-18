@@ -381,6 +381,10 @@ func (s *Service) CreateModel(ctx context.Context, input CreateModelInput) (*Mod
 	if err := s.validateModelDisplayGroup(ctx, input.DisplayGroupID); err != nil {
 		return nil, err
 	}
+	explicitIcon, err := normalizeModelPresentationIcon(input.Icon)
+	if err != nil {
+		return nil, err
+	}
 	var displayGroupID *uint
 	if input.DisplayGroupID > 0 {
 		value := input.DisplayGroupID
@@ -392,7 +396,7 @@ func (s *Service) CreateModel(ctx context.Context, input CreateModelInput) (*Mod
 		Vendor:             vendor,
 		DisplayGroupID:     displayGroupID,
 		KindsJSON:          kindsJSON,
-		Icon:               normalizeModelIcon(input.Icon, vendor, platformModelName),
+		Icon:               normalizeModelIcon(explicitIcon, vendor, platformModelName),
 		CapabilitiesJSON:   strings.TrimSpace(input.CapabilitiesJSON),
 		SystemPrompt:       systemPrompt,
 		AccessScope:        accessScope,
@@ -403,9 +407,18 @@ func (s *Service) CreateModel(ctx context.Context, input CreateModelInput) (*Mod
 		CbDurationMin:      normalizeNonNegative(input.CbDurationMin),
 		CbWindowMin:        normalizeNonNegative(input.CbWindowMin),
 	}
+	if err = s.reserveModelIconReference(ctx, item.Icon); err != nil {
+		return nil, err
+	}
 	if err := s.repo.CreateModel(ctx, item); err != nil {
 		if isDuplicateKeyError(err) {
 			return nil, ErrDuplicatePlatformModelName
+		}
+		if errors.Is(err, repository.ErrModelVendorNotFound) {
+			return nil, ErrModelVendorNotFound
+		}
+		if errors.Is(err, repository.ErrModelDisplayGroupNotFound) {
+			return nil, ErrModelDisplayGroupNotFound
 		}
 		return nil, err
 	}
@@ -456,7 +469,11 @@ func (s *Service) UpdateModel(ctx context.Context, modelID uint, input UpdateMod
 		update.KindsJSON = &kindsJSON
 	}
 	if input.Icon != nil {
-		icon := normalizeModelIcon(*input.Icon, nextVendor, nextPlatformModelName)
+		explicitIcon, normalizeErr := normalizeModelPresentationIcon(*input.Icon)
+		if normalizeErr != nil {
+			return nil, normalizeErr
+		}
+		icon := normalizeModelIcon(explicitIcon, nextVendor, nextPlatformModelName)
 		update.Icon = &icon
 	}
 	if input.CapabilitiesJSON != nil {
@@ -522,9 +539,21 @@ func (s *Service) UpdateModel(ctx context.Context, modelID uint, input UpdateMod
 	if update.IsZero() {
 		return s.getModelViewByID(ctx, modelID)
 	}
+	if update.Icon != nil {
+		if err = s.reserveModelIconReference(ctx, *update.Icon); err != nil {
+			return nil, err
+		}
+	}
 
 	if err := s.repo.UpdateModel(ctx, modelID, update); err != nil {
-		return nil, err
+		switch {
+		case errors.Is(err, repository.ErrModelVendorNotFound):
+			return nil, ErrModelVendorNotFound
+		case errors.Is(err, repository.ErrModelDisplayGroupNotFound):
+			return nil, ErrModelDisplayGroupNotFound
+		default:
+			return nil, err
+		}
 	}
 	s.InvalidateModelCatalog()
 	return s.getModelViewByID(ctx, modelID)

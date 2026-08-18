@@ -109,6 +109,27 @@ type ModelDisplayGroup struct {
 	UpdatedAt time.Time
 }
 
+// ModelIconAsset 表示经过后端校验并存入对象存储的模型展示图标。
+// 业务对象只保存 asset:<PublicID> 引用，不保存图片内容或存储路径。
+type ModelIconAsset struct {
+	ID                uint
+	PublicID          string
+	SHA256            string
+	StoragePath       string
+	ContentType       string
+	SizeBytes         int64
+	Width             int
+	Height            int
+	CreatedByUserID   uint
+	ReadyAt           *time.Time
+	LeaseExpiresAt    time.Time
+	UnreferencedAt    *time.Time
+	DeleteRequestedAt *time.Time
+	DeletingAt        *time.Time
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
 // BuiltInModelVendors 返回内置技术厂商目录。
 // 返回新切片，避免调用方修改全局共享状态。
 func BuiltInModelVendors() []ModelVendor {

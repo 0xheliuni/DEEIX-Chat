@@ -3,10 +3,12 @@
 import { Bot } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { resolveApiBaseURL } from "@/shared/api/http-client";
 
 const LOBEHUB_ICON_PREFIX = "/vendor/lobehub-icons/";
 const LOBEHUB_ICON_SPRITE = `${LOBEHUB_ICON_PREFIX}__sprite.svg`;
 const LOBEHUB_ICON_SPRITE_CONTAINER_ID = "lobehub-icon-sprite";
+const MODEL_ICON_API_PREFIX = "/api/v1/llm/icon-assets/";
 
 let spriteReady = false;
 let spriteRequest: Promise<void> | null = null;
@@ -77,13 +79,22 @@ export function ModelIcon({
   fallbackClassName?: string;
 }) {
   const dimension = `${size}px`;
-  const symbolHref = iconUrl ? resolveLobeHubSymbolHref(iconUrl) : null;
+  const [runtimeApiBaseURL, setRuntimeApiBaseURL] = useState("");
+  const resolvedIconURL = iconUrl?.startsWith(MODEL_ICON_API_PREFIX) && runtimeApiBaseURL
+    ? `${runtimeApiBaseURL}${iconUrl}`
+    : iconUrl;
+  const symbolHref = resolvedIconURL ? resolveLobeHubSymbolHref(resolvedIconURL) : null;
   const [spriteLoaded, setSpriteLoaded] = useState(spriteReady);
-  const [imageFailed, setImageFailed] = useState(false);
+  const [failedImageURL, setFailedImageURL] = useState<string | null>(null);
+  const imageFailed = Boolean(resolvedIconURL && failedImageURL === resolvedIconURL);
   const shouldRenderSymbol = Boolean(symbolHref && (spriteReady || spriteLoaded));
 
   useEffect(() => {
-    setImageFailed(false);
+    if (iconUrl?.startsWith(MODEL_ICON_API_PREFIX)) {
+      setRuntimeApiBaseURL(resolveApiBaseURL());
+    } else {
+      setRuntimeApiBaseURL("");
+    }
   }, [iconUrl]);
 
   useEffect(() => {
@@ -107,16 +118,16 @@ export function ModelIcon({
         <svg aria-hidden="true" className="block size-full dark:invert" focusable="false">
           <use href={symbolHref} />
         </svg>
-      ) : iconUrl && !imageFailed ? (
+      ) : resolvedIconURL && !imageFailed ? (
         <img
           alt=""
           aria-hidden="true"
           className={cn("block size-full object-contain", symbolHref && "dark:invert")}
           decoding="async"
           loading="lazy"
-          onError={() => setImageFailed(true)}
+          onError={() => setFailedImageURL(resolvedIconURL)}
           referrerPolicy="no-referrer"
-          src={iconUrl}
+          src={resolvedIconURL}
         />
       ) : (
         <Bot className={cn("size-full text-muted-foreground", fallbackClassName)} />
