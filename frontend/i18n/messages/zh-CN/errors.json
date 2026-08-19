@@ -176,6 +176,7 @@
   },
   "llm": {
     "apiKeysRequired": "API Keys 不能为空。",
+    "circuitBreakerDisabled": "模型熔断未开启，请先启用后再执行此操作。",
     "emptyResponse": "模型返回了空响应。",
     "invalidAdapter": "接口协议不受支持，请重新选择协议。",
     "invalidApiKeysConfig": "API Keys 配置无效。",

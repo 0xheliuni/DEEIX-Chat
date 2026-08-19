@@ -15,6 +15,8 @@ var (
 	ErrRouteNotFound = errors.New("route not found")
 	// ErrAllRoutesUnavailable 所有候选路由暂时不可用。
 	ErrAllRoutesUnavailable = errors.New("all routes unavailable")
+	// ErrCircuitBreakerDisabled 全局模型熔断功能未开启。
+	ErrCircuitBreakerDisabled = errors.New("circuit breaker is disabled")
 	// ErrDuplicatePlatformModelName 平台模型名重复。
 	ErrDuplicatePlatformModelName = repository.ErrDuplicatePlatformModelName
 	// ErrInvalidPlatformModelName 平台模型名无效。

@@ -55,6 +55,9 @@ type ChannelCacheRepository interface {
 	// ClearModelCircuitKeys 清除 probe 成功后的模型级熔断关键键。
 	ClearModelCircuitKeys(ctx context.Context, upstreamID uint, modelKey string) error
 
+	// ResetAllCircuitStates 清除全部上游与模型熔断状态和失败计数，不删除健康元数据或限流状态。
+	ResetAllCircuitStates(ctx context.Context) error
+
 	// ReleaseRouteProbes 释放路由上的 probe 令牌（ignore/rate_limit 时使用）。
 	// modelKey 为空则释放上游 probe，否则释放指定模型 probe。
 	ReleaseRouteProbes(ctx context.Context, upstreamID uint, modelKey string) error

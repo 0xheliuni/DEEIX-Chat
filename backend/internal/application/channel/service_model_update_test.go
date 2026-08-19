@@ -144,6 +144,130 @@ func TestUpdateModelUpstreamSourceUpdatesRouteCircuitSettings(t *testing.T) {
 	}
 }
 
+func TestParseCircuitBreakerDefaultsValidatesAndAppliesDefaults(t *testing.T) {
+	for _, value := range []string{
+		`{"enabled":false,"model_failure_threshold":5}`,
+		`{"model_failure_threshold":5}`,
+	} {
+		if _, err := parseCircuitBreakerDefaults(value); err != nil {
+			t.Fatalf("parseCircuitBreakerDefaults(%q) error = %v", value, err)
+		}
+	}
+	for _, value := range []string{
+		`[]`,
+		`null`,
+		`{"enabled":null}`,
+		`{"enabled":"false"}`,
+		`{"model_failure_threshold":"5"}`,
+		`{"model_failure_threshold":-1}`,
+		`{"upstream_window_min":-1}`,
+		`{"upstream_threshold_logic":"xor"}`,
+	} {
+		if _, err := parseCircuitBreakerDefaults(value); !errors.Is(err, ErrInvalidJSONConfig) {
+			t.Fatalf("parseCircuitBreakerDefaults(%q) error = %v, want ErrInvalidJSONConfig", value, err)
+		}
+	}
+	parsed, err := parseCircuitBreakerDefaults(`{"enabled":true,"model_failure_threshold":9}`)
+	if err != nil || !parsed.Enabled || parsed.ModelFailureThreshold != 9 || parsed.ModelDurationMin != 15 {
+		t.Fatalf("unexpected parsed defaults: %#v, error=%v", parsed, err)
+	}
+}
+
+func TestUpdateCircuitBreakerDefaultsClearsExistingStates(t *testing.T) {
+	cache := memory.NewChannelCache(memory.New())
+	if err := cache.OpenUpstreamCircuit(t.Context(), 1); err != nil {
+		t.Fatalf("OpenUpstreamCircuit() error = %v", err)
+	}
+	repo := &modelUpdateRepo{llmSetting: domainchannel.LLMSetting{
+		Key:   "circuit_breaker.defaults",
+		Value: `{"enabled":true}`,
+	}}
+	service := NewService(config.Config{}, repo, repo, cache, nil)
+
+	if _, err := service.UpdateLLMSetting(t.Context(), "circuit_breaker.defaults", `{"enabled":false}`); err != nil {
+		t.Fatalf("UpdateLLMSetting() error = %v", err)
+	}
+	if open, _ := cache.QueryUpstreamCircuitStatus(t.Context(), 1); open {
+		t.Fatal("expected setting update to clear existing circuit state")
+	}
+}
+
+func TestUpdateCircuitBreakerDefaultsDoesNotClearEnabledStateBeforeFailedWrite(t *testing.T) {
+	cache := memory.NewChannelCache(memory.New())
+	if err := cache.OpenUpstreamCircuit(t.Context(), 1); err != nil {
+		t.Fatalf("OpenUpstreamCircuit() error = %v", err)
+	}
+	writeErr := errors.New("write failed")
+	repo := &modelUpdateRepo{
+		llmSetting: domainchannel.LLMSetting{
+			Key:   "circuit_breaker.defaults",
+			Value: `{"enabled":true,"model_failure_threshold":5}`,
+		},
+		upsertLLMSettingErr: writeErr,
+	}
+	service := NewService(config.Config{}, repo, repo, cache, nil)
+
+	if _, err := service.UpdateLLMSetting(t.Context(), "circuit_breaker.defaults", `{"enabled":true,"model_failure_threshold":7}`); !errors.Is(err, writeErr) {
+		t.Fatalf("UpdateLLMSetting() error = %v, want %v", err, writeErr)
+	}
+	if open, _ := cache.QueryUpstreamCircuitStatus(t.Context(), 1); !open {
+		t.Fatal("expected failed enabled-to-enabled update to preserve existing circuit state")
+	}
+}
+
+func TestUpdateCircuitBreakerDefaultsClearsStateBeforeEnabling(t *testing.T) {
+	cache := memory.NewChannelCache(memory.New())
+	if err := cache.OpenUpstreamCircuit(t.Context(), 1); err != nil {
+		t.Fatalf("OpenUpstreamCircuit() error = %v", err)
+	}
+	repo := &modelUpdateRepo{llmSetting: domainchannel.LLMSetting{
+		Key:   "circuit_breaker.defaults",
+		Value: `{"enabled":false}`,
+	}}
+	service := NewService(config.Config{}, repo, repo, cache, nil)
+
+	if _, err := service.UpdateLLMSetting(t.Context(), "circuit_breaker.defaults", `{"enabled":true}`); err != nil {
+		t.Fatalf("UpdateLLMSetting() error = %v", err)
+	}
+	if open, _ := cache.QueryUpstreamCircuitStatus(t.Context(), 1); open {
+		t.Fatal("expected enabling to start from a clean circuit state")
+	}
+	if !service.loadBreakerDefaults(t.Context()).Enabled {
+		t.Fatal("expected successful update to enable the local breaker cache immediately")
+	}
+}
+
+func TestOpenCircuitRejectsWhenBreakerDisabled(t *testing.T) {
+	repo := &modelUpdateRepo{
+		breakerDefaults: domainchannel.BreakerDefaults{Enabled: false},
+		upstream:        domainchannel.Upstream{ID: 1},
+		upstreamModelRoute: repository.ChannelUpstreamModelListRow{
+			UpstreamModel: domainchannel.UpstreamModel{ID: 1, UpstreamID: 1, BindingCode: "upm_1"},
+			RouteID:       1,
+		},
+	}
+	service := NewService(config.Config{}, repo, repo, memory.NewChannelCache(memory.New()), nil)
+
+	if err := service.OpenUpstreamCircuit(t.Context(), 1); !errors.Is(err, ErrCircuitBreakerDisabled) {
+		t.Fatalf("OpenUpstreamCircuit() error = %v, want ErrCircuitBreakerDisabled", err)
+	}
+	if err := service.OpenUpstreamModelCircuit(t.Context(), 1, 1); !errors.Is(err, ErrCircuitBreakerDisabled) {
+		t.Fatalf("OpenUpstreamModelCircuit() error = %v, want ErrCircuitBreakerDisabled", err)
+	}
+}
+
+func TestOpenCircuitValidatesTargetBeforeGlobalState(t *testing.T) {
+	repo := &modelUpdateRepo{breakerDefaults: domainchannel.BreakerDefaults{Enabled: false}}
+	service := NewService(config.Config{}, repo, repo, memory.NewChannelCache(memory.New()), nil)
+
+	if err := service.OpenUpstreamCircuit(t.Context(), 1); !errors.Is(err, ErrUpstreamNotFound) {
+		t.Fatalf("OpenUpstreamCircuit() error = %v, want ErrUpstreamNotFound", err)
+	}
+	if err := service.OpenUpstreamModelCircuit(t.Context(), 1, 1); !errors.Is(err, ErrUpstreamModelNotFound) {
+		t.Fatalf("OpenUpstreamModelCircuit() error = %v, want ErrUpstreamModelNotFound", err)
+	}
+}
+
 func TestListModelsNormalizesCircuitOpenSourceCount(t *testing.T) {
 	ctx := context.Background()
 	cache := memory.NewChannelCache(memory.New())
@@ -151,6 +275,7 @@ func TestListModelsNormalizesCircuitOpenSourceCount(t *testing.T) {
 		t.Fatalf("OpenModelCircuit() error = %v", err)
 	}
 	repo := &modelUpdateRepo{
+		breakerDefaults: domainchannel.BreakerDefaults{Enabled: true},
 		modelRows: []repository.ChannelModelListRow{
 			{
 				PlatformModel: domainchannel.PlatformModel{
@@ -181,6 +306,28 @@ func TestListModelsNormalizesCircuitOpenSourceCount(t *testing.T) {
 	}
 }
 
+func TestListModelsSkipsCircuitSourceQueriesWhenBreakerDisabled(t *testing.T) {
+	repo := &modelUpdateRepo{
+		breakerDefaults: domainchannel.BreakerDefaults{Enabled: false},
+		modelRows: []repository.ChannelModelListRow{{
+			PlatformModel: domainchannel.PlatformModel{ID: 1, PlatformModelName: "gpt-test", Status: "active"},
+			SourceCount:   2, ActiveSourceCount: 2,
+		}},
+	}
+	service := NewService(config.Config{}, repo, repo, memory.NewChannelCache(memory.New()), nil)
+
+	items, _, err := service.ListModels(t.Context(), 1, 20, ListModelsInput{})
+	if err != nil {
+		t.Fatalf("ListModels() error = %v", err)
+	}
+	if len(items) != 1 || items[0].ActiveSourceCount != 2 {
+		t.Fatalf("unexpected models: %#v", items)
+	}
+	if repo.sourceListCalls != 0 {
+		t.Fatalf("source list calls = %d, want 0", repo.sourceListCalls)
+	}
+}
+
 func TestListUpstreamsNormalizesCircuitOpenModelCount(t *testing.T) {
 	ctx := context.Background()
 	cache := memory.NewChannelCache(memory.New())
@@ -188,6 +335,7 @@ func TestListUpstreamsNormalizesCircuitOpenModelCount(t *testing.T) {
 		t.Fatalf("OpenModelCircuit() error = %v", err)
 	}
 	repo := &modelUpdateRepo{
+		breakerDefaults: domainchannel.BreakerDefaults{Enabled: true},
 		upstreamRows: []repository.ChannelUpstreamListRow{
 			{
 				Upstream: domainchannel.Upstream{
@@ -411,11 +559,14 @@ func modelProtocolSource(routeID uint, upstreamID uint, upstreamModelID uint, pr
 
 type modelUpdateRepo struct {
 	model                    domainchannel.PlatformModel
+	upstream                 domainchannel.Upstream
+	upstreamModelRoute       repository.ChannelUpstreamModelListRow
 	modelRows                []repository.ChannelModelListRow
 	upstreamRows             []repository.ChannelUpstreamListRow
 	activeBindingCodes       []string
 	source                   repository.ChannelModelSourceRow
 	sources                  []repository.ChannelModelSourceRow
+	sourceListCalls          int
 	lastUpdate               repository.UpdateChannelModelInput
 	lastRouteUpdate          repository.UpdateChannelPlatformRouteInput
 	lastDisplayGroupModelIDs []uint
@@ -425,6 +576,9 @@ type modelUpdateRepo struct {
 	transactionCommitted     bool
 	routeReplacements        []repository.ReplaceChannelPlatformRoutesInput
 	replaceErrAt             int
+	breakerDefaults          domainchannel.BreakerDefaults
+	llmSetting               domainchannel.LLMSetting
+	upsertLLMSettingErr      error
 }
 
 func (r *modelUpdateRepo) WithinTransaction(ctx context.Context, fn func(repository.ChannelRepository) error) error {
@@ -442,7 +596,11 @@ func (r *modelUpdateRepo) UpdateUpstream(context.Context, uint, repository.Updat
 }
 
 func (r *modelUpdateRepo) GetUpstreamByID(context.Context, uint) (*domainchannel.Upstream, error) {
-	return nil, repository.ErrNotFound
+	if r.upstream.ID == 0 {
+		return nil, ErrUpstreamNotFound
+	}
+	item := r.upstream
+	return &item, nil
 }
 
 func (r *modelUpdateRepo) GetUpstreamListRowByID(context.Context, uint) (*repository.ChannelUpstreamListRow, error) {
@@ -568,7 +726,11 @@ func (r *modelUpdateRepo) ListUpstreamModelsByNames(context.Context, uint, []str
 }
 
 func (r *modelUpdateRepo) GetUpstreamModelRouteByID(context.Context, uint, uint) (*repository.ChannelUpstreamModelListRow, error) {
-	return nil, repository.ErrNotFound
+	if r.upstreamModelRoute.RouteID == 0 {
+		return nil, ErrUpstreamModelNotFound
+	}
+	item := r.upstreamModelRoute
+	return &item, nil
 }
 
 func (r *modelUpdateRepo) GetUpstreamModelRouteByNames(context.Context, uint, string, string, string) (*repository.ChannelUpstreamModelListRow, error) {
@@ -638,6 +800,7 @@ func (r *modelUpdateRepo) DeletePlatformModelRoute(context.Context, uint, uint) 
 }
 
 func (r *modelUpdateRepo) ListModelUpstreamSources(context.Context, string, int, int) ([]repository.ChannelModelSourceRow, int64, error) {
+	r.sourceListCalls++
 	return r.sources, int64(len(r.sources)), nil
 }
 
@@ -653,15 +816,28 @@ func (r *modelUpdateRepo) ListActiveRouteBindingCodesForUpstream(context.Context
 	return r.activeBindingCodes, nil
 }
 
-func (r *modelUpdateRepo) GetLLMSetting(context.Context, string) (*domainchannel.LLMSetting, error) {
-	return nil, repository.ErrNotFound
+func (r *modelUpdateRepo) GetLLMSetting(_ context.Context, key string) (*domainchannel.LLMSetting, error) {
+	if r.llmSetting.Key != key {
+		return nil, repository.ErrNotFound
+	}
+	item := r.llmSetting
+	return &item, nil
 }
 
 func (r *modelUpdateRepo) ListLLMSettings(context.Context) ([]domainchannel.LLMSetting, error) {
 	return nil, nil
 }
 
-func (r *modelUpdateRepo) UpsertLLMSetting(context.Context, *domainchannel.LLMSetting) error {
+func (r *modelUpdateRepo) UpsertLLMSetting(_ context.Context, item *domainchannel.LLMSetting) error {
+	if r.upsertLLMSettingErr != nil {
+		return r.upsertLLMSettingErr
+	}
+	r.llmSetting = *item
+	if item.Key == "circuit_breaker.defaults" {
+		if parsed, err := parseCircuitBreakerDefaults(item.Value); err == nil {
+			r.breakerDefaults = parsed
+		}
+	}
 	return nil
 }
 
@@ -670,7 +846,7 @@ func (r *modelUpdateRepo) GetBreakerErrorClassification(context.Context) (domain
 }
 
 func (r *modelUpdateRepo) GetBreakerDefaults(context.Context) (domainchannel.BreakerDefaults, error) {
-	return domainchannel.BreakerDefaults{}, nil
+	return r.breakerDefaults, nil
 }
 
 func (r *modelUpdateRepo) GetRateLimitDefaults(context.Context) (domainchannel.RateLimitDefaults, error) {

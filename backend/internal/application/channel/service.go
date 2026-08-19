@@ -7,6 +7,7 @@ import (
 
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	appstorage "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/objectstorage"
+	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
@@ -109,6 +110,11 @@ type Service struct {
 	modelCatalogMu         sync.RWMutex
 	modelCatalog           []ModelView
 	modelCatalogValidUntil time.Time
+
+	breakerDefaultsMu         sync.RWMutex
+	breakerDefaults           domainchannel.BreakerDefaults
+	breakerDefaultsLoaded     bool
+	breakerDefaultsValidUntil time.Time
 }
 
 // SetObjectStoreProvider 注入运行时对象存储，用于管理员自定义模型图标。
@@ -187,11 +193,13 @@ type routeCandidate struct {
 type routeFailureClass string
 
 const (
-	routeFailureCircuit   routeFailureClass = "circuit"
-	routeFailureRateLimit routeFailureClass = "rate_limit"
-	routeFailureIgnore    routeFailureClass = "ignore"
-	circuitProbeTTLSec                      = 30
-	modelCatalogCacheTTL                    = 30 * time.Second
+	routeFailureCircuit          routeFailureClass = "circuit"
+	routeFailureRateLimit        routeFailureClass = "rate_limit"
+	routeFailureIgnore           routeFailureClass = "ignore"
+	circuitProbeTTLSec                             = 30
+	modelCatalogCacheTTL                           = 30 * time.Second
+	breakerDefaultsCacheTTL                        = 5 * time.Second
+	breakerDefaultsErrorRetryTTL                   = time.Second
 )
 
 const (

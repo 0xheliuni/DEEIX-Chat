@@ -1,6 +1,16 @@
 {
   "title": "模型",
   "pageTitle": "模型管理",
+  "circuitBreaker": {
+    "enabledStatus": "自动熔断已开启",
+    "disabledStatus": "自动熔断已关闭",
+    "label": "自动熔断",
+    "description": "模型或上游在统计窗口内累计失败达到阈值后，系统将暂停向其路由请求，并在熔断结束后自动探测恢复。",
+    "loadFailed": "加载模型熔断设置失败",
+    "updateFailed": "更新模型熔断设置失败",
+    "enabledToast": "自动熔断已开启",
+    "disabledToast": "自动熔断已关闭"
+  },
   "platformModel": "平台模型",
   "upstreamModel": "上游模型",
   "routes": "路由",
@@ -371,7 +381,7 @@
     "capabilitiesJSON": "模型能力 JSON",
     "capabilitiesDescription": "配置模型默认参数和聊天参数面板中的可视化控件。",
     "circuitBreak": "模型熔断机制",
-    "circuitBreakDescription": "配置当前主模型下属具体来源的熔断策略；每个来源按上游独立熔断，填 0 表示使用系统默认。",
+    "circuitBreakDescription": "为当前模型的各上游来源配置熔断规则。自动熔断开启后生效；各来源独立统计失败并执行熔断，参数为 0 时继承系统默认值。",
     "circuitPolicyMode": "应用方式",
     "circuitPolicyDefault": "兜底配置（来源未单独配置时生效）",
     "circuitPolicyEnforced": "全局覆盖（当前主模型下属所有来源）",

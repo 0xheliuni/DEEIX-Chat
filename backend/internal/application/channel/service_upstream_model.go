@@ -41,10 +41,13 @@ func (s *Service) ListUpstreamModels(ctx context.Context, upstreamID uint, page 
 	if err != nil {
 		return nil, 0, err
 	}
+	breakerEnabled := s.cache != nil && s.loadBreakerDefaults(ctx).Enabled
 	views := make([]UpstreamModelView, 0, len(items))
 	for _, item := range items {
 		v := toUpstreamModelView(item)
-		v.CircuitOpen, v.CircuitUntil = s.cache.QueryModelCircuitStatus(ctx, upstreamID, bindingCircuitKey(item.BindingCode))
+		if breakerEnabled && s.cache != nil {
+			v.CircuitOpen, v.CircuitUntil = s.cache.QueryModelCircuitStatus(ctx, upstreamID, bindingCircuitKey(item.BindingCode))
+		}
 		views = append(views, v)
 	}
 	return views, total, nil
@@ -404,6 +407,9 @@ func (s *Service) OpenUpstreamModelCircuit(ctx context.Context, upstreamID uint,
 	if err != nil {
 		return err
 	}
+	if s.cache == nil || !s.loadBreakerDefaults(ctx).Enabled {
+		return ErrCircuitBreakerDisabled
+	}
 	return s.cache.OpenModelCircuit(ctx, upstreamID, bindingCircuitKey(bindingCode))
 }
 
@@ -412,6 +418,9 @@ func (s *Service) ResetUpstreamModelCircuit(ctx context.Context, upstreamID uint
 	bindingCode, err := s.routeBindingCode(ctx, upstreamID, routeID)
 	if err != nil {
 		return err
+	}
+	if s.cache == nil {
+		return nil
 	}
 	return s.cache.ResetModelCircuit(ctx, upstreamID, bindingCircuitKey(bindingCode))
 }

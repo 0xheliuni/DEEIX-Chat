@@ -316,6 +316,7 @@ func (h *Handler) BatchDeleteUpstreams(c *gin.Context) {
 // @Success 200 {object} response.SuccessDoc
 // @Failure 400 {object} ErrorDoc
 // @Failure 404 {object} ErrorDoc
+// @Failure 409 {object} ErrorDoc
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/llm/upstreams/{id}/circuit/open [post]
 func (h *Handler) OpenUpstreamCircuit(c *gin.Context) {
@@ -326,6 +327,10 @@ func (h *Handler) OpenUpstreamCircuit(c *gin.Context) {
 	}
 
 	if err = h.service.OpenUpstreamCircuit(c.Request.Context(), upstreamID); err != nil {
+		if errors.Is(err, appchannel.ErrCircuitBreakerDisabled) {
+			response.Error(c, http.StatusConflict, "circuit breaker is disabled")
+			return
+		}
 		if errors.Is(err, appchannel.ErrUpstreamNotFound) {
 			response.Error(c, http.StatusNotFound, "upstream not found")
 			return
@@ -643,6 +648,7 @@ func (h *Handler) BatchDeleteUpstreamModels(c *gin.Context) {
 // @Success 200 {object} response.SuccessDoc
 // @Failure 400 {object} ErrorDoc
 // @Failure 404 {object} ErrorDoc
+// @Failure 409 {object} ErrorDoc
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/llm/upstreams/{id}/models/{route_id}/circuit/open [post]
 func (h *Handler) OpenUpstreamModelCircuit(c *gin.Context) {
@@ -658,6 +664,10 @@ func (h *Handler) OpenUpstreamModelCircuit(c *gin.Context) {
 	}
 
 	if err = h.service.OpenUpstreamModelCircuit(c.Request.Context(), upstreamID, routeID); err != nil {
+		if errors.Is(err, appchannel.ErrCircuitBreakerDisabled) {
+			response.Error(c, http.StatusConflict, "circuit breaker is disabled")
+			return
+		}
 		if errors.Is(err, appchannel.ErrUpstreamModelNotFound) {
 			response.Error(c, http.StatusNotFound, "upstream model not found")
 			return

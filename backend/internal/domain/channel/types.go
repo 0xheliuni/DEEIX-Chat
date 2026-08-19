@@ -22,18 +22,6 @@ type BreakerErrorClassification struct {
 	IgnoreErrors    []string
 }
 
-// BreakerDefaults 熔断器全局默认参数（来自 circuit_breaker.defaults 全局设置）。
-type BreakerDefaults struct {
-	ModelFailureThreshold    int
-	ModelDurationMin         int
-	ModelWindowMin           int
-	UpstreamFailureThreshold int
-	UpstreamModelThreshold   int
-	UpstreamThresholdLogic   string
-	UpstreamDurationMin      int
-	UpstreamWindowMin        int
-}
-
 // RateLimitDefaults 限流退避全局默认参数（来自 rate_limit.defaults 全局设置）。
 type RateLimitDefaults struct {
 	BackoffBaseSec    int

@@ -231,6 +231,7 @@ var exactErrorSpecs = map[string]errorSpec{
 	"model icon asset is in use":                  {Code: "llm.model_icon_asset_in_use", Message: "model icon asset is in use"},
 	"built-in model vendor cannot be deleted":     {Code: "llm.model_vendor_builtin", Message: "built-in model vendor cannot be deleted"},
 	"model vendor is in use":                      {Code: "llm.model_vendor_in_use", Message: "model vendor is in use"},
+	"circuit breaker is disabled":                 {Code: "llm.circuit_breaker_disabled", Message: "circuit breaker is disabled"},
 
 	"usage balance is insufficient":                                {Code: CodeBillingInsufficientFunds, Message: "insufficient balance"},
 	"usage concurrency limit exceeded":                             {Code: "billing.concurrency_limit_exceeded", Message: "too many concurrent paid requests"},
@@ -598,6 +599,7 @@ var fallbackMessages = map[string]string{
 	"llm.no_active_api_key":                             "no active api key",
 	"llm.model_vendor_builtin":                          "built-in model vendor cannot be deleted",
 	"llm.model_vendor_in_use":                           "model vendor is in use",
+	"llm.circuit_breaker_disabled":                      "circuit breaker is disabled",
 	"llm.invalid_adapter":                               "invalid adapter",
 	"llm.invalid_compatible":                            "invalid compatible",
 	"llm.invalid_platform_model_name":                   "invalid platform model name",
