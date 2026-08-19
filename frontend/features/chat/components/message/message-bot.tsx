@@ -349,6 +349,7 @@ export function ChatMessageBot({
       />
 
       <div
+        data-chat-assistant-content=""
         className="w-full min-w-0 max-w-none overflow-hidden text-[15px] leading-8 text-foreground [overflow-wrap:anywhere]"
         style={{ fontFamily: "var(--font-chat)", fontWeight: "var(--font-chat-weight)" }}
       >

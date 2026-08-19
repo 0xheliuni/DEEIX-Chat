@@ -194,6 +194,8 @@
     "imageRunning": "Generating image",
     "contextCompressed": "Context was automatically compressed",
     "scrollToBottom": "Scroll to bottom",
+    "responseOutline": "This response",
+    "jumpToResponseSection": "Jump to “{title}”",
     "processing": "Processing...",
     "expandUserMessage": "Expand",
     "collapseUserMessage": "Collapse",

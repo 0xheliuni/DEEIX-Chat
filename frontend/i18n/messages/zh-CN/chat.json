@@ -194,6 +194,8 @@
     "imageRunning": "正在生成图片",
     "contextCompressed": "上下文已自动压缩",
     "scrollToBottom": "回到底部",
+    "responseOutline": "本轮回复",
+    "jumpToResponseSection": "跳转到“{title}”",
     "processing": "正在处理…",
     "expandUserMessage": "展开",
     "collapseUserMessage": "收起",
