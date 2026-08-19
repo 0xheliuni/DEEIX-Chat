@@ -39,6 +39,7 @@ import {
   ChatMessagePositionRail,
   chatMessageScrollerID,
 } from "@/features/chat/components/sections/chat-message-position-rail";
+import { ChatResponseOutlineRail } from "@/features/chat/components/sections/chat-response-outline-rail";
 import { cn } from "@/lib/utils";
 import { AppLogo, DeeixLogo } from "@/shared/components/app-logo";
 import { useBranding } from "@/shared/config/branding-provider";
@@ -734,6 +735,8 @@ export function ChatArea({
                       messageId={chatMessageScrollerID(item)}
                       scrollAnchor={item.key === liveAnchorMessageKey}
                       className={spacingClass}
+                      data-chat-message-id={chatMessageScrollerID(item)}
+                      data-chat-message-role={item.role}
                       data-message-public-id={publicID || undefined}
                     >
                       <div>
@@ -754,6 +757,10 @@ export function ChatArea({
               <ArrowDownToLine className="size-4" strokeWidth={1.8} />
             </MessageScrollerButton>
             <ChatMessagePositionRail messages={messages} boundaryRef={messageViewportBoundaryRef} />
+            <ChatResponseOutlineRail
+              boundaryRef={messageViewportBoundaryRef}
+              disabled={selectionMode || splitRightInset}
+            />
           </MessageScroller>
         </MessageScrollerProvider>
       </div>
