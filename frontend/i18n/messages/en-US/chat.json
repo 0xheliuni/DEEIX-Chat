@@ -364,7 +364,7 @@
   "composer": {
     "uploadFile": "Upload file",
     "screenshot": "Screenshot",
-    "openTools": "Open tools",
+    "openTools": "Menu",
     "inputPlaceholder": "Message, or use / for context, @ for resources",
     "voiceStartingPlaceholder": "Starting voice input…",
     "voiceListeningPlaceholder": "Receiving voice input…",

@@ -162,13 +162,25 @@ export function ChatKnowledgeBases({
         </TooltipContent>
       </Tooltip>
 
-      <PopoverContent side="top" align="start" sideOffset={8} className="w-[min(22rem,calc(100vw-2rem))] p-1.5">
+      <PopoverContent side="bottom" align="start" sideOffset={8} className="w-[min(22rem,calc(100vw-2rem))] p-1.5">
+        <div className="flex items-center justify-between gap-3 px-2 pb-1.5 text-[11px] font-medium text-foreground/70">
+          <span>{t("knowledgeBases")}</span>
+          {selectedIDs.length > 0 ? (
+            <button
+              type="button"
+              className="text-[11px] leading-none text-foreground/55 outline-none transition-colors hover:text-foreground focus-visible:text-foreground"
+              onClick={() => onChange([])}
+            >
+              {t("clear")}
+            </button>
+          ) : null}
+        </div>
         {available === false ? (
           <p className="mb-1.5 rounded-md bg-muted/55 px-2 py-2 text-[11px] leading-4 text-muted-foreground">
             {unavailableDescription}
           </p>
         ) : null}
-        <div className="relative mb-1.5">
+        <div className="relative mx-1 mb-1.5">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" strokeWidth={1.7} />
           <Input
             value={query}

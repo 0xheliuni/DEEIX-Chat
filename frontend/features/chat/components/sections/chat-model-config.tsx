@@ -1520,24 +1520,30 @@ export function ChatModelConfig({
 
   return (
     <>
-      <InputGroupButton
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className="size-7 rounded-md text-muted-foreground hover:text-foreground sm:size-8"
-        disabled={disabled}
-        onClick={openOptionsDialog}
-        aria-label={tComposer("modelOptions")}
-        title={tComposer("modelOptions")}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-      >
-        <Cog
-          size={20}
-          strokeWidth={1.4}
-          animate={hovered ? "default" : false}
-        />
-      </InputGroupButton>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <InputGroupButton
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="size-7 rounded-md text-muted-foreground hover:text-foreground sm:size-8"
+            disabled={disabled}
+            onClick={openOptionsDialog}
+            aria-label={tComposer("modelOptions")}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+          >
+            <Cog
+              size={20}
+              strokeWidth={1.4}
+              animate={hovered ? "default" : false}
+            />
+          </InputGroupButton>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="text-xs">
+          {tComposer("modelOptions")}
+        </TooltipContent>
+      </Tooltip>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent

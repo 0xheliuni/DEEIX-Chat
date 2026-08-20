@@ -37,7 +37,9 @@ func (r *Repo) ListKnowledgeBases(ctx context.Context, filter repository.Knowled
 	if limit > 100 {
 		limit = 100
 	}
-	items := make([]model.KnowledgeBase, 0, limit)
+	// Do not use the request-derived limit as a slice capacity. The SQL query
+	// still enforces the bounded limit, and Gorm grows this slice only as rows return.
+	items := make([]model.KnowledgeBase, 0)
 	query := applyListFilter(r.db.WithContext(ctx).Model(&model.KnowledgeBase{}), filter)
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
@@ -209,7 +211,7 @@ func (r *Repo) ListKnowledgeBaseFiles(ctx context.Context, knowledgeBaseID uint,
 	if err := base.Count(&total).Error; err != nil {
 		return nil, 0, translateError(err)
 	}
-	items := make([]model.FileObject, 0, limit)
+	items := make([]model.FileObject, 0)
 	if err := base.Select(knowledgeBaseFileSelectColumns).Order("kbf.sort_order ASC, kbf.created_at ASC").Offset(offset).Limit(limit).Scan(&items).Error; err != nil {
 		return nil, 0, translateError(err)
 	}
@@ -273,7 +275,7 @@ func (r *Repo) listKnowledgeBaseSourceFiles(
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, translateError(err)
 	}
-	items := make([]model.FileObject, 0, limit)
+	items := make([]model.FileObject, 0)
 	if err := query.Select(knowledgeBaseFileSelectColumns).
 		Order("fo.created_at DESC, fo.id DESC").
 		Offset(offset).
