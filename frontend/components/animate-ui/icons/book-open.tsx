@@ -4,8 +4,8 @@ import { motion, type Variants } from 'motion/react';
 
 import {
   getVariants,
-  IconWrapper,
   type IconProps,
+  IconWrapper,
   useAnimateIconContext,
 } from '@/components/animate-ui/icons/icon';
 
@@ -89,12 +89,14 @@ function IconComponent({ size, ...props }: BookOpenProps) {
     >
       <motion.path
         d="M12 7C11 4.8 9.7 3 7 3H2V18H9C10.6 18 11.5 19 12 21Z"
+        opacity={1}
         variants={variants.leftPage}
         initial="initial"
         animate={controls}
       />
       <motion.path
         d="M12 7C13 4.8 14.3 3 17 3H22V18H15C13.4 18 12.5 19 12 21Z"
+        opacity={1}
         variants={variants.rightPage}
         initial="initial"
         animate={controls}
@@ -103,6 +105,7 @@ function IconComponent({ size, ...props }: BookOpenProps) {
         d="M8 3h9v18H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
         fill="currentColor"
         fillOpacity={0.08}
+        opacity={0}
         variants={variants.closedCover}
         initial="initial"
         animate={controls}

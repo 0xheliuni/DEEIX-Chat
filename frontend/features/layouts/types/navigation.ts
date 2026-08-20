@@ -6,7 +6,7 @@ export type NavigationIconProps = {
   size?: number;
   strokeWidth?: number;
   className?: string;
-  animate?: "default";
+  animate?: "default" | false;
   "aria-hidden"?: boolean;
 };
 
