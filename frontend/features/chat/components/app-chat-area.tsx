@@ -388,8 +388,10 @@ export function AppChatArea() {
   const {
     selectedToolIDs,
     selectedSkills,
+    selectedKnowledgeBaseIDs,
     setSelectedToolIDs,
     setSelectedSkills,
+    setSelectedKnowledgeBaseIDs,
   } = useChatComposerSelection({
     conversationKey,
     createdConversationID: locallyCreatedConversationID,
@@ -415,15 +417,21 @@ export function AppChatArea() {
     () => (newConversationProject?.defaultSkillIDs ?? []).slice(0, mcpMaxSelectedTools),
     [mcpMaxSelectedTools, newConversationProject],
   );
-  const { onSelectedSkillsChange, onSelectedToolsChange: applySelectedToolsChange } = useNewConversationDefaults({
+  const newConversationDefaultKnowledgeBaseIDs = React.useMemo(
+    () => (newConversationProject?.defaultKnowledgeBaseIDs ?? []).slice(0, 8),
+    [newConversationProject],
+  );
+  const { onSelectedKnowledgeBasesChange, onSelectedSkillsChange, onSelectedToolsChange: applySelectedToolsChange } = useNewConversationDefaults({
     conversationID,
     contextKey: newConversationSelectionKey,
     defaultsPending: Boolean(newConversationProjectID && !newConversationProject),
     defaultMCPToolIDs: newConversationDefaultMCPToolIDs,
     defaultSkillIDs: newConversationDefaultSkillIDs,
+    defaultKnowledgeBaseIDs: newConversationDefaultKnowledgeBaseIDs,
     toolsLoading,
     setSelectedToolIDs,
     setSelectedSkills,
+    setSelectedKnowledgeBaseIDs,
   });
   const onSelectedToolsChange = React.useCallback((nextToolIDs: number[]) => {
     if (hasMultipleImageAttachmentProcessors(nextToolIDs, availableTools)) {
@@ -615,6 +623,8 @@ export function AppChatArea() {
     uploadingAttachments,
     maxFilesPerMessage,
     fileMode,
+    ragAvailable,
+    ragAvailabilityReason,
     releaseAttachments,
     onRemoveAttachment,
     onUploadFiles,
@@ -654,6 +664,7 @@ export function AppChatArea() {
     modelOptions,
     selectedToolIDs,
     selectedSkills,
+    selectedKnowledgeBaseIDs,
     htmlVisualPromptEnabled: htmlVisualPrompt.enabled,
     options: modelOptionPolicyDisabled ? EMPTY_CONVERSATION_OPTIONS : options,
     draft,
@@ -1173,6 +1184,8 @@ export function AppChatArea() {
     isConversationMode,
     maxFilesPerMessage,
     fileMode,
+    ragAvailable,
+    ragAvailabilityReason,
     sendShortcut,
     inputHeight,
     attachments,
@@ -1184,6 +1197,7 @@ export function AppChatArea() {
     availableTools,
     selectedToolIDs,
     selectedSkills,
+    selectedKnowledgeBaseIDs,
     defaultToolIDs,
     queuedMessages,
     htmlVisualPromptEnabled: htmlVisualPrompt.enabled,
@@ -1200,6 +1214,7 @@ export function AppChatArea() {
     onSelectedToolsChange,
     maxSelectedSkills: mcpMaxSelectedTools,
     onSelectedSkillsChange,
+    onSelectedKnowledgeBasesChange,
     onDefaultToolsChange: onDefaultToolIDsChange,
     onHTMLVisualPromptChange: htmlVisualPrompt.setEnabled,
     onOptionsChange: setModelOptions,

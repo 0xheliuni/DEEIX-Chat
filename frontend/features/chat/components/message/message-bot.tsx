@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 
 import { AssistantMessageMeta } from "@/features/chat/components/message/message-meta";
 import { MessageAttachmentRow } from "@/features/chat/components/message/message-attachment";
+import { MessageKnowledgeSources } from "@/features/chat/components/message/message-knowledge-sources";
 import { MessageProcessTrace, MessageTraceEventBlocks } from "@/features/chat/components/message/message-process-trace";
 import { GrainientBackground } from "@/components/reactbits/backgrounds/grainient";
 import type { AssistantReaction } from "@/features/chat/components/message/message-meta";
@@ -407,6 +408,12 @@ export function ChatMessageBot({
       ) : null}
 
       {screenshotMeta}
+
+      <MessageKnowledgeSources
+        trace={processTrace}
+        sources={item.knowledgeSources}
+        streaming={messageStreaming}
+      />
 
       <AssistantMessageMeta
         item={item}

@@ -198,6 +198,7 @@ type QueuedChatSubmission = BranchScope & {
   options: ConversationOptions;
   selectedToolIDs: number[];
   selectedSkills: SkillSummaryDTO[];
+  selectedKnowledgeBaseIDs: string[];
   htmlVisualPromptEnabled: boolean;
 };
 
@@ -448,6 +449,7 @@ export function useChatMessageSubmit({
   modelOptions,
   selectedToolIDs,
   selectedSkills,
+  selectedKnowledgeBaseIDs,
   htmlVisualPromptEnabled,
   options,
   draft,
@@ -494,6 +496,7 @@ export function useChatMessageSubmit({
   modelOptions: ChatModelOption[];
   selectedToolIDs: number[];
   selectedSkills: SkillSummaryDTO[];
+  selectedKnowledgeBaseIDs: string[];
   htmlVisualPromptEnabled: boolean;
   options: ConversationOptions;
   draft: string;
@@ -728,6 +731,7 @@ export function useChatMessageSubmit({
       const requestOptions = queuedSubmission?.options ?? options;
       const requestSelectedToolIDs = queuedSubmission?.selectedToolIDs ?? selectedToolIDs;
       const requestSelectedSkills = queuedSubmission?.selectedSkills ?? selectedSkills;
+      const requestSelectedKnowledgeBaseIDs = queuedSubmission?.selectedKnowledgeBaseIDs ?? selectedKnowledgeBaseIDs;
       const requestHTMLVisualPromptEnabled = queuedSubmission?.htmlVisualPromptEnabled ?? htmlVisualPromptEnabled;
       let targetConversationScopeKey = queuedSubmission?.conversationScopeKey ?? conversationScopeKeyRef.current;
       const resolvedParentPublicID = resolvePersistedPublicID(parentMessagePublicID);
@@ -1166,6 +1170,7 @@ export function useChatMessageSubmit({
             content: payloadContent,
             selectedToolIDs: requestSelectedToolIDs.length > 0 ? requestSelectedToolIDs : undefined,
             skillIDs: requestSelectedSkills.length > 0 ? requestSelectedSkills.map((skill) => skill.id) : undefined,
+            knowledgeBaseIDs: requestSelectedKnowledgeBaseIDs.length > 0 ? requestSelectedKnowledgeBaseIDs : undefined,
             htmlVisualPrompt: requestHTMLVisualPromptEnabled || undefined,
           };
           completed = await streamConversationMessage(token, targetConversationID, chatPayload, streamOptions);
@@ -1510,6 +1515,7 @@ export function useChatMessageSubmit({
       modelOptions,
       selectedToolIDs,
       selectedSkills,
+      selectedKnowledgeBaseIDs,
       htmlVisualPromptEnabled,
       selectedPlatformModelName,
       setAttachments,
@@ -1607,6 +1613,7 @@ export function useChatMessageSubmit({
           options: sanitizeConversationOptions(options),
           selectedToolIDs: selectedToolIDs.slice(),
           selectedSkills: selectedSkills.slice(),
+          selectedKnowledgeBaseIDs: selectedKnowledgeBaseIDs.slice(),
           htmlVisualPromptEnabled,
         },
       ];
@@ -1626,6 +1633,7 @@ export function useChatMessageSubmit({
     options,
     selectedPlatformModelName,
     selectedSkills,
+    selectedKnowledgeBaseIDs,
     selectedToolIDs,
     setAttachments,
     setDraft,
