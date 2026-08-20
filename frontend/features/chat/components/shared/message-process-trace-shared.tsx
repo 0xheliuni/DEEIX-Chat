@@ -181,13 +181,14 @@ export function RAGCitationList({
               {item.previews.length > 0 ? (
                 <div className="mt-1.5 divide-y divide-border/20 overflow-hidden rounded-md bg-muted/25">
                   {item.previews.slice(0, 3).map((preview, index) => (
-                    <p
-                      key={`${item.fileID}-${index}`}
-                      className="line-clamp-2 max-h-12 overflow-hidden px-2.5 py-2 text-[10px] leading-4 text-muted-foreground/68"
-                      title={preview}
-                    >
-                      {preview}
-                    </p>
+                    <div key={`${item.fileID}-${index}`} className="px-2.5 py-2">
+                      <p
+                        className="line-clamp-2 text-[10px] leading-4 text-muted-foreground/68"
+                        title={preview}
+                      >
+                        {preview}
+                      </p>
+                    </div>
                   ))}
                 </div>
               ) : null}
