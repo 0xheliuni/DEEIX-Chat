@@ -44,6 +44,7 @@ import {
   streamMessage as streamConversationMessage,
   streamImageEdit,
   streamImageGeneration,
+  streamVideoExtension,
   streamVideoGeneration,
   updateMessage,
 } from "@/shared/api/conversation";
@@ -51,6 +52,7 @@ import type {
   ConversationDTO,
   ConversationOptions,
   MediaImageRequest,
+  MediaVideoExtensionRequest,
   MediaVideoRequest,
   MessageDTO,
   SendMessageRequest,
@@ -94,6 +96,13 @@ function resolveImageLoadingAspectRatio(options: ConversationOptions): ImageLoad
     return "portrait";
   }
   return "square";
+}
+
+function resolveVideoExtensionOptions(options: ConversationOptions): ConversationOptions {
+  const duration = Number(options.duration);
+  return {
+    duration: Number.isInteger(duration) && duration >= 2 && duration <= 10 ? duration : 6,
+  };
 }
 
 function streamEventErrorToApiError(
@@ -840,7 +849,7 @@ export function useChatMessageSubmit({
           ? resolveImageLoadingAspectRatio(sanitizedOptions)
           : undefined;
       const assistantContentType =
-        submitTask === "chat" ? "markdown" : submitTask === "video_generation" ? "video" : "image";
+        submitTask === "chat" ? "markdown" : submitTask === "video_generation" || submitTask === "video_extension" ? "video" : "image";
       let targetConversationID = queuedSubmission?.conversationPublicID ?? conversationIDRef.current;
       let targetConversation = queuedSubmission?.conversation ?? activeConversationRef.current;
       let metadataRefreshInFlight = false;
@@ -1033,9 +1042,12 @@ export function useChatMessageSubmit({
           }
           touchByPublicID(targetConversationID, { title: optimisticTitle });
         }
+        const effectiveOptions = submitTask === "video_extension"
+          ? resolveVideoExtensionOptions(sanitizedOptions)
+          : sanitizedOptions;
         const commonStreamPayload = {
           model: requestPlatformModelName,
-          options: Object.keys(sanitizedOptions).length > 0 ? sanitizedOptions : undefined,
+          options: Object.keys(effectiveOptions).length > 0 ? effectiveOptions : undefined,
           clientRunID: clientRunID,
           fileIDs: effectiveAttachments.length > 0 ? effectiveAttachments.map((item) => item.fileID) : undefined,
           parentMessagePublicID: resolvedParentPublicID || undefined,
@@ -1180,6 +1192,22 @@ export function useChatMessageSubmit({
             prompt: payloadContent,
           };
           completed = await streamVideoGeneration(token, targetConversationID, mediaPayload, streamOptions);
+        } else if (submitTask === "video_extension") {
+          const sourceVideoFileID = effectiveAttachments[0]?.fileID;
+          if (!sourceVideoFileID) {
+            throw new Error("video extension source is missing");
+          }
+          const mediaPayload: MediaVideoExtensionRequest = {
+            model: commonStreamPayload.model,
+            options: commonStreamPayload.options,
+            clientRunID: commonStreamPayload.clientRunID,
+            parentMessagePublicID: commonStreamPayload.parentMessagePublicID,
+            sourceMessagePublicID: commonStreamPayload.sourceMessagePublicID,
+            branchReason: commonStreamPayload.branchReason,
+            prompt: payloadContent,
+            sourceVideoFileID,
+          };
+          completed = await streamVideoExtension(token, targetConversationID, mediaPayload, streamOptions);
         } else {
           const mediaPayload: MediaImageRequest = {
             ...commonStreamPayload,

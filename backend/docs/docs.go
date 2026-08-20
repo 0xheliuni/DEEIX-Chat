@@ -10371,6 +10371,64 @@ const docTemplate = `{
                 }
             }
         },
+        "/conversations/{id}/media/videos/extensions/stream": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/x-ndjson"
+                ],
+                "tags": [
+                    "Conversations"
+                ],
+                "summary": "扩展会话视频",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "会话 Public ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "视频扩展请求",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/MediaVideoExtensionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "NDJSON stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/conversations/{id}/messages": {
             "get": {
                 "security": [
@@ -19225,6 +19283,50 @@ const docTemplate = `{
                 }
             }
         },
+        "MediaVideoExtensionRequest": {
+            "type": "object",
+            "required": [
+                "prompt",
+                "sourceVideoFileID"
+            ],
+            "properties": {
+                "branchReason": {
+                    "type": "string",
+                    "enum": [
+                        "default",
+                        "retry",
+                        "edit"
+                    ]
+                },
+                "clientRunID": {
+                    "type": "string",
+                    "maxLength": 64
+                },
+                "model": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "options": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "parentMessagePublicID": {
+                    "type": "string",
+                    "maxLength": 32
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "sourceMessagePublicID": {
+                    "type": "string",
+                    "maxLength": 32
+                },
+                "sourceVideoFileID": {
+                    "type": "string",
+                    "maxLength": 128
+                }
+            }
+        },
         "MemoryErrorDoc": {
             "type": "object",
             "required": [
@@ -20405,7 +20507,8 @@ const docTemplate = `{
                         "chat",
                         "image_generation",
                         "image_edit",
-                        "video_generation"
+                        "video_generation",
+                        "video_extension"
                     ]
                 }
             }
