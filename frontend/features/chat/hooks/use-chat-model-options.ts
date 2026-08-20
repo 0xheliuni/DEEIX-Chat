@@ -1,39 +1,38 @@
 "use client";
 
-import * as React from "react";
 import { useTranslations } from "next-intl";
-
+import * as React from "react";
+import { sanitizeConversationOptions } from "@/features/chat/model/conversation-options";
 import type {
   ChatModelOption,
   ModelOptionControl,
   ModelOptionControlType,
 } from "@/features/chat/types/chat-runtime";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import { parseProtocolsJSON } from "@/shared/lib/model-protocols";
-import { sanitizeConversationOptions } from "@/features/chat/model/conversation-options";
-import {
-  DEFAULT_CHAT_CONTENT_WIDTH,
-  parseChatContentWidth,
-  type ChatContentWidth,
-} from "@/shared/model/chat-content-width";
-import { listConversationRuns } from "@/shared/api/conversation";
-import { listPublicModels } from "@/shared/api/model";
-import { getBillingConfig } from "@/shared/api/billing";
-import { getMCPPolicy, getModelOptionPolicy } from "@/shared/api/settings";
-import { getUserSettings } from "@/shared/api/user-settings";
-import type { PublicModelDTO } from "@/shared/api/model.types";
-import type { ModelNativeToolConfig, ModelOptionPolicy } from "@/shared/lib/model-option-policy";
-import { nativeToolDefinitionVariantsFromConfig, nativeToolPayloadSignature } from "@/shared/lib/native-tool-payload";
-import { parseKindsJSON } from "@/shared/model/llm-schema";
-import { resolveConversationDefaultModel } from "@/shared/model/conversation-default-model";
-import type { ConversationOptions } from "@/shared/api/conversation.types";
+import { USER_SETTINGS_UPDATED_EVENT } from "@/features/settings/events/user-settings-events";
 import type { SendShortcut } from "@/features/settings/types/settings";
 import { parseSendShortcut } from "@/features/settings/utils/chat-settings";
-import { USER_SETTINGS_UPDATED_EVENT } from "@/features/settings/events/user-settings-events";
+import { getBillingConfig } from "@/shared/api/billing";
+import { listConversationRuns } from "@/shared/api/conversation";
+import type { ConversationOptions } from "@/shared/api/conversation.types";
+import { listPublicModels } from "@/shared/api/model";
+import type { PublicModelDTO } from "@/shared/api/model.types";
+import { getMCPPolicy, getModelOptionPolicy } from "@/shared/api/settings";
+import { getUserSettings } from "@/shared/api/user-settings";
+import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import {
-  normalizeBillingDisplayCurrency,
   type BillingDisplayCurrency,
+  normalizeBillingDisplayCurrency,
 } from "@/shared/lib/billing-display";
+import type { ModelNativeToolConfig, ModelOptionPolicy } from "@/shared/lib/model-option-policy";
+import { parseProtocolsJSON } from "@/shared/lib/model-protocols";
+import { nativeToolDefinitionVariantsFromConfig, nativeToolPayloadSignature } from "@/shared/lib/native-tool-payload";
+import {
+  type ChatContentWidth,
+  DEFAULT_CHAT_CONTENT_WIDTH,
+  parseChatContentWidth,
+} from "@/shared/model/chat-content-width";
+import { resolveConversationDefaultModel } from "@/shared/model/conversation-default-model";
+import { parseKindsJSON } from "@/shared/model/llm-schema";
 
 type ModelCatalogRefreshResult = {
   models: PublicModelDTO[];
@@ -308,6 +307,39 @@ function resolveOptionControls(raw: string): ModelOptionControl[] {
   return controls.filter((item, index) => controls.findIndex((candidate) => candidate.path === item.path) === index);
 }
 
+function resolveVideoExtensionConfig(raw: string, protocols: string[]): ChatModelOption["videoExtension"] {
+  const parsed = parseJSONObject(raw);
+  const mediaTasks = parsed?.mediaTasks;
+  const taskSource = mediaTasks && typeof mediaTasks === "object" && !Array.isArray(mediaTasks)
+    ? (mediaTasks as Record<string, unknown>).video_extension
+    : undefined;
+  const task = taskSource && typeof taskSource === "object" && !Array.isArray(taskSource)
+    ? (taskSource as Record<string, unknown>)
+    : null;
+  const protocolSupported = protocols.includes("xai_video_extensions");
+  if (!protocolSupported || task?.enabled === false) {
+    return null;
+  }
+  const defaultOptions = task?.defaultOptions && typeof task.defaultOptions === "object" && !Array.isArray(task.defaultOptions)
+    ? sanitizeConversationOptions(task.defaultOptions as ConversationOptions)
+    : { duration: 6 };
+  const rawControls = Array.isArray(task?.optionControls) ? task.optionControls : [{ path: "duration", type: "select", label: "Duration", description: "2–10 seconds", options: ["2", "3", "4", "5", "6", "7", "8", "9", "10"] }];
+  const controls = rawControls.flatMap((item): ModelOptionControl[] => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const source = item as Record<string, unknown>;
+    const path = normalizeOptionControlPath(source.path);
+    if (path !== "duration") return [];
+    return [{
+      path,
+      type: normalizeOptionControlType(source.type) ?? "select",
+      label: normalizeOptionControlString(source.label),
+      description: normalizeOptionControlString(source.description),
+      options: normalizeOptionControlOptions(source.options) ?? ["2", "3", "4", "5", "6", "7", "8", "9", "10"],
+    }];
+  });
+  return { enabled: true, defaultOptions, optionControls: controls };
+}
+
 function resolveNativeToolKeys(raw: string): string[] {
   const parsed = parseJSONObject(raw);
   const rawKeys = parsed?.nativeToolKeys;
@@ -354,6 +386,7 @@ function toChatModelOption(
     nativeToolKeys: resolveNativeToolKeys(item.capabilitiesJSON),
     nativeTools,
     pricing: item.pricing,
+    videoExtension: resolveVideoExtensionConfig(item.capabilitiesJSON, protocols),
   };
 }
 

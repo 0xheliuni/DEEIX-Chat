@@ -1731,6 +1731,22 @@ export interface MeResponseDoc {
   errorMsg: string;
 }
 
+export interface MediaVideoExtensionRequest {
+  branchReason?: "default" | "retry" | "edit";
+  /** @maxLength 64 */
+  clientRunID?: string;
+  /** @maxLength 128 */
+  model?: string;
+  options?: Record<string, any>;
+  /** @maxLength 32 */
+  parentMessagePublicID?: string;
+  prompt: string;
+  /** @maxLength 32 */
+  sourceMessagePublicID?: string;
+  /** @maxLength 128 */
+  sourceVideoFileID: string;
+}
+
 export interface MemoryErrorDoc {
   data: any;
   details?: any;
@@ -2067,7 +2083,12 @@ export interface ModelProbeDebugResponseResponse {
 }
 
 export interface ModelProbeRequest {
-  taskType?: "chat" | "image_generation" | "image_edit" | "video_generation";
+  taskType?:
+    | "chat"
+    | "image_generation"
+    | "image_edit"
+    | "video_generation"
+    | "video_extension";
 }
 
 export interface ModelProbeResponse {
@@ -7997,6 +8018,24 @@ export namespace Conversations {
     export type RequestBody = UpdateConversationLabelsRequest;
     export type RequestHeaders = {};
     export type ResponseBody = ConversationUpdateResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags Conversations
+   * @name MediaVideosExtensionsStreamCreate
+   * @summary 扩展会话视频
+   * @request POST:/conversations/{id}/media/videos/extensions/stream
+   */
+  export namespace MediaVideosExtensionsStreamCreate {
+    export type RequestParams = {
+      /** 会话 Public ID */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = MediaVideoExtensionRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = string;
   }
 
   /**

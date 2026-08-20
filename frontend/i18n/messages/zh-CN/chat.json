@@ -214,6 +214,7 @@
     "dislikeReply": "点踩",
     "retryReply": "重试",
     "continueReply": "继续回复",
+    "extendVideo": "扩展视频",
     "forkMessage": "分支到新聊天",
     "forkTitle": "{title}（分支）",
     "rememberPreference": "记住偏好",
@@ -285,6 +286,8 @@
       "image_task_rejects_non_image_attachments": "图像任务仅支持图片附件，请移除非图片文件。",
       "video_generation_too_many_images": "视频生成最多支持一张输入图片，请保留一张图片后重试。",
       "video_task_rejects_non_image_attachments": "视频生成仅支持文字提示和图片附件，请移除非图片文件。",
+      "video_extension_requires_single_mp4": "视频扩展仅支持一个 MP4 文件，请移除其他附件后重试。",
+      "video_extension_unsupported": "当前模型不支持视频扩展，请切换至支持 xAI 视频协议的模型。",
       "model_task_unsupported": "该模型无法处理当前输入，请切换模型后重试。"
     },
     "mediaStatus": {
@@ -502,6 +505,9 @@
       "videoGeneration": "视频生成",
       "videoGenerationIntro": "当前为视频生成模式。",
       "videoGenerationDescription": "将根据文字提示生成视频；上传一张图片后会作为视频参考输入。",
+      "videoExtension": "视频扩展",
+      "videoExtensionIntro": "当前为视频扩展模式。",
+      "videoExtensionDescription": "将根据文字提示扩展已上传的 MP4 视频，仅需设置扩展时长。",
       "invalidFile": "监测到无效文件",
       "invalidFileIntro": "当前文件无法用于媒体任务。",
       "blockedDescriptions": {
@@ -511,6 +517,8 @@
         "image_task_rejects_non_image_attachments": "图像任务仅支持图片附件，请移除非图片文件。",
         "video_generation_too_many_images": "视频生成最多支持一张输入图片。",
         "video_task_rejects_non_image_attachments": "视频生成仅支持文字提示和图片附件，请移除非图片文件。",
+        "video_extension_requires_single_mp4": "视频扩展仅支持一个 MP4 文件，请移除其他附件。",
+        "video_extension_unsupported": "当前模型不支持视频扩展，请切换至支持 xAI 视频协议的模型。",
         "model_task_unsupported": "当前模型不支持此输入，请切换模型后重试。"
       }
     },

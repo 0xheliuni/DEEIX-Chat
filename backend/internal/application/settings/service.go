@@ -237,7 +237,10 @@ func isLegacyDefaultModelOptionAllowedPaths(value string) bool {
 	)
 	legacyCombinedDefault := cloneStringSliceMap(legacyInteractionsWithoutSummaries)
 	legacyCombinedDefault["gemini_generate_content"] = previousGenerateContentDefault["gemini_generate_content"]
+	previousWithoutXAIVideoExtensions := cloneStringSliceMap(latestDefault)
+	delete(previousWithoutXAIVideoExtensions, "xai_video_extensions")
 	previousDefaults := []map[string][]string{
+		previousWithoutXAIVideoExtensions,
 		previousGenerateContentDefault,
 		previousInteractionsDefault,
 		previousCombinedDefault,

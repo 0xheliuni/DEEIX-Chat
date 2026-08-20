@@ -1,36 +1,9 @@
 "use client";
 
-import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
+import * as React from "react";
 import { toast } from "sonner";
-
-import {
-  ConversationShareDialog,
-  sharePatchFromDTO,
-  useConversationExport,
-  useSidebarConversations,
-} from "@/entities/conversation";
-import { ChatArea, ChatAreaLoadError, ChatAreaSkeleton } from "@/features/chat/components/sections/chat-area";
-import { ChatArtifactWorkspace } from "@/features/chat/components/sections/chat-artifact";
-import { ChatEmptyState } from "@/features/chat/components/sections/chat-empty";
-import { useChatSession } from "@/features/chat/context/chat-session-context";
-import { useChatArtifacts } from "@/features/chat/hooks/use-chat-artifacts";
-import { useChatAttachments } from "@/features/chat/hooks/use-chat-attachments";
-import { useChatComposerState } from "@/features/chat/hooks/use-chat-composer-state";
-import { useChatComposerSelection } from "@/features/chat/hooks/use-chat-composer-selection";
-import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
-import { useChatModelOptions } from "@/features/chat/hooks/use-chat-model-options";
-import { useChatRuntime } from "@/features/chat/hooks/use-chat-runtime";
-import { useChatViewerProfile } from "@/features/chat/hooks/use-chat-viewer-profile";
-import { useChatScreenshot } from "@/features/chat/hooks/use-chat-screenshot";
-import { parseConversationLabelsJSON } from "@/shared/lib/conversation-labels";
-import { useChatVisualPrompt } from "@/features/chat/hooks/use-chat-visual-prompt";
-import { ChatInput } from "@/features/chat/components/sections/chat-input";
-import { ChatScreenshotPreviewDialog } from "@/features/chat/components/sections/chat-screenshot-preview-dialog";
-import { resolveChatContentWidthClassName } from "@/shared/model/chat-content-width";
-import { DeleteFilesOption } from "@/shared/components/delete-files-option";
-import { useSettingsChatPreferences } from "@/features/settings/hooks/use-settings-chat-preferences";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,25 +15,51 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  ConversationShareDialog,
+  sharePatchFromDTO,
+  useConversationExport,
+  useSidebarConversations,
+} from "@/entities/conversation";
+import { ChatArea, ChatAreaLoadError, ChatAreaSkeleton } from "@/features/chat/components/sections/chat-area";
+import { ChatArtifactWorkspace } from "@/features/chat/components/sections/chat-artifact";
+import { ChatEmptyState } from "@/features/chat/components/sections/chat-empty";
+import { ChatInput } from "@/features/chat/components/sections/chat-input";
+import { ChatScreenshotPreviewDialog } from "@/features/chat/components/sections/chat-screenshot-preview-dialog";
+import { useChatSession } from "@/features/chat/context/chat-session-context";
+import { useChatArtifacts } from "@/features/chat/hooks/use-chat-artifacts";
+import { useChatAttachments } from "@/features/chat/hooks/use-chat-attachments";
+import { useChatComposerSelection } from "@/features/chat/hooks/use-chat-composer-selection";
+import { useChatComposerState } from "@/features/chat/hooks/use-chat-composer-state";
+import { useChatData } from "@/features/chat/hooks/use-chat-data";
+import { useChatModelOptions } from "@/features/chat/hooks/use-chat-model-options";
+import { useChatRuntime } from "@/features/chat/hooks/use-chat-runtime";
+import { useChatScreenshot } from "@/features/chat/hooks/use-chat-screenshot";
+import { useChatViewerProfile } from "@/features/chat/hooks/use-chat-viewer-profile";
+import { useChatVisualPrompt } from "@/features/chat/hooks/use-chat-visual-prompt";
+import { useNewConversationDefaults } from "@/features/chat/hooks/use-new-conversation-defaults";
+import {
   cloneConversationOptions,
   isConversationOptionsObject,
   sanitizeConversationOptions,
 } from "@/features/chat/model/conversation-options";
-import { useChatData } from "@/features/chat/hooks/use-chat-data";
-import { useNewConversationDefaults } from "@/features/chat/hooks/use-new-conversation-defaults";
 import { toPendingAttachment } from "@/features/chat/model/message-submit";
+import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
+import { useSettingsChatPreferences } from "@/features/settings/hooks/use-settings-chat-preferences";
+import { cn } from "@/lib/utils";
 import { getConversation } from "@/shared/api/conversation";
-import { listAvailableMCPTools } from "@/shared/api/mcp";
-import { getUserSettings, patchUserSettings } from "@/shared/api/user-settings";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import type { ConversationDTO, ConversationOptions } from "@/shared/api/conversation.types";
 import type { FileObjectDTO } from "@/shared/api/file.types";
+import { listAvailableMCPTools } from "@/shared/api/mcp";
 import type { MCPToolDTO } from "@/shared/api/mcp.types";
+import { getUserSettings, patchUserSettings } from "@/shared/api/user-settings";
+import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { DeleteFilesOption } from "@/shared/components/delete-files-option";
+import { parseConversationLabelsJSON } from "@/shared/lib/conversation-labels";
 import {
   hasMultipleImageAttachmentProcessors,
   normalizeImageAttachmentProcessorSelection,
 } from "@/shared/lib/mcp-tool-selection";
-import { cn } from "@/lib/utils";
+import { resolveChatContentWidthClassName } from "@/shared/model/chat-content-width";
 
 const MODEL_OPTIONS_STORAGE_PREFIX = "deeix-chat:chat-model-options:";
 const DEFAULT_MCP_TOOLS_SETTING_KEY = "chat.default_mcp_tool_ids";
@@ -774,6 +773,42 @@ export function AppChatArea() {
     ],
   );
 
+  const onExtendGeneratedVideoAttachment = React.useCallback(
+    (attachment: MessageAttachment, sourceModelName?: string) => {
+      const normalizedSourceModelName = sourceModelName?.trim() || "";
+      const sourceModel = modelOptions.find(
+        (item) =>
+          item.platformModelName === normalizedSourceModelName &&
+          item.videoExtension?.enabled,
+      );
+      const extensionModel =
+        sourceModel ??
+        (selectedModel?.videoExtension?.enabled ? selectedModel : undefined) ??
+        modelOptions.find((item) => item.videoExtension?.enabled);
+
+      if (!extensionModel) {
+        toast.error(t("submit.mediaMode.blockedDescriptions.video_extension_unsupported"));
+        return;
+      }
+
+      releaseAttachments(attachments);
+      setAttachments([toPendingAttachment(attachment)]);
+      if (extensionModel.platformModelName !== selectedPlatformModelName) {
+        setSelectedPlatformModelName(extensionModel.platformModelName);
+      }
+    },
+    [
+      attachments,
+      modelOptions,
+      releaseAttachments,
+      selectedModel,
+      selectedPlatformModelName,
+      setAttachments,
+      setSelectedPlatformModelName,
+      t,
+    ],
+  );
+
   const onAttachExistingFile = React.useCallback(
     (file: FileObjectDTO) => {
       const alreadyAttached = attachments.some((item) => item.fileID === file.fileID);
@@ -1293,6 +1328,7 @@ export function AppChatArea() {
                   onModelChange={setSelectedPlatformModelName}
                   onModelCatalogRefresh={refreshModelCatalogForComposer}
                   onEditImageAttachment={onEditGeneratedImageAttachment}
+                  onExtendVideoAttachment={onExtendGeneratedVideoAttachment}
                   onOpenCodeArtifact={artifactWorkspace.openArtifact}
                   onCycleMessageBranch={onCycleMessageBranch}
                   onToggleStar={onToggleActiveConversationStar}

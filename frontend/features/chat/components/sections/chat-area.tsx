@@ -1,31 +1,9 @@
 "use client";
 
-import * as React from "react";
 import { ArrowDownToLine, Check } from "lucide-react";
 import { useTranslations } from "next-intl";
-
-import { ChatLabel } from "@/features/chat/components/sections/chat-label";
-import { useChatMessageFeedback } from "@/features/chat/hooks/use-chat-message-feedback";
-import {
-  AssistantMessageSkeleton,
-  ChatInlineAlertCard,
-  ChatMessageBot,
-} from "@/features/chat/components/message/message-bot";
-import { areChatAreaMessagesRenderEqual } from "@/features/chat/model/chat-message-render";
-import { type AssistantReaction } from "@/features/chat/components/message/message-meta";
-import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
-import { ChatMessageUser } from "@/features/chat/components/message/message-user";
-import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
-import type { OpenCodeArtifactInput } from "@/features/chat/model/chat-artifacts";
+import * as React from "react";
 import { CenteredEmptyState } from "@/components/ui/empty-state";
-import { Skeleton } from "@/components/ui/skeleton";
-import { ConversationShareExportIconDropdown } from "@/shared/components/conversation-share-export-menu";
-import { ChatScreenshotSelectionBar } from "@/features/chat/components/sections/chat-screenshot-selection-bar";
-import { useCopyAction } from "@/shared/components/copy-action";
-import type { ChatModelOption } from "@/features/chat/types/chat-runtime";
-import type { BillingDisplayCurrency } from "@/shared/lib/billing-display";
-import type { FileContentResult } from "@/shared/api/file";
-import type { PreviewDialogFile } from "@/shared/components/file-preview/preview-dialog";
 import {
   MessageScroller,
   MessageScrollerButton,
@@ -35,15 +13,36 @@ import {
   MessageScrollerViewport,
   useMessageScroller,
 } from "@/components/ui/message-scroller";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AssistantMessageSkeleton,
+  ChatInlineAlertCard,
+  ChatMessageBot,
+} from "@/features/chat/components/message/message-bot";
+import { type AssistantReaction } from "@/features/chat/components/message/message-meta";
+import { ChatMessageUser } from "@/features/chat/components/message/message-user";
+import { ChatLabel } from "@/features/chat/components/sections/chat-label";
 import {
   ChatMessagePositionRail,
   chatMessageScrollerID,
 } from "@/features/chat/components/sections/chat-message-position-rail";
 import { ChatResponseOutlineRail } from "@/features/chat/components/sections/chat-response-outline-rail";
+import { ChatScreenshotSelectionBar } from "@/features/chat/components/sections/chat-screenshot-selection-bar";
+import { useChatMessageFeedback } from "@/features/chat/hooks/use-chat-message-feedback";
+import type { OpenCodeArtifactInput } from "@/features/chat/model/chat-artifacts";
+import { areChatAreaMessagesRenderEqual } from "@/features/chat/model/chat-message-render";
+import type { ChatModelOption } from "@/features/chat/types/chat-runtime";
+import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
 import { cn } from "@/lib/utils";
+import type { FileContentResult } from "@/shared/api/file";
 import { AppLogo, DeeixLogo } from "@/shared/components/app-logo";
-import { useBranding } from "@/shared/config/branding-provider";
+import { ConversationShareExportIconDropdown } from "@/shared/components/conversation-share-export-menu";
+import { useCopyAction } from "@/shared/components/copy-action";
+import type { PreviewDialogFile } from "@/shared/components/file-preview/preview-dialog";
+import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import { PoweredByDeeix } from "@/shared/components/powered-by-deeix";
+import { useBranding } from "@/shared/config/branding-provider";
+import type { BillingDisplayCurrency } from "@/shared/lib/billing-display";
 
 function ScrollToPendingUser({ scrollKey }: { scrollKey: string }) {
   const handledScrollKeyRef = React.useRef("");
@@ -122,6 +121,7 @@ type ChatAreaProps = {
   onModelCatalogRefresh?: () => void | Promise<void>;
   attachmentContentLoader?: (file: PreviewDialogFile) => Promise<FileContentResult>;
   onEditImageAttachment?: (attachment: MessageAttachment, sourceModelName?: string) => void;
+  onExtendVideoAttachment?: (attachment: MessageAttachment, sourceModelName?: string) => void;
   onOpenCodeArtifact?: (message: ChatAreaMessage, artifact: OpenCodeArtifactInput) => void;
   onCycleMessageBranch: (parentPublicID: string | null, direction: "previous" | "next") => void;
   onToggleStar?: () => void | Promise<void>;
@@ -286,6 +286,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   onModelCatalogRefresh,
   attachmentContentLoader,
   onEditImageAttachment,
+  onExtendVideoAttachment,
   onCycleMessageBranch,
   onReactAssistantMessage,
   onOpenCodeArtifact,
@@ -316,6 +317,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   onModelCatalogRefresh?: () => void | Promise<void>;
   attachmentContentLoader?: (file: PreviewDialogFile) => Promise<FileContentResult>;
   onEditImageAttachment?: (attachment: MessageAttachment, sourceModelName?: string) => void;
+  onExtendVideoAttachment?: (attachment: MessageAttachment, sourceModelName?: string) => void;
   onCycleMessageBranch: (parentPublicID: string | null, direction: "previous" | "next") => void;
   onReactAssistantMessage: (publicID: string, reaction: AssistantReaction) => void;
   onOpenCodeArtifact?: (message: ChatAreaMessage, artifact: OpenCodeArtifactInput) => void;
@@ -357,6 +359,18 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
           }
         : undefined,
     [isAssistant, item, onOpenCodeArtifact],
+  );
+  const sourceSupportsVideoExtension = React.useMemo(
+    () =>
+      Boolean(
+        item.platformModelName &&
+        modelOptions.some(
+          (model) =>
+            model.platformModelName === item.platformModelName &&
+            model.videoExtension?.enabled,
+        ),
+      ),
+    [item.platformModelName, modelOptions],
   );
 
   const copyKey = item.publicID || item.key;
@@ -400,6 +414,9 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
         copySucceeded={isCopied(copyKey)}
         attachmentContentLoader={attachmentContentLoader}
         onEditImageAttachment={onEditImageAttachment}
+        onExtendVideoAttachment={
+          sourceSupportsVideoExtension ? onExtendVideoAttachment : undefined
+        }
         artifactActions={artifactActions}
         markdownRender={markdownRender}
         showModelInfo={showModelInfo}
@@ -447,6 +464,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   previous.onModelCatalogRefresh === next.onModelCatalogRefresh &&
   previous.attachmentContentLoader === next.attachmentContentLoader &&
   previous.onEditImageAttachment === next.onEditImageAttachment &&
+  previous.onExtendVideoAttachment === next.onExtendVideoAttachment &&
   previous.onOpenCodeArtifact === next.onOpenCodeArtifact &&
   areChatAreaMessagesRenderEqual(previous.item, next.item)
 ));
@@ -471,6 +489,7 @@ export function ChatArea({
   onModelCatalogRefresh,
   attachmentContentLoader,
   onEditImageAttachment,
+  onExtendVideoAttachment,
   onOpenCodeArtifact,
   onCycleMessageBranch,
   onToggleStar,
@@ -509,9 +528,13 @@ export function ChatArea({
   const stableOnEditImageAttachment = useStableEvent((attachment: MessageAttachment, sourceModelName?: string) => {
     onEditImageAttachment?.(attachment, sourceModelName);
   });
+  const stableOnExtendVideoAttachment = useStableEvent((attachment: MessageAttachment, sourceModelName?: string) => {
+    onExtendVideoAttachment?.(attachment, sourceModelName);
+  });
   const stableOnCycleMessageBranch = useStableEvent(onCycleMessageBranch);
   const stableOnReactAssistantMessage = useStableEvent(onReactAssistantMessage);
   const editImageAttachmentHandler = onEditImageAttachment ? stableOnEditImageAttachment : undefined;
+  const extendVideoAttachmentHandler = onExtendVideoAttachment ? stableOnExtendVideoAttachment : undefined;
   const shareLabel = shareActive ? t("manageShare") : t("shareConversation");
   const shareExportLabel = t("labelMenu.shareAndExport");
   const tScreenshot = useTranslations("chat.screenshot");
@@ -643,6 +666,7 @@ export function ChatArea({
                       onModelCatalogRefresh={onModelCatalogRefresh ? stableOnModelCatalogRefresh : undefined}
                       attachmentContentLoader={attachmentContentLoader}
                       onEditImageAttachment={editImageAttachmentHandler}
+                      onExtendVideoAttachment={extendVideoAttachmentHandler}
                       onCycleMessageBranch={stableOnCycleMessageBranch}
                       onReactAssistantMessage={stableOnReactAssistantMessage}
                       onOpenCodeArtifact={onOpenCodeArtifact}

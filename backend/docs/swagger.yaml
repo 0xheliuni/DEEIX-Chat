@@ -3915,6 +3915,38 @@ definitions:
     - data
     - errorMsg
     type: object
+  MediaVideoExtensionRequest:
+    properties:
+      branchReason:
+        enum:
+        - default
+        - retry
+        - edit
+        type: string
+      clientRunID:
+        maxLength: 64
+        type: string
+      model:
+        maxLength: 128
+        type: string
+      options:
+        additionalProperties: true
+        type: object
+      parentMessagePublicID:
+        maxLength: 32
+        type: string
+      prompt:
+        type: string
+      sourceMessagePublicID:
+        maxLength: 32
+        type: string
+      sourceVideoFileID:
+        maxLength: 128
+        type: string
+    required:
+    - prompt
+    - sourceVideoFileID
+    type: object
   MemoryErrorDoc:
     properties:
       data: {}
@@ -4742,6 +4774,7 @@ definitions:
         - image_generation
         - image_edit
         - video_generation
+        - video_extension
         type: string
     type: object
   ModelProbeResponse:
@@ -15631,6 +15664,44 @@ paths:
       summary: 更新会话标签
       tags:
       - chat
+  /conversations/{id}/media/videos/extensions/stream:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 会话 Public ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 视频扩展请求
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/MediaVideoExtensionRequest'
+      produces:
+      - application/x-ndjson
+      responses:
+        "200":
+          description: NDJSON stream
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Envelope'
+      summary: 扩展会话视频
+      tags:
+      - Conversations
   /conversations/{id}/messages:
     get:
       consumes:

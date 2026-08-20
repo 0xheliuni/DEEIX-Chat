@@ -176,6 +176,9 @@ export const DEFAULT_MODEL_OPTION_ALLOWED_PATHS = `{
     "aspect_ratio",
     "duration",
     "resolution"
+  ],
+  "xai_video_extensions": [
+    "duration"
   ]
 }`;
 
