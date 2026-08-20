@@ -534,24 +534,7 @@ export function ChatArea({
     }
     pruneScreenshotSelection?.(selectableMessagePublicIDs);
   }, [pruneScreenshotSelection, selectableMessagePublicIDs, selectionMode]);
-  const hasLiveMessage = React.useMemo(
-    () => messages.some((item) => item.isPending || item.isStreaming),
-    [messages],
-  );
   const messageViewportBoundaryRef = React.useRef<HTMLDivElement | null>(null);
-  const liveAnchorMessageKey = React.useMemo(() => {
-    if (!hasLiveMessage) {
-      return "";
-    }
-    const liveMessageIndex = messages.findIndex((item) => item.isPending || item.isStreaming);
-    for (let index = liveMessageIndex - 1; index >= 0; index -= 1) {
-      const item = messages[index];
-      if (item?.role === "user") {
-        return item.key;
-      }
-    }
-    return "";
-  }, [hasLiveMessage, messages]);
   const pendingUserScrollKey = React.useMemo(
     () => [...messages].reverse().find((item) => item.role === "user" && item.isPending)?.key ?? "",
     [messages],
@@ -613,14 +596,13 @@ export function ChatArea({
       ) : null}
 
       <div className="relative min-h-0 flex-1 overflow-hidden">
-        <MessageScrollerProvider autoScroll defaultScrollPosition="end" scrollEdgeThreshold={16}>
+        <MessageScrollerProvider>
           <MessageScroller>
             <ScrollToPendingUser scrollKey={pendingUserScrollKey} />
             <MessageScrollerViewport
               ref={messageViewportBoundaryRef}
-              className="px-3 pb-8 pt-2 [overflow-anchor:none] md:px-6"
+              className="px-3 pb-8 pt-2 md:px-6"
               onScroll={onScroll}
-              preserveScrollOnPrepend
             >
               <MessageScrollerContent
                 ref={messageContentRef}
@@ -733,7 +715,6 @@ export function ChatArea({
                     <MessageScrollerItem
                       key={item.key}
                       messageId={chatMessageScrollerID(item)}
-                      scrollAnchor={item.key === liveAnchorMessageKey}
                       className={spacingClass}
                       data-chat-message-id={chatMessageScrollerID(item)}
                       data-chat-message-role={item.role}
