@@ -35,6 +35,7 @@ import {
 } from "@/features/chat/hooks/use-chat-mention-menu";
 import { ChatMentionMenuPortal } from "@/features/chat/components/shared/chat-mention-menu";
 import { ChatMCP } from "@/features/chat/components/sections/chat-mcp";
+import { ChatKnowledgeBases } from "@/features/chat/components/sections/chat-knowledge-bases";
 import { ChatModelPicker } from "@/features/chat/components/sections/chat-model-picker";
 import { ChatModelConfig } from "@/features/chat/components/sections/chat-model-config";
 import { formatBytes, resolveFileExtension, resolveFileIcon } from "@/shared/lib/file-display";
@@ -96,6 +97,8 @@ type ChatInputProps = {
   isConversationMode: boolean;
   maxFilesPerMessage: number;
   fileMode?: "auto" | "full_context" | "rag";
+  ragAvailable: boolean | null;
+  ragAvailabilityReason: string;
   sendShortcut?: SendShortcut;
   inputHeight?: "compact" | "standard" | "loose";
   attachments: PendingAttachment[];
@@ -107,6 +110,7 @@ type ChatInputProps = {
   availableTools: MCPToolDTO[];
   selectedToolIDs: number[];
   selectedSkills: SkillSummaryDTO[];
+  selectedKnowledgeBaseIDs: string[];
   defaultToolIDs: number[];
   queuedMessages: QueuedComposerMessage[];
   htmlVisualPromptEnabled: boolean;
@@ -124,6 +128,7 @@ type ChatInputProps = {
   onModelCatalogRefresh?: () => void | Promise<void>;
   onSelectedToolsChange: (toolIDs: number[]) => void;
   onSelectedSkillsChange: (skills: SkillSummaryDTO[]) => void;
+  onSelectedKnowledgeBasesChange: (ids: string[]) => void;
   onDefaultToolsChange: (toolIDs: number[]) => void | Promise<void>;
   onHTMLVisualPromptChange: (enabled: boolean) => void;
   onOptionsChange: React.Dispatch<React.SetStateAction<ConversationOptions>>;
@@ -236,6 +241,8 @@ function ChatInputComponent({
   uploading,
   isConversationMode,
   fileMode,
+  ragAvailable,
+  ragAvailabilityReason,
   sendShortcut = "enter",
   inputHeight = "standard",
   attachments,
@@ -247,6 +254,7 @@ function ChatInputComponent({
   availableTools,
   selectedToolIDs,
   selectedSkills,
+  selectedKnowledgeBaseIDs,
   defaultToolIDs,
   queuedMessages,
   htmlVisualPromptEnabled,
@@ -264,6 +272,7 @@ function ChatInputComponent({
   onModelCatalogRefresh,
   onSelectedToolsChange,
   onSelectedSkillsChange,
+  onSelectedKnowledgeBasesChange,
   onDefaultToolsChange,
   onHTMLVisualPromptChange,
   onOptionsChange,
@@ -947,6 +956,16 @@ function ChatInputComponent({
                   disabled={loading || uploading || toolsLoading}
                   onSelectedToolsChange={onSelectedToolsChange}
                   onDefaultToolsChange={onDefaultToolsChange}
+                />
+              ) : null}
+
+              {!isMediaMode ? (
+                <ChatKnowledgeBases
+                  selectedIDs={selectedKnowledgeBaseIDs}
+                  disabled={loading || uploading}
+                  available={ragAvailable}
+                  unavailableReason={ragAvailabilityReason}
+                  onChange={onSelectedKnowledgeBasesChange}
                 />
               ) : null}
 

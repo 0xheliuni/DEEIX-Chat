@@ -49,6 +49,14 @@ export interface ActiveSessionResponse {
   updatedAt: string;
 }
 
+export interface AddKnowledgeBaseFilesRequest {
+  /**
+   * @maxItems 100
+   * @minItems 1
+   */
+  fileIDs: string[];
+}
+
 export interface AdminAnnouncementListResponseDoc {
   data: {
     results: AnnouncementResponse[];
@@ -907,6 +915,7 @@ export interface ConversationProjectListResponseDoc {
 export interface ConversationProjectResponse {
   color: string;
   createdAt: string;
+  defaultKnowledgeBaseIDs: string[];
   defaultMCPToolIDs: number[];
   defaultSkillIDs: number[];
   description: string;
@@ -1044,6 +1053,8 @@ export interface CreateCheckoutRequest {
 export interface CreateConversationProjectRequest {
   /** @maxLength 32 */
   color?: string;
+  /** @maxItems 8 */
+  defaultKnowledgeBaseIDs: string[];
   /** @maxItems 128 */
   defaultMCPToolIDs?: number[];
   /** @maxItems 128 */
@@ -1565,6 +1576,93 @@ export interface ImportUpstreamModelsResponseDoc {
   errorMsg: string;
 }
 
+export interface KnowledgeBaseDataResponse {
+  knowledgeBase: KnowledgeBaseResponse;
+}
+
+export interface KnowledgeBaseDeleteDataResponse {
+  deleted: boolean;
+  deletedFileCount?: number;
+}
+
+export interface KnowledgeBaseDeleteResponseDoc {
+  data: KnowledgeBaseDeleteDataResponse;
+  errorMsg: string;
+}
+
+export interface KnowledgeBaseFileDataResponse {
+  file: KnowledgeBaseFileResponse;
+}
+
+export interface KnowledgeBaseFileMutationDataResponse {
+  updated: boolean;
+}
+
+export interface KnowledgeBaseFileMutationResponseDoc {
+  data: KnowledgeBaseFileMutationDataResponse;
+  errorMsg: string;
+}
+
+export interface KnowledgeBaseFilePageResponseDoc {
+  data: {
+    results: KnowledgeBaseFileResponse[];
+    total: number;
+  };
+  errorMsg: string;
+}
+
+export interface KnowledgeBaseFileResponse {
+  chunkCount: number;
+  createdAt: string;
+  detectedMIME: string;
+  embedStatus: string;
+  fileCategory: string;
+  fileID: string;
+  fileName: string;
+  mimeType: string;
+  processingReady: boolean;
+  processingStatus: string;
+  ragOptOut: boolean;
+  sizeBytes: number;
+  updatedAt: string;
+}
+
+export interface KnowledgeBaseFileResponseDoc {
+  data: KnowledgeBaseFileDataResponse;
+  errorMsg: string;
+}
+
+export interface KnowledgeBasePageResponseDoc {
+  data: {
+    results: KnowledgeBaseResponse[];
+    total: number;
+  };
+  errorMsg: string;
+}
+
+export interface KnowledgeBaseResponse {
+  createdAt: string;
+  description: string;
+  enabled: boolean;
+  fileCount: number;
+  name: string;
+  publicID: string;
+  readyFileCount: number;
+  revision: number;
+  scope: "builtin" | "user";
+  sortOrder: number;
+  updatedAt: string;
+}
+
+export interface KnowledgeBaseResponseDoc {
+  data: KnowledgeBaseDataResponse;
+  errorMsg: string;
+}
+
+export interface KnowledgebaseErrorDoc {
+  errorMsg: string;
+}
+
 export interface LoginOptionsResponse {
   emailEnabled: boolean;
   emailRegistrationEnabled: boolean;
@@ -1662,6 +1760,14 @@ export interface MessageFeedbackResponseDoc {
   errorMsg: string;
 }
 
+export interface MessageKnowledgeSourceResponse {
+  chunkIndex: number;
+  fileID: string;
+  fileName: string;
+  preview: string;
+  score: number;
+}
+
 export interface MessageListResponseDoc {
   data: {
     results: MessageResponse[];
@@ -1732,6 +1838,7 @@ export interface MessageResponse {
   errorMessage: string;
   id: number;
   inputTokens: number;
+  knowledgeSources?: MessageKnowledgeSourceResponse[];
   latencyMS: number;
   modelIcon: string;
   modelVendor: string;
@@ -2206,6 +2313,15 @@ export interface PatchItem {
   value?: string;
 }
 
+export interface PatchKnowledgeBaseRequest {
+  /** @maxLength 255 */
+  description?: string;
+  enabled?: boolean;
+  /** @maxLength 80 */
+  name?: string;
+  sortOrder?: number;
+}
+
 export interface PatchMeRequest {
   /** @maxLength 2048 */
   appearancePreferences?: string;
@@ -2227,6 +2343,13 @@ export interface PatchMeRequest {
 export interface PatchMeResponseDoc {
   data: MeResponse;
   errorMsg: string;
+}
+
+export interface PatchMyKnowledgeBaseRequest {
+  /** @maxLength 255 */
+  description?: string;
+  /** @maxLength 80 */
+  name?: string;
 }
 
 export interface PatchPromptPresetRequest {
@@ -2403,6 +2526,15 @@ export interface PermissionGroupResponse {
 
 export interface PlanListResponseDoc {
   data: BillingPlanResponse[];
+  errorMsg: string;
+}
+
+export interface PlatformFileDeleteDataResponse {
+  deleted: boolean;
+}
+
+export interface PlatformFileDeleteResponseDoc {
+  data: PlatformFileDeleteDataResponse;
   errorMsg: string;
 }
 
@@ -2811,6 +2943,8 @@ export interface SendMessageRequest {
   /** @maxItems 20 */
   fileIDs?: string[];
   htmlVisualPrompt?: boolean;
+  /** @maxItems 8 */
+  knowledgeBaseIDs: string[];
   /** @maxLength 128 */
   model?: string;
   options?: Record<string, any>;
@@ -3186,6 +3320,8 @@ export interface UpdateConversationLabelsRequest {
 export interface UpdateConversationProjectRequest {
   /** @maxLength 32 */
   color?: string;
+  /** @maxItems 8 */
+  defaultKnowledgeBaseIDs: string[];
   /** @maxItems 128 */
   defaultMCPToolIDs?: number[];
   /** @maxItems 128 */
@@ -3911,6 +4047,22 @@ export interface UserSettingsResponse {
 export interface UserSettingsResponseDoc {
   data: UserSettingsResponse;
   errorMsg: string;
+}
+
+export interface WriteKnowledgeBaseRequest {
+  /** @maxLength 255 */
+  description?: string;
+  enabled?: boolean;
+  /** @maxLength 80 */
+  name: string;
+  sortOrder?: number;
+}
+
+export interface WriteMyKnowledgeBaseRequest {
+  /** @maxLength 255 */
+  description?: string;
+  /** @maxLength 80 */
+  name: string;
 }
 
 export interface WritePromptPresetRequest {
@@ -4664,6 +4816,290 @@ export namespace Admin {
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = string;
+  }
+
+  /**
+   * No description
+   * @tags admin-knowledge-bases
+   * @name KnowledgeBasesList
+   * @summary 查询内置知识库
+   * @request GET:/admin/knowledge-bases
+   * @secure
+   */
+  export namespace KnowledgeBasesList {
+    export type RequestParams = {};
+    export type RequestQuery = {
+      /** 可用状态 */
+      enabled?: boolean;
+      /** 页码 */
+      page?: number;
+      /** 每页数量 */
+      page_size?: number;
+      /** 搜索关键词 */
+      q?: string;
+    };
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBasePageResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags admin-knowledge-bases
+   * @name KnowledgeBasesCreate
+   * @summary 创建内置知识库
+   * @request POST:/admin/knowledge-bases
+   * @secure
+   */
+  export namespace KnowledgeBasesCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = WriteKnowledgeBaseRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseResponseDoc;
+  }
+
+  /**
+   * @description 分页返回供内置知识库复用的全部平台资料
+   * @tags admin-knowledge-bases
+   * @name KnowledgeBasesFilesList
+   * @summary 查询平台资料
+   * @request GET:/admin/knowledge-bases/files
+   * @secure
+   */
+  export namespace KnowledgeBasesFilesList {
+    export type RequestParams = {};
+    export type RequestQuery = {
+      /** 页码 */
+      page?: number;
+      /** 每页数量 */
+      page_size?: number;
+      /** 文件名搜索关键词 */
+      q?: string;
+    };
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseFilePageResponseDoc;
+  }
+
+  /**
+   * @description 上传平台级资料，不占用管理员个人存储额度
+   * @tags admin-knowledge-bases
+   * @name KnowledgeBasesFilesCreate
+   * @summary 上传内置知识库资料
+   * @request POST:/admin/knowledge-bases/files
+   * @secure
+   */
+  export namespace KnowledgeBasesFilesCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = {
+      /**
+       * 文件
+       * @format binary
+       */
+      file: File;
+    };
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseFileResponseDoc;
+  }
+
+  /**
+   * @description 仅允许删除未被任何知识库、会话或账户资料引用的平台资料
+   * @tags admin-knowledge-bases
+   * @name KnowledgeBasesFilesDelete
+   * @summary 删除平台资料
+   * @request DELETE:/admin/knowledge-bases/files/{file_id}
+   * @secure
+   */
+  export namespace KnowledgeBasesFilesDelete {
+    export type RequestParams = {
+      /** 文件ID */
+      fileId: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = PlatformFileDeleteResponseDoc;
+  }
+
+  /**
+   * @description 仅允许管理员读取平台资料池中的文件
+   * @tags admin-knowledge-bases
+   * @name KnowledgeBasesFilesContentList
+   * @summary 获取平台资料内容
+   * @request GET:/admin/knowledge-bases/files/{file_id}/content
+   * @secure
+   */
+  export namespace KnowledgeBasesFilesContentList {
+    export type RequestParams = {
+      /** 文件ID */
+      fileId: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = Blob;
+  }
+
+  /**
+   * No description
+   * @tags admin-knowledge-bases
+   * @name KnowledgeBasesDelete
+   * @summary 删除内置知识库
+   * @request DELETE:/admin/knowledge-bases/{id}
+   * @secure
+   */
+  export namespace KnowledgeBasesDelete {
+    export type RequestParams = {
+      /** 知识库ID */
+      id: string;
+    };
+    export type RequestQuery = {
+      /** 是否同步删除不再被其他资源引用的知识库文件 */
+      delete_files?: boolean;
+    };
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseDeleteResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags admin-knowledge-bases
+   * @name KnowledgeBasesPartialUpdate
+   * @summary 更新内置知识库
+   * @request PATCH:/admin/knowledge-bases/{id}
+   * @secure
+   */
+  export namespace KnowledgeBasesPartialUpdate {
+    export type RequestParams = {
+      /** 知识库ID */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = PatchKnowledgeBaseRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseResponseDoc;
+  }
+
+  /**
+   * @description 分页返回尚未关联到指定内置知识库的平台资料
+   * @tags admin-knowledge-bases
+   * @name KnowledgeBasesAvailableFilesList
+   * @summary 查询可加入内置知识库的文件
+   * @request GET:/admin/knowledge-bases/{id}/available-files
+   * @secure
+   */
+  export namespace KnowledgeBasesAvailableFilesList {
+    export type RequestParams = {
+      /** 知识库ID */
+      id: string;
+    };
+    export type RequestQuery = {
+      /** 页码 */
+      page?: number;
+      /** 每页数量 */
+      page_size?: number;
+      /** 文件名搜索关键词 */
+      q?: string;
+    };
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseFilePageResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags admin-knowledge-bases
+   * @name KnowledgeBasesFilesList2
+   * @summary 查询内置知识库文件
+   * @request GET:/admin/knowledge-bases/{id}/files
+   * @originalName knowledgeBasesFilesList
+   * @duplicate
+   * @secure
+   */
+  export namespace KnowledgeBasesFilesList2 {
+    export type RequestParams = {
+      /** 知识库ID */
+      id: string;
+    };
+    export type RequestQuery = {
+      /** 页码 */
+      page?: number;
+      /** 每页数量 */
+      page_size?: number;
+    };
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseFilePageResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags admin-knowledge-bases
+   * @name KnowledgeBasesFilesCreate2
+   * @summary 将平台资料加入内置知识库
+   * @request POST:/admin/knowledge-bases/{id}/files
+   * @originalName knowledgeBasesFilesCreate
+   * @duplicate
+   * @secure
+   */
+  export namespace KnowledgeBasesFilesCreate2 {
+    export type RequestParams = {
+      /** 知识库ID */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = AddKnowledgeBaseFilesRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseFileMutationResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags admin-knowledge-bases
+   * @name KnowledgeBasesFilesDelete2
+   * @summary 将文件移出内置知识库
+   * @request DELETE:/admin/knowledge-bases/{id}/files/{file_id}
+   * @originalName knowledgeBasesFilesDelete
+   * @duplicate
+   * @secure
+   */
+  export namespace KnowledgeBasesFilesDelete2 {
+    export type RequestParams = {
+      /** 文件ID */
+      fileId: string;
+      /** 知识库ID */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseFileMutationResponseDoc;
+  }
+
+  /**
+   * @description 仅允许读取仍与指定内置知识库关联的文件
+   * @tags admin-knowledge-bases
+   * @name KnowledgeBasesFilesContentList2
+   * @summary 获取内置知识库文件内容
+   * @request GET:/admin/knowledge-bases/{id}/files/{file_id}/content
+   * @originalName knowledgeBasesFilesContentList
+   * @duplicate
+   * @secure
+   */
+  export namespace KnowledgeBasesFilesContentList2 {
+    export type RequestParams = {
+      /** 文件ID */
+      fileId: string;
+      /** 知识库ID */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = Blob;
   }
 
   /**
@@ -7944,6 +8380,243 @@ export namespace Files {
     export type RequestParams = {
       /** 文件ID */
       fileId: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = Blob;
+  }
+}
+
+export namespace KnowledgeBases {
+  /**
+   * No description
+   * @tags knowledge-bases
+   * @name KnowledgeBasesList
+   * @summary 查询当前用户可用知识库
+   * @request GET:/knowledge-bases
+   * @secure
+   */
+  export namespace KnowledgeBasesList {
+    export type RequestParams = {};
+    export type RequestQuery = {
+      /** 页码 */
+      page?: number;
+      /** 每页数量 */
+      page_size?: number;
+      /** 搜索关键词 */
+      q?: string;
+    };
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBasePageResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags knowledge-bases
+   * @name MineList
+   * @summary 查询我的知识库
+   * @request GET:/knowledge-bases/mine
+   * @secure
+   */
+  export namespace MineList {
+    export type RequestParams = {};
+    export type RequestQuery = {
+      /** 可用状态 */
+      enabled?: boolean;
+      /** 页码 */
+      page?: number;
+      /** 每页数量 */
+      page_size?: number;
+      /** 搜索关键词 */
+      q?: string;
+    };
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBasePageResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags knowledge-bases
+   * @name MineCreate
+   * @summary 创建个人知识库
+   * @request POST:/knowledge-bases/mine
+   * @secure
+   */
+  export namespace MineCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = WriteMyKnowledgeBaseRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags knowledge-bases
+   * @name MineDelete
+   * @summary 删除个人知识库
+   * @request DELETE:/knowledge-bases/mine/{id}
+   * @secure
+   */
+  export namespace MineDelete {
+    export type RequestParams = {
+      /** 知识库ID */
+      id: string;
+    };
+    export type RequestQuery = {
+      /** 是否同步删除不再被其他资源引用的知识库文件 */
+      delete_files?: boolean;
+    };
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseDeleteResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags knowledge-bases
+   * @name MinePartialUpdate
+   * @summary 更新个人知识库
+   * @request PATCH:/knowledge-bases/mine/{id}
+   * @secure
+   */
+  export namespace MinePartialUpdate {
+    export type RequestParams = {
+      /** 知识库ID */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = PatchMyKnowledgeBaseRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseResponseDoc;
+  }
+
+  /**
+   * @description 分页返回当前用户尚未关联到指定个人知识库的有效文件
+   * @tags knowledge-bases
+   * @name MineAvailableFilesList
+   * @summary 查询可加入个人知识库的文件
+   * @request GET:/knowledge-bases/mine/{id}/available-files
+   * @secure
+   */
+  export namespace MineAvailableFilesList {
+    export type RequestParams = {
+      /** 知识库ID */
+      id: string;
+    };
+    export type RequestQuery = {
+      /** 页码 */
+      page?: number;
+      /** 每页数量 */
+      page_size?: number;
+      /** 文件名搜索关键词 */
+      q?: string;
+    };
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseFilePageResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags knowledge-bases
+   * @name MineFilesCreate
+   * @summary 将已有文件加入个人知识库
+   * @request POST:/knowledge-bases/mine/{id}/files
+   * @secure
+   */
+  export namespace MineFilesCreate {
+    export type RequestParams = {
+      /** 知识库ID */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = AddKnowledgeBaseFilesRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseFileMutationResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags knowledge-bases
+   * @name MineFilesDelete
+   * @summary 将文件移出个人知识库
+   * @request DELETE:/knowledge-bases/mine/{id}/files/{file_id}
+   * @secure
+   */
+  export namespace MineFilesDelete {
+    export type RequestParams = {
+      /** 文件ID */
+      fileId: string;
+      /** 知识库ID */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseFileMutationResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags knowledge-bases
+   * @name KnowledgeBasesDetail
+   * @summary 查询知识库详情
+   * @request GET:/knowledge-bases/{id}
+   * @secure
+   */
+  export namespace KnowledgeBasesDetail {
+    export type RequestParams = {
+      /** 知识库ID */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags knowledge-bases
+   * @name FilesList
+   * @summary 查询知识库文件
+   * @request GET:/knowledge-bases/{id}/files
+   * @secure
+   */
+  export namespace FilesList {
+    export type RequestParams = {
+      /** 知识库ID */
+      id: string;
+    };
+    export type RequestQuery = {
+      /** 页码 */
+      page?: number;
+      /** 每页数量 */
+      page_size?: number;
+    };
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseFilePageResponseDoc;
+  }
+
+  /**
+   * @description 仅允许读取当前用户可见且仍与知识库关联的文件
+   * @tags knowledge-bases
+   * @name FilesContentList
+   * @summary 获取知识库文件内容
+   * @request GET:/knowledge-bases/{id}/files/{file_id}/content
+   * @secure
+   */
+  export namespace FilesContentList {
+    export type RequestParams = {
+      /** 文件ID */
+      fileId: string;
+      /** 知识库ID */
+      id: string;
     };
     export type RequestQuery = {};
     export type RequestBody = never;
