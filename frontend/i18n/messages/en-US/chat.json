@@ -621,6 +621,11 @@
         "error": "Error",
         "expand": "Expand",
         "collapse": "Collapse",
+        "argumentsTitle": "Parameters",
+        "resultTitle": "Result",
+        "copy": "Copy",
+        "copied": "Copied",
+        "copyFailed": "Copy failed",
         "sourceFallback": "Source {index}",
         "generatedImageAlt": "Generated image {index}",
         "query": "Query",
@@ -661,7 +666,18 @@
       "titleActive": "Thinking",
       "titleDone": "Thinking complete",
       "subtitleActive": "Parsing the request and organizing key context",
-      "subtitleDone": "Reasoning and context integration complete"
+      "subtitleDone": "Reasoning and context integration complete",
+      "rowActive": "Thinking deeply",
+      "rowDone": "Deeply thought",
+      "duration": "took {seconds}"
+    },
+    "run": {
+      "summarySteps": "Ran {count} steps",
+      "durationSuffix": "({duration})",
+      "toolCallsSummary": "{count} calls: {kinds}",
+      "thinkRounds": "thought in {count} rounds",
+      "listSeparator": ", ",
+      "labelSeparator": " · "
     },
     "promptTrace": {
       "modes": {

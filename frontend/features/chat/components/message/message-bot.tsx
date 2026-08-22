@@ -368,6 +368,7 @@ export function ChatMessageBot({
         activeThinkBlock={upstreamThink}
         messageStreaming={messageStreaming}
         autoCollapseReady={hasStreamdownContent || Boolean(item.inlineAlert)}
+        runDurationMS={item.latencyMS}
       />
 
       <div

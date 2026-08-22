@@ -65,6 +65,11 @@ export type ProcessTraceLabels = {
       error: string;
       expand: string;
       collapse: string;
+      argumentsTitle: string;
+      resultTitle: string;
+      copy: string;
+      copied: string;
+      copyFailed: string;
       sourceFallback: (index: number) => string;
       generatedImageAlt: (index: number) => string;
       query: string;
@@ -106,6 +111,17 @@ export type ProcessTraceLabels = {
     titleDone: string;
     subtitleActive: string;
     subtitleDone: string;
+    rowActive: string;
+    rowDone: string;
+    duration: (seconds: string) => string;
+  };
+  run: {
+    summarySteps: (count: number) => string;
+    durationSuffix: (duration: string) => string;
+    toolCallsSummary: (count: number, kinds: string) => string;
+    thinkRounds: (count: number) => string;
+    listSeparator: string;
+    labelSeparator: string;
   };
   promptTrace: {
     modes: {
@@ -218,6 +234,11 @@ export function useProcessTraceLabels(): ProcessTraceLabels {
           error: t("tool.detail.error"),
           expand: t("tool.detail.expand"),
           collapse: t("tool.detail.collapse"),
+          argumentsTitle: t("tool.detail.argumentsTitle"),
+          resultTitle: t("tool.detail.resultTitle"),
+          copy: t("tool.detail.copy"),
+          copied: t("tool.detail.copied"),
+          copyFailed: t("tool.detail.copyFailed"),
           sourceFallback: (index: number) => t("tool.detail.sourceFallback", { index }),
           generatedImageAlt: (index: number) => t("tool.detail.generatedImageAlt", { index }),
           query: t("tool.detail.query"),
@@ -259,6 +280,17 @@ export function useProcessTraceLabels(): ProcessTraceLabels {
         titleDone: t("think.titleDone"),
         subtitleActive: t("think.subtitleActive"),
         subtitleDone: t("think.subtitleDone"),
+        rowActive: t("think.rowActive"),
+        rowDone: t("think.rowDone"),
+        duration: (seconds: string) => t("think.duration", { seconds }),
+      },
+      run: {
+        summarySteps: (count: number) => t("run.summarySteps", { count }),
+        durationSuffix: (duration: string) => t("run.durationSuffix", { duration }),
+        toolCallsSummary: (count: number, kinds: string) => t("run.toolCallsSummary", { count, kinds }),
+        thinkRounds: (count: number) => t("run.thinkRounds", { count }),
+        listSeparator: t("run.listSeparator"),
+        labelSeparator: t("run.labelSeparator"),
       },
       promptTrace: {
         modes: {

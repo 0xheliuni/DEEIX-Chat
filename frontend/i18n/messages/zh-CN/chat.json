@@ -621,6 +621,11 @@
         "error": "错误",
         "expand": "展开",
         "collapse": "收起",
+        "argumentsTitle": "参数列表",
+        "resultTitle": "返回结果",
+        "copy": "复制",
+        "copied": "已复制",
+        "copyFailed": "复制失败",
         "sourceFallback": "来源 {index}",
         "generatedImageAlt": "生成图片 {index}",
         "query": "关键词",
@@ -661,7 +666,18 @@
       "titleActive": "正在思考",
       "titleDone": "思考完成",
       "subtitleActive": "正在解析问题并梳理关键信息",
-      "subtitleDone": "已理解并完成相关信息整合与推理"
+      "subtitleDone": "已理解并完成相关信息整合与推理",
+      "rowActive": "正在深度思考",
+      "rowDone": "已深度思考",
+      "duration": "用时 {seconds}"
+    },
+    "run": {
+      "summarySteps": "共运行 {count} 步",
+      "durationSuffix": "（{duration}）",
+      "toolCallsSummary": "{count} 次调用：{kinds}",
+      "thinkRounds": "思考 {count} 轮",
+      "listSeparator": "、",
+      "labelSeparator": " · "
     },
     "promptTrace": {
       "modes": {

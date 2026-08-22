@@ -2,6 +2,8 @@
 
 import * as React from "react";
 
+import { Check, Copy, X } from "lucide-react";
+
 import { ChevronDown } from "@/components/animate-ui/icons/chevron-down";
 import {
   Accordion,
@@ -9,7 +11,9 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Spinner } from "@/components/ui/spinner";
 import { Marker, MarkerContent } from "@/components/ui/marker";
+import { useCopyAction } from "@/shared/components/copy-action";
 import type { ChatTraceBlock } from "@/features/chat/types/messages";
 import {
   useProcessTraceLabels,
@@ -633,7 +637,7 @@ function ToolTraceStructuredContent({
   );
 }
 
-type ToolChainStep = {
+export type ToolChainStep = {
   key: string;
   label: string;
   detail: string;
@@ -702,7 +706,34 @@ function dedupeToolChainSteps(steps: ToolChainStep[]): ToolChainStep[] {
   return result;
 }
 
-function buildToolChainSteps(events: TraceDisplayEvent[], labels: ProcessTraceLabels): ToolChainStep[] {
+export function buildToolGroupSteps(
+  toolEvents: TraceDisplayEvent[],
+  toolBlock: ChatTraceBlock | undefined,
+  labels: ProcessTraceLabels,
+): ToolChainStep[] {
+  return dedupeToolChainSteps([
+    ...buildToolChainSteps(toolEvents, labels),
+    ...buildToolChainStepsFromBlock(toolBlock, labels),
+  ]);
+}
+
+export type ToolTraceSummary = {
+  total: number;
+  kinds: Array<{ label: string; count: number }>;
+};
+
+export function summarizeToolChainSteps(steps: ToolChainStep[]): ToolTraceSummary {
+  const kinds = new Map<string, number>();
+  for (const step of steps) {
+    kinds.set(step.label, (kinds.get(step.label) ?? 0) + 1);
+  }
+  return {
+    total: steps.length,
+    kinds: Array.from(kinds.entries()).map(([label, count]) => ({ label, count })),
+  };
+}
+
+export function buildToolChainSteps(events: TraceDisplayEvent[], labels: ProcessTraceLabels): ToolChainStep[] {
   return events.flatMap<ToolChainStep>((item, eventIndex) => {
     const event = item.event;
     if (item.kind !== "tool") {
@@ -717,6 +748,7 @@ function buildToolChainSteps(events: TraceDisplayEvent[], labels: ProcessTraceLa
           label: labels.tool.names.generic,
           detail: event.contentMarkdown?.trim() || event.summary?.trim() || event.title?.trim() || "",
           failed: event.status === "error",
+          toolStatus: event.status?.trim(),
         },
       ];
     }
@@ -777,6 +809,47 @@ function buildToolChainStepsFromBlock(block: ChatTraceBlock | undefined, labels:
   });
 }
 
+function ToolTraceRowBody({
+  step,
+  open,
+  canExpand,
+  onToggle,
+  labels,
+}: {
+  step: ToolChainStep;
+  open: boolean;
+  canExpand: boolean;
+  onToggle: () => void;
+  labels: ProcessTraceLabels;
+}) {
+  if (step.toolCall) {
+    return (
+      <ToolTraceStructuredContent
+        call={step.toolCall}
+        rawDetail={step.detail}
+        failed={step.failed}
+        open={open}
+        canExpand={canExpand}
+        onToggle={onToggle}
+        labels={labels}
+      />
+    );
+  }
+  return (
+    <ToolDetailText
+      failed={step.failed}
+      open={open}
+      canExpand={canExpand}
+      labels={labels}
+      onToggle={onToggle}
+    >
+      {step.latencyMS && step.latencyMS > 0 ? <span>{step.latencyMS}ms</span> : null}
+      {step.latencyMS && step.latencyMS > 0 && step.detail ? <span>{labels.tool.detail.latencySeparator}</span> : null}
+      {step.detail ? <span>{step.detail}</span> : null}
+    </ToolDetailText>
+  );
+}
+
 function ToolChainRows({ steps, labels }: { steps: ToolChainStep[]; labels: ProcessTraceLabels }) {
   const [expanded, setExpanded] = React.useState<Set<string>>(() => new Set());
 
@@ -817,54 +890,251 @@ function ToolChainRows({ steps, labels }: { steps: ToolChainStep[]; labels: Proc
               </span>
             </div>
             <div className="min-w-0 pb-2 max-sm:col-start-2">
-              {step.toolCall ? (
-                <ToolTraceStructuredContent
-                  call={step.toolCall}
-                  rawDetail={step.detail}
-                  failed={step.failed}
-                  open={open}
-                  canExpand={canExpand}
-                  labels={labels}
-                  onToggle={() =>
-                    setExpanded((current) => {
-                      const next = new Set(current);
-                      if (next.has(step.key)) {
-                        next.delete(step.key);
-                      } else {
-                        next.add(step.key);
-                      }
-                      return next;
-                    })
-                  }
-                />
-              ) : (
-                <ToolDetailText
-                  failed={step.failed}
-                  open={open}
-                  canExpand={canExpand}
-                  labels={labels}
-                  onToggle={() =>
-                    setExpanded((current) => {
-                      const next = new Set(current);
-                      if (next.has(step.key)) {
-                        next.delete(step.key);
-                      } else {
-                        next.add(step.key);
-                      }
-                      return next;
-                    })
-                  }
-                >
-                  {step.latencyMS && step.latencyMS > 0 ? <span>{step.latencyMS}ms</span> : null}
-                  {step.latencyMS && step.latencyMS > 0 && step.detail ? <span>{labels.tool.detail.latencySeparator}</span> : null}
-                  {step.detail ? <span>{step.detail}</span> : null}
-                </ToolDetailText>
-              )}
+              <ToolTraceRowBody
+                step={step}
+                open={open}
+                canExpand={canExpand}
+                onToggle={() =>
+                  setExpanded((current) => {
+                    const next = new Set(current);
+                    if (next.has(step.key)) {
+                      next.delete(step.key);
+                    } else {
+                      next.add(step.key);
+                    }
+                    return next;
+                  })
+                }
+                labels={labels}
+              />
             </div>
           </li>
         );
       })}
     </ol>
+  );
+}
+
+function isToolStepActive(step: ToolChainStep): boolean {
+  return isToolTraceStatusActive(step.toolCall?.status) || isToolTraceStatusActive(step.toolStatus);
+}
+
+function isToolStepDone(step: ToolChainStep): boolean {
+  const status = step.toolCall?.status?.trim() || step.toolStatus?.trim() || "";
+  return status === "success" || status === "completed" || status === "reused";
+}
+
+function ToolStepStatusIcon({ step }: { step: ToolChainStep }) {
+  if (step.failed) {
+    return <X className="relative z-10 mt-[0.3rem] size-3 text-destructive" />;
+  }
+  if (isToolStepActive(step)) {
+    return <Spinner className="relative z-10 mt-[0.3rem] size-3 text-muted-foreground" />;
+  }
+  if (isToolStepDone(step)) {
+    return <Check className="relative z-10 mt-[0.25rem] size-3.5 text-emerald-600 dark:text-emerald-400" />;
+  }
+  return <span className="relative z-10 mt-[0.45rem] size-1.5 rounded-full bg-muted-foreground/38 ring-4 ring-background" />;
+}
+
+function formatArgumentValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.map((item) => (typeof item === "object" ? JSON.stringify(item) : String(item))).join(", ");
+  }
+  if (typeof value === "object" && value !== null) {
+    return Object.entries(value)
+      .map(([key, item]) => `${key}: ${typeof item === "object" ? JSON.stringify(item) : String(item)}`)
+      .join(", ");
+  }
+  return String(value);
+}
+
+function ToolArgumentCopyButton({ value, labels }: { value: string; labels: ProcessTraceLabels }) {
+  const { copy, isCopied } = useCopyAction({
+    messages: { copied: labels.tool.detail.copied, failed: labels.tool.detail.copyFailed },
+  });
+  const done = isCopied(value);
+  return (
+    <button
+      type="button"
+      title={labels.tool.detail.copy}
+      aria-label={labels.tool.detail.copy}
+      className={cn(
+        "shrink-0 rounded p-1 text-muted-foreground/50 transition-colors hover:bg-muted/50 hover:text-foreground",
+        "opacity-0 focus-visible:opacity-100 group-hover/tool-arg-row:opacity-100",
+      )}
+      onClick={(event) => {
+        event.stopPropagation();
+        void copy(value, { key: value });
+      }}
+    >
+      {done ? <Check className="size-3 text-emerald-600 dark:text-emerald-400" /> : <Copy className="size-3" />}
+    </button>
+  );
+}
+
+function ToolArgumentsCard({ call, labels }: { call: ToolTraceCall; labels: ProcessTraceLabels }) {
+  const input = toolInputPayload(call);
+  if (!isRecord(input) || Object.keys(input).length === 0) {
+    return null;
+  }
+  return (
+    <div className="px-3 pb-1 pt-2">
+      <div className="mb-1 text-[11px] font-medium leading-4 text-muted-foreground/62">{labels.tool.detail.argumentsTitle}</div>
+      <div className="divide-y divide-border/25">
+        {Object.entries(input).map(([key, value]) => {
+          const text = formatArgumentValue(value);
+          return (
+            <div key={key} className="group/tool-arg-row flex items-start gap-2 py-1.5">
+              <span className="w-28 shrink-0 break-all font-mono text-[11px] leading-5 text-muted-foreground/58">{key}</span>
+              <span className="min-w-0 flex-1 break-words text-[12px] leading-5 text-muted-foreground/84">{text}</span>
+              <ToolArgumentCopyButton value={`${key}: ${text}`} labels={labels} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ToolResultCard({ call, labels }: { call: ToolTraceCall; labels: ProcessTraceLabels }) {
+  const failedStatus = call.status === "error" || call.status === "failed";
+  const kind = resolveNativeToolKind(call);
+  const output = toolOutputPayload(call);
+  let content: React.ReactNode = null;
+
+  if (failedStatus) {
+    const errorText = call.error?.trim();
+    if (errorText) {
+      content = <ToolPre failed>{errorText}</ToolPre>;
+    }
+  } else if (kind === "web_search") {
+    const urls = collectToolStrings(output, ["url", "uri", "image_url", "retrievedUrl"]);
+    const responseText = geminiWebSearchSummary(output)
+      || formatToolPayload(call.output_detail)
+      || formatToolPayload(call.output)
+      || formatToolPayload(call.output_text)
+      || formatToolPayload(call.output_preview);
+    if (urls.length > 0 || responseText) {
+      content = (
+        <>
+          {urls.length > 0 ? <ToolSourceLinks urls={urls} labels={labels} /> : null}
+          {responseText ? <ToolPre>{responseText}</ToolPre> : null}
+        </>
+      );
+    }
+  } else if (kind === "code_interpreter") {
+    const logs = collectToolStrings(output, ["logs", "stdout", "stderr", "text", "output"]).join("\n\n");
+    const artifactURLs = collectToolStrings(output, ["url", "uri", "image_url"]);
+    if (logs || artifactURLs.length > 0) {
+      content = (
+        <>
+          {logs ? <ToolPre failed={failedStatus}>{logs}</ToolPre> : null}
+          {artifactURLs.length > 0 ? <ToolSourceLinks urls={artifactURLs} labels={labels} /> : null}
+        </>
+      );
+    }
+  } else if (kind === "image_generation") {
+    const urls = collectToolImageSources(output);
+    if (urls.length > 0) {
+      content = <ToolImageGrid urls={urls} labels={labels} />;
+    }
+  } else if (kind === "shell") {
+    const stdout = toolOutputText(call, ["stdout", "output"]);
+    const stderr = toolOutputText(call, ["stderr", "error"]);
+    const exitCode = isRecord(output) ? readNumber(output.exit_code) ?? readNumber(output.code) : null;
+    if (stdout || stderr || exitCode !== null) {
+      content = (
+        <>
+          {stdout ? <ToolPre>{stdout}</ToolPre> : null}
+          {stderr ? <ToolPre failed>{stderr}</ToolPre> : null}
+          {exitCode !== null ? <div className="text-[11px] text-muted-foreground/62">exit code: {exitCode}</div> : null}
+        </>
+      );
+    }
+  } else {
+    const text = formatToolPayload(call.output_detail)
+      || formatToolPayload(call.output)
+      || formatToolPayload(call.output_text)
+      || formatToolPayload(call.output_preview);
+    if (text) {
+      content = <ToolPre>{text}</ToolPre>;
+    }
+  }
+
+  if (!content) {
+    return null;
+  }
+  return (
+    <div className="border-t border-border/40 px-3 pb-2 pt-1.5">
+      <div className="mb-1 text-[11px] font-medium leading-4 text-muted-foreground/62">{labels.tool.detail.resultTitle}</div>
+      <div className="space-y-2 text-muted-foreground/84">{content}</div>
+    </div>
+  );
+}
+
+function ToolCallDetailCard({ step, labels }: { step: ToolChainStep; labels: ProcessTraceLabels }) {
+  const call = step.toolCall;
+  return (
+    <div className="overflow-hidden rounded-lg border border-border/45 bg-muted/15">
+      {call ? (
+        <>
+          <ToolArgumentsCard call={call} labels={labels} />
+          <ToolResultCard call={call} labels={labels} />
+        </>
+      ) : step.detail ? (
+        <div className="whitespace-pre-wrap break-words px-3 py-2 text-[12px] leading-5 text-muted-foreground/84">{step.detail}</div>
+      ) : null}
+    </div>
+  );
+}
+
+export function AgentToolStepRow({ step, labels }: { step: ToolChainStep; labels: ProcessTraceLabels }) {
+  const [open, setOpen] = React.useState(false);
+  const failed = step.failed;
+  const statusText = toolStatusLabel(step.toolCall?.status ?? step.toolStatus, labels);
+  const expandable = Boolean(step.toolCall || step.detail);
+
+  return (
+    <li className="group/tool-chain-row">
+      <div className="grid grid-cols-[0.875rem_minmax(0,1fr)] items-start gap-x-5 text-[12px] leading-5 max-sm:gap-x-2">
+        <div className="relative flex justify-center">
+          <ToolStepStatusIcon step={step} />
+        </div>
+        <button
+          type="button"
+          disabled={!expandable}
+          className="flex min-w-0 items-center justify-between gap-1.5 pb-2 text-left"
+          onClick={() => setOpen((value) => !value)}
+        >
+          <span className="min-w-0 truncate">
+            <span
+              className={cn(
+                "truncate font-medium text-muted-foreground/76 transition-colors group-hover/tool-chain-row:text-foreground/88",
+                failed && "text-destructive/85 group-hover/tool-chain-row:text-destructive",
+              )}
+            >
+              {step.label}
+            </span>
+            {statusText ? <span className="ml-1.5 text-muted-foreground/58">{statusText}</span> : null}
+            {step.latencyMS && step.latencyMS > 0 ? <span className="ml-1.5 text-muted-foreground/48">{step.latencyMS}ms</span> : null}
+          </span>
+          {expandable ? (
+            <ChevronDown
+              className={cn(
+                "size-3 shrink-0 text-muted-foreground/55 transition-transform duration-200",
+                !open && "-rotate-90",
+              )}
+            />
+          ) : null}
+        </button>
+      </div>
+      {open ? (
+        <div className="pb-2 pl-[calc(0.875rem+1.25rem)] max-sm:pl-[calc(0.875rem+0.5rem)]">
+          <ToolCallDetailCard step={step} labels={labels} />
+        </div>
+      ) : null}
+    </li>
   );
 }
 
