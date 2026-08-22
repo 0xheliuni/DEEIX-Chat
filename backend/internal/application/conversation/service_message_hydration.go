@@ -101,6 +101,7 @@ func buildMessageProcessTraceDTO(rows []model.MessageTrace, eventRows []model.Me
 			Stage:           row.Stage,
 			RoundID:         row.RoundID,
 			ParentEventID:   row.ParentEventID,
+			StartedAt:       row.StartedAt,
 			UpdatedAt:       row.UpdatedAt,
 			PayloadJSON:     row.PayloadJSON,
 		}

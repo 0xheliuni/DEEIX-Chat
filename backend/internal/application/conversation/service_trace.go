@@ -766,9 +766,14 @@ func (r *messageTraceRecorder) flushUpstreamThinkLiveUpdate(draft *messageTraceD
 	if !r.enabled() || draft == nil {
 		return
 	}
-	if persistSnapshot && r.shouldPersistUpstreamThinkSnapshot() {
-		r.persistDraft(draft, false)
-		r.upstreamThinkLastPersist = time.Now()
+	if persistSnapshot {
+		// 思考事件必须先进入内存快照，前端才能拿到每轮的 startedAt/roundID；
+		// DB 落盘仍由 ProcessTracePersistInflight 节流。
+		r.upsertSnapshotEvent(draft, tracePayloadJSON(draft.payload))
+		if r.shouldPersistUpstreamThinkSnapshot() {
+			r.persistDraft(draft, false)
+			r.upstreamThinkLastPersist = time.Now()
+		}
 	}
 	update := upstreamThinkLiveUpdate{
 		kind:            r.upstreamThinkPendingKind,
@@ -992,6 +997,7 @@ func traceDraftToBlock(draft *messageTraceDraft) *model.MessageTraceBlock {
 		Stage:           draft.stage,
 		RoundID:         draft.roundID,
 		ParentEventID:   draft.parentEventID,
+		StartedAt:       draft.startedAt,
 		UpdatedAt:       updatedAt,
 		PayloadJSON:     payloadJSON,
 	}
