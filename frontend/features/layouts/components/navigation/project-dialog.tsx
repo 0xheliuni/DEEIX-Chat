@@ -75,6 +75,9 @@ export function ProjectDialog({
   const open = Boolean(draft);
   const nameInputID = React.useId();
   const systemPromptInputID = React.useId();
+  const bodyRef = React.useRef<HTMLDivElement | null>(null);
+  const systemPromptRef = React.useRef<HTMLTextAreaElement | null>(null);
+  const [systemPromptMaxHeight, setSystemPromptMaxHeight] = React.useState<number | undefined>(undefined);
 
   React.useEffect(() => {
     if (!draft) {
@@ -149,6 +152,29 @@ export function ProjectDialog({
     };
   }, [open, setDraft, t]);
 
+  // 输入框随内容增高的上限：滚动区当前可见高度减去其顶部偏移，
+  // 保证下方选项区和保存按钮始终不被顶出可视范围；窗口或区域尺寸变化时重新测量。
+  React.useLayoutEffect(() => {
+    const body = bodyRef.current;
+    const textarea = systemPromptRef.current;
+    if (!open || !body || !textarea) {
+      return;
+    }
+    const measure = () => {
+      const available = body.clientHeight - (textarea.offsetTop - body.offsetTop) - 8;
+      const nextMaxHeight = Math.max(0, available);
+      setSystemPromptMaxHeight((previous) => (previous === nextMaxHeight ? previous : nextMaxHeight));
+    };
+    measure();
+    const resizeObserver = new ResizeObserver(measure);
+    resizeObserver.observe(body);
+    window.addEventListener("resize", measure);
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [open]);
+
   const handleSubmit = React.useCallback<React.FormEventHandler<HTMLFormElement>>(
     async (event) => {
       event.preventDefault();
@@ -169,14 +195,14 @@ export function ProjectDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="overflow-hidden sm:max-w-xl">
+      <DialogContent className="flex flex-col overflow-hidden sm:max-w-xl">
         <form className="contents" onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>{stableDraft?.publicID ? t("editTitle") : t("createTitle")}</DialogTitle>
             <DialogDescription>{stableDraft?.publicID ? t("editDescription") : t("createDescription")}</DialogDescription>
           </DialogHeader>
 
-          <div className="min-h-0 space-y-4 overflow-y-auto px-0.5">
+          <div ref={bodyRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto px-0.5">
             <div className="space-y-1">
               <label htmlFor={nameInputID} className="text-xs text-muted-foreground">
                 {t("nameLabel")}
@@ -200,10 +226,12 @@ export function ProjectDialog({
               </label>
               <Textarea
                 id={systemPromptInputID}
+                ref={systemPromptRef}
                 value={stableDraft?.systemPrompt ?? ""}
                 maxLength={12000}
                 placeholder={t("systemPromptPlaceholder")}
                 className="min-h-32 resize-y"
+                style={systemPromptMaxHeight === undefined ? undefined : { maxHeight: systemPromptMaxHeight }}
                 onChange={(event) => {
                   setDraft((current) => current ? { ...current, systemPrompt: event.target.value } : current);
                 }}
