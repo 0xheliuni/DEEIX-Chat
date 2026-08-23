@@ -347,6 +347,8 @@ export function AppChatArea() {
     inputHeight,
     contentWidth,
     markdownRender,
+    autoExpandThinking,
+    autoExpandToolCalls,
     showModelInfo,
     showLatency,
     showTokenUsage,
@@ -1348,6 +1350,8 @@ export function AppChatArea() {
                   onExport={onExportActiveConversation}
                   onDelete={onRequestDeleteActiveConversation}
                   markdownRender={markdownRender}
+                  autoExpandThinking={autoExpandThinking}
+                  autoExpandToolCalls={autoExpandToolCalls}
                   showModelInfo={showModelInfo}
                   showLatency={showLatency}
                   showTokenUsage={showTokenUsage}

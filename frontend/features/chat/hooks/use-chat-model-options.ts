@@ -411,6 +411,8 @@ export function useChatModelOptions({
   const [inputHeight, setInputHeight] = React.useState<"compact" | "standard" | "loose">("standard");
   const [contentWidth, setContentWidth] = React.useState<ChatContentWidth>(DEFAULT_CHAT_CONTENT_WIDTH);
   const [markdownRender, setMarkdownRender] = React.useState(true);
+  const [autoExpandThinking, setAutoExpandThinking] = React.useState(true);
+  const [autoExpandToolCalls, setAutoExpandToolCalls] = React.useState(true);
   const [showModelInfo, setShowModelInfo] = React.useState(true);
   const [showLatency, setShowLatency] = React.useState(true);
   const [showTokenUsage, setShowTokenUsage] = React.useState(true);
@@ -507,6 +509,8 @@ export function useChatModelOptions({
         setRestoreDraftOnFailure(settings["chat.restore_draft_on_failure"] !== "false");
         setPreserveConversationDrafts(settings["chat.preserve_conversation_drafts"] !== "false");
         setMarkdownRender(settings["chat.markdown_render"] !== "false");
+        setAutoExpandThinking(settings["chat.auto_expand_thinking"] !== "false");
+        setAutoExpandToolCalls(settings["chat.auto_expand_tool_calls"] !== "false");
         setShowModelInfo(settings["chat.show_model_info"] !== "false");
         setShowLatency(settings["chat.show_latency"] !== "false");
         setShowTokenUsage(settings["chat.show_token_usage"] !== "false");
@@ -543,6 +547,8 @@ export function useChatModelOptions({
         return;
       }
       setContentWidth(resolveChatContentWidth(settings));
+      setAutoExpandThinking(settings["chat.auto_expand_thinking"] !== "false");
+      setAutoExpandToolCalls(settings["chat.auto_expand_tool_calls"] !== "false");
     };
 
     window.addEventListener(USER_SETTINGS_UPDATED_EVENT, handleUserSettingsUpdated);
@@ -648,6 +654,8 @@ export function useChatModelOptions({
     inputHeight,
     contentWidth,
     markdownRender,
+    autoExpandThinking,
+    autoExpandToolCalls,
     showModelInfo,
     showLatency,
     showTokenUsage,

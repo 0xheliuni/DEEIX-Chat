@@ -6,6 +6,7 @@ import { ArrowUpRight, Check, Copy, Wrench } from "lucide-react";
 
 import { AgentTraceStep } from "@/features/chat/components/message/message-agent-trace-step";
 import { useCopyAction } from "@/shared/components/copy-action";
+import { useAutoExpandDisclosure } from "@/shared/hooks/use-auto-expand-disclosure";
 import type { ChatTraceBlock } from "@/features/chat/types/messages";
 import type { ProcessTraceLabels } from "@/features/chat/hooks/use-process-trace-labels";
 import { cn } from "@/lib/utils";
@@ -834,8 +835,17 @@ function ToolCallDetailCard({ step, labels }: { step: ToolChainStep; labels: Pro
   );
 }
 
-export function AgentToolStepRow({ step, labels }: { step: ToolChainStep; labels: ProcessTraceLabels }) {
-  const [open, setOpen] = React.useState(false);
+export function AgentToolStepRow({
+  step,
+  labels,
+  autoExpand,
+}: {
+  step: ToolChainStep;
+  labels: ProcessTraceLabels;
+  autoExpand: boolean;
+}) {
+  const active = isToolChainStepActive(step);
+  const { open, onOpenChange } = useAutoExpandDisclosure({ active, autoExpand });
   const failed = step.failed;
   const statusText = isToolStepDone(step) ? "" : toolStatusLabel(step.toolCall?.status ?? step.toolStatus, labels);
   const expandable = Boolean(step.toolCall || step.detail);
@@ -851,7 +861,8 @@ export function AgentToolStepRow({ step, labels }: { step: ToolChainStep; labels
         open={open}
         expandable={expandable}
         failed={failed}
-        onOpenChange={setOpen}
+        loading={active}
+        onOpenChange={onOpenChange}
       >
         <ToolCallDetailCard step={step} labels={labels} />
       </AgentTraceStep>

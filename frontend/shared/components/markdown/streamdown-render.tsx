@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/accordion";
 import { Marker, MarkerContent } from "@/components/ui/marker";
 import { cn } from "@/lib/utils";
+import { useAutoExpandDisclosure } from "@/shared/hooks/use-auto-expand-disclosure";
 import {
   AdaptiveMarkdownTable,
   MarkdownTableStreamingContext,
@@ -73,6 +74,7 @@ type StreamdownRenderProps = {
   streaming?: boolean;
   variant?: "default" | "thinking" | "user";
   sourcePositions?: boolean;
+  autoExpandThinking?: boolean;
   imageActions?: MarkdownImageActions;
   artifactActions?: MarkdownArtifactActions;
 };
@@ -469,40 +471,27 @@ function ThinkingSegmentBlock({
   incomplete,
   plugins,
   streaming,
+  autoExpand,
 }: {
   content: string;
   incomplete: boolean;
   plugins: PluginConfig;
   streaming: boolean;
+  autoExpand: boolean;
 }) {
   const t = useTranslations("chat.markdown.thinking");
   const translations = useStreamdownTranslations();
   const active = streaming || incomplete;
-  const [accordionValue, setAccordionValue] = React.useState(() => (active ? "thinking" : ""));
-  const wasActiveRef = React.useRef(active);
-
-  React.useEffect(() => {
-    if (active) {
-      setAccordionValue("thinking");
-      wasActiveRef.current = true;
-      return;
-    }
-
-    if (wasActiveRef.current) {
-      setAccordionValue("");
-    }
-    wasActiveRef.current = false;
-  }, [active]);
+  const { open, onOpenChange } = useAutoExpandDisclosure({ active, autoExpand });
 
   const isActive = active;
-  const open = accordionValue === "thinking";
 
   return (
     <Accordion
       type="single"
       collapsible
-      value={accordionValue}
-      onValueChange={(value) => setAccordionValue(value || "")}
+      value={open ? "thinking" : ""}
+      onValueChange={(value) => onOpenChange(value === "thinking")}
       className="w-full"
     >
       <AccordionItem value="thinking" className="border-b-0">
@@ -613,6 +602,7 @@ export const StreamdownRender = React.memo(function StreamdownRender({
   streaming = false,
   variant = "default",
   sourcePositions = false,
+  autoExpandThinking = true,
   imageActions,
   artifactActions,
 }: StreamdownRenderProps) {
@@ -688,6 +678,7 @@ export const StreamdownRender = React.memo(function StreamdownRender({
             incomplete={hasIncompleteThinking}
             plugins={plugins}
             streaming={streaming}
+            autoExpand={autoExpandThinking}
           />
         ) : null}
       {markdownSegments.map((segment, index) => (
