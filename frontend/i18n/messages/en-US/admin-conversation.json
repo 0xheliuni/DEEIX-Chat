@@ -1,7 +1,7 @@
 {
   "sections": {
     "conversation": "Conversation settings",
-    "contextCompression": "Context compression",
+    "contextManagement": "Context management",
     "optionPassthrough": "Option passthrough",
     "dataExport": "Data export"
   },
@@ -32,11 +32,11 @@
     },
     "contextCompactEnabled": {
       "label": "Context compression",
-      "description": "Allow context compression globally. Users can still opt out in their own chat settings."
+      "description": "Summarize older conversation turns into a rolling context. Users can still opt out in chat settings."
     },
     "contextTokenBudget": {
-      "label": "Token budget truncation",
-      "description": "Automatically compute budget from the current model context window and trim sendable history."
+      "label": "Token budget protection",
+      "description": "Automatically trim history that exceeds the model context budget."
     },
     "contextMaxTurns": {
       "label": "Compression trigger turns",
@@ -45,7 +45,7 @@
     },
     "contextWindowFallbackTokens": {
       "label": "Default context window",
-      "description": "Used only when a model has no explicit context window and cannot be identified. Explicit and recognized model limits remain unchanged.",
+      "description": "Used when the model context window cannot be identified.",
       "placeholder": "Default 128000"
     },
     "contextCompactTriggerPercent": {

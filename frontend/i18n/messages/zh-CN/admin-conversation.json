@@ -1,7 +1,7 @@
 {
   "sections": {
     "conversation": "会话配置",
-    "contextCompression": "上下文压缩",
+    "contextManagement": "上下文管理",
     "optionPassthrough": "参数透传",
     "dataExport": "数据导出"
   },
@@ -32,11 +32,11 @@
     },
     "contextCompactEnabled": {
       "label": "上下文压缩",
-      "description": "全局允许上下文压缩。开启后，用户仍可在自己的聊天设置中选择是否使用。"
+      "description": "将较早的对话整理为滚动摘要。开启后，用户仍可在聊天设置中选择是否使用。"
     },
     "contextTokenBudget": {
-      "label": "Token 预算截断",
-      "description": "开启后会根据当前模型上下文窗口自动计算预算，并裁剪可发送的历史消息。"
+      "label": "Token 预算保护",
+      "description": "根据模型上下文窗口自动裁剪超出预算的历史消息。"
     },
     "contextMaxTurns": {
       "label": "压缩触发轮次",
@@ -45,7 +45,7 @@
     },
     "contextWindowFallbackTokens": {
       "label": "默认上下文窗口",
-      "description": "模型未配置上下文窗口且无法识别时使用。模型显式配置和已识别的模型窗口不受影响。",
+      "description": "无法识别模型上下文窗口时使用的默认值。",
       "placeholder": "默认 128000"
     },
     "contextCompactTriggerPercent": {
