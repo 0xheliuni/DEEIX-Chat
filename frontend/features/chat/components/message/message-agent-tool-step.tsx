@@ -229,11 +229,14 @@ function ToolSearchSources({ sources, labels }: { sources: ToolSearchSource[]; l
 }
 
 function normalizeReadableToolText(value: string): string {
+  // The normalized value is rendered as a React text node, never as HTML.
+  // Replace markup with separators instead of deleting it so adjacent input
+  // fragments cannot be joined into a new tag (for example, `<scr` + `ipt>`).
   return value
     .replace(/<br\s*\/?\s*>/gi, "\n")
     .replace(/<\/?(?:p|div|section|article|li|ul|ol|h[1-6])\b[^>]*>/gi, "\n")
-    .replace(/<img\b[^>]*(?:>|$)/gi, "")
-    .replace(/<[^>]+>/g, "")
+    .replace(/<img\b[^>]*(?:>|$)/gi, " ")
+    .replace(/<[^>]+>/g, " ")
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
     .replace(/(^|\s)#{1,6}\s+/g, "$1")
