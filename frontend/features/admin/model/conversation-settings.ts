@@ -20,7 +20,8 @@ export type ConversationSettingsField = {
     | "context_compact_enabled"
     | "context_token_budget_enabled"
     | "context_max_turns"
-    | "context_compact_trigger_tokens"
+    | "context_window_fallback_tokens"
+    | "context_compact_trigger_percent"
     | "context_compact_preserve_recent_turns"
     | "context_compact_highlights_per_role"
     | "context_compact_snippet_chars"
@@ -38,6 +39,7 @@ export type ConversationSettingsField = {
   description: string;
   type: ConversationFieldType;
   placeholder?: string;
+  valueSuffix?: string;
   options?: Array<{ label: string; value: string }>;
   visibleWhen?: ConversationVisibilityRule;
   subgroupKey?: string;
@@ -311,11 +313,21 @@ export function buildConversationSettingsFields(t: ConversationSettingsTranslato
     {
       section: "contextCompression",
       namespace: "chat",
-      key: "context_compact_trigger_tokens",
-      label: t("fields.contextCompactTriggerTokens.label"),
-      description: t("fields.contextCompactTriggerTokens.description"),
+      key: "context_window_fallback_tokens",
+      label: t("fields.contextWindowFallbackTokens.label"),
+      description: t("fields.contextWindowFallbackTokens.description"),
       type: "int",
-      placeholder: t("fields.contextCompactTriggerTokens.placeholder"),
+      placeholder: t("fields.contextWindowFallbackTokens.placeholder"),
+    },
+    {
+      section: "contextCompression",
+      namespace: "chat",
+      key: "context_compact_trigger_percent",
+      label: t("fields.contextCompactTriggerPercent.label"),
+      description: t("fields.contextCompactTriggerPercent.description"),
+      type: "int",
+      placeholder: t("fields.contextCompactTriggerPercent.placeholder"),
+      valueSuffix: "%",
       visibleWhen: CONTEXT_COMPACT_ENABLED_RULE,
     },
     {
@@ -496,6 +508,7 @@ export function toEditorField(field: ConversationSettingsField) {
     description: field.description,
     type: field.type,
     placeholder: field.placeholder,
+    valueSuffix: field.valueSuffix,
     options: field.options,
   } as const;
 }

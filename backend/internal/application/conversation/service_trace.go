@@ -39,6 +39,8 @@ const (
 	processTraceStatusEmpty         = "empty"
 	processTraceStatusLowScore      = "low_score"
 	processTraceStatusSkipped       = "skipped"
+	processTraceStatusPending       = "pending"
+	processTraceStatusFailed        = "failed"
 	processTraceFallbackFullText    = "full_text"
 	processTraceFallbackUnavailable = "unavailable"
 )
@@ -97,6 +99,7 @@ type messageTraceRecorder struct {
 	upstreamThinkPendingReason  map[string]interface{}
 	upstreamThinkBufferedByte   int
 	failed                      bool
+	compactionPreviousSummary   string
 }
 
 func formatTraceStep(label string, detail string) string {
@@ -199,6 +202,91 @@ func (r *messageTraceRecorder) enabled() bool {
 
 func (r *messageTraceRecorder) visible() bool {
 	return r.enabled() && r.cfg.ProcessTraceVisibleToUser
+}
+
+// completeForBackgroundContinuation 同步落盘当前 trace 后切换到后台上下文。
+// 进程 trace 在存在后台压缩阶段时保持 streaming，工具与模型思考仍正常收尾；
+// 这样响应消息能明确展示“压缩排队中”，后台完成或失败后再原位更新该阶段。
+func (r *messageTraceRecorder) completeForBackgroundContinuation() {
+	if !r.enabled() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	now := time.Now()
+	for _, draft := range []*messageTraceDraft{r.process, r.tools, r.upstreamThink} {
+		if draft == nil || draft.status == messageTraceStatusCompleted || draft.status == messageTraceStatusError {
+			continue
+		}
+		if draft == r.process && processTraceStageHasStatus(draft.payload, processTraceKindCompaction, processTraceStatusPending) {
+			r.persistDraftCtx(ctx, draft, true)
+			continue
+		}
+		draft.status = messageTraceStatusCompleted
+		draft.endedAt = &now
+		if draft.traceType != messageTraceTypeTools {
+			r.upsertSnapshotEvent(draft, tracePayloadJSON(draft.payload))
+		}
+		r.persistDraftCtx(ctx, draft, true)
+	}
+	r.ctx = context.Background()
+	r.onEvent = nil
+}
+
+func (r *messageTraceRecorder) setCompactionProcessStage(summary string, markdown string, payload map[string]interface{}) {
+	if !r.enabled() {
+		return
+	}
+	draft := r.ensureDraft(messageTraceTypeProcess)
+	if draft == nil {
+		return
+	}
+	if value := strings.TrimSpace(markdown); value != "" && !strings.Contains(draft.contentMarkdown, value) {
+		if draft.contentMarkdown != "" {
+			draft.contentMarkdown += "\n\n"
+		}
+		draft.contentMarkdown += value
+	}
+	stage, _ := payload[processTracePayloadStage].(map[string]interface{})
+	stageStatus, _ := stage["status"].(string)
+	if strings.TrimSpace(stageStatus) == processTraceStatusPending &&
+		!processTraceStageHasStatus(draft.payload, processTraceKindCompaction, processTraceStatusPending) {
+		r.compactionPreviousSummary = draft.summary
+	}
+	if value := strings.TrimSpace(summary); value != "" {
+		draft.summary = value
+	}
+	if len(stage) > 0 {
+		upsertProcessTraceStagePayload(draft.payload, stage)
+	}
+	for key, value := range payload {
+		if key != processTracePayloadStage && key != processTracePayloadStages {
+			draft.payload[key] = value
+		}
+	}
+	draft.status = messageTraceStatusStreaming
+	draft.endedAt = nil
+	r.persistDraft(draft, false)
+	r.emitProcessUpdate()
+}
+
+func (r *messageTraceRecorder) removeProcessStage(kind string) {
+	if !r.enabled() || r.process == nil {
+		return
+	}
+	stages := normalizeProcessTraceStagePayloads(r.process.payload[processTracePayloadStages])
+	filtered := stages[:0]
+	for _, stage := range stages {
+		stageKind, _ := stage["kind"].(string)
+		if strings.TrimSpace(stageKind) != strings.TrimSpace(kind) {
+			filtered = append(filtered, stage)
+		}
+	}
+	r.process.payload[processTracePayloadStages] = filtered
+	if value := strings.TrimSpace(r.compactionPreviousSummary); value != "" {
+		r.process.summary = value
+	}
+	r.compactionPreviousSummary = ""
 }
 
 func (r *messageTraceRecorder) ensureDraft(traceType string) *messageTraceDraft {
@@ -1065,6 +1153,38 @@ func appendProcessTraceStagePayloads(dst map[string]interface{}, value interface
 	dst[processTracePayloadStages] = append(existing, stages...)
 }
 
+func upsertProcessTraceStagePayload(dst map[string]interface{}, stage map[string]interface{}) {
+	if dst == nil || len(stage) == 0 {
+		return
+	}
+	kind, _ := stage["kind"].(string)
+	kind = strings.TrimSpace(kind)
+	existing := normalizeProcessTraceStagePayloads(dst[processTracePayloadStages])
+	if kind != "" {
+		for index := len(existing) - 1; index >= 0; index-- {
+			existingKind, _ := existing[index]["kind"].(string)
+			if strings.TrimSpace(existingKind) == kind {
+				existing[index] = stage
+				dst[processTracePayloadStages] = existing
+				return
+			}
+		}
+	}
+	dst[processTracePayloadStages] = append(existing, stage)
+}
+
+func processTraceStageHasStatus(payload map[string]interface{}, kind string, status string) bool {
+	for _, stage := range normalizeProcessTraceStagePayloads(payload[processTracePayloadStages]) {
+		stageKind, _ := stage["kind"].(string)
+		stageStatus, _ := stage["status"].(string)
+		if strings.TrimSpace(stageKind) == strings.TrimSpace(kind) &&
+			strings.TrimSpace(stageStatus) == strings.TrimSpace(status) {
+			return true
+		}
+	}
+	return false
+}
+
 func normalizeProcessTraceStagePayloads(value interface{}) []map[string]interface{} {
 	switch items := value.(type) {
 	case []map[string]interface{}:
@@ -1883,6 +2003,24 @@ func buildCompactionProcessTrace(snapshot *model.ContextSnapshot) (string, strin
 			"to_turn":        snapshot.ToTurn,
 			"source_tokens":  snapshot.SourceTokens,
 			"summary_tokens": snapshot.SummaryTokens,
+		},
+	}
+}
+
+func buildPendingCompactionProcessTrace() (string, map[string]interface{}) {
+	return "正在压缩上下文", map[string]interface{}{
+		processTracePayloadStage: map[string]interface{}{
+			"kind":   processTraceKindCompaction,
+			"status": processTraceStatusPending,
+		},
+	}
+}
+
+func buildFailedCompactionProcessTrace() (string, map[string]interface{}) {
+	return "上下文压缩未完成", map[string]interface{}{
+		processTracePayloadStage: map[string]interface{}{
+			"kind":   processTraceKindCompaction,
+			"status": processTraceStatusFailed,
 		},
 	}
 }

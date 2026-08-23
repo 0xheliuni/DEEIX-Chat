@@ -827,7 +827,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "从 storage 缓存读取 OpenRouter 模型定价；缓存不存在、过期或 refresh=true 时由后端刷新。",
+                "description": "从 storage 缓存读取 OpenRouter 模型标识、定价和上下文限制；缓存不存在、过期或 refresh=true 时由后端刷新。",
                 "consumes": [
                     "application/json"
                 ],
@@ -837,7 +837,7 @@ const docTemplate = `{
                 "tags": [
                     "admin-billing"
                 ],
-                "summary": "管理员获取 OpenRouter 官方模型定价",
+                "summary": "管理员获取 OpenRouter 官方模型目录",
                 "parameters": [
                     {
                         "type": "boolean",
@@ -20609,6 +20609,7 @@ const docTemplate = `{
                 "cbFailureThreshold",
                 "cbPolicyMode",
                 "cbWindowMin",
+                "contextWindow",
                 "createdAt",
                 "description",
                 "displayGroupID",
@@ -20649,6 +20650,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "cbWindowMin": {
+                    "type": "integer"
+                },
+                "contextWindow": {
                     "type": "integer"
                 },
                 "createdAt": {
@@ -21117,7 +21121,9 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "canonicalSlug",
+                "contextLength",
                 "id",
+                "maxCompletionTokens",
                 "name",
                 "pricing"
             ],
@@ -21125,8 +21131,14 @@ const docTemplate = `{
                 "canonicalSlug": {
                     "type": "string"
                 },
+                "contextLength": {
+                    "type": "integer"
+                },
                 "id": {
                     "type": "string"
+                },
+                "maxCompletionTokens": {
+                    "type": "integer"
                 },
                 "name": {
                     "type": "string"
