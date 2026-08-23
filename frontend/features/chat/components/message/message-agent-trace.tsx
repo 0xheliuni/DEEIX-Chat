@@ -452,11 +452,11 @@ export function MessageAgentTrace({
   const durationText = formatTraceRunDuration(runDurationMS);
 
   const subtitleParts: string[] = [];
-  if (renderedToolSteps.length > 0) {
-    subtitleParts.push(labels.run.toolCalls(renderedToolSteps.length));
-  }
   if (thinkRounds > 0) {
     subtitleParts.push(labels.run.thinkRounds(thinkRounds));
+  }
+  if (renderedToolSteps.length > 0) {
+    subtitleParts.push(labels.run.toolCalls(renderedToolSteps.length));
   }
   if (durationText) {
     subtitleParts.push(labels.run.duration(durationText));
