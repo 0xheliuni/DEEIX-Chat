@@ -1891,6 +1891,7 @@ export interface MessageTraceBlockResponse {
   payloadJSON?: string;
   roundID?: string;
   stage?: string;
+  startedAt?: string;
   status: string;
   summary: string;
   title: string;
