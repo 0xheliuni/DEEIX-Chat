@@ -31,10 +31,9 @@ function mergeContent(previous: string, event: UpstreamThinkDeltaEvent) {
 }
 
 function mergeUpstreamThinkBlock(current: ChatTraceBlock | undefined, event: UpstreamThinkDeltaEvent): ChatTraceBlock {
-  const contentMarkdown = mergeContent(current?.contentMarkdown ?? "", event);
   const roundID = event.roundID || current?.roundID;
-  // 轮次切换后重新开始计时，避免上一轮的 startedAt 被带到本轮导致耗时变成会话累计值。
   const roundChanged = Boolean(roundID && current?.roundID && roundID !== current.roundID);
+  const contentMarkdown = mergeContent(roundChanged ? "" : (current?.contentMarkdown ?? ""), event);
   return {
     title: event.title?.trim() || current?.title || "",
     summary: event.summary?.trim() || current?.summary || "",

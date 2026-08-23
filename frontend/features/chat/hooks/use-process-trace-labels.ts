@@ -57,14 +57,12 @@ export type ProcessTraceLabels = {
       imageGeneration: string;
       shell: string;
       generic: string;
-      thinking: string;
     };
     detail: {
+      nameLabel: string;
       request: string;
       response: string;
       error: string;
-      expand: string;
-      collapse: string;
       argumentsTitle: string;
       resultTitle: string;
       copy: string;
@@ -72,55 +70,22 @@ export type ProcessTraceLabels = {
       copyFailed: string;
       sourceFallback: (index: number) => string;
       generatedImageAlt: (index: number) => string;
-      query: string;
-      action: string;
-      source: string;
-      code: string;
-      output: string;
-      resultFile: string;
-      prompt: string;
-      command: string;
-      latencySeparator: string;
-    };
-    nativeStatus: {
-      webSearchActive: string;
-      webSearchDone: string;
-      webSearchFailed: string;
-      codeActive: string;
-      codeDone: string;
-      codeFailed: string;
-      imageActive: string;
-      imageDone: string;
-      imageFailed: string;
-      shellActive: string;
-      shellDone: string;
-      shellFailed: string;
-      genericActive: string;
-      genericDone: string;
-      genericFailed: string;
-    };
-    chain: {
-      titleActive: string;
-      titleDone: string;
-      summaryCount: (count: number) => string;
-      summaryFallback: string;
+      sourceCount: (count: number) => string;
+      groundingSupportCount: (count: number) => string;
+      exitCode: (code: number) => string;
     };
   };
   think: {
-    titleActive: string;
-    titleDone: string;
-    subtitleActive: string;
-    subtitleDone: string;
     rowActive: string;
     rowDone: string;
     duration: (seconds: string) => string;
   };
   run: {
-    summarySteps: (count: number) => string;
-    durationSuffix: (duration: string) => string;
-    toolCallsSummary: (count: number, kinds: string) => string;
+    titleActive: string;
+    titleDone: string;
+    toolCalls: (count: number) => string;
     thinkRounds: (count: number) => string;
-    listSeparator: string;
+    duration: (duration: string) => string;
     labelSeparator: string;
   };
   promptTrace: {
@@ -226,14 +191,12 @@ export function useProcessTraceLabels(): ProcessTraceLabels {
           imageGeneration: t("tool.names.imageGeneration"),
           shell: t("tool.names.shell"),
           generic: t("tool.names.generic"),
-          thinking: t("tool.names.thinking"),
         },
         detail: {
+          nameLabel: t("tool.detail.nameLabel"),
           request: t("tool.detail.request"),
           response: t("tool.detail.response"),
           error: t("tool.detail.error"),
-          expand: t("tool.detail.expand"),
-          collapse: t("tool.detail.collapse"),
           argumentsTitle: t("tool.detail.argumentsTitle"),
           resultTitle: t("tool.detail.resultTitle"),
           copy: t("tool.detail.copy"),
@@ -241,55 +204,22 @@ export function useProcessTraceLabels(): ProcessTraceLabels {
           copyFailed: t("tool.detail.copyFailed"),
           sourceFallback: (index: number) => t("tool.detail.sourceFallback", { index }),
           generatedImageAlt: (index: number) => t("tool.detail.generatedImageAlt", { index }),
-          query: t("tool.detail.query"),
-          action: t("tool.detail.action"),
-          source: t("tool.detail.source"),
-          code: t("tool.detail.code"),
-          output: t("tool.detail.output"),
-          resultFile: t("tool.detail.resultFile"),
-          prompt: t("tool.detail.prompt"),
-          command: t("tool.detail.command"),
-          latencySeparator: t("tool.detail.latencySeparator"),
-        },
-        nativeStatus: {
-          webSearchActive: t("tool.nativeStatus.webSearchActive"),
-          webSearchDone: t("tool.nativeStatus.webSearchDone"),
-          webSearchFailed: t("tool.nativeStatus.webSearchFailed"),
-          codeActive: t("tool.nativeStatus.codeActive"),
-          codeDone: t("tool.nativeStatus.codeDone"),
-          codeFailed: t("tool.nativeStatus.codeFailed"),
-          imageActive: t("tool.nativeStatus.imageActive"),
-          imageDone: t("tool.nativeStatus.imageDone"),
-          imageFailed: t("tool.nativeStatus.imageFailed"),
-          shellActive: t("tool.nativeStatus.shellActive"),
-          shellDone: t("tool.nativeStatus.shellDone"),
-          shellFailed: t("tool.nativeStatus.shellFailed"),
-          genericActive: t("tool.nativeStatus.genericActive"),
-          genericDone: t("tool.nativeStatus.genericDone"),
-          genericFailed: t("tool.nativeStatus.genericFailed"),
-        },
-        chain: {
-          titleActive: t("tool.chain.titleActive"),
-          titleDone: t("tool.chain.titleDone"),
-          summaryCount: (count: number) => t("tool.chain.summaryCount", { count }),
-          summaryFallback: t("tool.chain.summaryFallback"),
+          sourceCount: (count: number) => t("tool.detail.sourceCount", { count }),
+          groundingSupportCount: (count: number) => t("tool.detail.groundingSupportCount", { count }),
+          exitCode: (code: number) => t("tool.detail.exitCode", { code }),
         },
       },
       think: {
-        titleActive: t("think.titleActive"),
-        titleDone: t("think.titleDone"),
-        subtitleActive: t("think.subtitleActive"),
-        subtitleDone: t("think.subtitleDone"),
         rowActive: t("think.rowActive"),
         rowDone: t("think.rowDone"),
         duration: (seconds: string) => t("think.duration", { seconds }),
       },
       run: {
-        summarySteps: (count: number) => t("run.summarySteps", { count }),
-        durationSuffix: (duration: string) => t("run.durationSuffix", { duration }),
-        toolCallsSummary: (count: number, kinds: string) => t("run.toolCallsSummary", { count, kinds }),
+        titleActive: t("run.titleActive"),
+        titleDone: t("run.titleDone"),
+        toolCalls: (count: number) => t("run.toolCalls", { count }),
         thinkRounds: (count: number) => t("run.thinkRounds", { count }),
-        listSeparator: t("run.listSeparator"),
+        duration: (duration: string) => t("run.duration", { duration }),
         labelSeparator: t("run.labelSeparator"),
       },
       promptTrace: {

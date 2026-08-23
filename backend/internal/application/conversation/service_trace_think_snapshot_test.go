@@ -2,6 +2,7 @@ package conversation
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -108,6 +109,48 @@ func TestStreamingThinkInflightPersistenceWritesRoundIdentityAndStaysThrottled(t
 	}
 	if len(recorder.snapshot().Events) != 1 {
 		t.Fatalf("memory snapshot must still update on every flush, got %#v", recorder.snapshot().Events)
+	}
+}
+
+func TestStreamingToolUpdatesKeepLatestSnapshotAndThrottleSideEffects(t *testing.T) {
+	recorder, stub := newSnapshotRecorder(true)
+	emitted := 0
+	recorder.onEvent = func(eventType string, _ map[string]interface{}) error {
+		if eventType == "process_update" {
+			emitted++
+		}
+		return nil
+	}
+
+	streamTool := func(input string, status string) {
+		summary, markdown, payload := buildToolTrace([]model.ToolCall{{
+			ToolCallID: "call_1",
+			ToolType:   "server_tool_use",
+			ToolName:   "web_search",
+			Status:     status,
+			InputJSON:  input,
+		}})
+		recorder.syncToolSection(summary, markdown, payload, traceStatusFromToolStatus(status))
+	}
+
+	streamTool(`{"query":"first"}`, "streaming")
+	streamTool(`{"query":"second"}`, "streaming")
+	if len(stub.traceRows) != 1 || len(stub.traceEventRows) != 1 {
+		t.Fatalf("expected in-flight tool persistence to be throttled, got %d / %d", len(stub.traceRows), len(stub.traceEventRows))
+	}
+	if emitted != 1 {
+		t.Fatalf("expected live tool updates inside one window to be coalesced, got %d", emitted)
+	}
+	events := recorder.snapshot().Events
+	if len(events) != 1 || !strings.Contains(events[0].PayloadJSON, `\"second\"`) {
+		t.Fatalf("expected memory snapshot to retain latest tool input, got %#v", events)
+	}
+
+	// Terminal state bypasses both throttles so clients and durable storage see completion immediately.
+	recorder.service = nil
+	streamTool(`{"query":"second"}`, "success")
+	if emitted != 2 {
+		t.Fatalf("expected terminal tool update to emit immediately, got %d", emitted)
 	}
 }
 
