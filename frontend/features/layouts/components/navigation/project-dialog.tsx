@@ -1,11 +1,10 @@
 "use client";
 
-import * as React from "react";
-import { BookOpen, Box, ChevronDown, Globe2, Search, SlidersHorizontal, Wrench, type LucideIcon } from "lucide-react";
+import { BookOpen, Box, ChevronDown, Globe2, type LucideIcon, Search, SlidersHorizontal, Wrench } from "lucide-react";
 import { useTranslations } from "next-intl";
+import * as React from "react";
 import { toast } from "sonner";
 
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -22,9 +21,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { listAvailableMCPTools } from "@/shared/api/mcp";
+import { cn } from "@/lib/utils";
 import { listAllVisibleKnowledgeBases } from "@/shared/api/knowledge-bases";
 import type { KnowledgeBaseDTO } from "@/shared/api/knowledge-bases.types";
+import { listAvailableMCPTools } from "@/shared/api/mcp";
 import type { MCPToolDTO } from "@/shared/api/mcp.types";
 import { getMCPPolicy } from "@/shared/api/settings";
 import { listVisibleSkills } from "@/shared/api/skills";
@@ -75,9 +75,6 @@ export function ProjectDialog({
   const open = Boolean(draft);
   const nameInputID = React.useId();
   const systemPromptInputID = React.useId();
-  const bodyRef = React.useRef<HTMLDivElement | null>(null);
-  const systemPromptRef = React.useRef<HTMLTextAreaElement | null>(null);
-  const [systemPromptMaxHeight, setSystemPromptMaxHeight] = React.useState<number | undefined>(undefined);
 
   React.useEffect(() => {
     if (!draft) {
@@ -152,29 +149,6 @@ export function ProjectDialog({
     };
   }, [open, setDraft, t]);
 
-  // 输入框随内容增高的上限：滚动区当前可见高度减去其顶部偏移，
-  // 保证下方选项区和保存按钮始终不被顶出可视范围；窗口或区域尺寸变化时重新测量。
-  React.useLayoutEffect(() => {
-    const body = bodyRef.current;
-    const textarea = systemPromptRef.current;
-    if (!open || !body || !textarea) {
-      return;
-    }
-    const measure = () => {
-      const available = body.clientHeight - (textarea.offsetTop - body.offsetTop) - 8;
-      const nextMaxHeight = Math.max(0, available);
-      setSystemPromptMaxHeight((previous) => (previous === nextMaxHeight ? previous : nextMaxHeight));
-    };
-    measure();
-    const resizeObserver = new ResizeObserver(measure);
-    resizeObserver.observe(body);
-    window.addEventListener("resize", measure);
-    return () => {
-      resizeObserver.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, [open]);
-
   const handleSubmit = React.useCallback<React.FormEventHandler<HTMLFormElement>>(
     async (event) => {
       event.preventDefault();
@@ -195,14 +169,14 @@ export function ProjectDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex flex-col overflow-hidden sm:max-w-xl">
-        <form className="contents" onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>{stableDraft?.publicID ? t("editTitle") : t("createTitle")}</DialogTitle>
-            <DialogDescription>{stableDraft?.publicID ? t("editDescription") : t("createDescription")}</DialogDescription>
-          </DialogHeader>
+      <DialogContent className="flex max-h-[min(86vh,760px)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]">
+        <DialogHeader className="shrink-0 px-4 py-4">
+          <DialogTitle>{stableDraft?.publicID ? t("editTitle") : t("createTitle")}</DialogTitle>
+          <DialogDescription>{stableDraft?.publicID ? t("editDescription") : t("createDescription")}</DialogDescription>
+        </DialogHeader>
 
-          <div ref={bodyRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto px-0.5">
+        <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-2">
             <div className="space-y-1">
               <label htmlFor={nameInputID} className="text-xs text-muted-foreground">
                 {t("nameLabel")}
@@ -226,12 +200,10 @@ export function ProjectDialog({
               </label>
               <Textarea
                 id={systemPromptInputID}
-                ref={systemPromptRef}
                 value={stableDraft?.systemPrompt ?? ""}
                 maxLength={12000}
                 placeholder={t("systemPromptPlaceholder")}
-                className="min-h-32 resize-y"
-                style={systemPromptMaxHeight === undefined ? undefined : { maxHeight: systemPromptMaxHeight }}
+                className="h-48 resize-none overflow-y-auto [field-sizing:fixed]"
                 onChange={(event) => {
                   setDraft((current) => current ? { ...current, systemPrompt: event.target.value } : current);
                 }}
@@ -340,7 +312,7 @@ export function ProjectDialog({
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="shrink-0 px-4 py-3">
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
               {t("cancel")}
             </Button>
