@@ -644,6 +644,34 @@ export function SettingsChat() {
 
           <div className="pt-4">
             <SettingsFieldRow
+              title={t("display.autoExpandThinkingTitle")}
+              description={t("display.autoExpandThinkingDescription")}
+            >
+              <Switch
+                checked={settings.autoExpandThinking}
+                onCheckedChange={handleBool("chat.auto_expand_thinking", "autoExpandThinking")}
+                disabled={loading}
+                aria-label={t("display.autoExpandThinkingTitle")}
+              />
+            </SettingsFieldRow>
+          </div>
+
+          <div className="pt-4">
+            <SettingsFieldRow
+              title={t("display.autoExpandToolCallsTitle")}
+              description={t("display.autoExpandToolCallsDescription")}
+            >
+              <Switch
+                checked={settings.autoExpandToolCalls}
+                onCheckedChange={handleBool("chat.auto_expand_tool_calls", "autoExpandToolCalls")}
+                disabled={loading}
+                aria-label={t("display.autoExpandToolCallsTitle")}
+              />
+            </SettingsFieldRow>
+          </div>
+
+          <div className="pt-4">
+            <SettingsFieldRow
               title={t("display.modelTitle")}
               description={t("display.modelDescription")}
             >
