@@ -21,6 +21,7 @@ import {
 import {
   AgentToolStepRow,
   buildToolGroupSteps,
+  isToolChainStepActive,
   type ToolChainStep,
 } from "@/features/chat/components/message/message-agent-tool-step";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
@@ -415,11 +416,18 @@ export function MessageAgentTrace({
     return list;
   }, [groupToolSteps, groups, messageStreaming]);
 
-  const [accordionValue, setAccordionValue] = React.useState(() => (messageStreaming ? "message-trace-timeline" : ""));
-  const wasStreamingRef = React.useRef(Boolean(messageStreaming));
+  const traceActive = Boolean(
+    messageStreaming &&
+      items.some((item) =>
+        item.kind === "think" ? item.streaming : isToolChainStepActive(item.step),
+      ),
+  );
+
+  const [accordionValue, setAccordionValue] = React.useState(() => (traceActive ? "message-trace-timeline" : ""));
+  const wasStreamingRef = React.useRef(traceActive);
 
   React.useEffect(() => {
-    if (messageStreaming) {
+    if (traceActive) {
       setAccordionValue("message-trace-timeline");
       wasStreamingRef.current = true;
       return;
@@ -430,7 +438,7 @@ export function MessageAgentTrace({
     if (autoCollapseReady) {
       wasStreamingRef.current = false;
     }
-  }, [autoCollapseReady, messageStreaming]);
+  }, [autoCollapseReady, traceActive]);
 
   if (items.length === 0) {
     return null;
@@ -452,7 +460,7 @@ export function MessageAgentTrace({
   }
   const subtitle = subtitleParts.join(labels.run.labelSeparator);
 
-  const title = messageStreaming ? labels.run.titleActive : labels.run.titleDone;
+  const title = traceActive ? labels.run.titleActive : labels.run.titleDone;
   const open = accordionValue === "message-trace-timeline";
 
   return (
@@ -475,7 +483,7 @@ export function MessageAgentTrace({
                   render={<span />}
                   className={cn(
                     "inline-flex min-h-0 w-auto text-[13px] font-medium transition-colors",
-                    !messageStreaming && "text-muted-foreground group-hover/trace:text-foreground",
+                    !traceActive && "text-muted-foreground group-hover/trace:text-foreground",
                   )}
                 >
                   <MarkerContent className="min-w-0">{title}</MarkerContent>

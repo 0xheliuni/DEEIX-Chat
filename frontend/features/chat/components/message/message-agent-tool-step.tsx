@@ -545,7 +545,7 @@ export function buildToolChainSteps(events: TraceDisplayEvent[], labels: Process
         toolType: call.type?.trim(),
         toolName: call.name?.trim(),
         toolInput: toolInputValue(call),
-        toolStatus: call.status?.trim(),
+        toolStatus: call.status?.trim() || event.status?.trim(),
         toolCategory: category,
         toolCall: call,
       };
@@ -567,6 +567,7 @@ function buildToolChainStepsFromBlock(block: ChatTraceBlock | undefined, labels:
         label: labels.tool.names.generic,
         detail,
         failed: block.status === "error",
+        toolStatus: block.status?.trim(),
       },
     ];
   }
@@ -584,14 +585,14 @@ function buildToolChainStepsFromBlock(block: ChatTraceBlock | undefined, labels:
       toolType: call.type?.trim(),
       toolName: call.name?.trim(),
       toolInput: toolInputValue(call),
-      toolStatus: call.status?.trim(),
+      toolStatus: call.status?.trim() || block.status?.trim(),
       toolCategory: category,
       toolCall: call,
     };
   });
 }
 
-function isToolStepActive(step: ToolChainStep): boolean {
+export function isToolChainStepActive(step: ToolChainStep): boolean {
   return isToolTraceStatusActive(step.toolCall?.status) || isToolTraceStatusActive(step.toolStatus);
 }
 
@@ -605,7 +606,7 @@ function ToolStepStatusIcon({ step }: { step: ToolChainStep }) {
     <Wrench
       className={cn(
         "size-3 text-muted-foreground/68",
-        isToolStepActive(step) && "text-foreground/78",
+        isToolChainStepActive(step) && "text-foreground/78",
         step.failed && "text-destructive",
       )}
     />

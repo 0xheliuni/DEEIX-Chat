@@ -684,7 +684,9 @@
       "summary": "Compacted turns {fromTurn}-{toTurn}",
       "detail": "Conversation context was compacted into a rolling summary.",
       "range": "Compacted range: turns {fromTurn}-{toTurn}.",
-      "tokens": "Token reduction: {sourceTokens} -> {summaryTokens}."
+      "tokens": "Token reduction: {sourceTokens} -> {summaryTokens}.",
+      "pending": "Generating a rolling summary in the background.",
+      "failed": "Context compaction did not complete and will be retried on a later request."
     }
   },
   "optionLabels": {
