@@ -21,7 +21,7 @@ import { MessageAttachmentRow } from "@/features/chat/components/message/message
 import { MessageKnowledgeSources } from "@/features/chat/components/message/message-knowledge-sources";
 import type { AssistantReaction } from "@/features/chat/components/message/message-meta";
 import { AssistantMessageMeta } from "@/features/chat/components/message/message-meta";
-import { MessageProcessTrace, MessageTraceEventBlocks } from "@/features/chat/components/message/message-process-trace";
+import { MessageAgentTrace, MessageProcessTrace } from "@/features/chat/components/message/message-process-trace";
 import { resolveLeadingImagePreview } from "@/features/chat/model/media-image-preview";
 import {
   clearLiveUpstreamThinkTrace,
@@ -362,12 +362,13 @@ export function ChatMessageBot({
         active={messageStreaming}
         autoCollapseReady={processAutoCollapseReady}
       />
-      <MessageTraceEventBlocks
+      <MessageAgentTrace
         events={postProcessEvents}
         activeToolBlock={toolTrace}
         activeThinkBlock={upstreamThink}
         messageStreaming={messageStreaming}
         autoCollapseReady={hasStreamdownContent || Boolean(item.inlineAlert)}
+        runDurationMS={item.latencyMS}
       />
 
       <div

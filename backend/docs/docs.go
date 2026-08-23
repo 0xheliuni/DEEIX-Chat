@@ -19839,6 +19839,9 @@ const docTemplate = `{
                 "stage": {
                     "type": "string"
                 },
+                "startedAt": {
+                    "type": "string"
+                },
                 "status": {
                     "type": "string"
                 },

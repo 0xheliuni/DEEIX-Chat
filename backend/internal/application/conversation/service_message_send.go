@@ -936,42 +936,21 @@ func (s *Service) sendMessageInternal(
 			generationSpan.End()
 		}()
 
-		emitNonStreamingOutput := func(output *llm.GenerateOutput) error {
-			if output == nil || (strings.TrimSpace(output.Text) == "" && output.Reasoning == nil) {
+		finalizeNonStreamingOutput := func(output *llm.GenerateOutput, emitVisible bool) error {
+			if output == nil {
 				return nil
 			}
-			cleanText, thinkText := splitAssistantOutputThinkingContent(output.Text)
-			if traceRecorder != nil && output.Reasoning != nil {
-				if traceRecorder.visible() && traceRecorder.onEvent != nil {
-					attemptObservation.markObservable()
-				}
-				traceRecorder.syncStructuredThink(
-					output.Reasoning.Text,
-					output.Reasoning.Summary,
-					reasoningPayload(&llm.ReasoningDelta{
-						EventType:        "response.completed",
-						ItemID:           output.Reasoning.ItemID,
-						Status:           output.Reasoning.Status,
-						Kind:             messageTraceThinkKindContent,
-						EncryptedContent: output.Reasoning.EncryptedContent,
-					}),
-				)
-			} else if traceRecorder != nil && strings.TrimSpace(thinkText) != "" {
-				if traceRecorder.visible() && traceRecorder.onEvent != nil {
-					attemptObservation.markObservable()
-				}
-				traceRecorder.syncStructuredThink(thinkText, "", nil)
+			if traceRecorder != nil && traceRecorder.visible() && traceRecorder.onEvent != nil &&
+				(output.Reasoning != nil || len(output.ServerToolCalls) > 0) {
+				attemptObservation.markObservable()
 			}
-			if traceRecorder != nil {
-				traceRecorder.completeUpstreamThink()
-			}
-			if cleanText == "" && strings.TrimSpace(thinkText) == "" {
-				cleanText = strings.TrimSpace(output.Text)
-			}
-			if streamErr := emitCallVisibleDelta(cleanText); streamErr != nil {
-				return streamErr
-			}
+			cleanText, _ := syncUpstreamOutputTrace(traceRecorder, output, runID)
 			output.Text = cleanText
+			if emitVisible {
+				if streamErr := emitCallVisibleDelta(cleanText); streamErr != nil {
+					return streamErr
+				}
+			}
 			return nil
 		}
 
@@ -980,8 +959,8 @@ func (s *Service) sendMessageInternal(
 			llmRequestCount++
 			output, err := s.llmClient.Generate(generationCtx, routeConfig, currentInput)
 			generateErr = err
-			if err == nil && streamRequested {
-				generateErr = emitNonStreamingOutput(output)
+			if err == nil {
+				generateErr = finalizeNonStreamingOutput(output, streamRequested)
 				if generateErr != nil {
 					return output, generateErr
 				}
@@ -993,6 +972,7 @@ func (s *Service) sendMessageInternal(
 		}
 		thinkingRouter := &thinkingDeltaRouter{}
 		callStreamUsage := llm.Usage{}
+		observedServerTools := make(map[string]string)
 		upstreamCallStarted = true
 		llmRequestCount++
 		output, streamErr := s.llmClient.GenerateStream(generationCtx, routeConfig, currentInput, func(event llm.GenerateStreamEvent) error {
@@ -1050,6 +1030,7 @@ func (s *Service) sendMessageInternal(
 					attemptObservation.markObservable()
 				}
 				toolStatus := normalizeStreamServerToolStatus(event.ServerToolCall.Status)
+				observeServerTool(observedServerTools, *event.ServerToolCall, toolStatus)
 				summary, markdown, payload := buildToolTrace([]model.ToolCall{{
 					RunID:      runID,
 					ToolCallID: strings.TrimSpace(event.ServerToolCall.ToolCallID),
@@ -1086,22 +1067,7 @@ func (s *Service) sendMessageInternal(
 			if traceRecorder != nil && thinkTail != "" {
 				traceRecorder.appendUpstreamReasoning(messageTraceThinkKindContent, thinkTail, nil)
 			}
-			if traceRecorder != nil && output != nil && output.Reasoning != nil {
-				traceRecorder.syncStructuredThink(
-					output.Reasoning.Text,
-					output.Reasoning.Summary,
-					reasoningPayload(&llm.ReasoningDelta{
-						EventType:        "response.completed",
-						ItemID:           output.Reasoning.ItemID,
-						Status:           output.Reasoning.Status,
-						Kind:             messageTraceThinkKindContent,
-						EncryptedContent: output.Reasoning.EncryptedContent,
-					}),
-				)
-			}
-			if traceRecorder != nil {
-				traceRecorder.completeUpstreamThink()
-			}
+			finalizeStreamingOutputTrace(traceRecorder, output, runID, observedServerTools)
 			if visibleTail != "" {
 				if tailErr := emitCallVisibleDelta(visibleTail); tailErr != nil {
 					generateErr = tailErr
@@ -1116,7 +1082,7 @@ func (s *Service) sendMessageInternal(
 			llmRequestCount++
 			output, generateErr = s.llmClient.Generate(generationCtx, routeConfig, currentInput)
 			if generateErr == nil {
-				generateErr = emitNonStreamingOutput(output)
+				generateErr = finalizeNonStreamingOutput(output, true)
 			}
 		}
 		if generateErr == nil {
@@ -1317,7 +1283,8 @@ func (s *Service) sendMessageInternal(
 	}
 	s.routeResolver.MarkRouteSuccess(ctx, route)
 
-	assistantText, nativeToolRows := syncUpstreamOutputTrace(traceRecorder, upstreamOutput, runID)
+	assistantText := upstreamOutput.Text
+	nativeToolRows := upstreamServerToolCallRows(upstreamOutput, runID)
 	toolCallRows = append(toolCallRows, nativeToolRows...)
 	totalUsage := upstreamOutput.Usage
 	if totalUsage == (llm.Usage{}) {
@@ -1460,8 +1427,8 @@ func (s *Service) sendMessageInternal(
 		totalServerSideToolUsage = addServerSideToolUsage(totalServerSideToolUsage, nextOutput.ServerSideToolUsage)
 		upstreamOutput = nextOutput
 		llmCallCount = llmRequestCount
-		var nextNativeToolRows []model.ToolCall
-		assistantText, nextNativeToolRows = syncUpstreamOutputTrace(traceRecorder, upstreamOutput, runID)
+		assistantText = upstreamOutput.Text
+		nextNativeToolRows := upstreamServerToolCallRows(upstreamOutput, runID)
 		toolCallRows = append(toolCallRows, nextNativeToolRows...)
 	}
 	if len(upstreamOutput.ToolCalls) > 0 && remainingToolCalls <= 0 && llmCallCount < maxLLMCalls {
@@ -1490,8 +1457,8 @@ func (s *Service) sendMessageInternal(
 		totalServerSideToolUsage = addServerSideToolUsage(totalServerSideToolUsage, nextOutput.ServerSideToolUsage)
 		upstreamOutput = nextOutput
 		llmCallCount++
-		var nextNativeToolRows []model.ToolCall
-		assistantText, nextNativeToolRows = syncUpstreamOutputTrace(traceRecorder, upstreamOutput, runID)
+		assistantText = upstreamOutput.Text
+		nextNativeToolRows := upstreamServerToolCallRows(upstreamOutput, runID)
 		toolCallRows = append(toolCallRows, nextNativeToolRows...)
 	}
 
