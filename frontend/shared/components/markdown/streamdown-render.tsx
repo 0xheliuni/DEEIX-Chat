@@ -632,6 +632,7 @@ export const StreamdownRender = React.memo(function StreamdownRender({
   const {
     rootRef: markdownCopyRootRef,
     onClickCapture: handleMarkdownCopyClickCapture,
+    onCopyCapture: handleMarkdownCopyCapture,
     onKeyDownCapture: handleMarkdownCopyKeyDownCapture,
     onPointerDownCapture: handleMarkdownCopyPointerDownCapture,
   } = useMarkdownCopy({
@@ -678,6 +679,7 @@ export const StreamdownRender = React.memo(function StreamdownRender({
       className={cn("chat-font-content min-w-0 max-w-full overflow-hidden text-foreground [overflow-wrap:anywhere]", contentSpacingClassName, className)}
       data-chat-markdown-scope=""
       onClickCapture={handleMarkdownCopyClickCapture}
+      onCopyCapture={handleMarkdownCopyCapture}
       onKeyDownCapture={handleMarkdownCopyKeyDownCapture}
       onPointerDownCapture={handleMarkdownCopyPointerDownCapture}
     >
