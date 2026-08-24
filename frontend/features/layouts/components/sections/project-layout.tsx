@@ -9,6 +9,7 @@ import { SidebarConversationsProvider } from "@/entities/conversation";
 import { AppSidebar } from "@/features/layouts/components/navigation/app-sidebar";
 import { MobileHeader } from "@/features/layouts/components/sections/mobile-header";
 import { LayoutConversationNavigationProvider } from "@/features/layouts/context/layout-conversation-navigation-context";
+import { MobileHeaderActionProvider } from "@/features/layouts/context/mobile-header-action-context";
 import { ChatSessionProvider, useChatSession } from "@/features/chat";
 import { AppearancePreferencesSync } from "@/features/settings";
 import { SidebarInset, SidebarProvider, useSidebar } from "@/components/ui/sidebar";
@@ -92,7 +93,9 @@ export function ProjectLayout({
             newConversationTitle={tRecent("newChat")}
           >
             <ChatSessionProvider>
-              <ProjectLayoutShell>{children}</ProjectLayoutShell>
+              <MobileHeaderActionProvider>
+                <ProjectLayoutShell>{children}</ProjectLayoutShell>
+              </MobileHeaderActionProvider>
             </ChatSessionProvider>
           </SidebarConversationsProvider>
         </LayoutConversationNavigationProvider>

@@ -260,6 +260,9 @@
     "notFound": "Message not found.",
     "tooManyFiles": "Too many files in one message."
   },
+  "temporaryChat": {
+    "contextTooLarge": "The temporary chat context is too large. Start a new temporary chat or shorten the conversation."
+  },
   "payment": {
     "checkoutFailed": "Failed to create checkout.",
     "epayGatewayInvalid": "The EPay redirect gateway URL is invalid.",

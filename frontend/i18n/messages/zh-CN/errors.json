@@ -260,6 +260,9 @@
     "notFound": "消息不存在。",
     "tooManyFiles": "单条消息包含的文件过多。"
   },
+  "temporaryChat": {
+    "contextTooLarge": "临时对话上下文过长，请新建临时对话或缩短当前内容。"
+  },
   "payment": {
     "checkoutFailed": "创建支付订单失败。",
     "epayGatewayInvalid": "易支付页面跳转网关地址无效。",

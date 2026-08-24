@@ -207,11 +207,21 @@ func (h *Handler) recordAndApplySendMessageBilling(
 	result *appconversation.SendMessageResult,
 	authorization *domainbilling.UsageAuthorization,
 ) error {
-	usageLedger, err := h.service.RecordSendMessageBilling(
+	return h.recordAndApplyUsageBilling(
 		ctx,
 		sendMessageBillingInput(userID, conversation, req, result),
+		result,
 		authorization,
 	)
+}
+
+func (h *Handler) recordAndApplyUsageBilling(
+	ctx context.Context,
+	billingInput appconversation.SendMessageBillingInput,
+	result *appconversation.SendMessageResult,
+	authorization *domainbilling.UsageAuthorization,
+) error {
+	usageLedger, err := h.service.RecordSendMessageBilling(ctx, billingInput, authorization)
 	if err != nil {
 		return err
 	}
