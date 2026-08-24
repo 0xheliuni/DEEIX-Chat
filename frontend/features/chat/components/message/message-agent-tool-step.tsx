@@ -7,13 +7,12 @@ import { ArrowUpRight, Check, Copy, Wrench } from "lucide-react";
 import { AgentTraceStep } from "@/features/chat/components/message/message-agent-trace-step";
 import { useCopyAction } from "@/shared/components/copy-action";
 import { useAutoExpandDisclosure } from "@/shared/hooks/use-auto-expand-disclosure";
+import { useElapsedDurationMS } from "@/features/chat/hooks/use-elapsed-duration";
 import type { ChatTraceBlock } from "@/features/chat/types/messages";
 import type { ProcessTraceLabels } from "@/features/chat/hooks/use-process-trace-labels";
 import { cn } from "@/lib/utils";
-import {
-  formatTraceStepDuration,
-  type TraceDisplayEvent,
-} from "@/features/chat/model/message-process-trace";
+import { formatDurationMS } from "@/features/chat/model/duration";
+import type { TraceDisplayEvent } from "@/features/chat/model/message-process-trace";
 import {
   collectToolImageSources,
   collectToolNarrativeText,
@@ -413,6 +412,7 @@ export type ToolChainStep = {
   label: string;
   detail: string;
   failed: boolean;
+  startedAt?: string;
   latencyMS?: number;
   toolCallID?: string;
   toolType?: string;
@@ -536,6 +536,7 @@ export function buildToolChainSteps(events: TraceDisplayEvent[], labels: Process
           label: labels.tool.names.generic,
           detail: event.contentMarkdown?.trim() || event.summary?.trim() || event.title?.trim() || "",
           failed: isToolTraceStatusFailed(event.status),
+          startedAt: event.startedAt,
           toolStatus: event.status?.trim(),
         },
       ];
@@ -550,6 +551,7 @@ export function buildToolChainSteps(events: TraceDisplayEvent[], labels: Process
         label,
         detail,
         failed,
+        startedAt: event.startedAt,
         latencyMS: call.latency_ms,
         toolCallID: toolTraceCallID(call),
         toolType: call.type?.trim(),
@@ -577,6 +579,7 @@ function buildToolChainStepsFromBlock(block: ChatTraceBlock | undefined, labels:
         label: labels.tool.names.generic,
         detail,
         failed: isToolTraceStatusFailed(block.status),
+        startedAt: block.startedAt,
         toolStatus: block.status?.trim(),
       },
     ];
@@ -590,6 +593,7 @@ function buildToolChainStepsFromBlock(block: ChatTraceBlock | undefined, labels:
       label,
       detail,
       failed,
+      startedAt: block.startedAt,
       latencyMS: call.latency_ms,
       toolCallID: toolTraceCallID(call),
       toolType: call.type?.trim(),
@@ -858,7 +862,8 @@ export function AgentToolStepRow({
   const failed = step.failed;
   const statusText = isToolStepDone(step) ? "" : toolStatusLabel(step.toolCall?.status ?? step.toolStatus, labels);
   const expandable = Boolean(step.toolCall || step.detail);
-  const durationText = formatTraceStepDuration(step.latencyMS);
+  const liveDurationMS = useElapsedDurationMS(active, step.startedAt);
+  const durationText = formatDurationMS(active ? liveDurationMS : step.latencyMS);
 
   return (
     <li className="group/agent-trace-step">

@@ -28,11 +28,13 @@ import { StreamdownRender } from "@/shared/components/markdown/streamdown-render
 import { useAutoExpandDisclosure } from "@/shared/hooks/use-auto-expand-disclosure";
 import { cn } from "@/lib/utils";
 import { TRACE_ROOT_CLASS } from "@/features/chat/components/shared/message-process-trace-shared";
+import { useElapsedDurationMS } from "@/features/chat/hooks/use-elapsed-duration";
 import {
-  formatTraceRunDuration,
-  formatTraceStepDuration,
-  type TraceDisplayEvent,
-} from "@/features/chat/model/message-process-trace";
+  durationBetweenMS,
+  formatDurationMS,
+  sumDurationsMS,
+} from "@/features/chat/model/duration";
+import type { TraceDisplayEvent } from "@/features/chat/model/message-process-trace";
 
 function traceEventToBlock(event: ChatTraceEvent): ChatTraceBlock {
   return {
@@ -238,41 +240,9 @@ function groupTraceDisplayEvents(
 }
 
 function thinkEventDurationMS(thinkEvents: TraceDisplayEvent[]): number | undefined {
-  let total = 0;
-  for (const item of thinkEvents) {
-    const { startedAt, endedAt, updatedAt } = item.event;
-    if (!startedAt) {
-      continue;
-    }
-    const startMS = new Date(startedAt).getTime();
-    if (!Number.isFinite(startMS)) {
-      continue;
-    }
-    // 部分历史事件只有 startedAt（未走到 complete 落盘），用快照更新时间兜底。
-    const rawEnd = endedAt?.trim() ? endedAt : updatedAt;
-    if (!rawEnd) {
-      continue;
-    }
-    const endMS = new Date(rawEnd).getTime();
-    if (!Number.isFinite(endMS) || endMS <= startMS) {
-      continue;
-    }
-    total += endMS - startMS;
-  }
-  return total > 0 ? total : undefined;
-}
-
-function thinkBlockDurationMS(block: ChatTraceBlock): number | undefined {
-  const { startedAt, updatedAt } = block;
-  if (!startedAt || !updatedAt) {
-    return undefined;
-  }
-  const startMS = new Date(startedAt).getTime();
-  const endMS = new Date(updatedAt).getTime();
-  if (!Number.isFinite(startMS) || !Number.isFinite(endMS) || endMS <= startMS) {
-    return undefined;
-  }
-  return endMS - startMS;
+  return sumDurationsMS(
+    thinkEvents.map(({ event }) => durationBetweenMS(event.startedAt, event.endedAt)),
+  );
 }
 
 type TraceTimelineItem =
@@ -297,7 +267,8 @@ function TraceThinkRow({
     autoExpand,
   });
 
-  const durationText = formatTraceStepDuration(durationMS);
+  const liveDurationMS = useElapsedDurationMS(streaming, block.startedAt);
+  const durationText = formatDurationMS(streaming ? liveDurationMS : durationMS);
 
   return (
     <li className="group/agent-trace-step">
@@ -370,7 +341,6 @@ export function MessageAgentTrace({
   autoCollapseReady,
   autoExpandThinking = true,
   autoExpandToolCalls = true,
-  runDurationMS,
 }: {
   events: ChatTraceEvent[];
   activeToolBlock?: ChatTraceBlock;
@@ -379,7 +349,6 @@ export function MessageAgentTrace({
   autoCollapseReady: boolean;
   autoExpandThinking?: boolean;
   autoExpandToolCalls?: boolean;
-  runDurationMS?: number;
 }) {
   const labels = useProcessTraceLabels();
   const displayEvents = React.useMemo(() => buildTraceDisplayEvents(traceEvents), [traceEvents]);
@@ -405,7 +374,7 @@ export function MessageAgentTrace({
           streaming,
           durationMS: streaming
             ? undefined
-            : thinkEventDurationMS(group.thinkEvents) ?? thinkBlockDurationMS(thinkBlock),
+            : thinkEventDurationMS(group.thinkEvents),
         });
       }
       groupToolSteps[index].forEach((step) => {
@@ -433,7 +402,10 @@ export function MessageAgentTrace({
 
   const renderedToolSteps = items.flatMap((item) => (item.kind === "tool" ? [item.step] : []));
   const thinkRounds = items.filter((item) => item.kind === "think").length;
-  const durationText = formatTraceRunDuration(runDurationMS);
+  const traceDurationMS = sumDurationsMS(
+    items.map((item) => (item.kind === "think" ? item.durationMS : item.step.latencyMS)),
+  );
+  const durationText = traceRunActive ? undefined : formatDurationMS(traceDurationMS);
 
   const subtitleParts: string[] = [];
   if (thinkRounds > 0) {

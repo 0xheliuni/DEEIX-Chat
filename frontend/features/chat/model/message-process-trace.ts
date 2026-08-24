@@ -58,27 +58,6 @@ export type TraceDisplayEvent = {
   kind: "think" | "tool";
 };
 
-export function formatTraceStepDuration(durationMS: number | undefined): string | undefined {
-  if (!durationMS || !Number.isFinite(durationMS) || durationMS <= 0) {
-    return undefined;
-  }
-  const seconds = durationMS / 1000;
-  return seconds < 10 ? `${seconds.toFixed(1)}s` : `${Math.round(seconds)}s`;
-}
-
-export function formatTraceRunDuration(durationMS: number | undefined): string | undefined {
-  if (!durationMS || !Number.isFinite(durationMS) || durationMS <= 0) {
-    return undefined;
-  }
-  const wholeSeconds = Math.max(1, Math.round(durationMS / 1000));
-  if (wholeSeconds < 60) {
-    return `${wholeSeconds}s`;
-  }
-  const minutes = Math.floor(wholeSeconds / 60);
-  const seconds = wholeSeconds % 60;
-  return `${minutes}m ${seconds}s`;
-}
-
 export function parseRAGCitations(payloadJson: string | undefined): RAGCitation[] {
   if (!payloadJson) return [];
   try {
