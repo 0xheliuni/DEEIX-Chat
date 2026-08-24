@@ -74,25 +74,24 @@ type SidebarConversationItemProps = {
   onShare?: (publicID: string, title: string) => void;
   onExport?: (publicID: string) => void | Promise<void>;
   onDelete: (publicID: string, title: string) => void;
-  onNavigate?: (url: string, event: React.MouseEvent<HTMLAnchorElement>) => void;
+  onNavigate?: (conversationID: string, url: string, event: React.MouseEvent<HTMLAnchorElement>) => void;
 };
 
 const SidebarConversationRunIndicator = React.memo(function SidebarConversationRunIndicator({
-  conversationPublicID,
+  running,
   hidden,
 }: {
-  conversationPublicID: string;
+  running: boolean;
   hidden: boolean;
 }) {
   const runtimeT = useTranslations("common.runtime.status");
-  const running = useConversationRunning(conversationPublicID);
   if (!running) {
     return null;
   }
   return (
     <span
       className={cn(
-        "pointer-events-none absolute right-0 flex size-8 items-center justify-center text-sidebar-foreground/45 opacity-100 transition-opacity duration-150 group-hover/conversation-row:opacity-0 group-focus-within/conversation-row:opacity-0",
+        "pointer-events-none absolute right-0 flex size-8 items-center justify-center text-sidebar-foreground/45 opacity-100 transition-opacity duration-150 group-hover/conversation-row:opacity-0",
         hidden && "opacity-0",
       )}
     >
@@ -133,6 +132,7 @@ export function SidebarConversationItem({
 }: SidebarConversationItemProps) {
   const t = useTranslations("recent.row");
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const running = useConversationRunning(item.publicID);
   const labels = React.useMemo(
     () => parseConversationLabelsJSON(item.labelsJSON ?? "[]"),
     [item.labelsJSON],
@@ -195,22 +195,30 @@ export function SidebarConversationItem({
           : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
         rowClassName,
       )}
+      data-animated-text-scroll-trigger
     >
       <Link
         href={item.url}
         prefetch={false}
-        className={cn("flex h-full min-w-0 flex-1 items-center pl-2 pr-9", linkClassName)}
-        onClick={(event) => onNavigate?.(item.url, event)}
+        className={cn(
+          "flex h-full min-w-0 flex-1 items-center pl-2",
+          running || isMenuOpen
+            ? "pr-9"
+            : "pr-2 group-hover/conversation-row:pr-9",
+          linkClassName,
+        )}
+        onClick={(event) => onNavigate?.(item.publicID, item.url, event)}
       >
         <AnimatedText
           text={item.title}
           className="flex-1"
           textClassName="text-current"
+          scrollOverflow
         />
       </Link>
 
       <SidebarConversationRunIndicator
-        conversationPublicID={item.publicID}
+        running={running}
         hidden={isMenuOpen}
       />
 
@@ -224,7 +232,7 @@ export function SidebarConversationItem({
             aria-label={t("menu")}
             title={t("menu")}
             className={cn(
-              "absolute right-0 text-sidebar-foreground/45 opacity-0 transition-[color,opacity] duration-150 hover:bg-transparent hover:text-sidebar-foreground group-hover/conversation-row:opacity-100 group-focus-within/conversation-row:opacity-100 data-[state=open]:text-sidebar-foreground dark:hover:bg-transparent [&_svg]:pointer-events-auto",
+              "absolute right-0 text-sidebar-foreground/45 opacity-0 transition-[color,opacity] duration-150 hover:bg-transparent hover:text-sidebar-foreground focus-visible:opacity-100 group-hover/conversation-row:opacity-100 data-[state=open]:text-sidebar-foreground data-[state=open]:opacity-100 dark:hover:bg-transparent [&_svg]:pointer-events-auto",
               isMenuOpen && "opacity-100",
             )}
             onClick={(event) => {
