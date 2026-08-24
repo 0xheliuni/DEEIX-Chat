@@ -49,7 +49,7 @@ type CreateForkedConversationInput struct {
 	Messages             []ForkConversationMessage
 }
 
-// ConversationForkRepository 封装新会话、消息链和附件引用的原子复制能力。
+// ConversationForkRepository 封装新会话、消息链、附件引用和历史展示轨迹的原子复制能力。
 type ConversationForkRepository interface {
 	CreateForkedConversation(ctx context.Context, input CreateForkedConversationInput) error
 }
