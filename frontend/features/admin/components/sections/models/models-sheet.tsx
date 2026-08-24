@@ -108,15 +108,17 @@ import { parseProtocolsJSON } from "@/shared/lib/model-protocols";
 import { JsonCodeEditor } from "@/shared/components/json-code-editor";
 import {
   imageStreamEnabledFromCapabilities,
-  modelContextWindowOverride,
   MODEL_CAPABILITIES_PLACEHOLDER,
   ModelCapabilitiesGuideButton,
   ModelCapabilitiesQuickConfig,
   normalizeModelCapabilitiesJSON,
-  setAutomaticModelContextWindowInCapabilities,
   setImageStreamEnabledInCapabilities,
-  setModelContextWindowInCapabilities,
 } from "@/features/admin/components/sections/models/models-capabilities-config";
+import {
+  modelContextWindowOverride,
+  setAutomaticModelContextWindowInCapabilities,
+  setModelContextWindowInCapabilities,
+} from "@/features/admin/model/model-context-window";
 import type { NativeToolDefinition } from "@/shared/lib/model-option-policy";
 import {
   DEFAULT_MODEL_SOURCE_BIND_DRAFT,

@@ -20,14 +20,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-
-const CONTEXT_WINDOW_PRESETS = [
-  { label: "64K", value: 64_000 },
-  { label: "128K", value: 128_000 },
-  { label: "256K", value: 256_000 },
-  { label: "500K", value: 500_000 },
-  { label: "1M", value: 1_000_000 },
-] as const;
+import {
+  isValidModelContextWindow,
+  MODEL_CONTEXT_WINDOW_PRESETS,
+} from "@/features/admin/model/model-context-window";
 
 type ModelContextWindowFieldProps = {
   value: number | null;
@@ -61,7 +57,7 @@ export function ModelContextWindowField({
       return;
     }
     const parsed = Number(normalized);
-    if (!Number.isSafeInteger(parsed) || parsed < 4_096 || parsed > 16_000_000) {
+    if (!isValidModelContextWindow(parsed)) {
       toast.error(t("sheet.contextWindowInvalid"));
       setInputValue(value === null ? "" : String(value));
       return;
@@ -151,7 +147,7 @@ export function ModelContextWindowField({
               <span>{t("sheet.contextWindowAuto")}</span>
               <Check className={cn("ml-auto size-3.5", value === null ? "opacity-100" : "opacity-0")} />
             </DropdownMenuItem>
-            {CONTEXT_WINDOW_PRESETS.map((preset) => (
+            {MODEL_CONTEXT_WINDOW_PRESETS.map((preset) => (
               <DropdownMenuItem key={preset.value} onSelect={() => selectPreset(preset.value)}>
                 <span>{preset.label}</span>
                 <Check className={cn("ml-auto size-3.5", value === preset.value ? "opacity-100" : "opacity-0")} />
