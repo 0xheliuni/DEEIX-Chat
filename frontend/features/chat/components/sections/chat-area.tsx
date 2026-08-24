@@ -390,7 +390,6 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
         item={item}
         onRetryUserMessage={onRetryUserMessage}
         onEditUserMessage={onEditUserMessage}
-        onForkMessage={onForkMessage}
         modelOptions={modelOptions}
         selectedPlatformModelName={selectedPlatformModelName}
         onModelChange={onModelChange}

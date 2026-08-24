@@ -8124,7 +8124,7 @@ export namespace Conversations {
   }
 
   /**
-   * @description 将会话从开头到指定消息（含）的祖先链复制为一个新会话；不携带原会话的运行记录与计费，附件以引用方式复用
+   * @description 仅允许从助手消息 fork；将会话从开头到指定助手消息（含）的祖先链复制为一个新会话，保留历史展示轨迹；不携带原会话的运行记录与计费，附件以引用方式复用
    * @tags chat
    * @name MessagesForkCreate
    * @summary 从指定消息 fork 新会话

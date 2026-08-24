@@ -45,6 +45,9 @@ func (s *Service) ForkConversationFromMessage(ctx context.Context, userID uint, 
 	if message.ConversationID != conversation.ID {
 		return nil, ErrMessageNotFound
 	}
+	if !strings.EqualFold(strings.TrimSpace(message.Role), "assistant") {
+		return nil, ErrMessageForkTargetInvalid
+	}
 	if strings.EqualFold(strings.TrimSpace(message.Status), "pending") {
 		return nil, ErrMessageForkStateInvalid
 	}
