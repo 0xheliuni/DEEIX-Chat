@@ -93,8 +93,18 @@ function parseToolTraceCalls(payloadJson: string | undefined): ToolTraceCall[] {
   }
 }
 
+function normalizeToolTraceStatus(status: string | undefined): string {
+  return status?.trim().toLowerCase() || "";
+}
+
 function isToolTraceStatusActive(status: string | undefined): boolean {
-  return ["requested", "streaming", "queued", "in_progress", "searching"].includes(status?.trim() || "");
+  return ["requested", "streaming", "queued", "in_progress", "searching"].includes(
+    normalizeToolTraceStatus(status),
+  );
+}
+
+function isToolTraceStatusFailed(status: string | undefined): boolean {
+  return ["error", "failed"].includes(normalizeToolTraceStatus(status));
 }
 
 function toolResultCategory(call: ToolTraceCall) {
@@ -107,7 +117,7 @@ function toolResultCategory(call: ToolTraceCall) {
 }
 
 function toolStatusLabel(status: string | undefined, labels: ProcessTraceLabels): string {
-  switch (status?.trim()) {
+  switch (normalizeToolTraceStatus(status)) {
     case "requested":
     case "streaming":
     case "queued":
@@ -143,13 +153,12 @@ function toolTraceCallLabel(call: ToolTraceCall, category: ToolResultCategory, l
 }
 
 function toolTraceCallDetail(call: ToolTraceCall, labels: ProcessTraceLabels): { detail: string; failed: boolean } {
-  const status = call.status?.trim();
-  const failed = status === "error" || status === "failed";
+  const failed = isToolTraceStatusFailed(call.status);
   const input = formatToolPayload(call.input_detail) || formatToolPayload(call.input_preview) || formatToolPayload(call.input);
   const output = failed
     ? formatToolPayload(call.error)
     : formatToolPayload(call.output_detail) || formatToolPayload(call.output) || formatToolPayload(call.output_text) || formatToolPayload(call.output_preview);
-  const parts = [toolStatusLabel(status, labels)].filter(Boolean);
+  const parts = [toolStatusLabel(call.status, labels)].filter(Boolean);
 
   if (input) {
     parts.push(`${labels.tool.detail.request}\n${input}`);
@@ -446,7 +455,7 @@ function toolTraceFallbackKey(
 }
 
 function toolTraceStatusRank(status: string | undefined): number {
-  switch (status?.trim()) {
+  switch (normalizeToolTraceStatus(status)) {
     case "error":
     case "failed":
       return 4;
@@ -526,7 +535,7 @@ export function buildToolChainSteps(events: TraceDisplayEvent[], labels: Process
           key: toolTraceFallbackKey(event),
           label: labels.tool.names.generic,
           detail: event.contentMarkdown?.trim() || event.summary?.trim() || event.title?.trim() || "",
-          failed: event.status === "error",
+          failed: isToolTraceStatusFailed(event.status),
           toolStatus: event.status?.trim(),
         },
       ];
@@ -567,7 +576,7 @@ function buildToolChainStepsFromBlock(block: ChatTraceBlock | undefined, labels:
         key: toolTraceFallbackKey(block),
         label: labels.tool.names.generic,
         detail,
-        failed: block.status === "error",
+        failed: isToolTraceStatusFailed(block.status),
         toolStatus: block.status?.trim(),
       },
     ];
@@ -598,7 +607,7 @@ export function isToolChainStepActive(step: ToolChainStep): boolean {
 }
 
 function isToolStepDone(step: ToolChainStep): boolean {
-  const status = step.toolCall?.status?.trim() || step.toolStatus?.trim() || "";
+  const status = normalizeToolTraceStatus(step.toolCall?.status || step.toolStatus);
   return status === "success" || status === "completed" || status === "reused";
 }
 
@@ -714,7 +723,7 @@ function ToolResultCard({
   labels: ProcessTraceLabels;
   divided: boolean;
 }) {
-  const failedStatus = call.status === "error" || call.status === "failed";
+  const failedStatus = isToolTraceStatusFailed(call.status);
   const output = toolOutputPayload(call);
   let content: React.ReactNode = null;
   let meta = "";

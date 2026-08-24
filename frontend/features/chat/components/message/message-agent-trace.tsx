@@ -375,8 +375,8 @@ export function MessageAgentTrace({
   events: ChatTraceEvent[];
   activeToolBlock?: ChatTraceBlock;
   activeThinkBlock?: ChatTraceBlock;
-  messageStreaming?: boolean;
-  autoCollapseReady?: boolean;
+  messageStreaming: boolean;
+  autoCollapseReady: boolean;
   autoExpandThinking?: boolean;
   autoExpandToolCalls?: boolean;
   runDurationMS?: number;
@@ -417,31 +417,15 @@ export function MessageAgentTrace({
     return list;
   }, [groupToolSteps, groups, messageStreaming]);
 
-  const thinkingActive = Boolean(
-    messageStreaming && items.some((item) => item.kind === "think" && item.streaming),
+  const hasActiveStep = items.some((item) =>
+    item.kind === "think" ? item.streaming : isToolChainStepActive(item.step),
   );
-  const toolCallActive = Boolean(
-    messageStreaming && items.some((item) => item.kind === "tool" && isToolChainStepActive(item.step)),
-  );
-  const traceActive = thinkingActive || toolCallActive;
-  const [accordionValue, setAccordionValue] = React.useState(() =>
-    traceActive ? "message-trace-timeline" : "",
-  );
-  const wasActiveRef = React.useRef(traceActive);
-
-  React.useEffect(() => {
-    if (traceActive) {
-      setAccordionValue("message-trace-timeline");
-      wasActiveRef.current = true;
-      return;
-    }
-    if (wasActiveRef.current && autoCollapseReady) {
-      setAccordionValue("");
-    }
-    if (autoCollapseReady) {
-      wasActiveRef.current = false;
-    }
-  }, [autoCollapseReady, traceActive]);
+  const traceRunActive = messageStreaming && (hasActiveStep || !autoCollapseReady);
+  const { open, onOpenChange } = useAutoExpandDisclosure({
+    active: traceRunActive,
+    autoExpand: true,
+    collapseReady: autoCollapseReady || !messageStreaming,
+  });
 
   if (items.length === 0) {
     return null;
@@ -463,15 +447,14 @@ export function MessageAgentTrace({
   }
   const subtitle = subtitleParts.join(labels.run.labelSeparator);
 
-  const title = traceActive ? labels.run.titleActive : labels.run.titleDone;
-  const open = accordionValue === "message-trace-timeline";
+  const title = traceRunActive ? labels.run.titleActive : labels.run.titleDone;
   return (
     <div className={TRACE_ROOT_CLASS}>
       <Accordion
         type="single"
         collapsible
-        value={accordionValue}
-        onValueChange={(value) => setAccordionValue(value || "")}
+        value={open ? "message-trace-timeline" : ""}
+        onValueChange={(value) => onOpenChange(value === "message-trace-timeline")}
         className="w-full"
       >
         <AccordionItem value="message-trace-timeline" className="border-b-0">
@@ -485,10 +468,10 @@ export function MessageAgentTrace({
                   render={<span />}
                   className={cn(
                     "inline-flex min-h-0 w-auto text-[13px] font-medium transition-colors",
-                    !traceActive && "text-muted-foreground group-hover/trace:text-foreground",
+                    !traceRunActive && "text-muted-foreground group-hover/trace:text-foreground",
                   )}
                 >
-                  <MarkerContent className={cn("min-w-0", traceActive && "shimmer")}>{title}</MarkerContent>
+                  <MarkerContent className={cn("min-w-0", traceRunActive && "shimmer")}>{title}</MarkerContent>
                 </Marker>
               </div>
               {subtitle ? (
