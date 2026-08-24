@@ -1212,12 +1212,13 @@ func (r *messageTraceRecorder) emitUpstreamThinkDelta(update upstreamThinkLiveUp
 		return
 	}
 	payload := map[string]interface{}{
-		"status":  r.upstreamThink.status,
-		"title":   r.upstreamThink.title,
-		"summary": r.upstreamThink.summary,
-		"stage":   r.upstreamThink.stage,
-		"roundID": r.upstreamThink.roundID,
-		"eventID": r.upstreamThink.eventID,
+		"status":    r.upstreamThink.status,
+		"title":     r.upstreamThink.title,
+		"summary":   r.upstreamThink.summary,
+		"stage":     r.upstreamThink.stage,
+		"roundID":   r.upstreamThink.roundID,
+		"eventID":   r.upstreamThink.eventID,
+		"startedAt": r.upstreamThink.startedAt,
 	}
 	if update.kind != "" {
 		payload["kind"] = update.kind
