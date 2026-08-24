@@ -23,11 +23,10 @@ type legacyThinkReplayCandidate struct {
 	metadata persistedReasoningEventMetadata
 }
 
-// normalizeLegacyThinkReplayEvents hides reasoning snapshots replayed by the
-// legacy streaming finalization path. That path persisted the same final
-// response.completed payload twice and could first persist the identical live
-// chunk as another round. Keep the canonical event identity and merge the final
-// terminal snapshot into it without mutating the stored rows.
+// normalizeLegacyThinkReplayEvents hides reasoning snapshots replayed by legacy
+// streaming finalization paths. They could persist the same live and terminal
+// content as separate rounds, sometimes without reasoning metadata. Keep the
+// canonical identity and merge the terminal snapshot without mutating storage.
 func normalizeLegacyThinkReplayEvents(rows []model.MessageTraceEventRow) []model.MessageTraceEventRow {
 	if len(rows) < 2 {
 		return rows
@@ -43,17 +42,14 @@ func normalizeLegacyThinkReplayEvents(rows []model.MessageTraceEventRow) []model
 		if content == "" {
 			continue
 		}
-		metadata, ok := persistedReasoningMetadata(row.PayloadJSON)
-		if !ok {
-			continue
-		}
+		metadata, _ := persistedReasoningMetadata(row.PayloadJSON)
 		key := strings.TrimSpace(row.RunID) + "\x00" + content
 		groups[key] = append(groups[key], legacyThinkReplayCandidate{rowIndex: index, metadata: metadata})
 	}
 
 	removed := make(map[int]struct{})
 	for _, candidates := range groups {
-		if len(candidates) < 2 || hasConflictingReasoningItemIDs(candidates) {
+		if len(candidates) < 2 {
 			continue
 		}
 		for position := 0; position < len(candidates); {
@@ -61,7 +57,7 @@ func normalizeLegacyThinkReplayEvents(rows []model.MessageTraceEventRow) []model
 			for replayEnd+1 < len(candidates) {
 				first := candidates[replayEnd]
 				second := candidates[replayEnd+1]
-				if !isLegacyCompletedReplayPair(workingRows[first.rowIndex], first.metadata, workingRows[second.rowIndex], second.metadata) {
+				if !isLegacyReasoningReplayPair(workingRows, first, second) {
 					break
 				}
 				replayEnd++
@@ -121,42 +117,59 @@ func persistedReasoningMetadata(payloadJSON string) (persistedReasoningEventMeta
 	return metadata, metadata.EventType != ""
 }
 
-func hasConflictingReasoningItemIDs(candidates []legacyThinkReplayCandidate) bool {
-	itemID := ""
-	for _, candidate := range candidates {
-		if candidate.metadata.ItemID == "" {
-			continue
-		}
-		if itemID != "" && itemID != candidate.metadata.ItemID {
+func isLegacyReasoningReplayPair(
+	rows []model.MessageTraceEventRow,
+	firstCandidate legacyThinkReplayCandidate,
+	secondCandidate legacyThinkReplayCandidate,
+) bool {
+	first := rows[firstCandidate.rowIndex]
+	second := rows[secondCandidate.rowIndex]
+	if strings.TrimSpace(first.ContentMarkdown) != strings.TrimSpace(second.ContentMarkdown) ||
+		reasoningItemIDsConflict(firstCandidate.metadata, secondCandidate.metadata) ||
+		first.CreatedAt.IsZero() || second.CreatedAt.Before(first.CreatedAt) ||
+		second.CreatedAt.Sub(first.CreatedAt) > legacyReasoningReplayMaxGap {
+		return false
+	}
+
+	firstEventType := firstCandidate.metadata.EventType
+	secondEventType := secondCandidate.metadata.EventType
+	if isPersistedLiveReasoningEvent(firstEventType) && secondEventType == "response.completed" {
+		return true
+	}
+	if firstEventType == "response.completed" && secondEventType == "response.completed" {
+		return strings.TrimSpace(first.PayloadJSON) == strings.TrimSpace(second.PayloadJSON)
+	}
+	if firstEventType != "" && secondEventType != "" {
+		return false
+	}
+	if !strings.EqualFold(strings.TrimSpace(first.Status), messageTraceStatusCompleted) ||
+		!strings.EqualFold(strings.TrimSpace(second.Status), messageTraceStatusCompleted) {
+		return false
+	}
+	return !hasInterveningToolTraceEvent(rows, firstCandidate.rowIndex, secondCandidate.rowIndex)
+}
+
+func reasoningItemIDsConflict(first persistedReasoningEventMetadata, second persistedReasoningEventMetadata) bool {
+	return first.ItemID != "" && second.ItemID != "" && first.ItemID != second.ItemID
+}
+
+func hasInterveningToolTraceEvent(rows []model.MessageTraceEventRow, firstIndex int, secondIndex int) bool {
+	for index := firstIndex + 1; index < secondIndex; index++ {
+		row := rows[index]
+		if strings.EqualFold(strings.TrimSpace(row.EventType), "tool") ||
+			strings.EqualFold(strings.TrimSpace(row.Phase), messageTraceTypeTools) ||
+			strings.EqualFold(strings.TrimSpace(row.Stage), messageTraceStageTool) {
 			return true
 		}
-		itemID = candidate.metadata.ItemID
 	}
 	return false
 }
 
-func isLegacyCompletedReplayPair(
-	first model.MessageTraceEventRow,
-	firstMetadata persistedReasoningEventMetadata,
-	second model.MessageTraceEventRow,
-	secondMetadata persistedReasoningEventMetadata,
-) bool {
-	if firstMetadata.EventType != "response.completed" || secondMetadata.EventType != "response.completed" {
-		return false
-	}
-	if strings.TrimSpace(first.ContentMarkdown) != strings.TrimSpace(second.ContentMarkdown) ||
-		strings.TrimSpace(first.PayloadJSON) != strings.TrimSpace(second.PayloadJSON) {
-		return false
-	}
-	if first.CreatedAt.IsZero() || second.CreatedAt.Before(first.CreatedAt) {
-		return false
-	}
-	return second.CreatedAt.Sub(first.CreatedAt) <= legacyReasoningReplayMaxGap
-}
-
 func isPersistedLiveReasoningEvent(eventType string) bool {
 	normalized := strings.ToLower(strings.TrimSpace(eventType))
-	return normalized == "chat.completion.chunk" || strings.HasSuffix(normalized, ".delta")
+	return normalized == "chat.completion.chunk" ||
+		strings.HasSuffix(normalized, ".delta") ||
+		(strings.Contains(normalized, "reasoning") && strings.HasSuffix(normalized, ".done"))
 }
 
 func mergePersistedReasoningSnapshot(

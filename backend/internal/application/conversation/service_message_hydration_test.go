@@ -67,6 +67,85 @@ func TestNormalizeLegacyThinkReplayEventsCollapsesRepeatedCompletedSnapshots(t *
 	}
 }
 
+func TestNormalizeLegacyThinkReplayEventsCollapsesSingleFinalReconciliation(t *testing.T) {
+	createdAt := time.Now().UTC()
+	endedAt := createdAt.Add(time.Second)
+	finalPayload := persistedReasoningTestPayload("response.completed", "")
+	rows := []model.MessageTraceEventRow{
+		persistedThinkTestRow("upstream_think_1", "round_1", 2, "相同文本", persistedReasoningTestPayload("chat.completion.chunk", ""), createdAt, &endedAt),
+		persistedThinkTestRow("upstream_think_2", "round_2", 3, "相同文本", finalPayload, createdAt.Add(time.Second), &endedAt),
+	}
+
+	normalized := normalizeLegacyThinkReplayEvents(rows)
+
+	if len(normalized) != 1 || normalized[0].EventID != "upstream_think_1" {
+		t.Fatalf("normalized events = %#v, want canonical live event only", normalized)
+	}
+	if normalized[0].PayloadJSON != finalPayload {
+		t.Fatalf("canonical event payload = %q, want final payload %q", normalized[0].PayloadJSON, finalPayload)
+	}
+}
+
+func TestNormalizeLegacyThinkReplayEventsCollapsesReasoningDoneAndFinalSnapshot(t *testing.T) {
+	createdAt := time.Now().UTC()
+	endedAt := createdAt.Add(time.Second)
+	finalPayload := persistedReasoningTestPayload("response.completed", "reasoning_1")
+	rows := []model.MessageTraceEventRow{
+		persistedThinkTestRow("upstream_think_1", "round_1", 2, "最终思考", persistedReasoningTestPayload("response.reasoning_text.done", "reasoning_1"), createdAt, &endedAt),
+		persistedThinkTestRow("upstream_think_2", "round_2", 3, "最终思考", finalPayload, createdAt.Add(20*time.Millisecond), &endedAt),
+	}
+
+	normalized := normalizeLegacyThinkReplayEvents(rows)
+
+	if len(normalized) != 1 || normalized[0].EventID != "upstream_think_1" {
+		t.Fatalf("normalized events = %#v, want canonical reasoning done event only", normalized)
+	}
+	if normalized[0].PayloadJSON != finalPayload {
+		t.Fatalf("canonical event payload = %q, want final payload %q", normalized[0].PayloadJSON, finalPayload)
+	}
+}
+
+func TestNormalizeLegacyThinkReplayEventsCollapsesCompletedSnapshotsWithoutMetadata(t *testing.T) {
+	createdAt := time.Now().UTC()
+	endedAt := createdAt.Add(time.Second)
+	rows := []model.MessageTraceEventRow{
+		persistedThinkTestRow("upstream_think_1", "round_1", 2, "旧思考内容", "", createdAt, &endedAt),
+		persistedThinkTestRow("upstream_think_2", "round_2", 3, "旧思考内容", "{}", createdAt.Add(25*time.Millisecond), &endedAt),
+		persistedThinkTestRow("upstream_think_3", "round_3", 4, "旧思考内容", `{"reasoning":{"kind":"content"}}`, createdAt.Add(50*time.Millisecond), &endedAt),
+	}
+
+	normalized := normalizeLegacyThinkReplayEvents(rows)
+
+	if len(normalized) != 1 || normalized[0].EventID != "upstream_think_1" {
+		t.Fatalf("normalized events = %#v, want one canonical legacy event", normalized)
+	}
+}
+
+func TestNormalizeLegacyThinkReplayEventsPreservesUnknownRoundsSeparatedByTool(t *testing.T) {
+	createdAt := time.Now().UTC()
+	endedAt := createdAt.Add(time.Second)
+	rows := []model.MessageTraceEventRow{
+		persistedThinkTestRow("upstream_think_1", "round_1", 2, "相同文本", "", createdAt, &endedAt),
+		{
+			RunID:     "run_1",
+			EventID:   "tools_1",
+			EventType: "tool",
+			Phase:     messageTraceTypeTools,
+			Stage:     messageTraceStageTool,
+			Status:    messageTraceStatusCompleted,
+			Seq:       3,
+			CreatedAt: createdAt.Add(10 * time.Millisecond),
+		},
+		persistedThinkTestRow("upstream_think_2", "round_2", 4, "相同文本", "", createdAt.Add(25*time.Millisecond), &endedAt),
+	}
+
+	normalized := normalizeLegacyThinkReplayEvents(rows)
+
+	if len(normalized) != len(rows) {
+		t.Fatalf("normalized events = %#v, want tool-separated rounds preserved", normalized)
+	}
+}
+
 func TestNormalizeLegacyThinkReplayEventsPreservesUnconfirmedRounds(t *testing.T) {
 	createdAt := time.Now().UTC()
 	endedAt := createdAt.Add(time.Second)
@@ -86,13 +165,6 @@ func TestNormalizeLegacyThinkReplayEventsPreservesUnconfirmedRounds(t *testing.T
 			rows: []model.MessageTraceEventRow{
 				persistedThinkTestRow("upstream_think_1", "round_1", 2, "相同文本", persistedReasoningTestPayload("response.completed", ""), createdAt, &endedAt),
 				persistedThinkTestRow("upstream_think_2", "round_2", 3, "相同文本", persistedReasoningTestPayload("response.completed", ""), createdAt.Add(legacyReasoningReplayMaxGap+time.Millisecond), &endedAt),
-			},
-		},
-		{
-			name: "single final reconciliation",
-			rows: []model.MessageTraceEventRow{
-				persistedThinkTestRow("upstream_think_1", "round_1", 2, "相同文本", persistedReasoningTestPayload("chat.completion.chunk", ""), createdAt, &endedAt),
-				persistedThinkTestRow("upstream_think_2", "round_2", 3, "相同文本", persistedReasoningTestPayload("response.completed", ""), createdAt.Add(time.Second), &endedAt),
 			},
 		},
 		{
