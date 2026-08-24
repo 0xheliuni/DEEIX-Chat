@@ -14,6 +14,7 @@ import type { ChatAreaMessage } from "@/features/chat/types/messages";
 import { streamTemporaryChatMessage } from "@/shared/api/conversation";
 import type { ConversationOptions, TemporaryChatHistoryMessage } from "@/shared/api/conversation.types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { createSecureUUID } from "@/shared/lib/secure-id";
 
 type TemporaryMessage = TemporaryChatHistoryMessage & {
   id: string;
@@ -40,10 +41,6 @@ type TemporaryChatRuntimeInput = {
   htmlVisualPromptEnabled: boolean;
   onDraftChange: (value: string) => void;
 };
-
-function newClientID(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
 
 export function useTemporaryChatRuntime({
   active,
@@ -139,12 +136,12 @@ export function useTemporaryChatRuntime({
       return;
     }
     if (!sessionIDRef.current) {
-      sessionIDRef.current = newClientID();
+      sessionIDRef.current = createSecureUUID();
     }
 
-    const userMessage: TemporaryMessage = { id: newClientID(), role: "user", content };
-    const assistantID = newClientID();
-    const clientRunID = newClientID();
+    const userMessage: TemporaryMessage = { id: createSecureUUID(), role: "user", content };
+    const assistantID = createSecureUUID();
+    const clientRunID = createSecureUUID();
     const history: TemporaryChatHistoryMessage[] = [
       ...historyRef.current,
       { role: "user", content },
