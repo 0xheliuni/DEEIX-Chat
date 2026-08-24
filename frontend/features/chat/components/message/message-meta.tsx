@@ -288,7 +288,6 @@ export function UserMessageMeta({
   onRetry,
   onEdit,
   onCopy,
-  onFork,
   copySucceeded = false,
   readOnly = false,
   alwaysVisible = false,
@@ -300,7 +299,6 @@ export function UserMessageMeta({
   onRetry: () => void;
   onEdit: () => void;
   onCopy: () => void;
-  onFork?: () => Promise<void> | void;
   copySucceeded?: boolean;
   readOnly?: boolean;
   alwaysVisible?: boolean;
@@ -345,13 +343,6 @@ export function UserMessageMeta({
               <Copy size={14} strokeWidth={1.8} animateOnHover="default" />
             )}
           </MetaIconButton>
-          {hasPersistedMessage && onFork ? (
-            <ForkMessageButton
-              label={t("forkMessage")}
-              disabled={messagePending}
-              onFork={onFork}
-            />
-          ) : null}
         </div>
       ) : null}
       {canShowBranchNavigator ? <BranchSwitcher item={item} onCycle={onCycleBranch} /> : null}
