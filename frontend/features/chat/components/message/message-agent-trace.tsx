@@ -202,14 +202,28 @@ function groupTraceDisplayEvents(
     ensureGroup(key, item.event.seq).toolEvents.push(item);
   }
 
-  // Live streaming blocks join their own round; unmatched blocks are appended last.
+  // Snapshot blocks enrich their matching event round; unmatched live fallbacks are appended last.
   const attachActiveBlock = (block: ChatTraceBlock | undefined, kind: "think" | "tool") => {
     if (!block) {
       return;
     }
     const roundID = block.roundID?.trim() || "";
     const parentID = block.parentEventID?.trim() || "";
-    const matchedKey = (roundID && thinkRoundIDToKey.get(roundID)) || (parentID && thinkEventIDToKey.get(parentID));
+    let matchedKey = (roundID && thinkRoundIDToKey.get(roundID)) || (parentID && thinkEventIDToKey.get(parentID));
+    if (!matchedKey && kind === "think") {
+      const blockText = traceBlockDisplayText(block);
+      if (blockText) {
+        for (const [key, group] of groups) {
+          if (
+            group.thinkEvents.some(
+              (item) => traceBlockDisplayText(item.event) === blockText,
+            )
+          ) {
+            matchedKey = key;
+          }
+        }
+      }
+    }
     if (matchedKey) {
       const matched = groups.get(matchedKey);
       if (matched) {
