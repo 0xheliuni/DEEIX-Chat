@@ -374,7 +374,6 @@ export function ChatMessageBot({
         autoCollapseReady={hasStreamdownContent || Boolean(item.inlineAlert)}
         autoExpandThinking={autoExpandThinking}
         autoExpandToolCalls={autoExpandToolCalls}
-        runDurationMS={item.latencyMS}
       />
 
       <div
