@@ -82,6 +82,7 @@ function normalizeTraceBlock(block: unknown): TraceBlockDTO | undefined {
     stage: raw.stage,
     roundID: raw.roundID,
     parentEventID: raw.parentEventID,
+    startedAt: raw.startedAt,
     updatedAt: raw.updatedAt ?? "",
     payloadJSON: raw.payloadJSON,
   };

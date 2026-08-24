@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
@@ -732,6 +733,10 @@ func TestUpstreamThinkingDeltaIsCoalescedBetweenFlushes(t *testing.T) {
 	if len(events) != 1 || events[0]["delta"] != "a" {
 		t.Fatalf("expected first live event to carry only first delta, got %#v", events)
 	}
+	startedAt, ok := events[0]["startedAt"].(time.Time)
+	if !ok || recorder.upstreamThink == nil || !startedAt.Equal(recorder.upstreamThink.startedAt) {
+		t.Fatalf("expected live event to carry the authoritative thinking start, got %#v", events[0]["startedAt"])
+	}
 	if _, ok := events[0]["trace"]; ok {
 		t.Fatalf("live thinking delta must not carry full trace: %#v", events[0])
 	}
@@ -748,6 +753,11 @@ func TestUpstreamThinkingDeltaIsCoalescedBetweenFlushes(t *testing.T) {
 	}
 	if events[1]["delta"] != "bc" || events[1]["status"] != messageTraceStatusCompleted {
 		t.Fatalf("expected completion to flush coalesced delta with completed status, got %#v", events[1])
+	}
+	completedStartedAt, ok := events[1]["startedAt"].(time.Time)
+	if !ok || !completedStartedAt.Equal(startedAt) {
+		t.Fatalf("expected all deltas in one thinking round to retain startedAt, got %v then %v",
+			events[0]["startedAt"], events[1]["startedAt"])
 	}
 }
 

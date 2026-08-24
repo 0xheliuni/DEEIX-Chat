@@ -278,6 +278,7 @@ export type StreamMessageEvent =
       stage?: string;
       roundID?: string;
       eventID?: string;
+      startedAt?: string;
       kind?: ReasoningDeltaDTO["kind"] | string;
       delta?: string;
       contentMarkdown?: string;
