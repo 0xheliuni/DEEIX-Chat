@@ -9609,6 +9609,37 @@
                 }
             }
         },
+        "/conversation-runs/stream": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Sends an authoritative snapshot followed by live user-scoped run state events",
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "Stream active conversation generations",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ActiveMessageGenerationEventResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/conversation-runs/{run_id}/cancel": {
             "post": {
                 "security": [
@@ -13718,6 +13749,44 @@
         }
     },
     "definitions": {
+        "ActiveMessageGenerationEventResponse": {
+            "type": "object",
+            "required": [
+                "type"
+            ],
+            "properties": {
+                "conversationPublicID": {
+                    "type": "string"
+                },
+                "runID": {
+                    "type": "string"
+                },
+                "runs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ActiveMessageGenerationResponse"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "ActiveMessageGenerationResponse": {
+            "type": "object",
+            "required": [
+                "conversationPublicID",
+                "runID"
+            ],
+            "properties": {
+                "conversationPublicID": {
+                    "type": "string"
+                },
+                "runID": {
+                    "type": "string"
+                }
+            }
+        },
         "ActiveSessionListResponse": {
             "type": "object",
             "required": [

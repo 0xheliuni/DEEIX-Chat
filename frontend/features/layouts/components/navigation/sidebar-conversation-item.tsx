@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Archive, PencilLine, Trash, type LucideIcon } from "lucide-react";
+import { Archive, Loader2Icon, PencilLine, Trash, type LucideIcon } from "lucide-react";
 import { motion } from "motion/react";
 import { useTranslations } from "next-intl";
 
@@ -20,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SIDEBAR_TRANSFER_TRANSITION } from "@/features/layouts/model/sidebar-motion";
+import { useConversationRunning } from "@/features/chat";
 import { ConversationProjectSubmenu } from "@/shared/components/conversation-project-submenu";
 import { ConversationShareExportSubmenu } from "@/shared/components/conversation-share-export-menu";
 import { ConversationLabelsMenuItem } from "@/entities/conversation";
@@ -75,6 +76,36 @@ type SidebarConversationItemProps = {
   onDelete: (publicID: string, title: string) => void;
   onNavigate?: (url: string, event: React.MouseEvent<HTMLAnchorElement>) => void;
 };
+
+const SidebarConversationRunIndicator = React.memo(function SidebarConversationRunIndicator({
+  conversationPublicID,
+  hidden,
+}: {
+  conversationPublicID: string;
+  hidden: boolean;
+}) {
+  const runtimeT = useTranslations("common.runtime.status");
+  const running = useConversationRunning(conversationPublicID);
+  if (!running) {
+    return null;
+  }
+  return (
+    <span
+      className={cn(
+        "pointer-events-none absolute right-0 flex size-8 items-center justify-center text-sidebar-foreground/45 opacity-100 transition-opacity duration-150 group-hover/conversation-row:opacity-0 group-focus-within/conversation-row:opacity-0",
+        hidden && "opacity-0",
+      )}
+    >
+      <span
+        role="status"
+        aria-label={runtimeT("running")}
+        className="inline-flex size-3.5 shrink-0 animate-spin will-change-transform [animation-duration:1.6s] [animation-timing-function:linear]"
+      >
+        <Loader2Icon aria-hidden className="size-full" />
+      </span>
+    </span>
+  );
+});
 
 export function SidebarConversationItem({
   item,
@@ -177,6 +208,11 @@ export function SidebarConversationItem({
           textClassName="text-current"
         />
       </Link>
+
+      <SidebarConversationRunIndicator
+        conversationPublicID={item.publicID}
+        hidden={isMenuOpen}
+      />
 
       <DropdownMenu modal={false} open={isMenuOpen} onOpenChange={setIsMenuOpen}>
         <DropdownMenuTrigger asChild>

@@ -11,6 +11,18 @@
  * ---------------------------------------------------------------
  */
 
+export interface ActiveMessageGenerationEventResponse {
+  conversationPublicID?: string;
+  runID?: string;
+  runs?: ActiveMessageGenerationResponse[];
+  type: string;
+}
+
+export interface ActiveMessageGenerationResponse {
+  conversationPublicID: string;
+  runID: string;
+}
+
 export interface ActiveSessionListResponse {
   results: ActiveSessionResponse[];
   total: number;
@@ -7746,6 +7758,22 @@ export namespace ConversationProjects {
 
 export namespace ConversationRuns {
   /**
+   * @description Sends an authoritative snapshot followed by live user-scoped run state events
+   * @tags chat
+   * @name StreamList
+   * @summary Stream active conversation generations
+   * @request GET:/conversation-runs/stream
+   * @secure
+   */
+  export namespace StreamList {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = ActiveMessageGenerationEventResponse;
+  }
+
+  /**
    * @description 仅在用户显式点击暂停时取消对应 run；浏览器刷新或断开连接不会调用此接口
    * @tags chat
    * @name CancelCreate
@@ -7767,12 +7795,14 @@ export namespace ConversationRuns {
   /**
    * @description 页面刷新后按 run_id 重新订阅仍在运行的生成流，返回 NDJSON 事件
    * @tags chat
-   * @name StreamList
+   * @name StreamList2
    * @summary 恢复流式生成订阅
    * @request GET:/conversation-runs/{run_id}/stream
+   * @originalName streamList
+   * @duplicate
    * @secure
    */
-  export namespace StreamList {
+  export namespace StreamList2 {
     export type RequestParams = {
       /** 运行 ID */
       runId: string;

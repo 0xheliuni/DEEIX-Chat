@@ -213,7 +213,7 @@ func (s *Service) sendMessageInternal(
 	if input.Cancelable {
 		cancelCtx, cancel := context.WithCancel(ctx)
 		ctx = cancelCtx
-		s.generationStreams.register(ctx, runID, input.UserID, cancel)
+		s.generationStreams.register(ctx, runID, input.UserID, conversation.PublicID, cancel)
 	}
 
 	currentPlatformModelName := strings.TrimSpace(conversation.Model)
