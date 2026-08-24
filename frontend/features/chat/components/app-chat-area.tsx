@@ -173,7 +173,14 @@ export function AppChatArea() {
   const searchParams = useSearchParams();
   const routeConversationID = searchParams.get("conversation_id")?.trim() || null;
   const routeProjectID = searchParams.get("project_id")?.trim() || null;
-  const { newConversationRevision, newConversationProjectID: requestedNewConversationProjectID, requestNewConversation } = useChatSession();
+  const {
+    detachConversationRun,
+    finishConversationRun,
+    newConversationRevision,
+    newConversationProjectID: requestedNewConversationProjectID,
+    registerConversationRun,
+    requestNewConversation,
+  } = useChatSession();
   const [locallyCreatedConversationID, setLocallyCreatedConversationID] = React.useState<string | null>(null);
   const [newConversationOverride, setNewConversationOverride] = React.useState<{
     ignoredConversationID: string | null;
@@ -253,10 +260,12 @@ export function AppChatArea() {
     reload,
     replaceMessage,
     resumingActivityLabel,
+    resumingConversationID,
     resumingRunID,
   } = useChatData(conversationID, {
     activeGenerationRunsRef,
     activeGenerationRunsRevision,
+    onConversationRunFinished: finishConversationRun,
   });
   const { greetingTitle } = useChatViewerProfile();
   const [manualConversationTitle, setManualConversationTitle] = React.useState("");
@@ -692,9 +701,21 @@ export function AppChatArea() {
     activeGenerationRunsRef,
     activeGenerationRunsRevision,
     onActiveGenerationRunsChange,
+    onConversationRunDetached: detachConversationRun,
+    onConversationRunFinished: finishConversationRun,
+    onConversationRunStarted: registerConversationRun,
     resumingActivityLabel,
     resumingRunID,
   });
+  React.useEffect(() => {
+    const normalizedConversationID = resumingConversationID.trim();
+    const normalizedRunID = resumingRunID.trim();
+    if (!normalizedConversationID || !normalizedRunID) {
+      return;
+    }
+    registerConversationRun(normalizedRunID, normalizedConversationID);
+    return () => detachConversationRun(normalizedRunID);
+  }, [detachConversationRun, registerConversationRun, resumingConversationID, resumingRunID]);
   const generating = sending;
   const uploadDropDisabled = loading || uploading;
   const onStopActiveMessage = React.useCallback(() => {
