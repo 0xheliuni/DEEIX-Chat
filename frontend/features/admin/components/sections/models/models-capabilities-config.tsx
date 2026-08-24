@@ -678,66 +678,6 @@ export function normalizeModelCapabilitiesJSON(
   return Object.keys(payload).length > 0 ? JSON.stringify(payload, null, 2) : "";
 }
 
-export function modelContextWindowOverride(value: string | null | undefined): number | null {
-  const payload = parseCapabilitiesObject(value?.trim() ?? "");
-  if (!payload || payload._deeixContextWindowMode === "auto") {
-    return null;
-  }
-  for (const key of ["contextWindow", "context_window", "contextWindowTokens", "context_window_tokens"]) {
-    const raw = payload[key];
-    const parsed = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw.trim()) : Number.NaN;
-    if (Number.isSafeInteger(parsed) && parsed > 0) {
-      return parsed;
-    }
-  }
-  return null;
-}
-
-export function setModelContextWindowInCapabilities(
-  value: string | null | undefined,
-  contextWindow: number | null,
-): string | null {
-  const trimmed = value?.trim() ?? "";
-  const payload = parseCapabilitiesObject(trimmed);
-  if (!payload) {
-    return null;
-  }
-  delete payload._deeixContextWindowMode;
-  delete payload.context_window;
-  delete payload.contextWindowTokens;
-  delete payload.context_window_tokens;
-  if (contextWindow === null) {
-    delete payload.contextWindow;
-  } else {
-    payload.contextWindow = contextWindow;
-  }
-  return Object.keys(payload).length > 0 ? JSON.stringify(payload, null, 2) : "";
-}
-
-export function setAutomaticModelContextWindowInCapabilities(
-  value: string | null | undefined,
-  contextWindow: number | null,
-): string | null {
-  const trimmed = value?.trim() ?? "";
-  const payload = parseCapabilitiesObject(trimmed);
-  if (!payload) {
-    return null;
-  }
-  delete payload.context_window;
-  delete payload.contextWindowTokens;
-  delete payload.context_window_tokens;
-  if (contextWindow === null) {
-    if (payload._deeixContextWindowMode === "auto") {
-      delete payload.contextWindow;
-      delete payload._deeixContextWindowMode;
-    }
-  } else {
-    payload.contextWindow = contextWindow;
-    payload._deeixContextWindowMode = "auto";
-  }
-  return Object.keys(payload).length > 0 ? JSON.stringify(payload, null, 2) : "";
-}
-
 function canonicalNativeToolProtocol(protocol: string): string {
   const value = protocol.trim();
   return value.toLowerCase() === "google_generate_content" ? "gemini_generate_content" : value;
