@@ -481,7 +481,7 @@ function ThinkingSegmentBlock({
 }) {
   const t = useTranslations("chat.markdown.thinking");
   const translations = useStreamdownTranslations();
-  const active = streaming || incomplete;
+  const active = streaming && incomplete;
   const { open, onOpenChange } = useAutoExpandDisclosure({ active, autoExpand });
 
   const isActive = active;
@@ -535,8 +535,8 @@ function ThinkingSegmentBlock({
               plugins={plugins}
               rehypePlugins={STREAMDOWN_REHYPE_PLUGINS}
               remend={STREAMDOWN_REMEND}
-              mode={streaming ? "streaming" : "static"}
-              parseIncompleteMarkdown={streaming || incomplete}
+              mode={active ? "streaming" : "static"}
+              parseIncompleteMarkdown={active}
               shikiTheme={["github-light", "github-dark"]}
               animated={false}
               isAnimating={active}
