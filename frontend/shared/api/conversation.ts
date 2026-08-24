@@ -46,6 +46,7 @@ import type {
   SetConversationStarRequest,
   SetMessageFeedbackRequest,
   StreamMessageEvent,
+  TemporaryChatMessageRequest,
   TraceBlockDTO,
   UpdateConversationLabelsRequest,
   UpdateConversationProjectRequest,
@@ -1146,26 +1147,23 @@ async function readConversationStream(
   return { completed, moderationBlocked };
 }
 
-async function postConversationStream<TPayload>(
+async function postMessageStream<TPayload>(
   accessToken: string,
-  conversationPublicID: string,
-  endpointSuffix: string,
+  endpoint: string,
   payload: TPayload,
   options: ConversationStreamOptions,
+  cache?: RequestCache,
 ): Promise<SendMessageResult> {
-  const response = await authedFetch(
-    `/api/v1/conversations/${pathParam(conversationPublicID)}${endpointSuffix}`,
-    {
-      method: "POST",
-      accessToken,
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-      signal: options.signal,
+  const response = await authedFetch(endpoint, {
+    method: "POST",
+    accessToken,
+    headers: {
+      "Content-Type": "application/json",
     },
-    true,
-  );
+    body: JSON.stringify(payload),
+    signal: options.signal,
+    cache,
+  }, true);
 
   if (!response.body) {
     throw new ApiError("stream body is empty", response.status);
@@ -1190,6 +1188,21 @@ async function postConversationStream<TPayload>(
   throw new ApiError("stream completed without final payload", response.status);
 }
 
+async function postConversationStream<TPayload>(
+  accessToken: string,
+  conversationPublicID: string,
+  endpointSuffix: string,
+  payload: TPayload,
+  options: ConversationStreamOptions,
+): Promise<SendMessageResult> {
+  return postMessageStream(
+    accessToken,
+    `/api/v1/conversations/${pathParam(conversationPublicID)}${endpointSuffix}`,
+    payload,
+    options,
+  );
+}
+
 export async function streamMessage(
   accessToken: string,
   conversationPublicID: string,
@@ -1197,6 +1210,20 @@ export async function streamMessage(
   options: ConversationStreamOptions = {},
 ): Promise<SendMessageResult> {
   return postConversationStream(accessToken, conversationPublicID, "/messages/stream", payload, options);
+}
+
+export async function streamTemporaryChatMessage(
+  accessToken: string,
+  payload: TemporaryChatMessageRequest,
+  options: ConversationStreamOptions = {},
+): Promise<SendMessageResult> {
+  return postMessageStream(
+    accessToken,
+    "/api/v1/temporary-chat/messages/stream",
+    payload,
+    options,
+    "no-store",
+  );
 }
 
 export async function streamImageGeneration(

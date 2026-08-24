@@ -35,6 +35,7 @@ func (m *Module) RegisterRoutes(authRequired *gin.RouterGroup) {
 	authRequired.GET("/conversations/:id/runs", m.Handler.ListConversationRuns)
 	authRequired.POST("/conversations/:id/messages", m.Handler.SendMessage)
 	authRequired.POST("/conversations/:id/messages/stream", m.Handler.StreamMessage)
+	authRequired.POST("/temporary-chat/messages/stream", m.Handler.StreamTemporaryChatMessage)
 	authRequired.POST("/conversations/:id/messages/:message_id/fork", m.Handler.ForkConversationFromMessage)
 	authRequired.POST("/conversations/:id/media/images/generations/stream", m.Handler.StreamImageGeneration)
 	authRequired.POST("/conversations/:id/media/images/edits/stream", m.Handler.StreamImageEdit)

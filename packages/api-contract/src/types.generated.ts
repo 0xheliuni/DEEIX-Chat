@@ -3287,6 +3287,34 @@ export interface SystemEventResponse {
   updatedAt: string;
 }
 
+export interface TemporaryChatHistoryMessage {
+  /** @maxLength 200000 */
+  content: string;
+  role: "user" | "assistant";
+}
+
+export interface TemporaryChatMessageRequest {
+  /** @maxLength 64 */
+  clientRunID: string;
+  htmlVisualPrompt?: boolean;
+  /** @maxItems 8 */
+  knowledgeBaseIDs?: string[];
+  /**
+   * @maxItems 100
+   * @minItems 1
+   */
+  messages: TemporaryChatHistoryMessage[];
+  /** @maxLength 128 */
+  model: string;
+  options?: Record<string, any>;
+  /** @maxItems 128 */
+  selectedToolIDs?: number[];
+  /** @maxLength 64 */
+  sessionID: string;
+  /** @maxItems 128 */
+  skillIDs?: number[];
+}
+
 export interface ToolListResponse {
   results: ToolResponse[];
 }
@@ -9295,6 +9323,24 @@ export namespace Skills {
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = SkillResponseDoc;
+  }
+}
+
+export namespace TemporaryChat {
+  /**
+   * @description 由浏览器提交完整纯文本上下文；服务端不创建会话、消息、运行或断线续传记录
+   * @tags chat
+   * @name MessagesStreamCreate
+   * @summary 流式发送临时对话消息
+   * @request POST:/temporary-chat/messages/stream
+   * @secure
+   */
+  export namespace MessagesStreamCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = TemporaryChatMessageRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = string;
   }
 }
 

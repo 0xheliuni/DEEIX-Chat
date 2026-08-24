@@ -63,6 +63,7 @@ import { ApiError } from "@/shared/api/http-client";
 import type { SkillSummaryDTO } from "@/shared/api/skills.types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { notifyResponseCompletion } from "@/shared/lib/browser-notifications";
+import { createSecureUUID } from "@/shared/lib/secure-id";
 
 const CONVERSATION_METADATA_REFRESH_MAX_WAIT_MS = 45_000;
 const CONVERSATION_METADATA_REFRESH_INITIAL_DELAY_MS = 800;
@@ -337,10 +338,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 function createClientRunID(): string {
-  const randomID =
-    typeof window.crypto?.randomUUID === "function"
-      ? window.crypto.randomUUID().replaceAll("-", "")
-      : Math.random().toString(36).slice(2) + Date.now().toString(36);
+  const randomID = createSecureUUID().replaceAll("-", "");
   return `run_${randomID}`.slice(0, 64);
 }
 

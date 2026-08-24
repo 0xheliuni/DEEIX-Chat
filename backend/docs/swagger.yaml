@@ -7408,6 +7408,63 @@ definitions:
     - traceID
     - updatedAt
     type: object
+  TemporaryChatHistoryMessage:
+    properties:
+      content:
+        maxLength: 200000
+        type: string
+      role:
+        enum:
+        - user
+        - assistant
+        type: string
+    required:
+    - content
+    - role
+    type: object
+  TemporaryChatMessageRequest:
+    properties:
+      clientRunID:
+        maxLength: 64
+        type: string
+      htmlVisualPrompt:
+        type: boolean
+      knowledgeBaseIDs:
+        items:
+          type: string
+        maxItems: 8
+        type: array
+      messages:
+        items:
+          $ref: '#/definitions/TemporaryChatHistoryMessage'
+        maxItems: 100
+        minItems: 1
+        type: array
+      model:
+        maxLength: 128
+        type: string
+      options:
+        additionalProperties: true
+        type: object
+      selectedToolIDs:
+        items:
+          type: integer
+        maxItems: 128
+        type: array
+      sessionID:
+        maxLength: 64
+        type: string
+      skillIDs:
+        items:
+          type: integer
+        maxItems: 128
+        type: array
+    required:
+    - clientRunID
+    - messages
+    - model
+    - sessionID
+    type: object
   ToolListResponse:
     properties:
       results:
@@ -17948,6 +18005,38 @@ paths:
       summary: 更新我的自定义技能
       tags:
       - skills
+  /temporary-chat/messages/stream:
+    post:
+      consumes:
+      - application/json
+      description: 由浏览器提交完整纯文本上下文；服务端不创建会话、消息、运行或断线续传记录
+      parameters:
+      - description: 临时对话参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/TemporaryChatMessageRequest'
+      produces:
+      - application/x-ndjson
+      responses:
+        "200":
+          description: NDJSON stream
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 流式发送临时对话消息
+      tags:
+      - chat
   /user/settings:
     get:
       description: 返回当前用户全部个人偏好配置，缺失项以默认值填充
