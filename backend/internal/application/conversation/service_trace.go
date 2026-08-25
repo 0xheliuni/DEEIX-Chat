@@ -1232,6 +1232,9 @@ func (r *messageTraceRecorder) emitUpstreamThinkDelta(update upstreamThinkLiveUp
 	if len(update.reasoning) > 0 {
 		payload["reasoning"] = update.reasoning
 	}
+	if r.upstreamThink.endedAt != nil {
+		payload["endedAt"] = *r.upstreamThink.endedAt
+	}
 	emitEvent(r.onEvent, "upstream_think_delta", payload)
 }
 
