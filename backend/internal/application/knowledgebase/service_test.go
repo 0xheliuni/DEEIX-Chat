@@ -393,6 +393,10 @@ func (s *knowledgeBaseRepositoryStub) GetKnowledgeBaseFileProcessingStatuses(con
 	return nil, nil
 }
 
+func (s *knowledgeBaseRepositoryStub) GetKnowledgeBaseFileProcessingSnapshot(context.Context, uint, []string) (*repository.KnowledgeBaseFileProcessingSnapshot, error) {
+	return &repository.KnowledgeBaseFileProcessingSnapshot{}, nil
+}
+
 func (s *knowledgeBaseRepositoryStub) ListKnowledgeBaseSourceFiles(_ context.Context, ownerUserID uint, query string, offset int, limit int) ([]domainconversation.FileObject, int64, error) {
 	s.sourceOwnerUserID = ownerUserID
 	s.sourceQuery = query

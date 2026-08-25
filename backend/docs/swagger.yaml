@@ -3351,6 +3351,16 @@ definitions:
     required:
     - fileIDs
     type: object
+  GetKnowledgeBaseFileProcessingSnapshotRequest:
+    properties:
+      fileIDs:
+        items:
+          type: string
+        maxItems: 100
+        type: array
+    required:
+    - fileIDs
+    type: object
   GetKnowledgeBaseFileProcessingStatusesRequest:
     properties:
       fileIDs:
@@ -3785,6 +3795,18 @@ definitions:
     - data
     - errorMsg
     type: object
+  KnowledgeBaseFileProcessingSnapshotResponse:
+    properties:
+      knowledgeBase:
+        $ref: '#/definitions/KnowledgeBaseResponse'
+      statuses:
+        items:
+          $ref: '#/definitions/KnowledgeBaseFileProcessingStatusResponse'
+        type: array
+    required:
+    - knowledgeBase
+    - statuses
+    type: object
   KnowledgeBaseFileProcessingStatusResponse:
     properties:
       chunkCount:
@@ -3797,6 +3819,8 @@ definitions:
         type: string
       fileID:
         type: string
+      processing:
+        type: boolean
       processingReady:
         type: boolean
       processingStatus:
@@ -3811,6 +3835,7 @@ definitions:
     - embedStatus
     - fileCategory
     - fileID
+    - processing
     - processingReady
     - processingStatus
     - ragOptOut
@@ -3834,6 +3859,8 @@ definitions:
         type: string
       mimeType:
         type: string
+      processing:
+        type: boolean
       processingReady:
         type: boolean
       processingStatus:
@@ -3853,6 +3880,7 @@ definitions:
     - fileID
     - fileName
     - mimeType
+    - processing
     - processingReady
     - processingStatus
     - ragOptOut
@@ -10680,6 +10708,17 @@ paths:
         in: query
         name: q
         type: string
+      - description: 排序方式(default/name/created/updated/files)
+        in: query
+        name: sort
+        type: string
+      - collectionFormat: csv
+        description: 知识库ID
+        in: query
+        items:
+          type: string
+        name: id
+        type: array
       - description: 可用状态
         in: query
         name: enabled
@@ -10933,6 +10972,42 @@ paths:
       security:
       - BearerAuth: []
       summary: 获取内置知识库文件内容
+      tags:
+      - admin-knowledge-bases
+  /admin/knowledge-bases/{id}/files/processing/snapshot:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 知识库公开ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 当前页处理中或待确认的文件ID，最多100个，可为空
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/GetKnowledgeBaseFileProcessingSnapshotRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/KnowledgeBaseFileProcessingSnapshotResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/KnowledgebaseErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/KnowledgebaseErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 查询内置知识库处理快照
       tags:
       - admin-knowledge-bases
   /admin/knowledge-bases/{id}/files/processing/statuses:
@@ -16989,6 +17064,17 @@ paths:
         in: query
         name: q
         type: string
+      - description: 排序方式(default/name/created/updated/files)
+        in: query
+        name: sort
+        type: string
+      - collectionFormat: csv
+        description: 知识库ID
+        in: query
+        items:
+          type: string
+        name: id
+        type: array
       - description: 页码
         in: query
         name: page
@@ -17089,6 +17175,42 @@ paths:
       summary: 获取知识库文件内容
       tags:
       - knowledge-bases
+  /knowledge-bases/{id}/files/processing/snapshot:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 知识库公开ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 当前页处理中或待确认的文件ID，最多100个，可为空
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/GetKnowledgeBaseFileProcessingSnapshotRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/KnowledgeBaseFileProcessingSnapshotResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/KnowledgebaseErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/KnowledgebaseErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 查询当前用户可见知识库处理快照
+      tags:
+      - knowledge-bases
   /knowledge-bases/{id}/files/processing/statuses:
     post:
       consumes:
@@ -17138,6 +17260,17 @@ paths:
         in: query
         name: q
         type: string
+      - description: 排序方式(default/name/created/updated/files)
+        in: query
+        name: sort
+        type: string
+      - collectionFormat: csv
+        description: 知识库ID
+        in: query
+        items:
+          type: string
+        name: id
+        type: array
       - description: 可用状态
         in: query
         name: enabled

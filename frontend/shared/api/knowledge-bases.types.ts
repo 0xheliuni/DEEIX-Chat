@@ -5,6 +5,7 @@ import type {
   KnowledgeBaseFileDataResponse,
   KnowledgeBaseFileMutationDataResponse,
   KnowledgeBaseFilePageResponseDoc,
+  KnowledgeBaseFileProcessingSnapshotResponse,
   KnowledgeBaseFileProcessingStatusResponse,
   KnowledgeBasePageResponseDoc,
   KnowledgeBaseResponse,
@@ -26,6 +27,9 @@ export type KnowledgeBasePage = Omit<KnowledgeBasePageResponseDoc["data"], "resu
 
 export type KnowledgeBaseFileDTO = KnowledgeBaseFilePageResponseDoc["data"]["results"][number];
 export type KnowledgeBaseFileProcessingStatusDTO = KnowledgeBaseFileProcessingStatusResponse;
+export type KnowledgeBaseFileProcessingSnapshotDTO = Omit<KnowledgeBaseFileProcessingSnapshotResponse, "knowledgeBase"> & {
+  knowledgeBase: KnowledgeBaseDTO;
+};
 export type KnowledgeBaseFilePage = KnowledgeBaseFilePageResponseDoc["data"];
 export type KnowledgeBaseData = Omit<KnowledgeBaseDataResponse, "knowledgeBase"> & {
   knowledgeBase: KnowledgeBaseDTO;

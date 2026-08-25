@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { listAllVisibleKnowledgeBases } from "@/shared/api/knowledge-bases";
+import { listVisibleKnowledgeBases } from "@/shared/api/knowledge-bases";
 import { listVisibleSkills } from "@/shared/api/skills";
 import type { SkillSummaryDTO } from "@/shared/api/skills.types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
@@ -116,10 +116,13 @@ export function useNewConversationDefaults({
       try {
         const token = await resolveAccessToken();
         if (!token) return;
-        const available = await listAllVisibleKnowledgeBases(token);
+        const available = await listVisibleKnowledgeBases(token, {
+          ids: defaultKnowledgeBaseIDs.slice(0, 8),
+          pageSize: Math.max(1, Math.min(8, defaultKnowledgeBaseIDs.length)),
+        });
         if (cancelled || manuallyChangedKnowledgeBaseKeyRef.current === contextKey) return;
         const readyIDs = new Set(
-          available.filter((item) => item.readyFileCount > 0).map((item) => item.publicID),
+          available.results.filter((item) => item.readyFileCount > 0).map((item) => item.publicID),
         );
         appliedKnowledgeBaseDefaultsKeyRef.current = contextKey;
         setSelectedKnowledgeBaseIDs(defaultKnowledgeBaseIDs.filter((id) => readyIDs.has(id)).slice(0, 8));

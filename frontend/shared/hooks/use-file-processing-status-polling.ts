@@ -10,33 +10,44 @@ type FileStatus = {
   fileID: string;
 };
 
-export type FileStatusPollingResult<Status extends FileStatus> = {
+export type FileStatusPollingResult<Status extends FileStatus, Snapshot = Status[]> = {
   statuses: Status[];
   missingFileIDs: string[];
+  snapshot: Snapshot;
 };
 
-type FileStatusPollingOptions<Status extends FileStatus> = {
+type FileStatusPollingOptions<Status extends FileStatus, Snapshot = Status[]> = {
   fileIDs: string[];
   intervalMs: number;
-  loadStatuses: (accessToken: string, fileIDs: string[], signal: AbortSignal) => Promise<Status[]>;
-  onResult: (result: FileStatusPollingResult<Status>) => void;
+  enabled?: boolean;
+  loadStatuses: (accessToken: string, fileIDs: string[], signal: AbortSignal) => Promise<Snapshot>;
+  selectStatuses: (snapshot: Snapshot) => Status[];
+  onResult: (result: FileStatusPollingResult<Status, Snapshot>) => void;
 };
 
-export function useFileStatusPolling<Status extends FileStatus>({
+function selectStatusArray<Status extends FileStatus>(statuses: Status[]): Status[] {
+  return statuses;
+}
+
+export function useFileStatusPolling<Status extends FileStatus, Snapshot = Status[]>({
   fileIDs,
   intervalMs,
+  enabled,
   loadStatuses,
+  selectStatuses,
   onResult,
-}: FileStatusPollingOptions<Status>) {
+}: FileStatusPollingOptions<Status, Snapshot>) {
   const fileIDsKey = Array.from(new Set(fileIDs.filter(Boolean))).sort().join("\u0000");
   const onResultRef = React.useRef(onResult);
+  const selectStatusesRef = React.useRef(selectStatuses);
 
   React.useEffect(() => {
     onResultRef.current = onResult;
-  }, [onResult]);
+    selectStatusesRef.current = selectStatuses;
+  }, [onResult, selectStatuses]);
 
   React.useEffect(() => {
-    if (!fileIDsKey) {
+    if (!(enabled ?? Boolean(fileIDsKey))) {
       return;
     }
 
@@ -45,7 +56,8 @@ export function useFileStatusPolling<Status extends FileStatus>({
     let polling = false;
     let timer: number | undefined;
     let requestController: AbortController | null = null;
-    const requestedFileIDs = fileIDsKey.split("\u0000");
+    const requestedFileIDs = fileIDsKey ? fileIDsKey.split("\u0000") : [];
+    const missingObservations = new Map<string, { count: number; firstSeenAt: number }>();
     const schedule = () => {
       if (!cancelled && !document.hidden) {
         timer = window.setTimeout(
@@ -59,7 +71,7 @@ export function useFileStatusPolling<Status extends FileStatus>({
         return;
       }
       polling = true;
-      let statuses: Status[] | null = null;
+      let snapshot: Snapshot | null = null;
       requestController = new AbortController();
       const controller = requestController;
       try {
@@ -67,7 +79,7 @@ export function useFileStatusPolling<Status extends FileStatus>({
         if (!accessToken || cancelled || controller.signal.aborted || document.hidden) {
           return;
         }
-        statuses = await loadStatuses(accessToken, requestedFileIDs, controller.signal);
+        snapshot = await loadStatuses(accessToken, requestedFileIDs, controller.signal);
         failureCount = 0;
       } catch {
         if (!controller.signal.aborted) {
@@ -81,10 +93,29 @@ export function useFileStatusPolling<Status extends FileStatus>({
         polling = false;
         schedule();
       }
-      if (!cancelled && statuses) {
+      if (!cancelled && snapshot !== null) {
+        const statuses = selectStatusesRef.current(snapshot);
         const returnedFileIDs = new Set(statuses.map((status) => status.fileID));
-        const missingFileIDs = requestedFileIDs.filter((fileID) => !returnedFileIDs.has(fileID));
-        onResultRef.current({ statuses, missingFileIDs });
+        const observedAt = Date.now();
+        const missingFileIDs: string[] = [];
+        for (const fileID of requestedFileIDs) {
+          if (returnedFileIDs.has(fileID)) {
+            missingObservations.delete(fileID);
+            continue;
+          }
+          const previous = missingObservations.get(fileID);
+          const observation = previous
+            ? { count: previous.count + 1, firstSeenAt: previous.firstSeenAt }
+            : { count: 1, firstSeenAt: observedAt };
+          missingObservations.set(fileID, observation);
+          if (
+            observation.count >= 2 &&
+            observedAt - observation.firstSeenAt >= Math.max(intervalMs * 2, 3000)
+          ) {
+            missingFileIDs.push(fileID);
+          }
+        }
+        onResultRef.current({ statuses, missingFileIDs, snapshot });
       }
     };
     const handleVisibilityChange = () => {
@@ -109,14 +140,15 @@ export function useFileStatusPolling<Status extends FileStatus>({
         window.clearTimeout(timer);
       }
     };
-  }, [fileIDsKey, intervalMs, loadStatuses]);
+  }, [enabled, fileIDsKey, intervalMs, loadStatuses]);
 }
 
 export function useFileProcessingStatusPolling(
-  options: Omit<FileStatusPollingOptions<FileProcessingStatusDTO>, "loadStatuses">,
+  options: Omit<FileStatusPollingOptions<FileProcessingStatusDTO>, "loadStatuses" | "selectStatuses">,
 ) {
   useFileStatusPolling({
     ...options,
     loadStatuses: getFileProcessingStatuses,
+    selectStatuses: selectStatusArray,
   });
 }

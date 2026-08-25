@@ -406,6 +406,7 @@
     "knowledgeBaseNotReady": "暂无可检索文件",
     "knowledgeBaseEmpty": "暂无可用知识库",
     "knowledgeBaseLoadFailed": "知识库加载失败",
+    "knowledgeBaseLoadMore": "加载更多",
     "knowledgeBaseUnavailable": "知识库检索当前不可用",
     "knowledgeBaseUnavailableDescription": "请联系管理员检查 RAG 与向量服务配置。",
     "knowledgeBaseUnavailableRAGDisabled": "RAG 检索未启用，请联系管理员开启 RAG。",

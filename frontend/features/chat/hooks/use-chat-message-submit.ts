@@ -571,6 +571,12 @@ export function useChatMessageSubmit({
   const settledQueuedSubmissionIDsRef = React.useRef(new Set<string>());
   const [queuedSubmissions, setQueuedSubmissions] = React.useState<QueuedChatSubmission[]>([]);
   const queuedSubmissionsRef = React.useRef<QueuedChatSubmission[]>([]);
+  React.useEffect(() => {
+    const queuedIDs = new Set(queuedSubmissions.map((submission) => submission.id));
+    for (const settledID of settledQueuedSubmissionIDsRef.current) {
+      if (!queuedIDs.has(settledID)) settledQueuedSubmissionIDsRef.current.delete(settledID);
+    }
+  }, [queuedSubmissions]);
   const isRunActive = React.useCallback((runID: string) => activeStreamsRef.current.has(runID), []);
   const {
     getStatus: getHiddenParentRunStatus,

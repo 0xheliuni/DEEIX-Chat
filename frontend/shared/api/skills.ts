@@ -50,10 +50,11 @@ function normalizeSummaryPagePayload(data: PagePayload<SkillSummaryDTO>): SkillS
 export async function listVisibleSkills(
   accessToken: string,
   options: SkillListOptions = {},
+  signal?: AbortSignal,
 ): Promise<SkillSummaryPage> {
   const data = await authedRequest<PagePayload<SkillSummaryDTO>>(
     skillListPath("/api/v1/skills", options),
-    { accessToken },
+    { accessToken, signal },
     true,
   );
   return normalizeSummaryPagePayload(data);

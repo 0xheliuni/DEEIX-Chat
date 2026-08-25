@@ -406,6 +406,7 @@
     "knowledgeBaseNotReady": "No searchable files yet",
     "knowledgeBaseEmpty": "No knowledge bases available",
     "knowledgeBaseLoadFailed": "Failed to load knowledge bases",
+    "knowledgeBaseLoadMore": "Load more",
     "knowledgeBaseUnavailable": "Knowledge base retrieval is unavailable",
     "knowledgeBaseUnavailableDescription": "Ask an administrator to check the RAG and embedding configuration.",
     "knowledgeBaseUnavailableRAGDisabled": "RAG retrieval is disabled. Ask an administrator to enable RAG.",

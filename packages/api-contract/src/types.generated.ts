@@ -1476,6 +1476,11 @@ export interface GetFileProcessingStatusesRequest {
   fileIDs: string[];
 }
 
+export interface GetKnowledgeBaseFileProcessingSnapshotRequest {
+  /** @maxItems 100 */
+  fileIDs: string[];
+}
+
 export interface GetKnowledgeBaseFileProcessingStatusesRequest {
   /**
    * @maxItems 100
@@ -1675,12 +1680,18 @@ export interface KnowledgeBaseFilePageResponseDoc {
   errorMsg: string;
 }
 
+export interface KnowledgeBaseFileProcessingSnapshotResponse {
+  knowledgeBase: KnowledgeBaseResponse;
+  statuses: KnowledgeBaseFileProcessingStatusResponse[];
+}
+
 export interface KnowledgeBaseFileProcessingStatusResponse {
   chunkCount: number;
   detectedMIME: string;
   embedStatus: string;
   fileCategory: string;
   fileID: string;
+  processing: boolean;
   processingReady: boolean;
   processingStatus: string;
   ragOptOut: boolean;
@@ -1696,6 +1707,7 @@ export interface KnowledgeBaseFileResponse {
   fileID: string;
   fileName: string;
   mimeType: string;
+  processing: boolean;
   processingReady: boolean;
   processingStatus: string;
   ragOptOut: boolean;
@@ -4961,12 +4973,16 @@ export namespace Admin {
     export type RequestQuery = {
       /** 可用状态 */
       enabled?: boolean;
+      /** 知识库ID */
+      id?: string[];
       /** 页码 */
       page?: number;
       /** 每页数量 */
       page_size?: number;
       /** 搜索关键词 */
       q?: string;
+      /** 排序方式(default/name/created/updated/files) */
+      sort?: string;
     };
     export type RequestBody = never;
     export type RequestHeaders = {};
@@ -5203,6 +5219,25 @@ export namespace Admin {
     export type RequestBody = AddKnowledgeBaseFilesRequest;
     export type RequestHeaders = {};
     export type ResponseBody = KnowledgeBaseFileMutationResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags admin-knowledge-bases
+   * @name KnowledgeBasesFilesProcessingSnapshotCreate
+   * @summary 查询内置知识库处理快照
+   * @request POST:/admin/knowledge-bases/{id}/files/processing/snapshot
+   * @secure
+   */
+  export namespace KnowledgeBasesFilesProcessingSnapshotCreate {
+    export type RequestParams = {
+      /** 知识库公开ID */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = GetKnowledgeBaseFileProcessingSnapshotRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseFileProcessingSnapshotResponse;
   }
 
   /**
@@ -8636,12 +8671,16 @@ export namespace KnowledgeBases {
   export namespace KnowledgeBasesList {
     export type RequestParams = {};
     export type RequestQuery = {
+      /** 知识库ID */
+      id?: string[];
       /** 页码 */
       page?: number;
       /** 每页数量 */
       page_size?: number;
       /** 搜索关键词 */
       q?: string;
+      /** 排序方式(default/name/created/updated/files) */
+      sort?: string;
     };
     export type RequestBody = never;
     export type RequestHeaders = {};
@@ -8661,12 +8700,16 @@ export namespace KnowledgeBases {
     export type RequestQuery = {
       /** 可用状态 */
       enabled?: boolean;
+      /** 知识库ID */
+      id?: string[];
       /** 页码 */
       page?: number;
       /** 每页数量 */
       page_size?: number;
       /** 搜索关键词 */
       q?: string;
+      /** 排序方式(default/name/created/updated/files) */
+      sort?: string;
     };
     export type RequestBody = never;
     export type RequestHeaders = {};
@@ -8837,6 +8880,25 @@ export namespace KnowledgeBases {
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = KnowledgeBaseFilePageResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags knowledge-bases
+   * @name FilesProcessingSnapshotCreate
+   * @summary 查询当前用户可见知识库处理快照
+   * @request POST:/knowledge-bases/{id}/files/processing/snapshot
+   * @secure
+   */
+  export namespace FilesProcessingSnapshotCreate {
+    export type RequestParams = {
+      /** 知识库公开ID */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = GetKnowledgeBaseFileProcessingSnapshotRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseFileProcessingSnapshotResponse;
   }
 
   /**

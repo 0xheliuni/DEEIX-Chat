@@ -450,6 +450,7 @@ type ChannelRepository interface {
 	GetModelListRowByID(ctx context.Context, modelID uint) (*ChannelModelListRow, error)
 	GetModelByName(ctx context.Context, platformModelName string) (*domainchannel.PlatformModel, error)
 	GetActiveModelByName(ctx context.Context, platformModelName string) (*domainchannel.PlatformModel, error)
+	GetActiveRoutableModelKindsJSON(ctx context.Context, platformModelName string) (string, bool, error)
 	ListModels(ctx context.Context, input ListChannelModelsInput) ([]ChannelModelListRow, int64, error)
 	CreateUpstreamModel(ctx context.Context, item *domainchannel.UpstreamModel) error
 	UpsertUpstreamModel(ctx context.Context, item *domainchannel.UpstreamModel) error

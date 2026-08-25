@@ -23,13 +23,13 @@ import {
   deleteMyKnowledgeBase,
   fetchKnowledgeBaseFileContent,
   getKnowledgeBase,
-  getKnowledgeBaseFileProcessingStatuses,
+  getKnowledgeBaseFileProcessingSnapshot,
   listAdminKnowledgeBaseFiles,
-  listAllAdminKnowledgeBases,
-  listAllVisibleKnowledgeBases,
+  listAdminKnowledgeBases,
   listAvailableAdminKnowledgeBaseFiles,
   listAvailableMyKnowledgeBaseFiles,
   listKnowledgeBaseFiles,
+  listVisibleKnowledgeBases,
   removeAdminKnowledgeBaseFile,
   removeMyKnowledgeBaseFile,
   updateAdminKnowledgeBase,
@@ -39,6 +39,7 @@ import {
 import type {
   KnowledgeBaseDTO,
   KnowledgeBaseFileDTO,
+  KnowledgeBaseFileProcessingSnapshotDTO,
   KnowledgeBaseFileProcessingStatusDTO,
 } from "@/shared/api/knowledge-bases.types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
@@ -61,10 +62,6 @@ const AVAILABLE_FILE_PAGE_SIZE = 50;
 const UPLOAD_CONCURRENCY = 4;
 const AVAILABLE_FILE_SEARCH_DEBOUNCE_MS = 200;
 
-function isKnowledgeBaseFileSearchable(file: KnowledgeBaseFileDTO): boolean {
-  return file.processingReady && file.embedStatus === "ready" && !file.ragOptOut && file.chunkCount > 0;
-}
-
 export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
   const t = useTranslations("knowledgeBases");
   const resolveErrorMessage = useLocalizedErrorMessage();
@@ -73,6 +70,7 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
   const [selectedKnowledgeBaseIDs, setSelectedKnowledgeBaseIDs] = React.useState<string[]>([]);
   const [sortKey, setSortKey] = React.useState<KnowledgeBaseSortKey>("default");
   const [query, setQuery] = React.useState("");
+  const [listQuery, setListQuery] = React.useState("");
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
   const [mobileView, setMobileView] = React.useState<KnowledgeBaseMobileView>("list");
@@ -80,6 +78,9 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
   const [filesTotal, setFilesTotal] = React.useState(0);
   const [filesPage, setFilesPage] = React.useState(1);
   const [loading, setLoading] = React.useState(true);
+  const [itemsTotal, setItemsTotal] = React.useState(0);
+  const [itemsPage, setItemsPage] = React.useState(1);
+  const [itemsLoadingMore, setItemsLoadingMore] = React.useState(false);
   const [filesLoading, setFilesLoading] = React.useState(false);
   const [filesLoadingMore, setFilesLoadingMore] = React.useState(false);
   const [removingFileID, setRemovingFileID] = React.useState("");
@@ -119,18 +120,15 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
   );
   const selectedProcessingFileCount = selected?.processingFileCount ?? 0;
 
-  const visibleItems = React.useMemo(() => {
-    const normalizedQuery = query.trim().toLocaleLowerCase();
-    const filteredItems = normalizedQuery
-      ? items.filter((item) =>
-          `${item.name}\n${item.description}`.toLocaleLowerCase().includes(normalizedQuery))
-      : items;
-    return sortKnowledgeBases(filteredItems, sortKey);
-  }, [items, query, sortKey]);
   const selectableItems = React.useMemo(
-    () => visibleItems.filter((item) => mode === "admin" || item.scope === "user"),
-    [mode, visibleItems],
+    () => items.filter((item) => mode === "admin" || item.scope === "user"),
+    [items, mode],
   );
+
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => setListQuery(query.trim()), 200);
+    return () => window.clearTimeout(timer);
+  }, [query]);
 
   React.useEffect(() => {
     const selectableIDs = new Set(selectableItems.map((item) => item.publicID));
@@ -185,15 +183,34 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
 
   const loadItems = React.useCallback(async (preferredID?: string, silent = false) => {
     const requestVersion = ++itemsRequestVersionRef.current;
+    const targetID = preferredID || (silent ? selectedIDRef.current : "");
+    setItemsLoadingMore(false);
+    if (!silent) setLoading(true);
     try {
       const token = await requireAccessToken();
-      const results = mode === "admin"
-        ? await listAllAdminKnowledgeBases(token)
-        : await listAllVisibleKnowledgeBases(token);
+      const page = mode === "admin"
+        ? await listAdminKnowledgeBases(token, {
+            page: 1, pageSize: 50, query: listQuery, sort: sortKey,
+          })
+        : await listVisibleKnowledgeBases(token, {
+            page: 1, pageSize: 50, query: listQuery, sort: sortKey,
+          });
       if (itemsRequestVersionRef.current !== requestVersion) return;
+      let results = page.results;
+      if (targetID && !results.some((item) => item.publicID === targetID)) {
+        try {
+          const preferred = await getKnowledgeBase(token, targetID, mode === "admin");
+          if (itemsRequestVersionRef.current !== requestVersion) return;
+          results = [preferred, ...results];
+        } catch {
+          // The selected item may have been deleted between the mutation and refresh.
+        }
+      }
       setItems(results);
+      setItemsTotal(page.total);
+      setItemsPage(1);
       setSelectedID((current) => {
-        const next = preferredID || current;
+        const next = targetID || current;
         return results.some((item) => item.publicID === next) ? next : (results[0]?.publicID ?? "");
       });
     } catch {
@@ -201,7 +218,35 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
     } finally {
       if (itemsRequestVersionRef.current === requestVersion) setLoading(false);
     }
-  }, [mode, t]);
+  }, [listQuery, mode, sortKey, t]);
+
+  const loadMoreItems = React.useCallback(async () => {
+    if (itemsLoadingMore || items.length >= itemsTotal) return;
+    const requestVersion = itemsRequestVersionRef.current;
+    setItemsLoadingMore(true);
+    try {
+      const token = await requireAccessToken();
+      const nextPage = itemsPage + 1;
+      const page = mode === "admin"
+        ? await listAdminKnowledgeBases(token, {
+            page: nextPage, pageSize: 50, query: listQuery, sort: sortKey,
+          })
+        : await listVisibleKnowledgeBases(token, {
+            page: nextPage, pageSize: 50, query: listQuery, sort: sortKey,
+          });
+      if (itemsRequestVersionRef.current !== requestVersion) return;
+      setItems((current) => {
+        const existing = new Set(current.map((item) => item.publicID));
+        return [...current, ...page.results.filter((item) => !existing.has(item.publicID))];
+      });
+      setItemsTotal(page.total);
+      setItemsPage(nextPage);
+    } catch {
+      if (itemsRequestVersionRef.current === requestVersion) toast.error(t("loadFailed"));
+    } finally {
+      if (itemsRequestVersionRef.current === requestVersion) setItemsLoadingMore(false);
+    }
+  }, [items.length, itemsLoadingMore, itemsPage, itemsTotal, listQuery, mode, sortKey, t]);
 
   React.useEffect(() => {
     void loadItems();
@@ -285,30 +330,27 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
 
   const loadProcessingStatuses = React.useCallback(
     (accessToken: string, fileIDs: string[], signal: AbortSignal) =>
-      getKnowledgeBaseFileProcessingStatuses(accessToken, selectedID, fileIDs, mode === "admin", signal),
+      getKnowledgeBaseFileProcessingSnapshot(accessToken, selectedID, fileIDs, mode === "admin", signal),
     [mode, selectedID],
+  );
+  const selectProcessingStatuses = React.useCallback(
+    (snapshot: KnowledgeBaseFileProcessingSnapshotDTO) => snapshot.statuses,
+    [],
   );
 
   const onProcessingResult = React.useCallback(({
     statuses,
     missingFileIDs,
-  }: FileStatusPollingResult<KnowledgeBaseFileProcessingStatusDTO>) => {
+    snapshot,
+  }: FileStatusPollingResult<KnowledgeBaseFileProcessingStatusDTO, KnowledgeBaseFileProcessingSnapshotDTO>) => {
     const statusesByID = new Map(statuses.map((status) => [status.fileID, status]));
     const missingFileIDSet = new Set(missingFileIDs);
     const currentFiles = filesRef.current;
-    let readyDelta = 0;
-    let processingDelta = 0;
-    let changed = false;
-    let removedCount = 0;
-    let removedReadyCount = 0;
-    let removedProcessingCount = 0;
+    let filesChanged = false;
     const nextFiles: KnowledgeBaseFileDTO[] = [];
     for (const file of currentFiles) {
       if (missingFileIDSet.has(file.fileID)) {
-        changed = true;
-        removedCount += 1;
-        removedReadyCount += Number(isKnowledgeBaseFileSearchable(file));
-        removedProcessingCount += Number(isFileProcessing(file));
+        filesChanged = true;
         continue;
       }
       const status = statusesByID.get(file.fileID);
@@ -320,6 +362,7 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
         file.detectedMIME === status.detectedMIME &&
         file.fileCategory === status.fileCategory &&
         file.processingStatus === status.processingStatus &&
+        file.processing === status.processing &&
         file.processingReady === status.processingReady &&
         file.embedStatus === status.embedStatus &&
         file.chunkCount === status.chunkCount &&
@@ -330,122 +373,40 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
         continue;
       }
       const nextFile = { ...file, ...status };
-      readyDelta += Number(isKnowledgeBaseFileSearchable(nextFile)) - Number(isKnowledgeBaseFileSearchable(file));
-      processingDelta += Number(isFileProcessing(nextFile)) - Number(isFileProcessing(file));
-      changed = true;
+      filesChanged = true;
       nextFiles.push(nextFile);
     }
-    if (!changed) {
-      return;
-    }
 
-    filesRef.current = nextFiles;
-    setFiles(nextFiles);
-    if (removedCount > 0) {
-      setFilesTotal((current) => Math.max(0, current - removedCount));
+    if (filesChanged) {
+      filesRef.current = nextFiles;
+      setFiles(nextFiles);
     }
-    if (readyDelta !== 0 || processingDelta !== 0 || removedCount > 0) {
-      setItems((current) => current.map((item) => {
-        if (item.publicID !== selectedID) {
-          return item;
-        }
-        const fileCount = Math.max(0, item.fileCount - removedCount);
-        return {
-          ...item,
-          fileCount,
-          readyFileCount: Math.max(
-            0,
-            Math.min(fileCount, item.readyFileCount + readyDelta - removedReadyCount),
-          ),
-          processingFileCount: Math.max(
-            0,
-            item.processingFileCount + processingDelta - removedProcessingCount,
-          ),
-        };
-      }));
+    const latest = snapshot.knowledgeBase;
+    const summaryChanged = !selected ||
+      selected.revision !== latest.revision ||
+      selected.fileCount !== latest.fileCount ||
+      selected.readyFileCount !== latest.readyFileCount ||
+      selected.processingFileCount !== latest.processingFileCount;
+    setFilesTotal((current) => current === latest.fileCount ? current : latest.fileCount);
+    if (summaryChanged) {
+      setItems((current) => current.map((item) => item.publicID === selectedID ? latest : item));
       dispatchKnowledgeBaseInvalidated(selectedID);
     }
-  }, [selectedID]);
+  }, [selected, selectedID]);
 
   useFileStatusPolling({
     fileIDs: !selectedID || filesLoading || filesLoadingMore ? [] : processingFileIDs,
     intervalMs: 2500,
+    enabled: Boolean(
+      selectedID &&
+      !filesLoading &&
+      !filesLoadingMore &&
+      (selectedProcessingFileCount > 0 || processingFileIDs.length > 0),
+    ),
     loadStatuses: loadProcessingStatuses,
+    selectStatuses: selectProcessingStatuses,
     onResult: onProcessingResult,
   });
-
-  React.useEffect(() => {
-    if (
-      !selectedID ||
-      selectedProcessingFileCount <= 0 ||
-      filesTotal <= files.length
-    ) {
-      return;
-    }
-    let cancelled = false;
-    let timer: number | null = null;
-    let requestController: AbortController | null = null;
-    const schedule = () => {
-      if (!cancelled && !document.hidden) {
-        timer = window.setTimeout(poll, 2500);
-      }
-    };
-    const poll = async () => {
-      if (cancelled || document.hidden || requestController !== null) {
-        return;
-      }
-      requestController = new AbortController();
-      const controller = requestController;
-      try {
-        const token = await requireAccessToken();
-        const latest = await getKnowledgeBase(token, selectedID, mode === "admin", controller.signal);
-        if (cancelled || controller.signal.aborted || selectedIDRef.current !== selectedID) {
-          return;
-        }
-        setItems((current) => {
-          const existing = current.find((item) => item.publicID === selectedID);
-          if (
-            existing &&
-            existing.revision === latest.revision &&
-            existing.fileCount === latest.fileCount &&
-            existing.readyFileCount === latest.readyFileCount &&
-            existing.processingFileCount === latest.processingFileCount
-          ) {
-            return current;
-          }
-          return current.map((item) => item.publicID === selectedID ? latest : item);
-        });
-      } catch {
-        // The regular page refresh remains the fallback after a transient polling failure.
-      } finally {
-        if (requestController === controller) {
-          requestController = null;
-          schedule();
-        }
-      }
-    };
-    const handleVisibilityChange = () => {
-      if (timer !== null) {
-        window.clearTimeout(timer);
-        timer = null;
-      }
-      if (document.hidden) {
-        requestController?.abort();
-      } else {
-        void poll();
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    void poll();
-    return () => {
-      cancelled = true;
-      requestController?.abort();
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      if (timer !== null) {
-        window.clearTimeout(timer);
-      }
-    };
-  }, [files.length, filesTotal, mode, selectedID, selectedProcessingFileCount]);
 
   React.useEffect(() => {
     if (!addFilesOpen || !selected) return;
@@ -806,8 +767,10 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
 
   return {
     list: {
-      items: visibleItems,
+      items,
       loading,
+      loadingMore: itemsLoadingMore,
+      hasMore: items.length < itemsTotal,
       mobileView,
       selectedID,
       selectedIDs: selectedKnowledgeBaseIDs,
@@ -817,9 +780,9 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
       sidebarCollapsed,
       bulkDeleting,
       refresh: () => {
-        setLoading(true);
-        void loadItems(undefined, true);
+        void loadItems();
       },
+      loadMore: loadMoreItems,
       create: () => setDraft({ name: "", description: "" }),
       select: (publicID: string) => {
         setSelectedID(publicID);
@@ -928,27 +891,6 @@ async function requireAccessToken(): Promise<string> {
   const token = await resolveAccessToken();
   if (!token) throw new Error("missing access token");
   return token;
-}
-
-function sortKnowledgeBases(
-  items: KnowledgeBaseDTO[],
-  sortKey: KnowledgeBaseSortKey,
-): KnowledgeBaseDTO[] {
-  if (sortKey === "default") return items;
-  const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
-  return items
-    .map((item, index) => ({ item, index }))
-    .sort((left, right) => {
-      let result = 0;
-      if (sortKey === "name") result = collator.compare(left.item.name, right.item.name);
-      else if (sortKey === "files") result = right.item.fileCount - left.item.fileCount;
-      else {
-        const field = sortKey === "created" ? "createdAt" : "updatedAt";
-        result = Date.parse(right.item[field]) - Date.parse(left.item[field]);
-      }
-      return result || left.index - right.index;
-    })
-    .map(({ item }) => item);
 }
 
 type KnowledgeFileUploadResult = { file: { fileID: string } };

@@ -11,6 +11,7 @@ import type {
   KnowledgeBaseFileDTO,
   KnowledgeBaseFileMutationData,
   KnowledgeBaseFilePage,
+  KnowledgeBaseFileProcessingSnapshotDTO,
   KnowledgeBaseFileProcessingStatusDTO,
   KnowledgeBasePage,
   PatchMyKnowledgeBaseRequest,
@@ -21,6 +22,8 @@ import type {
 
 type KnowledgeBaseListOptions = {
   query?: string;
+  sort?: "default" | "name" | "created" | "updated" | "files";
+  ids?: string[];
   enabled?: boolean;
   page?: number;
   pageSize?: number;
@@ -36,6 +39,10 @@ function listPath(basePath: string, options: KnowledgeBaseListOptions = {}): str
     page_size: String(options.pageSize ?? 50),
   });
   if (options.query?.trim()) params.set("q", options.query.trim());
+  if (options.sort && options.sort !== "default") params.set("sort", options.sort);
+  for (const id of options.ids ?? []) {
+    if (id.trim()) params.append("id", id.trim());
+  }
   if (typeof options.enabled === "boolean") params.set("enabled", String(options.enabled));
   return `${basePath}?${params.toString()}`;
 }
@@ -44,13 +51,17 @@ function normalizePage(data: PagePayload<KnowledgeBaseDTO>): KnowledgeBasePage {
   return { results: data.results ?? [], total: data.total ?? 0 };
 }
 
-async function listVisibleKnowledgeBases(accessToken: string, options: KnowledgeBaseListOptions = {}): Promise<KnowledgeBasePage> {
-  const data = await authedRequest<PagePayload<KnowledgeBaseDTO>>(listPath("/api/v1/knowledge-bases", options), { accessToken }, true);
+export async function listVisibleKnowledgeBases(
+  accessToken: string,
+  options: KnowledgeBaseListOptions = {},
+  signal?: AbortSignal,
+): Promise<KnowledgeBasePage> {
+  const data = await authedRequest<PagePayload<KnowledgeBaseDTO>>(
+    listPath("/api/v1/knowledge-bases", options),
+    { accessToken, signal },
+    true,
+  );
   return normalizePage(data);
-}
-
-export async function listAllVisibleKnowledgeBases(accessToken: string): Promise<KnowledgeBaseDTO[]> {
-  return listAllKnowledgeBasePages((page, pageSize) => listVisibleKnowledgeBases(accessToken, { page, pageSize }));
 }
 
 export async function getKnowledgeBase(
@@ -100,24 +111,45 @@ export async function getKnowledgeBaseFileProcessingStatuses(
   admin = false,
   signal?: AbortSignal,
 ): Promise<KnowledgeBaseFileProcessingStatusDTO[]> {
-  if (fileIDs.length === 0) {
-    return [];
-  }
+  if (fileIDs.length === 0) return [];
   const basePath = admin ? "/api/v1/admin/knowledge-bases" : "/api/v1/knowledge-bases";
-  const requests: Promise<KnowledgeBaseFileProcessingStatusDTO[]>[] = [];
-  for (let index = 0; index < fileIDs.length; index += 100) {
-    requests.push(authedRequest<KnowledgeBaseFileProcessingStatusDTO[]>(
+  const batches = Array.from(
+    { length: Math.ceil(fileIDs.length / 100) },
+    (_, index) => fileIDs.slice(index * 100, (index + 1) * 100),
+  );
+  const statuses = await Promise.all(batches.map((batch) =>
+    authedRequest<KnowledgeBaseFileProcessingStatusDTO[]>(
       `${basePath}/${pathParam(id)}/files/processing/statuses`,
       {
         method: "POST",
         accessToken,
-        body: { fileIDs: fileIDs.slice(index, index + 100) },
+        body: { fileIDs: batch },
         signal,
       },
       true,
-    ));
-  }
-  return (await Promise.all(requests)).flat();
+    ),
+  ));
+  return statuses.flat();
+}
+
+export async function getKnowledgeBaseFileProcessingSnapshot(
+  accessToken: string,
+  id: string,
+  fileIDs: string[],
+  admin = false,
+  signal?: AbortSignal,
+): Promise<KnowledgeBaseFileProcessingSnapshotDTO> {
+  const basePath = admin ? "/api/v1/admin/knowledge-bases" : "/api/v1/knowledge-bases";
+  return authedRequest<KnowledgeBaseFileProcessingSnapshotDTO>(
+    `${basePath}/${pathParam(id)}/files/processing/snapshot`,
+    {
+      method: "POST",
+      accessToken,
+      body: { fileIDs: fileIDs.slice(0, 100) },
+      signal,
+    },
+    true,
+  );
 }
 
 export async function listAvailableMyKnowledgeBaseFiles(
@@ -160,13 +192,9 @@ export async function removeMyKnowledgeBaseFile(accessToken: string, id: string,
   );
 }
 
-async function listAdminKnowledgeBases(accessToken: string, options: KnowledgeBaseListOptions = {}): Promise<KnowledgeBasePage> {
+export async function listAdminKnowledgeBases(accessToken: string, options: KnowledgeBaseListOptions = {}): Promise<KnowledgeBasePage> {
   const data = await authedRequest<PagePayload<KnowledgeBaseDTO>>(listPath("/api/v1/admin/knowledge-bases", options), { accessToken }, true);
   return normalizePage(data);
-}
-
-export async function listAllAdminKnowledgeBases(accessToken: string): Promise<KnowledgeBaseDTO[]> {
-  return listAllKnowledgeBasePages((page, pageSize) => listAdminKnowledgeBases(accessToken, { page, pageSize }));
 }
 
 export async function createAdminKnowledgeBase(accessToken: string, payload: WriteKnowledgeBaseRequest): Promise<KnowledgeBaseData> {
@@ -262,27 +290,4 @@ export async function removeAdminKnowledgeBaseFile(accessToken: string, id: stri
     { method: "DELETE", accessToken },
     true,
   );
-}
-
-async function listAllKnowledgeBasePages(
-  loadPage: (page: number, pageSize: number) => Promise<KnowledgeBasePage>,
-): Promise<KnowledgeBaseDTO[]> {
-  const pageSize = 100;
-  const firstPage = await loadPage(1, pageSize);
-  const results: KnowledgeBaseDTO[] = [];
-  const seen = new Set<string>();
-  const appendPage = (items: KnowledgeBaseDTO[]) => {
-    for (const item of items) {
-      if (seen.has(item.publicID)) continue;
-      seen.add(item.publicID);
-      results.push(item);
-    }
-  };
-  appendPage(firstPage.results);
-  const pageCount = Math.ceil(firstPage.total / pageSize);
-  for (let page = 2; page <= pageCount; page += 1) {
-    const nextPage = await loadPage(page, pageSize);
-    appendPage(nextPage.results);
-  }
-  return results;
 }

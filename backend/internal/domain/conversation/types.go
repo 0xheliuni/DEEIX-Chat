@@ -293,6 +293,28 @@ type FileObject struct {
 	UpdatedAt              time.Time
 }
 
+const (
+	FileProcessingStatusUploaded   = "uploaded"
+	FileProcessingStatusQueued     = "queued"
+	FileProcessingStatusExtracting = "extracting"
+	FileProcessingStatusEmbedding  = "embedding"
+	FileSubprocessStatusProcessing = "processing"
+)
+
+// IsFileProcessing 统一判断文件是否仍处于服务端处理阶段。
+func IsFileProcessing(file FileObject) bool {
+	switch file.ProcessingStatus {
+	case FileProcessingStatusUploaded,
+		FileProcessingStatusQueued,
+		FileProcessingStatusExtracting,
+		FileProcessingStatusEmbedding:
+		return true
+	default:
+		return file.ExtractStatus == FileSubprocessStatusProcessing ||
+			file.EmbedStatus == FileSubprocessStatusProcessing
+	}
+}
+
 // FileObjectProcessing 表示 file_objects 中的服务端处理状态。
 type FileObjectProcessing struct {
 	ID                 uint

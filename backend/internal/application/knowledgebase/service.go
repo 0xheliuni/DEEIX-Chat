@@ -106,6 +106,8 @@ func (s *Service) RecordAudit(ctx context.Context, input AuditInput) {
 // ListInput 定义知识库列表入参。
 type ListInput struct {
 	Query    string
+	Sort     string
+	IDs      []string
 	Enabled  *bool
 	Page     int
 	PageSize int
@@ -133,8 +135,12 @@ func (s *Service) ListVisible(ctx context.Context, userID uint, input ListInput)
 		return nil, 0, ErrInvalidKnowledgeBase
 	}
 	offset, limit := normalizePage(input.Page, input.PageSize)
+	publicIDs := normalizePublicIDs(input.IDs, maxKnowledgeBasesPerRequest)
+	if len(input.IDs) > 0 && len(publicIDs) == 0 {
+		return []domainknowledgebase.KnowledgeBase{}, 0, nil
+	}
 	return s.repo.ListKnowledgeBases(ctx, repository.KnowledgeBaseListFilter{
-		Query: strings.TrimSpace(input.Query), VisibleUserID: &userID,
+		Query: strings.TrimSpace(input.Query), Sort: strings.TrimSpace(input.Sort), PublicIDs: publicIDs, VisibleUserID: &userID,
 	}, offset, limit)
 }
 
@@ -144,16 +150,24 @@ func (s *Service) ListMine(ctx context.Context, userID uint, input ListInput) ([
 		return nil, 0, ErrInvalidKnowledgeBase
 	}
 	offset, limit := normalizePage(input.Page, input.PageSize)
+	publicIDs := normalizePublicIDs(input.IDs, maxKnowledgeBasesPerRequest)
+	if len(input.IDs) > 0 && len(publicIDs) == 0 {
+		return []domainknowledgebase.KnowledgeBase{}, 0, nil
+	}
 	return s.repo.ListKnowledgeBases(ctx, repository.KnowledgeBaseListFilter{
-		Query: strings.TrimSpace(input.Query), Scope: domainknowledgebase.ScopeUser, OwnerUserID: &userID, Enabled: input.Enabled,
+		Query: strings.TrimSpace(input.Query), Sort: strings.TrimSpace(input.Sort), PublicIDs: publicIDs, Scope: domainknowledgebase.ScopeUser, OwnerUserID: &userID, Enabled: input.Enabled,
 	}, offset, limit)
 }
 
 // ListAdminBuiltin 查询管理员内置知识库。
 func (s *Service) ListAdminBuiltin(ctx context.Context, input ListInput) ([]domainknowledgebase.KnowledgeBase, int64, error) {
 	offset, limit := normalizePage(input.Page, input.PageSize)
+	publicIDs := normalizePublicIDs(input.IDs, maxKnowledgeBasesPerRequest)
+	if len(input.IDs) > 0 && len(publicIDs) == 0 {
+		return []domainknowledgebase.KnowledgeBase{}, 0, nil
+	}
 	return s.repo.ListKnowledgeBases(ctx, repository.KnowledgeBaseListFilter{
-		Query: strings.TrimSpace(input.Query), Scope: domainknowledgebase.ScopeBuiltin, Enabled: input.Enabled,
+		Query: strings.TrimSpace(input.Query), Sort: strings.TrimSpace(input.Sort), PublicIDs: publicIDs, Scope: domainknowledgebase.ScopeBuiltin, Enabled: input.Enabled,
 	}, offset, limit)
 }
 
@@ -337,6 +351,21 @@ func (s *Service) GetVisibleFileProcessingStatuses(ctx context.Context, userID u
 	return s.getFileProcessingStatuses(ctx, item.ID, fileIDs)
 }
 
+// GetVisibleFileProcessingSnapshot 查询当前用户可见知识库的处理状态快照。
+func (s *Service) GetVisibleFileProcessingSnapshot(ctx context.Context, userID uint, publicID string, fileIDs []string) (*domainknowledgebase.KnowledgeBase, []domainconversation.FileObject, error) {
+	if userID == 0 {
+		return nil, nil, ErrInvalidKnowledgeBase
+	}
+	item, err := s.getForAccess(ctx, publicID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !isVisibleToUser(item, userID) {
+		return nil, nil, ErrKnowledgeBaseNotFound
+	}
+	return s.getFileProcessingSnapshot(ctx, item, fileIDs)
+}
+
 // GetAdminFileProcessingStatuses 批量查询内置知识库内的文件处理状态。
 func (s *Service) GetAdminFileProcessingStatuses(ctx context.Context, publicID string, fileIDs []string) ([]domainconversation.FileObject, error) {
 	item, err := s.getForAccess(ctx, publicID)
@@ -347,6 +376,33 @@ func (s *Service) GetAdminFileProcessingStatuses(ctx context.Context, publicID s
 		return nil, ErrKnowledgeBaseNotFound
 	}
 	return s.getFileProcessingStatuses(ctx, item.ID, fileIDs)
+}
+
+// GetAdminFileProcessingSnapshot 查询内置知识库的处理状态快照。
+func (s *Service) GetAdminFileProcessingSnapshot(ctx context.Context, publicID string, fileIDs []string) (*domainknowledgebase.KnowledgeBase, []domainconversation.FileObject, error) {
+	item, err := s.getForAccess(ctx, publicID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if item.Scope != domainknowledgebase.ScopeBuiltin {
+		return nil, nil, ErrKnowledgeBaseNotFound
+	}
+	return s.getFileProcessingSnapshot(ctx, item, fileIDs)
+}
+
+func (s *Service) getFileProcessingSnapshot(ctx context.Context, item *domainknowledgebase.KnowledgeBase, fileIDs []string) (*domainknowledgebase.KnowledgeBase, []domainconversation.FileObject, error) {
+	ids := normalizePublicIDs(fileIDs, maxFilesPerAddRequest)
+	if len(fileIDs) > 0 && len(ids) == 0 {
+		return nil, nil, ErrInvalidKnowledgeBase
+	}
+	snapshot, err := s.repo.GetKnowledgeBaseFileProcessingSnapshot(ctx, item.ID, ids)
+	if err != nil {
+		return nil, nil, mapRepositoryError(err)
+	}
+	item.FileCount = snapshot.FileCount
+	item.ReadyFileCount = snapshot.ReadyFileCount
+	item.ProcessingFileCount = snapshot.ProcessingFileCount
+	return item, snapshot.Files, nil
 }
 
 func (s *Service) getFileProcessingStatuses(ctx context.Context, knowledgeBaseID uint, fileIDs []string) ([]domainconversation.FileObject, error) {

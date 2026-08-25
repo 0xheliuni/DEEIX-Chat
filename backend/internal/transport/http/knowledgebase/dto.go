@@ -32,6 +32,7 @@ type KnowledgeBaseFileResponse struct {
 	FileCategory     string    `json:"fileCategory"`
 	SizeBytes        int64     `json:"sizeBytes"`
 	ProcessingStatus string    `json:"processingStatus"`
+	Processing       bool      `json:"processing"`
 	ProcessingReady  bool      `json:"processingReady"`
 	EmbedStatus      string    `json:"embedStatus"`
 	ChunkCount       int       `json:"chunkCount"`
@@ -78,17 +79,29 @@ type GetKnowledgeBaseFileProcessingStatusesRequest struct {
 	FileIDs []string `json:"fileIDs" binding:"required,min=1,max=100,dive,required,max=64"`
 }
 
+// GetKnowledgeBaseFileProcessingSnapshotRequest 表示知识库处理快照请求。
+type GetKnowledgeBaseFileProcessingSnapshotRequest struct {
+	FileIDs []string `json:"fileIDs" binding:"max=100,dive,required,max=64"`
+}
+
 // KnowledgeBaseFileProcessingStatusResponse 表示知识库文件处理状态。
 type KnowledgeBaseFileProcessingStatusResponse struct {
 	FileID           string    `json:"fileID"`
 	DetectedMIME     string    `json:"detectedMIME"`
 	FileCategory     string    `json:"fileCategory"`
 	ProcessingStatus string    `json:"processingStatus"`
+	Processing       bool      `json:"processing"`
 	ProcessingReady  bool      `json:"processingReady"`
 	EmbedStatus      string    `json:"embedStatus"`
 	ChunkCount       int       `json:"chunkCount"`
 	RagOptOut        bool      `json:"ragOptOut"`
 	UpdatedAt        time.Time `json:"updatedAt"`
+}
+
+// KnowledgeBaseFileProcessingSnapshotResponse 表示知识库及文件处理状态快照。
+type KnowledgeBaseFileProcessingSnapshotResponse struct {
+	KnowledgeBase KnowledgeBaseResponse                       `json:"knowledgeBase"`
+	Statuses      []KnowledgeBaseFileProcessingStatusResponse `json:"statuses"`
 }
 
 // KnowledgeBaseDataResponse 包裹单条知识库响应。
@@ -200,7 +213,7 @@ func toKnowledgeBaseFileProcessingStatusResponses(items []domainconversation.Fil
 	for _, item := range items {
 		results = append(results, KnowledgeBaseFileProcessingStatusResponse{
 			FileID: item.FileID, DetectedMIME: item.DetectedMIME, FileCategory: item.FileCategory,
-			ProcessingStatus: item.ProcessingStatus, ProcessingReady: item.ProcessingReady,
+			ProcessingStatus: item.ProcessingStatus, Processing: domainconversation.IsFileProcessing(item), ProcessingReady: item.ProcessingReady,
 			EmbedStatus: item.EmbedStatus, ChunkCount: item.ChunkCount, RagOptOut: item.RagOptOut,
 			UpdatedAt: item.UpdatedAt,
 		})
@@ -212,8 +225,8 @@ func toKnowledgeBaseFileResponse(item domainconversation.FileObject) KnowledgeBa
 	return KnowledgeBaseFileResponse{
 		FileID: item.FileID, FileName: item.FileName, MimeType: item.MimeType, DetectedMIME: item.DetectedMIME,
 		FileCategory: item.FileCategory, SizeBytes: item.SizeBytes, ProcessingStatus: item.ProcessingStatus,
-		ProcessingReady: item.ProcessingReady,
-		EmbedStatus:     item.EmbedStatus, ChunkCount: item.ChunkCount, RagOptOut: item.RagOptOut,
+		Processing: domainconversation.IsFileProcessing(item), ProcessingReady: item.ProcessingReady,
+		EmbedStatus: item.EmbedStatus, ChunkCount: item.ChunkCount, RagOptOut: item.RagOptOut,
 		CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt,
 	}
 }

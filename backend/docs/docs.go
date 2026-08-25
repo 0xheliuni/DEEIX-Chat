@@ -1911,6 +1911,22 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "string",
+                        "description": "排序方式(default/name/created/updated/files)",
+                        "name": "sort",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "知识库ID",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
                         "type": "boolean",
                         "description": "可用状态",
                         "name": "enabled",
@@ -2425,6 +2441,63 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/KnowledgeBaseFileMutationResponseDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/knowledge-bases/{id}/files/processing/snapshot": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-knowledge-bases"
+                ],
+                "summary": "查询内置知识库处理快照",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "知识库公开ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "当前页处理中或待确认的文件ID，最多100个，可为空",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/GetKnowledgeBaseFileProcessingSnapshotRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/KnowledgeBaseFileProcessingSnapshotResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/KnowledgebaseErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/KnowledgebaseErrorDoc"
                         }
                     }
                 }
@@ -11843,6 +11916,22 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "string",
+                        "description": "排序方式(default/name/created/updated/files)",
+                        "name": "sort",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "知识库ID",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "description": "页码",
                         "name": "page",
@@ -11881,6 +11970,22 @@ const docTemplate = `{
                         "type": "string",
                         "description": "搜索关键词",
                         "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "排序方式(default/name/created/updated/files)",
+                        "name": "sort",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "知识库ID",
+                        "name": "id",
                         "in": "query"
                     },
                     {
@@ -12225,6 +12330,63 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/KnowledgeBaseFilePageResponseDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/knowledge-bases/{id}/files/processing/snapshot": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-bases"
+                ],
+                "summary": "查询当前用户可见知识库处理快照",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "知识库公开ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "当前页处理中或待确认的文件ID，最多100个，可为空",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/GetKnowledgeBaseFileProcessingSnapshotRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/KnowledgeBaseFileProcessingSnapshotResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/KnowledgebaseErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/KnowledgebaseErrorDoc"
                         }
                     }
                 }
@@ -18810,6 +18972,21 @@ const docTemplate = `{
                 }
             }
         },
+        "GetKnowledgeBaseFileProcessingSnapshotRequest": {
+            "type": "object",
+            "required": [
+                "fileIDs"
+            ],
+            "properties": {
+                "fileIDs": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "GetKnowledgeBaseFileProcessingStatusesRequest": {
             "type": "object",
             "required": [
@@ -19442,6 +19619,24 @@ const docTemplate = `{
                 }
             }
         },
+        "KnowledgeBaseFileProcessingSnapshotResponse": {
+            "type": "object",
+            "required": [
+                "knowledgeBase",
+                "statuses"
+            ],
+            "properties": {
+                "knowledgeBase": {
+                    "$ref": "#/definitions/KnowledgeBaseResponse"
+                },
+                "statuses": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/KnowledgeBaseFileProcessingStatusResponse"
+                    }
+                }
+            }
+        },
         "KnowledgeBaseFileProcessingStatusResponse": {
             "type": "object",
             "required": [
@@ -19450,6 +19645,7 @@ const docTemplate = `{
                 "embedStatus",
                 "fileCategory",
                 "fileID",
+                "processing",
                 "processingReady",
                 "processingStatus",
                 "ragOptOut",
@@ -19470,6 +19666,9 @@ const docTemplate = `{
                 },
                 "fileID": {
                     "type": "string"
+                },
+                "processing": {
+                    "type": "boolean"
                 },
                 "processingReady": {
                     "type": "boolean"
@@ -19496,6 +19695,7 @@ const docTemplate = `{
                 "fileID",
                 "fileName",
                 "mimeType",
+                "processing",
                 "processingReady",
                 "processingStatus",
                 "ragOptOut",
@@ -19526,6 +19726,9 @@ const docTemplate = `{
                 },
                 "mimeType": {
                     "type": "string"
+                },
+                "processing": {
+                    "type": "boolean"
                 },
                 "processingReady": {
                     "type": "boolean"

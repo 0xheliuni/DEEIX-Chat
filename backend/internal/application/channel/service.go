@@ -109,6 +109,7 @@ type Service struct {
 
 	modelCatalogMu         sync.RWMutex
 	modelCatalog           []ModelView
+	modelCatalogMode       string
 	modelCatalogValidUntil time.Time
 
 	breakerDefaultsMu         sync.RWMutex
@@ -263,6 +264,7 @@ func (s *Service) InvalidateModelCatalog() {
 	}
 	s.modelCatalogMu.Lock()
 	s.modelCatalog = nil
+	s.modelCatalogMode = ""
 	s.modelCatalogValidUntil = time.Time{}
 	s.modelCatalogMu.Unlock()
 }
