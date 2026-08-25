@@ -2399,6 +2399,27 @@ func (r *Repo) GetActiveFileObjectsByIDs(ctx context.Context, userID uint, fileI
 	return toFileObjectDomains(items), nil
 }
 
+// GetActiveFileProcessingStatusesByIDs 批量查询轮询所需的文件处理状态字段。
+func (r *Repo) GetActiveFileProcessingStatusesByIDs(ctx context.Context, userID uint, fileIDs []string) ([]domainconversation.FileObject, error) {
+	items := make([]models.FileObject, 0)
+	if len(fileIDs) == 0 {
+		return []domainconversation.FileObject{}, nil
+	}
+	if err := r.db.WithContext(ctx).
+		Select(
+			"file_id", "detected_mime", "file_category",
+			"processing_status", "processing_ready", "processing_error_code", "processing_error_message",
+			"extract_status", "extract_chars", "extract_pages", "preview_text", "ocr_used",
+			"rag_ready", "rag_reason", "embed_status", "embed_error", "chunk_count",
+			"processing_started_at", "processing_completed_at", "updated_at",
+		).
+		Where("user_id = ? AND status = ? AND file_id IN ?", userID, "active", fileIDs).
+		Find(&items).Error; err != nil {
+		return nil, translateError(err)
+	}
+	return toFileObjectDomains(items), nil
+}
+
 // GetActiveFileObjectByID 查询单个用户激活文件对象。
 func (r *Repo) GetActiveFileObjectByID(ctx context.Context, userID uint, fileID string) (*domainconversation.FileObject, error) {
 	var item models.FileObject

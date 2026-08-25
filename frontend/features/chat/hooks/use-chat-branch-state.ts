@@ -7,6 +7,7 @@ import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/m
 import type { PendingExchange, PendingExchangeMap } from "@/features/chat/types/chat-runtime";
 import {
   buildVisibleMessages,
+  chatMessageKey,
   mapServerMessage,
   reconcileBranchSelections,
 } from "@/features/chat/model/chat-thread";
@@ -65,7 +66,7 @@ function appendPendingExchangeMessages({
           }))
         : undefined;
     nextMessages.push({
-      key: `${pendingExchange.key}-user`,
+      key: chatMessageKey("user", `${pendingExchange.key}-user`, pendingRunID),
       publicID: userPublicID,
       parentPublicID: pendingExchange.parentPublicID,
       sourcePublicID: pendingExchange.sourcePublicID,
@@ -91,7 +92,7 @@ function appendPendingExchangeMessages({
         ? pendingExchange.assistantAttachments
         : undefined;
     nextMessages.push({
-      key: `${pendingExchange.key}-assistant`,
+      key: chatMessageKey("assistant", `${pendingExchange.key}-assistant`, pendingRunID),
       publicID: assistantPublicID,
       parentPublicID: userPublicID,
       sourcePublicID: pendingExchange.reuseUserMessage ? pendingExchange.sourcePublicID : null,

@@ -3228,6 +3228,74 @@ definitions:
     - status
     - updatedAt
     type: object
+  FileProcessingStatusResponse:
+    properties:
+      chunkCount:
+        type: integer
+      completedAt:
+        type: string
+        x-nullable: true
+        x-omitempty: false
+      detectedMIME:
+        type: string
+      embedError:
+        type: string
+      embedStatus:
+        type: string
+      errorCode:
+        type: string
+      errorMessage:
+        type: string
+      extractChars:
+        type: integer
+      extractPages:
+        type: integer
+      extractStatus:
+        type: string
+      fileCategory:
+        type: string
+      fileID:
+        type: string
+      ocrUsed:
+        type: boolean
+      previewText:
+        type: string
+      processingReady:
+        type: boolean
+      processingStatus:
+        type: string
+      ragReady:
+        type: boolean
+      ragReason:
+        type: string
+      startedAt:
+        type: string
+        x-nullable: true
+        x-omitempty: false
+      updatedAt:
+        type: string
+    required:
+    - chunkCount
+    - completedAt
+    - detectedMIME
+    - embedError
+    - embedStatus
+    - errorCode
+    - errorMessage
+    - extractChars
+    - extractPages
+    - extractStatus
+    - fileCategory
+    - fileID
+    - ocrUsed
+    - previewText
+    - processingReady
+    - processingStatus
+    - ragReady
+    - ragReason
+    - startedAt
+    - updatedAt
+    type: object
   FileUpdateResponseDoc:
     properties:
       data:
@@ -3250,6 +3318,17 @@ definitions:
     - file
     - quota
     - reused
+    type: object
+  GetFileProcessingStatusesRequest:
+    properties:
+      fileIDs:
+        items:
+          type: string
+        maxItems: 100
+        minItems: 1
+        type: array
+    required:
+    - fileIDs
     type: object
   GroupModelsResponse:
     properties:
@@ -16708,6 +16787,40 @@ paths:
       security:
       - BearerAuth: []
       summary: 获取文件内容
+      tags:
+      - chat
+  /files/processing/statuses:
+    post:
+      consumes:
+      - application/json
+      description: 一次查询当前用户多个文件的处理状态
+      parameters:
+      - description: 文件ID，最多100个
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/GetFileProcessingStatusesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/FileProcessingStatusResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 批量查询文件处理状态
       tags:
       - chat
   /knowledge-bases:

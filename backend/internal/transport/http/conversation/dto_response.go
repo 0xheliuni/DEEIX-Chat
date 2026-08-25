@@ -1339,8 +1339,11 @@ type FileProcessingStatusResponse struct {
 	ErrorMessage     string     `json:"errorMessage"`
 	ExtractChars     int        `json:"extractChars"`
 	ExtractPages     int        `json:"extractPages"`
+	ChunkCount       int        `json:"chunkCount"`
+	EmbedError       string     `json:"embedError"`
 	StartedAt        *time.Time `json:"startedAt" extensions:"x-nullable,!x-omitempty"`
 	CompletedAt      *time.Time `json:"completedAt" extensions:"x-nullable,!x-omitempty"`
+	UpdatedAt        time.Time  `json:"updatedAt"`
 }
 
 func toFileProcessingStatusResponse(d *appprocessing.FileProcessingStatusDTO) FileProcessingStatusResponse {
@@ -1360,8 +1363,11 @@ func toFileProcessingStatusResponse(d *appprocessing.FileProcessingStatusDTO) Fi
 		ErrorMessage:     appprocessing.HumanizeFileProcessingError(d.FileCategory, d.ErrorCode, d.ErrorMessage),
 		ExtractChars:     d.ExtractChars,
 		ExtractPages:     d.ExtractPages,
+		ChunkCount:       d.ChunkCount,
+		EmbedError:       d.EmbedError,
 		StartedAt:        d.StartedAt,
 		CompletedAt:      d.CompletedAt,
+		UpdatedAt:        d.UpdatedAt,
 	}
 }
 

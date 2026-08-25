@@ -490,6 +490,7 @@ export function useChatMessageSubmit({
   flushStreamTextNow,
   flushUpstreamThinkNow,
   resetStreamBuffer,
+  setStreamTextSnapshot,
   startStream,
   activeGenerationRunsRef,
   activeGenerationRunsRevision,
@@ -540,6 +541,7 @@ export function useChatMessageSubmit({
   flushStreamTextNow: (exchangeKey: string) => void;
   flushUpstreamThinkNow: (exchangeKey: string) => void;
   resetStreamBuffer: (exchangeKey?: string) => void;
+  setStreamTextSnapshot: (exchangeKey: string, content: string) => void;
   startStream: (exchangeKey: string, runID?: string) => void;
   activeGenerationRunsRef?: React.RefObject<Set<string>>;
   activeGenerationRunsRevision: number;
@@ -1133,6 +1135,9 @@ export function useChatMessageSubmit({
             );
             enqueueStreamText(exchangeKey, delta);
           },
+          onTextSnapshot: (content) => {
+            setStreamTextSnapshot(exchangeKey, content);
+          },
           onUsage: (event) => {
             updatePendingExchange(exchangeKey, (current) => ({
               ...current,
@@ -1554,6 +1559,7 @@ export function useChatMessageSubmit({
       releaseAttachments,
       reload,
       resetStreamBuffer,
+      setStreamTextSnapshot,
       restoreDraftOnFailure,
       modelOptions,
       selectedToolIDs,

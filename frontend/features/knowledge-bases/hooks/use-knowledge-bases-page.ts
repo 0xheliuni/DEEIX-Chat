@@ -39,6 +39,7 @@ import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import type { PreviewDialogFile } from "@/shared/components/file-preview/preview-dialog";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { runSettledBulkItems } from "@/shared/lib/bulk-action";
+import { isFileProcessing } from "@/shared/lib/file-processing";
 
 const FILE_ACTION_LIMIT = 100;
 const FILE_PAGE_SIZE = 100;
@@ -233,15 +234,8 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
   }, [listFilePage, selectedID, t]);
 
   const processingFilePages = React.useMemo(
-    () => Array.from(new Set(files.flatMap((file, index) => {
-      const processing =
-        file.processingStatus === "uploaded" ||
-        file.processingStatus === "queued" ||
-        file.processingStatus === "extracting" ||
-        file.processingStatus === "embedding" ||
-        file.embedStatus === "processing";
-      return processing ? [Math.floor(index / FILE_PAGE_SIZE) + 1] : [];
-    }))),
+    () => Array.from(new Set(files.flatMap((file, index) =>
+      isFileProcessing(file) ? [Math.floor(index / FILE_PAGE_SIZE) + 1] : []))),
     [files],
   );
 

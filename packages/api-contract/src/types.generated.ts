@@ -1421,6 +1421,29 @@ export interface FileObjectResponse {
   updatedAt: string;
 }
 
+export interface FileProcessingStatusResponse {
+  chunkCount: number;
+  completedAt: string | null;
+  detectedMIME: string;
+  embedError: string;
+  embedStatus: string;
+  errorCode: string;
+  errorMessage: string;
+  extractChars: number;
+  extractPages: number;
+  extractStatus: string;
+  fileCategory: string;
+  fileID: string;
+  ocrUsed: boolean;
+  previewText: string;
+  processingReady: boolean;
+  processingStatus: string;
+  ragReady: boolean;
+  ragReason: string;
+  startedAt: string | null;
+  updatedAt: string;
+}
+
 export interface FileUpdateResponseDoc {
   data: FileObjectResponse;
   errorMsg: string;
@@ -1430,6 +1453,14 @@ export interface FileUploadResponse {
   file: FileObjectResponse;
   quota: StorageQuotaResponse;
   reused: boolean;
+}
+
+export interface GetFileProcessingStatusesRequest {
+  /**
+   * @maxItems 100
+   * @minItems 1
+   */
+  fileIDs: string[];
 }
 
 export interface GroupModelsResponse {
@@ -8429,6 +8460,22 @@ export namespace Files {
     };
     export type RequestHeaders = {};
     export type ResponseBody = UploadFileResponseDoc;
+  }
+
+  /**
+   * @description 一次查询当前用户多个文件的处理状态
+   * @tags chat
+   * @name ProcessingStatusesCreate
+   * @summary 批量查询文件处理状态
+   * @request POST:/files/processing/statuses
+   * @secure
+   */
+  export namespace ProcessingStatusesCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = GetFileProcessingStatusesRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = FileProcessingStatusResponse[];
   }
 
   /**

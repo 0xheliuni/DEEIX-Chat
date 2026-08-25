@@ -49,6 +49,7 @@ func (m *Module) RegisterRoutes(authRequired *gin.RouterGroup) {
 	authRequired.PUT("/messages/:id/feedback", m.Handler.SetMessageFeedback)
 	authRequired.POST("/files", m.Handler.UploadFile)
 	authRequired.GET("/files", m.Handler.ListFiles)
+	authRequired.POST("/files/processing/statuses", m.Handler.GetFileProcessingStatuses)
 	authRequired.GET("/files/:file_id/processing", m.Handler.GetFileProcessingStatus)
 	authRequired.GET("/files/:file_id/extract", m.Handler.GetFileExtract)
 	authRequired.PATCH("/files/:file_id", m.Handler.UpdateFile)

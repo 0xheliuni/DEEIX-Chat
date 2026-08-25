@@ -97,6 +97,12 @@ type FileProcessingRepository interface {
 	UpdateFileObjectProcessing(ctx context.Context, userID uint, fileID string, input UpdateFileObjectProcessingInput) error
 }
 
+// FileProcessingStatusRepository 封装单个与批量文件处理状态读取能力。
+type FileProcessingStatusRepository interface {
+	FileProcessingRepository
+	GetActiveFileProcessingStatusesByIDs(ctx context.Context, userID uint, fileIDs []string) ([]domainconversation.FileObject, error)
+}
+
 // UpdateFileObjectProcessingInput 定义文件处理状态更新字段。
 type UpdateFileObjectProcessingInput struct {
 	ProcessingStatus       *string

@@ -108,6 +108,10 @@ func (s *Service) GetFileProcessingStatus(ctx context.Context, userID uint, file
 	return result, err
 }
 
+func (s *Service) GetFileProcessingStatuses(ctx context.Context, userID uint, fileIDs []string) ([]appprocessing.FileProcessingStatusDTO, error) {
+	return s.processingSvc.GetFileProcessingStatuses(ctx, userID, fileIDs)
+}
+
 func (s *Service) resolveAttachments(
 	ctx context.Context,
 	userID uint,

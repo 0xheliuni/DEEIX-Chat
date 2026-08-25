@@ -21,6 +21,15 @@ type FileProcessingBadge = {
 
 type FileProcessingTranslator = (key: string, values?: Record<string, string | number>) => string;
 
+export function isFileProcessing(file: FileProcessingView): boolean {
+  return file.processingStatus === "uploaded" ||
+    file.processingStatus === "queued" ||
+    file.processingStatus === "extracting" ||
+    file.processingStatus === "embedding" ||
+    file.extractStatus === "processing" ||
+    file.embedStatus === "processing";
+}
+
 function translateFileProcessing(
   translate: FileProcessingTranslator | undefined,
   key: string,

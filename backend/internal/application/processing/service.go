@@ -47,8 +47,11 @@ type FileProcessingStatusDTO struct {
 	ErrorMessage     string
 	ExtractChars     int
 	ExtractPages     int
+	ChunkCount       int
+	EmbedError       string
 	StartedAt        *time.Time
 	CompletedAt      *time.Time
+	UpdatedAt        time.Time
 }
 
 // ReadyFileResult 表示等待文件处理完成后的可消费结果。
@@ -65,7 +68,7 @@ type ReadyFileResult struct {
 // Service 封装文件处理后台流水线与状态查询能力。
 type Service struct {
 	cfg              *config.Runtime
-	repo             repository.FileProcessingRepository
+	repo             repository.FileProcessingStatusRepository
 	cache            repository.FileProcessingQueueRepository
 	extractSvc       *extraction.Service
 	embeddingSvc     *appembedding.Service
@@ -76,7 +79,7 @@ type Service struct {
 // NewService 创建文件处理服务。
 func NewService(
 	cfg config.Config,
-	repo repository.FileProcessingRepository,
+	repo repository.FileProcessingStatusRepository,
 	cache repository.FileProcessingQueueRepository,
 	extractSvc *extraction.Service,
 	embeddingSvc *appembedding.Service,
@@ -89,7 +92,7 @@ func NewService(
 // NewServiceWithRuntime 创建使用运行时配置容器的文件处理服务。
 func NewServiceWithRuntime(
 	cfg *config.Runtime,
-	repo repository.FileProcessingRepository,
+	repo repository.FileProcessingStatusRepository,
 	cache repository.FileProcessingQueueRepository,
 	extractSvc *extraction.Service,
 	embeddingSvc *appembedding.Service,
@@ -384,11 +387,48 @@ func (s *Service) GetFileProcessingStatus(ctx context.Context, userID uint, file
 	if err != nil || fileObj == nil {
 		return nil, err
 	}
-	result, err := s.repo.GetFileObjectProcessingByObjectID(ctx, fileObj.ID)
-	if err != nil && !errors.Is(err, repository.ErrNotFound) {
+	result := fileProcessingStatusFromFileObject(fileObj)
+	return &result, nil
+}
+
+// GetFileProcessingStatuses 批量查询文件处理状态。
+func (s *Service) GetFileProcessingStatuses(ctx context.Context, userID uint, fileIDs []string) ([]FileProcessingStatusDTO, error) {
+	normalizedIDs := make([]string, 0, len(fileIDs))
+	seen := make(map[string]struct{}, len(fileIDs))
+	for _, value := range fileIDs {
+		fileID := strings.TrimSpace(value)
+		if fileID == "" {
+			continue
+		}
+		if _, exists := seen[fileID]; exists {
+			continue
+		}
+		seen[fileID] = struct{}{}
+		normalizedIDs = append(normalizedIDs, fileID)
+	}
+	if len(normalizedIDs) == 0 {
+		return []FileProcessingStatusDTO{}, nil
+	}
+
+	fileObjects, err := s.repo.GetActiveFileProcessingStatusesByIDs(ctx, userID, normalizedIDs)
+	if err != nil {
 		return nil, err
 	}
-	dto := &FileProcessingStatusDTO{
+	filesByID := make(map[string]*domainconversation.FileObject, len(fileObjects))
+	for i := range fileObjects {
+		filesByID[fileObjects[i].FileID] = &fileObjects[i]
+	}
+	results := make([]FileProcessingStatusDTO, 0, len(fileObjects))
+	for _, fileID := range normalizedIDs {
+		if fileObj := filesByID[fileID]; fileObj != nil {
+			results = append(results, fileProcessingStatusFromFileObject(fileObj))
+		}
+	}
+	return results, nil
+}
+
+func fileProcessingStatusFromFileObject(fileObj *domainconversation.FileObject) FileProcessingStatusDTO {
+	dto := FileProcessingStatusDTO{
 		FileID:           fileObj.FileID,
 		DetectedMIME:     fileObj.DetectedMIME,
 		FileCategory:     fileObj.FileCategory,
@@ -396,23 +436,22 @@ func (s *Service) GetFileProcessingStatus(ctx context.Context, userID uint, file
 		ProcessingReady:  fileObj.ProcessingReady,
 		ExtractStatus:    fileObj.ExtractStatus,
 		EmbedStatus:      fileObj.EmbedStatus,
+		PreviewText:      fileObj.PreviewText,
+		OCRUsed:          fileObj.OCRUsed,
+		RAGReady:         fileObj.RAGReady,
+		RAGReason:        fileObj.RAGReason,
 		ErrorCode:        fileObj.ProcessingErrorCode,
 		ErrorMessage:     fileObj.ProcessingErrorMessage,
-	}
-	if result != nil {
-		dto.PreviewText = result.PreviewText
-		dto.OCRUsed = result.OCRUsed
-		dto.RAGReady = result.RAGReady
-		dto.RAGReason = result.RAGReason
-		dto.ErrorCode = result.ErrorCode
-		dto.ErrorMessage = result.ErrorMessage
-		dto.ExtractChars = result.ExtractChars
-		dto.ExtractPages = result.ExtractPages
-		dto.StartedAt = result.StartedAt
-		dto.CompletedAt = result.CompletedAt
+		ExtractChars:     fileObj.ExtractChars,
+		ExtractPages:     fileObj.ExtractPages,
+		ChunkCount:       fileObj.ChunkCount,
+		EmbedError:       fileObj.EmbedError,
+		StartedAt:        fileObj.ProcessingStartedAt,
+		CompletedAt:      fileObj.ProcessingCompletedAt,
+		UpdatedAt:        fileObj.UpdatedAt,
 	}
 	dto.ErrorMessage = HumanizeFileProcessingError(dto.FileCategory, dto.ErrorCode, dto.ErrorMessage)
-	return dto, nil
+	return dto
 }
 
 // WaitUntilReady 等待文件处理完成，并在就绪时返回提取产物。

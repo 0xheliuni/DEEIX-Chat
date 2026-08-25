@@ -189,19 +189,26 @@ export async function fetchFileExtract(accessToken: string, fileID: string): Pro
   );
 }
 
-// Processing and runtime policy
-export async function getFileProcessingStatus(
+export async function getFileProcessingStatuses(
   accessToken: string,
-  fileID: string,
-): Promise<FileProcessingStatusDTO> {
-  return authedRequest<FileProcessingStatusDTO>(
-    `/api/v1/files/${pathParam(fileID)}/processing`,
-    {
-      method: "GET",
-      accessToken,
-    },
-    true,
-  );
+  fileIDs: string[],
+): Promise<FileProcessingStatusDTO[]> {
+  if (fileIDs.length === 0) {
+    return [];
+  }
+  const requests: Promise<FileProcessingStatusDTO[]>[] = [];
+  for (let index = 0; index < fileIDs.length; index += 100) {
+    requests.push(authedRequest<FileProcessingStatusDTO[]>(
+      "/api/v1/files/processing/statuses",
+      {
+        method: "POST",
+        accessToken,
+        body: { fileIDs: fileIDs.slice(index, index + 100) },
+      },
+      true,
+    ));
+  }
+  return (await Promise.all(requests)).flat();
 }
 
 export async function getChatFilePolicy(accessToken: string): Promise<ChatFilePolicyDTO> {

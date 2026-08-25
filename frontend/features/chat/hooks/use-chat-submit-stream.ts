@@ -152,6 +152,7 @@ export function useChatSubmitStream({
     flushStreamTextNow: streamBuffer.flushStreamTextNow,
     flushUpstreamThinkNow: streamBuffer.flushUpstreamThinkNow,
     resetStreamBuffer: streamBuffer.resetStreamBuffer,
+    setStreamTextSnapshot: streamBuffer.setStreamTextSnapshot,
     startStream: streamBuffer.startStream,
     activeGenerationRunsRef,
     activeGenerationRunsRevision,

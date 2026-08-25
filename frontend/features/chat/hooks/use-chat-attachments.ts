@@ -15,10 +15,11 @@ import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import {
   getChatFilePolicy,
-  getFileProcessingStatus,
   uploadFile,
 } from "@/shared/api/file";
-import type { ChatFilePolicyDTO } from "@/shared/api/file.types";
+import type { ChatFilePolicyDTO, FileProcessingStatusDTO } from "@/shared/api/file.types";
+import { useFileProcessingStatusPolling } from "@/shared/hooks/use-file-processing-status-polling";
+import { isFileProcessing } from "@/shared/lib/file-processing";
 
 function revokeAttachmentPreview(item: PendingAttachment) {
   if (item.previewURL) {
@@ -47,6 +48,62 @@ export function useChatAttachments({
   const currentConversationKeyRef = React.useRef(conversationKey);
   const uploadingAttachments = uploadingByKey[conversationKey] ?? [];
   const uploading = uploadingAttachments.length > 0;
+  const processingFileIDs = React.useMemo(
+    () => attachments
+      .filter(isFileProcessing)
+      .map((item) => item.fileID),
+    [attachments],
+  );
+
+  const onProcessingStatuses = React.useCallback((statuses: FileProcessingStatusDTO[]) => {
+    const statusesByID = new Map(statuses.map((status) => [status.fileID, status]));
+    setAttachments((current) => {
+      let changed = false;
+      const next = current.map((item) => {
+        const status = statusesByID.get(item.fileID);
+        if (!status) {
+          return item;
+        }
+        if (
+          item.detectedMime === status.detectedMIME &&
+          item.fileCategory === status.fileCategory &&
+          item.processingStatus === status.processingStatus &&
+          item.processingReady === status.processingReady &&
+          item.processingErrorCode === status.errorCode &&
+          item.processingErrorMessage === status.errorMessage &&
+          item.extractStatus === status.extractStatus &&
+          item.embedStatus === status.embedStatus &&
+          item.ragReady === status.ragReady &&
+          item.ragReason === status.ragReason &&
+          item.ocrUsed === status.ocrUsed
+        ) {
+          return item;
+        }
+        changed = true;
+        return {
+          ...item,
+          detectedMime: status.detectedMIME,
+          fileCategory: status.fileCategory,
+          processingStatus: status.processingStatus,
+          processingReady: status.processingReady,
+          processingErrorCode: status.errorCode,
+          processingErrorMessage: status.errorMessage,
+          extractStatus: status.extractStatus,
+          embedStatus: status.embedStatus,
+          ragReady: status.ragReady,
+          ragReason: status.ragReason,
+          ocrUsed: status.ocrUsed,
+        };
+      });
+      return changed ? next : current;
+    });
+  }, [setAttachments]);
+
+  useFileProcessingStatusPolling({
+    fileIDs: processingFileIDs,
+    intervalMs: 1500,
+    onStatuses: onProcessingStatuses,
+  });
 
   React.useEffect(() => {
     void (async () => {
@@ -84,67 +141,6 @@ export function useChatAttachments({
     }
     previousAttachmentsRef.current = attachments;
   }, [attachments]);
-
-  React.useEffect(() => {
-    const pending = attachments.filter((item) =>
-      item.processingStatus === "uploaded" ||
-      item.processingStatus === "queued" ||
-      item.processingStatus === "extracting" ||
-      item.processingStatus === "embedding",
-    );
-    if (pending.length === 0) {
-      return;
-    }
-    let cancelled = false;
-    const timer = window.setInterval(() => {
-      void (async () => {
-        try {
-          const token = await resolveAccessToken();
-          if (!token || cancelled) {
-            return;
-          }
-          const results = await Promise.allSettled(
-            pending.map((item) => getFileProcessingStatus(token, item.fileID)),
-          );
-          if (cancelled) {
-            return;
-          }
-          setAttachments((prev) =>
-            prev.map((item) => {
-              const index = pending.findIndex((candidate) => candidate.fileID === item.fileID);
-              if (index < 0) {
-                return item;
-              }
-              const result = results[index];
-              if (!result || result.status !== "fulfilled") {
-                return item;
-              }
-              return {
-                ...item,
-                detectedMime: result.value.detectedMIME,
-                fileCategory: result.value.fileCategory,
-                processingStatus: result.value.processingStatus,
-                processingReady: result.value.processingReady,
-                processingErrorCode: result.value.errorCode,
-                processingErrorMessage: result.value.errorMessage,
-                extractStatus: result.value.extractStatus,
-                embedStatus: result.value.embedStatus,
-                ragReady: result.value.ragReady,
-                ragReason: result.value.ragReason,
-                ocrUsed: result.value.ocrUsed,
-              };
-            }),
-          );
-        } catch {
-          // Ignore polling failures.
-        }
-      })();
-    }, 1500);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [attachments, setAttachments]);
 
   const releaseAttachments = React.useCallback((items: PendingAttachment[]) => {
     for (const item of items) {

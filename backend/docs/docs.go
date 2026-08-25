@@ -11453,6 +11453,60 @@ const docTemplate = `{
                 }
             }
         },
+        "/files/processing/statuses": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "一次查询当前用户多个文件的处理状态",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "批量查询文件处理状态",
+                "parameters": [
+                    {
+                        "description": "文件ID，最多100个",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/GetFileProcessingStatusesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/FileProcessingStatusResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/files/{file_id}": {
             "delete": {
                 "security": [
@@ -18370,6 +18424,97 @@ const docTemplate = `{
                 }
             }
         },
+        "FileProcessingStatusResponse": {
+            "type": "object",
+            "required": [
+                "chunkCount",
+                "completedAt",
+                "detectedMIME",
+                "embedError",
+                "embedStatus",
+                "errorCode",
+                "errorMessage",
+                "extractChars",
+                "extractPages",
+                "extractStatus",
+                "fileCategory",
+                "fileID",
+                "ocrUsed",
+                "previewText",
+                "processingReady",
+                "processingStatus",
+                "ragReady",
+                "ragReason",
+                "startedAt",
+                "updatedAt"
+            ],
+            "properties": {
+                "chunkCount": {
+                    "type": "integer"
+                },
+                "completedAt": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "detectedMIME": {
+                    "type": "string"
+                },
+                "embedError": {
+                    "type": "string"
+                },
+                "embedStatus": {
+                    "type": "string"
+                },
+                "errorCode": {
+                    "type": "string"
+                },
+                "errorMessage": {
+                    "type": "string"
+                },
+                "extractChars": {
+                    "type": "integer"
+                },
+                "extractPages": {
+                    "type": "integer"
+                },
+                "extractStatus": {
+                    "type": "string"
+                },
+                "fileCategory": {
+                    "type": "string"
+                },
+                "fileID": {
+                    "type": "string"
+                },
+                "ocrUsed": {
+                    "type": "boolean"
+                },
+                "previewText": {
+                    "type": "string"
+                },
+                "processingReady": {
+                    "type": "boolean"
+                },
+                "processingStatus": {
+                    "type": "string"
+                },
+                "ragReady": {
+                    "type": "boolean"
+                },
+                "ragReason": {
+                    "type": "string"
+                },
+                "startedAt": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
         "FileUpdateResponseDoc": {
             "type": "object",
             "required": [
@@ -18401,6 +18546,22 @@ const docTemplate = `{
                 },
                 "reused": {
                     "type": "boolean"
+                }
+            }
+        },
+        "GetFileProcessingStatusesRequest": {
+            "type": "object",
+            "required": [
+                "fileIDs"
+            ],
+            "properties": {
+                "fileIDs": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },

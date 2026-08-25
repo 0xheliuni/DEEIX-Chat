@@ -19,8 +19,15 @@ import {
   updateFileRagOptOut,
   uploadFile,
 } from "@/shared/api/file";
-import type { FileObjectDTO, UploadFileResult, UserStorageQuotaDTO } from "@/shared/api/file.types";
+import type {
+  FileObjectDTO,
+  FileProcessingStatusDTO,
+  UploadFileResult,
+  UserStorageQuotaDTO,
+} from "@/shared/api/file.types";
+import { useFileProcessingStatusPolling } from "@/shared/hooks/use-file-processing-status-polling";
 import { runBulkActionInChunks } from "@/shared/lib/bulk-action";
+import { isFileProcessing } from "@/shared/lib/file-processing";
 import { patchByID, replaceByID, upsertByID } from "@/shared/lib/optimistic-list";
 
 const FILES_PAGE_SIZE = 100;
@@ -290,30 +297,66 @@ export function useFilesPage(): UseFilesPageResult {
     });
   }, [loadFiles, requestedFileID]);
 
-  React.useEffect(() => {
-    if (loading || loadingMore || uploading) {
-      return;
-    }
+  const processingFileIDs = React.useMemo(
+    () => files
+      .filter(isFileProcessing)
+      .map((item) => item.fileID),
+    [files],
+  );
 
-    const hasProcessingFile = files.some(
-      (item) =>
-        (item.processingStatus === "uploaded" ||
-          item.processingStatus === "queued" ||
-          item.processingStatus === "extracting" ||
-          item.processingStatus === "embedding" ||
-          item.extractStatus === "processing" ||
-          item.embedStatus === "processing"),
-    );
-    if (!hasProcessingFile) {
-      return;
-    }
+  const onProcessingStatuses = React.useCallback((statuses: FileProcessingStatusDTO[]) => {
+    const statusesByID = new Map(statuses.map((status) => [status.fileID, status]));
+    setFiles((current) => {
+      let changed = false;
+      const next = current.map((item) => {
+        const status = statusesByID.get(item.fileID);
+        if (!status) {
+          return item;
+        }
+        if (
+          item.detectedMIME === status.detectedMIME &&
+          item.fileCategory === status.fileCategory &&
+          item.processingStatus === status.processingStatus &&
+          item.processingReady === status.processingReady &&
+          item.processingErrorCode === status.errorCode &&
+          item.processingErrorMessage === status.errorMessage &&
+          item.extractStatus === status.extractStatus &&
+          item.embedStatus === status.embedStatus &&
+          item.embedError === status.embedError &&
+          item.chunkCount === status.chunkCount &&
+          item.updatedAt === status.updatedAt
+        ) {
+          return item;
+        }
+        changed = true;
+        return {
+          ...item,
+          detectedMIME: status.detectedMIME,
+          fileCategory: status.fileCategory,
+          processingStatus: status.processingStatus,
+          processingReady: status.processingReady,
+          processingErrorCode: status.errorCode,
+          processingErrorMessage: status.errorMessage,
+          extractStatus: status.extractStatus,
+          embedStatus: status.embedStatus,
+          embedError: status.embedError,
+          chunkCount: status.chunkCount,
+          updatedAt: status.updatedAt,
+        };
+      });
+      if (changed) {
+        filesRef.current = next;
+        return next;
+      }
+      return current;
+    });
+  }, []);
 
-    const timer = window.setInterval(() => {
-      void loadFiles({ silent: true, background: true, preferredFileID: selectedFileID });
-    }, 2000);
-
-    return () => window.clearInterval(timer);
-  }, [files, loadFiles, loading, loadingMore, selectedFileID, uploading]);
+  useFileProcessingStatusPolling({
+    fileIDs: loading || loadingMore || uploading ? [] : processingFileIDs,
+    intervalMs: 2000,
+    onStatuses: onProcessingStatuses,
+  });
 
   useFileInvalidation(
     React.useCallback((detail) => {
