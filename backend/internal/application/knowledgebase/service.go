@@ -166,7 +166,19 @@ func (s *Service) GetVisible(ctx context.Context, userID uint, publicID string) 
 	if err != nil {
 		return nil, err
 	}
-	if !item.Enabled || (item.Scope != domainknowledgebase.ScopeBuiltin && (item.Scope != domainknowledgebase.ScopeUser || item.OwnerUserID != userID)) {
+	if !isVisibleToUser(item, userID) {
+		return nil, ErrKnowledgeBaseNotFound
+	}
+	return item, nil
+}
+
+// GetAdmin 查询管理员可管理的内置知识库。
+func (s *Service) GetAdmin(ctx context.Context, publicID string) (*domainknowledgebase.KnowledgeBase, error) {
+	item, err := s.get(ctx, publicID)
+	if err != nil {
+		return nil, err
+	}
+	if item.Scope != domainknowledgebase.ScopeBuiltin {
 		return nil, ErrKnowledgeBaseNotFound
 	}
 	return item, nil
@@ -308,6 +320,45 @@ func (s *Service) ListAdminFiles(ctx context.Context, publicID string, page int,
 	}
 	offset, limit := normalizePage(page, pageSize)
 	return s.repo.ListKnowledgeBaseFiles(ctx, item.ID, offset, limit)
+}
+
+// GetVisibleFileProcessingStatuses 批量查询当前用户可见知识库内的文件处理状态。
+func (s *Service) GetVisibleFileProcessingStatuses(ctx context.Context, userID uint, publicID string, fileIDs []string) ([]domainconversation.FileObject, error) {
+	if userID == 0 {
+		return nil, ErrInvalidKnowledgeBase
+	}
+	item, err := s.getForAccess(ctx, publicID)
+	if err != nil {
+		return nil, err
+	}
+	if !isVisibleToUser(item, userID) {
+		return nil, ErrKnowledgeBaseNotFound
+	}
+	return s.getFileProcessingStatuses(ctx, item.ID, fileIDs)
+}
+
+// GetAdminFileProcessingStatuses 批量查询内置知识库内的文件处理状态。
+func (s *Service) GetAdminFileProcessingStatuses(ctx context.Context, publicID string, fileIDs []string) ([]domainconversation.FileObject, error) {
+	item, err := s.getForAccess(ctx, publicID)
+	if err != nil {
+		return nil, err
+	}
+	if item.Scope != domainknowledgebase.ScopeBuiltin {
+		return nil, ErrKnowledgeBaseNotFound
+	}
+	return s.getFileProcessingStatuses(ctx, item.ID, fileIDs)
+}
+
+func (s *Service) getFileProcessingStatuses(ctx context.Context, knowledgeBaseID uint, fileIDs []string) ([]domainconversation.FileObject, error) {
+	ids := normalizePublicIDs(fileIDs, maxFilesPerAddRequest)
+	if len(ids) == 0 {
+		return nil, ErrInvalidKnowledgeBase
+	}
+	items, err := s.repo.GetKnowledgeBaseFileProcessingStatuses(ctx, knowledgeBaseID, ids)
+	if err != nil {
+		return nil, mapRepositoryError(err)
+	}
+	return items, nil
 }
 
 // ListPlatformFiles 查询平台资料池中的全部有效文件。
@@ -518,6 +569,21 @@ func (s *Service) get(ctx context.Context, publicID string) (*domainknowledgebas
 		return nil, mapRepositoryError(err)
 	}
 	return item, nil
+}
+
+func (s *Service) getForAccess(ctx context.Context, publicID string) (*domainknowledgebase.KnowledgeBase, error) {
+	if strings.TrimSpace(publicID) == "" {
+		return nil, ErrInvalidKnowledgeBase
+	}
+	item, err := s.repo.GetKnowledgeBaseAccessByPublicID(ctx, strings.TrimSpace(publicID))
+	if err != nil {
+		return nil, mapRepositoryError(err)
+	}
+	return item, nil
+}
+
+func isVisibleToUser(item *domainknowledgebase.KnowledgeBase, userID uint) bool {
+	return item != nil && item.Enabled && (item.Scope == domainknowledgebase.ScopeBuiltin || (item.Scope == domainknowledgebase.ScopeUser && item.OwnerUserID == userID))
 }
 
 func (s *Service) create(ctx context.Context, item *domainknowledgebase.KnowledgeBase) (*domainknowledgebase.KnowledgeBase, error) {

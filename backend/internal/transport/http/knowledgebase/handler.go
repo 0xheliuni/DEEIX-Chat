@@ -145,6 +145,23 @@ func (h *Handler) ListVisibleFiles(c *gin.Context) {
 	writeFileList(c, items, total, err)
 }
 
+// GetVisibleFileProcessingStatuses godoc
+// @Summary 批量查询知识库文件处理状态
+// @Tags knowledge-bases
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path string true "知识库ID"
+// @Param request body GetKnowledgeBaseFileProcessingStatusesRequest true "文件ID，最多100个"
+// @Success 200 {array} KnowledgeBaseFileProcessingStatusResponse
+// @Failure 400 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /knowledge-bases/{id}/files/processing/statuses [post]
+func (h *Handler) GetVisibleFileProcessingStatuses(c *gin.Context) {
+	h.getFileProcessingStatuses(c, false)
+}
+
 // ListAvailableMineFiles godoc
 // @Summary 查询可加入个人知识库的文件
 // @Description 分页返回当前用户尚未关联到指定个人知识库的有效文件
@@ -398,6 +415,22 @@ func (h *Handler) CreateAdmin(c *gin.Context) {
 	response.Success(c, KnowledgeBaseDataResponse{KnowledgeBase: toKnowledgeBaseResponse(*item)})
 }
 
+// GetAdmin godoc
+// @Summary 查询内置知识库详情
+// @Tags admin-knowledge-bases
+// @Security BearerAuth
+// @Param id path string true "知识库ID"
+// @Success 200 {object} KnowledgeBaseResponseDoc
+// @Router /admin/knowledge-bases/{id} [get]
+func (h *Handler) GetAdmin(c *gin.Context) {
+	item, err := h.service.GetAdmin(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	response.Success(c, KnowledgeBaseDataResponse{KnowledgeBase: toKnowledgeBaseResponse(*item)})
+}
+
 // PatchAdmin godoc
 // @Summary 更新内置知识库
 // @Tags admin-knowledge-bases
@@ -440,6 +473,23 @@ func (h *Handler) ListAdminFiles(c *gin.Context) {
 	page, pageSize := pageParams(c)
 	items, total, err := h.service.ListAdminFiles(c.Request.Context(), c.Param("id"), page, pageSize)
 	writeFileList(c, items, total, err)
+}
+
+// GetAdminFileProcessingStatuses godoc
+// @Summary 批量查询内置知识库文件处理状态
+// @Tags admin-knowledge-bases
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path string true "知识库ID"
+// @Param request body GetKnowledgeBaseFileProcessingStatusesRequest true "文件ID，最多100个"
+// @Success 200 {array} KnowledgeBaseFileProcessingStatusResponse
+// @Failure 400 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /admin/knowledge-bases/{id}/files/processing/statuses [post]
+func (h *Handler) GetAdminFileProcessingStatuses(c *gin.Context) {
+	h.getFileProcessingStatuses(c, true)
 }
 
 // ListAvailableAdminFiles godoc
@@ -586,6 +636,32 @@ func (h *Handler) removeFile(c *gin.Context, admin bool) {
 		h.audit(c, "knowledge_base.remove_file_builtin", c.Param("id"), map[string]interface{}{"file_id": c.Param("file_id")})
 	}
 	response.Success(c, KnowledgeBaseFileMutationDataResponse{Updated: true})
+}
+
+func (h *Handler) getFileProcessingStatuses(c *gin.Context, admin bool) {
+	var req GetKnowledgeBaseFileProcessingStatusesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.InvalidRequestBody(c, err)
+		return
+	}
+
+	var items []domainconversation.FileObject
+	var err error
+	if admin {
+		items, err = h.service.GetAdminFileProcessingStatuses(c.Request.Context(), c.Param("id"), req.FileIDs)
+	} else {
+		items, err = h.service.GetVisibleFileProcessingStatuses(
+			c.Request.Context(),
+			middleware.MustUserID(c),
+			c.Param("id"),
+			req.FileIDs,
+		)
+	}
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	response.Success(c, toKnowledgeBaseFileProcessingStatusResponses(items))
 }
 
 func writeList(c *gin.Context, items []domainknowledgebase.KnowledgeBase, total int64, err error) {

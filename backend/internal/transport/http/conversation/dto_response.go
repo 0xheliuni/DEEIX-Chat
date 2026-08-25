@@ -1320,6 +1320,12 @@ func toRunResponse(r model.Run) RunResponse {
 	}
 }
 
+// ConversationRunStatusResponse 对话运行状态响应 DTO。
+type ConversationRunStatusResponse struct {
+	RunID  string `json:"runID"`
+	Status string `json:"status"`
+}
+
 // ---------- File Processing Status ----------
 
 // FileProcessingStatusResponse 文件处理状态响应 DTO。

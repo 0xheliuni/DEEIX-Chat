@@ -6,21 +6,34 @@ import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { getFileProcessingStatuses } from "@/shared/api/file";
 import type { FileProcessingStatusDTO } from "@/shared/api/file.types";
 
-export function useFileProcessingStatusPolling({
-  fileIDs,
-  intervalMs,
-  onStatuses,
-}: {
+type FileStatus = {
+  fileID: string;
+};
+
+export type FileStatusPollingResult<Status extends FileStatus> = {
+  statuses: Status[];
+  missingFileIDs: string[];
+};
+
+type FileStatusPollingOptions<Status extends FileStatus> = {
   fileIDs: string[];
   intervalMs: number;
-  onStatuses: (statuses: FileProcessingStatusDTO[]) => void;
-}) {
+  loadStatuses: (accessToken: string, fileIDs: string[], signal: AbortSignal) => Promise<Status[]>;
+  onResult: (result: FileStatusPollingResult<Status>) => void;
+};
+
+export function useFileStatusPolling<Status extends FileStatus>({
+  fileIDs,
+  intervalMs,
+  loadStatuses,
+  onResult,
+}: FileStatusPollingOptions<Status>) {
   const fileIDsKey = Array.from(new Set(fileIDs.filter(Boolean))).sort().join("\u0000");
-  const onStatusesRef = React.useRef(onStatuses);
+  const onResultRef = React.useRef(onResult);
 
   React.useEffect(() => {
-    onStatusesRef.current = onStatuses;
-  }, [onStatuses]);
+    onResultRef.current = onResult;
+  }, [onResult]);
 
   React.useEffect(() => {
     if (!fileIDsKey) {
@@ -31,6 +44,7 @@ export function useFileProcessingStatusPolling({
     let failureCount = 0;
     let polling = false;
     let timer: number | undefined;
+    let requestController: AbortController | null = null;
     const requestedFileIDs = fileIDsKey.split("\u0000");
     const schedule = () => {
       if (!cancelled && !document.hidden) {
@@ -45,23 +59,32 @@ export function useFileProcessingStatusPolling({
         return;
       }
       polling = true;
-      let statuses: FileProcessingStatusDTO[] | null = null;
+      let statuses: Status[] | null = null;
+      requestController = new AbortController();
+      const controller = requestController;
       try {
         const accessToken = await resolveAccessToken();
-        if (!accessToken || cancelled || document.hidden) {
+        if (!accessToken || cancelled || controller.signal.aborted || document.hidden) {
           return;
         }
-        statuses = await getFileProcessingStatuses(accessToken, requestedFileIDs);
+        statuses = await loadStatuses(accessToken, requestedFileIDs, controller.signal);
         failureCount = 0;
       } catch {
-        failureCount += 1;
-        // Polling is best-effort; the next cycle retries without interrupting the UI.
+        if (!controller.signal.aborted) {
+          failureCount += 1;
+          // Polling is best-effort; the next cycle retries without interrupting the UI.
+        }
       } finally {
+        if (requestController === controller) {
+          requestController = null;
+        }
         polling = false;
         schedule();
       }
       if (!cancelled && statuses) {
-        onStatusesRef.current(statuses);
+        const returnedFileIDs = new Set(statuses.map((status) => status.fileID));
+        const missingFileIDs = requestedFileIDs.filter((fileID) => !returnedFileIDs.has(fileID));
+        onResultRef.current({ statuses, missingFileIDs });
       }
     };
     const handleVisibilityChange = () => {
@@ -69,7 +92,9 @@ export function useFileProcessingStatusPolling({
         window.clearTimeout(timer);
         timer = undefined;
       }
-      if (!document.hidden) {
+      if (document.hidden) {
+        requestController?.abort();
+      } else {
         void poll();
       }
     };
@@ -78,10 +103,20 @@ export function useFileProcessingStatusPolling({
     void poll();
     return () => {
       cancelled = true;
+      requestController?.abort();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       if (timer !== undefined) {
         window.clearTimeout(timer);
       }
     };
-  }, [fileIDsKey, intervalMs]);
+  }, [fileIDsKey, intervalMs, loadStatuses]);
+}
+
+export function useFileProcessingStatusPolling(
+  options: Omit<FileStatusPollingOptions<FileProcessingStatusDTO>, "loadStatuses">,
+) {
+  useFileStatusPolling({
+    ...options,
+    loadStatuses: getFileProcessingStatuses,
+  });
 }

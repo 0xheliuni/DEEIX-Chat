@@ -323,6 +323,8 @@
     },
     "generationInterrupted": "Generation interrupted",
     "sendFailed": "Send failed",
+    "queuedParentFailed": "Queued messages canceled",
+    "queuedParentFailedDescription": "The previous message did not complete successfully, so its dependent queued messages were canceled.",
     "continueGenerationPrompt": "Continue from the previous interrupted reply without repeating content that was already generated.",
     "continueReplyFailed": "Unable to continue generation",
     "continueReplyUnavailable": "This reply cannot be continued right now.",

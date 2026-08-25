@@ -22,6 +22,8 @@ import {
   deleteAdminKnowledgeBase,
   deleteMyKnowledgeBase,
   fetchKnowledgeBaseFileContent,
+  getKnowledgeBase,
+  getKnowledgeBaseFileProcessingStatuses,
   listAdminKnowledgeBaseFiles,
   listAllAdminKnowledgeBases,
   listAllVisibleKnowledgeBases,
@@ -34,10 +36,22 @@ import {
   updateMyKnowledgeBase,
   uploadAdminKnowledgeBaseFile,
 } from "@/shared/api/knowledge-bases";
-import type { KnowledgeBaseDTO, KnowledgeBaseFileDTO } from "@/shared/api/knowledge-bases.types";
+import type {
+  KnowledgeBaseDTO,
+  KnowledgeBaseFileDTO,
+  KnowledgeBaseFileProcessingStatusDTO,
+} from "@/shared/api/knowledge-bases.types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import type { PreviewDialogFile } from "@/shared/components/file-preview/preview-dialog";
+import {
+  dispatchKnowledgeBaseInvalidated,
+  subscribeKnowledgeBaseInvalidated,
+} from "@/shared/events/knowledge-base-events";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
+import {
+  useFileStatusPolling,
+  type FileStatusPollingResult,
+} from "@/shared/hooks/use-file-processing-status-polling";
 import { runSettledBulkItems } from "@/shared/lib/bulk-action";
 import { isFileProcessing } from "@/shared/lib/file-processing";
 
@@ -45,8 +59,11 @@ const FILE_ACTION_LIMIT = 100;
 const FILE_PAGE_SIZE = 100;
 const AVAILABLE_FILE_PAGE_SIZE = 50;
 const UPLOAD_CONCURRENCY = 4;
-const PROCESSING_REFRESH_INTERVAL_MS = 2500;
 const AVAILABLE_FILE_SEARCH_DEBOUNCE_MS = 200;
+
+function isKnowledgeBaseFileSearchable(file: KnowledgeBaseFileDTO): boolean {
+  return file.processingReady && file.embedStatus === "ready" && !file.ragOptOut && file.chunkCount > 0;
+}
 
 export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
   const t = useTranslations("knowledgeBases");
@@ -90,6 +107,8 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
   const itemsRequestVersionRef = React.useRef(0);
   const filesRequestVersionRef = React.useRef(0);
   const availableFilesRequestVersionRef = React.useRef(0);
+  const filesRef = React.useRef(files);
+  filesRef.current = files;
   const selectedIDRef = React.useRef(selectedID);
   selectedIDRef.current = selectedID;
   const previewSnapshot = useDialogSnapshot(previewTarget);
@@ -98,6 +117,7 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
     () => items.find((item) => item.publicID === selectedID) ?? null,
     [items, selectedID],
   );
+  const selectedProcessingFileCount = selected?.processingFileCount ?? 0;
 
   const visibleItems = React.useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase();
@@ -188,6 +208,31 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
   }, [loadItems]);
 
   React.useEffect(() => {
+    let lastRefreshAt = 0;
+    const refreshCounts = () => {
+      const now = Date.now();
+      if (now - lastRefreshAt < 250) {
+        return;
+      }
+      lastRefreshAt = now;
+      void loadItems(undefined, true);
+    };
+    const unsubscribe = subscribeKnowledgeBaseInvalidated(refreshCounts);
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        refreshCounts();
+      }
+    };
+    window.addEventListener("focus", refreshCounts);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      unsubscribe();
+      window.removeEventListener("focus", refreshCounts);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [loadItems]);
+
+  React.useEffect(() => {
     if (!selectedID) {
       filesRequestVersionRef.current += 1;
       setFiles([]);
@@ -233,41 +278,174 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
     };
   }, [listFilePage, selectedID, t]);
 
-  const processingFilePages = React.useMemo(
-    () => Array.from(new Set(files.flatMap((file, index) =>
-      isFileProcessing(file) ? [Math.floor(index / FILE_PAGE_SIZE) + 1] : []))),
+  const processingFileIDs = React.useMemo(
+    () => files.filter(isFileProcessing).map((file) => file.fileID),
     [files],
   );
 
+  const loadProcessingStatuses = React.useCallback(
+    (accessToken: string, fileIDs: string[], signal: AbortSignal) =>
+      getKnowledgeBaseFileProcessingStatuses(accessToken, selectedID, fileIDs, mode === "admin", signal),
+    [mode, selectedID],
+  );
+
+  const onProcessingResult = React.useCallback(({
+    statuses,
+    missingFileIDs,
+  }: FileStatusPollingResult<KnowledgeBaseFileProcessingStatusDTO>) => {
+    const statusesByID = new Map(statuses.map((status) => [status.fileID, status]));
+    const missingFileIDSet = new Set(missingFileIDs);
+    const currentFiles = filesRef.current;
+    let readyDelta = 0;
+    let processingDelta = 0;
+    let changed = false;
+    let removedCount = 0;
+    let removedReadyCount = 0;
+    let removedProcessingCount = 0;
+    const nextFiles: KnowledgeBaseFileDTO[] = [];
+    for (const file of currentFiles) {
+      if (missingFileIDSet.has(file.fileID)) {
+        changed = true;
+        removedCount += 1;
+        removedReadyCount += Number(isKnowledgeBaseFileSearchable(file));
+        removedProcessingCount += Number(isFileProcessing(file));
+        continue;
+      }
+      const status = statusesByID.get(file.fileID);
+      if (!status) {
+        nextFiles.push(file);
+        continue;
+      }
+      if (
+        file.detectedMIME === status.detectedMIME &&
+        file.fileCategory === status.fileCategory &&
+        file.processingStatus === status.processingStatus &&
+        file.processingReady === status.processingReady &&
+        file.embedStatus === status.embedStatus &&
+        file.chunkCount === status.chunkCount &&
+        file.ragOptOut === status.ragOptOut &&
+        file.updatedAt === status.updatedAt
+      ) {
+        nextFiles.push(file);
+        continue;
+      }
+      const nextFile = { ...file, ...status };
+      readyDelta += Number(isKnowledgeBaseFileSearchable(nextFile)) - Number(isKnowledgeBaseFileSearchable(file));
+      processingDelta += Number(isFileProcessing(nextFile)) - Number(isFileProcessing(file));
+      changed = true;
+      nextFiles.push(nextFile);
+    }
+    if (!changed) {
+      return;
+    }
+
+    filesRef.current = nextFiles;
+    setFiles(nextFiles);
+    if (removedCount > 0) {
+      setFilesTotal((current) => Math.max(0, current - removedCount));
+    }
+    if (readyDelta !== 0 || processingDelta !== 0 || removedCount > 0) {
+      setItems((current) => current.map((item) => {
+        if (item.publicID !== selectedID) {
+          return item;
+        }
+        const fileCount = Math.max(0, item.fileCount - removedCount);
+        return {
+          ...item,
+          fileCount,
+          readyFileCount: Math.max(
+            0,
+            Math.min(fileCount, item.readyFileCount + readyDelta - removedReadyCount),
+          ),
+          processingFileCount: Math.max(
+            0,
+            item.processingFileCount + processingDelta - removedProcessingCount,
+          ),
+        };
+      }));
+      dispatchKnowledgeBaseInvalidated(selectedID);
+    }
+  }, [selectedID]);
+
+  useFileStatusPolling({
+    fileIDs: !selectedID || filesLoading || filesLoadingMore ? [] : processingFileIDs,
+    intervalMs: 2500,
+    loadStatuses: loadProcessingStatuses,
+    onResult: onProcessingResult,
+  });
+
   React.useEffect(() => {
-    if (!selectedID || processingFilePages.length === 0 || filesLoading || filesLoadingMore) return;
+    if (
+      !selectedID ||
+      selectedProcessingFileCount <= 0 ||
+      filesTotal <= files.length
+    ) {
+      return;
+    }
     let cancelled = false;
-    let refreshing = false;
-    const refresh = async () => {
-      if (refreshing) return;
-      refreshing = true;
-      try {
-        const token = await requireAccessToken();
-        const pages = await Promise.all(
-          processingFilePages.map((page) => listFilePage(token, selectedID, page)),
-        );
-        if (cancelled || selectedIDRef.current !== selectedID) return;
-        const updates = new Map(pages.flatMap((page) => page.results).map((file) => [file.fileID, file]));
-        setFiles((current) => current.map((file) => updates.get(file.fileID) ?? file));
-        setFilesTotal(pages[0]?.total ?? 0);
-        await loadItems(undefined, true);
-      } catch {
-        // The explicit load path owns user-visible errors; polling remains best-effort.
-      } finally {
-        refreshing = false;
+    let timer: number | null = null;
+    let requestController: AbortController | null = null;
+    const schedule = () => {
+      if (!cancelled && !document.hidden) {
+        timer = window.setTimeout(poll, 2500);
       }
     };
-    const timer = window.setInterval(() => void refresh(), PROCESSING_REFRESH_INTERVAL_MS);
+    const poll = async () => {
+      if (cancelled || document.hidden || requestController !== null) {
+        return;
+      }
+      requestController = new AbortController();
+      const controller = requestController;
+      try {
+        const token = await requireAccessToken();
+        const latest = await getKnowledgeBase(token, selectedID, mode === "admin", controller.signal);
+        if (cancelled || controller.signal.aborted || selectedIDRef.current !== selectedID) {
+          return;
+        }
+        setItems((current) => {
+          const existing = current.find((item) => item.publicID === selectedID);
+          if (
+            existing &&
+            existing.revision === latest.revision &&
+            existing.fileCount === latest.fileCount &&
+            existing.readyFileCount === latest.readyFileCount &&
+            existing.processingFileCount === latest.processingFileCount
+          ) {
+            return current;
+          }
+          return current.map((item) => item.publicID === selectedID ? latest : item);
+        });
+      } catch {
+        // The regular page refresh remains the fallback after a transient polling failure.
+      } finally {
+        if (requestController === controller) {
+          requestController = null;
+          schedule();
+        }
+      }
+    };
+    const handleVisibilityChange = () => {
+      if (timer !== null) {
+        window.clearTimeout(timer);
+        timer = null;
+      }
+      if (document.hidden) {
+        requestController?.abort();
+      } else {
+        void poll();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    void poll();
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      requestController?.abort();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (timer !== null) {
+        window.clearTimeout(timer);
+      }
     };
-  }, [filesLoading, filesLoadingMore, listFilePage, loadItems, processingFilePages, selectedID]);
+  }, [files.length, filesTotal, mode, selectedID, selectedProcessingFileCount]);
 
   React.useEffect(() => {
     if (!addFilesOpen || !selected) return;
@@ -350,6 +528,7 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
           : await createMyKnowledgeBase(token, payload);
       setDraft(null);
       await loadItems(result.knowledgeBase.publicID);
+      dispatchKnowledgeBaseInvalidated(result.knowledgeBase.publicID);
       if (creating) setMobileView("detail");
       toast.success(t("saved"));
     } catch (error) {
@@ -377,6 +556,7 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
       setSelectedFileIDs([]);
       await replaceFileList(token, selected.publicID);
       await loadItems(undefined, true);
+      dispatchKnowledgeBaseInvalidated(selected.publicID);
       toast.success(t("added"));
     } catch {
       toast.error(t("addFailed"));
@@ -423,6 +603,7 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
       setSelectedFileIDs([]);
       setFileQuery("");
       await loadItems(undefined, true);
+      dispatchKnowledgeBaseInvalidated(selected.publicID);
       toast.success(t("uploadedAndAdded", { count: fileIDs.length }));
       if (failedCount > 0) {
         toast.error(t("partialUploadFailed"), {
@@ -445,6 +626,7 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
       setAvailableFiles((current) => current.filter((file) => file.fileID !== fileID));
       setAvailableFilesTotal((current) => Math.max(0, current - 1));
       setSelectedFileIDs((current) => current.filter((id) => id !== fileID));
+      dispatchKnowledgeBaseInvalidated();
       toast.success(t("platformFileDeleted"));
       return true;
     } catch (error) {
@@ -474,6 +656,7 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
         setFilesTotal((current) => Math.max(0, current - 1));
       }
       await loadItems(undefined, true);
+      dispatchKnowledgeBaseInvalidated(knowledgeBaseID);
       toast.success(t("removed"));
     } catch {
       toast.error(t("removeFailed"));
@@ -524,6 +707,7 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
       setDeleteTarget(null);
       setDeleteFiles(false);
       await loadItems();
+      dispatchKnowledgeBaseInvalidated(deleteTarget.publicID);
       toast.success(t("deleted"));
     } catch {
       toast.error(t("deleteFailed"));
@@ -568,6 +752,9 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
       setBulkDeleteOpen(false);
       setBulkDeleteFiles(false);
       await loadItems();
+      if (successCount > 0) {
+        dispatchKnowledgeBaseInvalidated();
+      }
       if (failedCount > 0) {
         toast.error(t("bulkDeletePartialFailed"), {
           description: t("bulkDeletePartialDescription", { success: successCount, failed: failedCount }),
@@ -598,6 +785,7 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
       const token = await requireAccessToken();
       await updateAdminKnowledgeBase(token, selected.publicID, { enabled });
       await loadItems(undefined, true);
+      dispatchKnowledgeBaseInvalidated(selected.publicID);
       toast.success(t(enabled ? "enabledToast" : "disabledToast"));
     } catch {
       toast.error(t("toggleFailed"));

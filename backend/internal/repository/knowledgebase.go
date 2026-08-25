@@ -37,10 +37,12 @@ type KnowledgeBaseFileCleanupCandidate struct {
 type KnowledgeBaseRepository interface {
 	ListKnowledgeBases(ctx context.Context, filter KnowledgeBaseListFilter, offset int, limit int) ([]domainknowledgebase.KnowledgeBase, int64, error)
 	GetKnowledgeBaseByPublicID(ctx context.Context, publicID string) (*domainknowledgebase.KnowledgeBase, error)
+	GetKnowledgeBaseAccessByPublicID(ctx context.Context, publicID string) (*domainknowledgebase.KnowledgeBase, error)
 	CreateKnowledgeBase(ctx context.Context, item *domainknowledgebase.KnowledgeBase) (*domainknowledgebase.KnowledgeBase, error)
 	PatchKnowledgeBase(ctx context.Context, id uint, patch KnowledgeBasePatch) (*domainknowledgebase.KnowledgeBase, error)
 	DeleteKnowledgeBase(ctx context.Context, id uint) ([]KnowledgeBaseFileCleanupCandidate, error)
 	ListKnowledgeBaseFiles(ctx context.Context, knowledgeBaseID uint, offset int, limit int) ([]domainconversation.FileObject, int64, error)
+	GetKnowledgeBaseFileProcessingStatuses(ctx context.Context, knowledgeBaseID uint, fileIDs []string) ([]domainconversation.FileObject, error)
 	ListKnowledgeBaseSourceFiles(ctx context.Context, ownerUserID uint, query string, offset int, limit int) ([]domainconversation.FileObject, int64, error)
 	ListAvailableKnowledgeBaseFiles(ctx context.Context, knowledgeBaseID uint, ownerUserID uint, query string, offset int, limit int) ([]domainconversation.FileObject, int64, error)
 	GetKnowledgeBaseFile(ctx context.Context, knowledgeBaseID uint, fileID string) (*domainconversation.FileObject, error)

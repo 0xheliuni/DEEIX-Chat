@@ -25,7 +25,10 @@ import type {
   UploadFileResult,
   UserStorageQuotaDTO,
 } from "@/shared/api/file.types";
-import { useFileProcessingStatusPolling } from "@/shared/hooks/use-file-processing-status-polling";
+import {
+  useFileProcessingStatusPolling,
+  type FileStatusPollingResult,
+} from "@/shared/hooks/use-file-processing-status-polling";
 import { runBulkActionInChunks } from "@/shared/lib/bulk-action";
 import { isFileProcessing } from "@/shared/lib/file-processing";
 import { patchByID, replaceByID, upsertByID } from "@/shared/lib/optimistic-list";
@@ -304,58 +307,70 @@ export function useFilesPage(): UseFilesPageResult {
     [files],
   );
 
-  const onProcessingStatuses = React.useCallback((statuses: FileProcessingStatusDTO[]) => {
+  const onProcessingResult = React.useCallback(({
+    statuses,
+    missingFileIDs,
+  }: FileStatusPollingResult<FileProcessingStatusDTO>) => {
     const statusesByID = new Map(statuses.map((status) => [status.fileID, status]));
-    setFiles((current) => {
-      let changed = false;
-      const next = current.map((item) => {
-        const status = statusesByID.get(item.fileID);
-        if (!status) {
-          return item;
-        }
-        if (
-          item.detectedMIME === status.detectedMIME &&
-          item.fileCategory === status.fileCategory &&
-          item.processingStatus === status.processingStatus &&
-          item.processingReady === status.processingReady &&
-          item.processingErrorCode === status.errorCode &&
-          item.processingErrorMessage === status.errorMessage &&
-          item.extractStatus === status.extractStatus &&
-          item.embedStatus === status.embedStatus &&
-          item.embedError === status.embedError &&
-          item.chunkCount === status.chunkCount &&
-          item.updatedAt === status.updatedAt
-        ) {
-          return item;
-        }
+    const missingFileIDSet = new Set(missingFileIDs);
+    const currentFiles = filesRef.current;
+    let changed = false;
+    let removedCount = 0;
+    const nextFiles: FileObjectDTO[] = [];
+    for (const item of currentFiles) {
+      if (missingFileIDSet.has(item.fileID)) {
         changed = true;
-        return {
-          ...item,
-          detectedMIME: status.detectedMIME,
-          fileCategory: status.fileCategory,
-          processingStatus: status.processingStatus,
-          processingReady: status.processingReady,
-          processingErrorCode: status.errorCode,
-          processingErrorMessage: status.errorMessage,
-          extractStatus: status.extractStatus,
-          embedStatus: status.embedStatus,
-          embedError: status.embedError,
-          chunkCount: status.chunkCount,
-          updatedAt: status.updatedAt,
-        };
-      });
-      if (changed) {
-        filesRef.current = next;
-        return next;
+        removedCount += 1;
+        continue;
       }
-      return current;
-    });
+      const status = statusesByID.get(item.fileID);
+      if (!status || (
+        item.detectedMIME === status.detectedMIME &&
+        item.fileCategory === status.fileCategory &&
+        item.processingStatus === status.processingStatus &&
+        item.processingReady === status.processingReady &&
+        item.processingErrorCode === status.errorCode &&
+        item.processingErrorMessage === status.errorMessage &&
+        item.extractStatus === status.extractStatus &&
+        item.embedStatus === status.embedStatus &&
+        item.embedError === status.embedError &&
+        item.chunkCount === status.chunkCount &&
+        item.updatedAt === status.updatedAt
+      )) {
+        nextFiles.push(item);
+        continue;
+      }
+      changed = true;
+      nextFiles.push({
+        ...item,
+        detectedMIME: status.detectedMIME,
+        fileCategory: status.fileCategory,
+        processingStatus: status.processingStatus,
+        processingReady: status.processingReady,
+        processingErrorCode: status.errorCode,
+        processingErrorMessage: status.errorMessage,
+        extractStatus: status.extractStatus,
+        embedStatus: status.embedStatus,
+        embedError: status.embedError,
+        chunkCount: status.chunkCount,
+        updatedAt: status.updatedAt,
+      });
+    }
+    if (changed) {
+      filesRef.current = nextFiles;
+      setFiles(nextFiles);
+    }
+    if (removedCount > 0) {
+      setTotal((current) => Math.max(0, current - removedCount));
+      setSelectedFileID((current) =>
+        current && missingFileIDSet.has(current) ? (nextFiles[0]?.fileID ?? null) : current);
+    }
   }, []);
 
   useFileProcessingStatusPolling({
     fileIDs: loading || loadingMore || uploading ? [] : processingFileIDs,
     intervalMs: 2000,
-    onStatuses: onProcessingStatuses,
+    onResult: onProcessingResult,
   });
 
   useFileInvalidation(

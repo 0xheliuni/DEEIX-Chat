@@ -525,7 +525,7 @@ function ChatResponseOutlineRailComponent({
         align="center"
         sideOffset={8}
         avoidCollisions={false}
-        className="z-[9999] flex max-h-[min(68vh,34rem)] w-72 flex-col overflow-hidden rounded-lg border-0 bg-sidebar-accent p-1 text-foreground shadow-none"
+        className="z-30 flex max-h-[min(68vh,34rem)] w-72 flex-col overflow-hidden rounded-lg border-0 bg-sidebar-accent p-1 text-foreground shadow-none"
         role="navigation"
         aria-label={t("responseOutline")}
         data-screenshot-exclude="true"

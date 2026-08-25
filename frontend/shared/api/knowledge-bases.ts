@@ -11,6 +11,7 @@ import type {
   KnowledgeBaseFileDTO,
   KnowledgeBaseFileMutationData,
   KnowledgeBaseFilePage,
+  KnowledgeBaseFileProcessingStatusDTO,
   KnowledgeBasePage,
   PatchMyKnowledgeBaseRequest,
   PatchKnowledgeBaseRequest,
@@ -52,6 +53,21 @@ export async function listAllVisibleKnowledgeBases(accessToken: string): Promise
   return listAllKnowledgeBasePages((page, pageSize) => listVisibleKnowledgeBases(accessToken, { page, pageSize }));
 }
 
+export async function getKnowledgeBase(
+  accessToken: string,
+  id: string,
+  admin = false,
+  signal?: AbortSignal,
+): Promise<KnowledgeBaseDTO> {
+  const basePath = admin ? "/api/v1/admin/knowledge-bases" : "/api/v1/knowledge-bases";
+  const data = await authedRequest<KnowledgeBaseData>(
+    `${basePath}/${pathParam(id)}`,
+    { accessToken, signal },
+    true,
+  );
+  return data.knowledgeBase;
+}
+
 export async function createMyKnowledgeBase(accessToken: string, payload: WriteMyKnowledgeBaseRequest): Promise<KnowledgeBaseData> {
   return authedRequest<KnowledgeBaseData>("/api/v1/knowledge-bases/mine", { method: "POST", accessToken, body: payload }, true);
 }
@@ -75,6 +91,33 @@ export async function listKnowledgeBaseFiles(accessToken: string, id: string, pa
     true,
   );
   return { results: data.results ?? [], total: data.total ?? 0 };
+}
+
+export async function getKnowledgeBaseFileProcessingStatuses(
+  accessToken: string,
+  id: string,
+  fileIDs: string[],
+  admin = false,
+  signal?: AbortSignal,
+): Promise<KnowledgeBaseFileProcessingStatusDTO[]> {
+  if (fileIDs.length === 0) {
+    return [];
+  }
+  const basePath = admin ? "/api/v1/admin/knowledge-bases" : "/api/v1/knowledge-bases";
+  const requests: Promise<KnowledgeBaseFileProcessingStatusDTO[]>[] = [];
+  for (let index = 0; index < fileIDs.length; index += 100) {
+    requests.push(authedRequest<KnowledgeBaseFileProcessingStatusDTO[]>(
+      `${basePath}/${pathParam(id)}/files/processing/statuses`,
+      {
+        method: "POST",
+        accessToken,
+        body: { fileIDs: fileIDs.slice(index, index + 100) },
+        signal,
+      },
+      true,
+    ));
+  }
+  return (await Promise.all(requests)).flat();
 }
 
 export async function listAvailableMyKnowledgeBaseFiles(

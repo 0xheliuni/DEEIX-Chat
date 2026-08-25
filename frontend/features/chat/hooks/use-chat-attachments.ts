@@ -18,7 +18,10 @@ import {
   uploadFile,
 } from "@/shared/api/file";
 import type { ChatFilePolicyDTO, FileProcessingStatusDTO } from "@/shared/api/file.types";
-import { useFileProcessingStatusPolling } from "@/shared/hooks/use-file-processing-status-polling";
+import {
+  useFileProcessingStatusPolling,
+  type FileStatusPollingResult,
+} from "@/shared/hooks/use-file-processing-status-polling";
 import { isFileProcessing } from "@/shared/lib/file-processing";
 
 function revokeAttachmentPreview(item: PendingAttachment) {
@@ -45,6 +48,7 @@ export function useChatAttachments({
   const [chatFilePolicy, setChatFilePolicy] = React.useState<ChatFilePolicyDTO | null>(null);
   const attachmentsRef = React.useRef<PendingAttachment[]>(attachments);
   const previousAttachmentsRef = React.useRef<PendingAttachment[]>(attachments);
+  const transferredPreviewURLsRef = React.useRef(new Set<string>());
   const currentConversationKeyRef = React.useRef(conversationKey);
   const uploadingAttachments = uploadingByKey[conversationKey] ?? [];
   const uploading = uploadingAttachments.length > 0;
@@ -55,14 +59,24 @@ export function useChatAttachments({
     [attachments],
   );
 
-  const onProcessingStatuses = React.useCallback((statuses: FileProcessingStatusDTO[]) => {
+  const onProcessingResult = React.useCallback(({
+    statuses,
+    missingFileIDs,
+  }: FileStatusPollingResult<FileProcessingStatusDTO>) => {
     const statusesByID = new Map(statuses.map((status) => [status.fileID, status]));
+    const missingFileIDSet = new Set(missingFileIDs);
     setAttachments((current) => {
       let changed = false;
-      const next = current.map((item) => {
+      const next: PendingAttachment[] = [];
+      for (const item of current) {
+        if (missingFileIDSet.has(item.fileID)) {
+          changed = true;
+          continue;
+        }
         const status = statusesByID.get(item.fileID);
         if (!status) {
-          return item;
+          next.push(item);
+          continue;
         }
         if (
           item.detectedMime === status.detectedMIME &&
@@ -77,10 +91,11 @@ export function useChatAttachments({
           item.ragReason === status.ragReason &&
           item.ocrUsed === status.ocrUsed
         ) {
-          return item;
+          next.push(item);
+          continue;
         }
         changed = true;
-        return {
+        next.push({
           ...item,
           detectedMime: status.detectedMIME,
           fileCategory: status.fileCategory,
@@ -93,8 +108,8 @@ export function useChatAttachments({
           ragReady: status.ragReady,
           ragReason: status.ragReason,
           ocrUsed: status.ocrUsed,
-        };
-      });
+        });
+      }
       return changed ? next : current;
     });
   }, [setAttachments]);
@@ -102,7 +117,7 @@ export function useChatAttachments({
   useFileProcessingStatusPolling({
     fileIDs: processingFileIDs,
     intervalMs: 1500,
-    onStatuses: onProcessingStatuses,
+    onResult: onProcessingResult,
   });
 
   React.useEffect(() => {
@@ -133,30 +148,42 @@ export function useChatAttachments({
 
   React.useEffect(() => {
     const previous = previousAttachmentsRef.current;
-    const currentIDs = new Set(attachments.map((item) => item.fileID));
+    const currentPreviewURLs = new Map(attachments.map((item) => [item.fileID, item.previewURL]));
     for (const item of previous) {
-      if (!currentIDs.has(item.fileID)) {
+      if (!item.previewURL || currentPreviewURLs.get(item.fileID) === item.previewURL) {
+        continue;
+      }
+      if (!transferredPreviewURLsRef.current.delete(item.previewURL)) {
         revokeAttachmentPreview(item);
+      }
+    }
+    for (const previewURL of currentPreviewURLs.values()) {
+      if (previewURL) {
+        transferredPreviewURLsRef.current.delete(previewURL);
       }
     }
     previousAttachmentsRef.current = attachments;
   }, [attachments]);
 
+  const transferAttachments = React.useCallback((items: PendingAttachment[]) => {
+    for (const item of items) {
+      if (item.previewURL) {
+        transferredPreviewURLsRef.current.add(item.previewURL);
+      }
+    }
+  }, []);
+
   const releaseAttachments = React.useCallback((items: PendingAttachment[]) => {
     for (const item of items) {
+      if (item.previewURL) {
+        transferredPreviewURLsRef.current.delete(item.previewURL);
+      }
       revokeAttachmentPreview(item);
     }
   }, []);
 
   const onRemoveAttachment = React.useCallback((fileID: string) => {
-    setAttachments((prev) => {
-      const next = prev.filter((item) => item.fileID !== fileID);
-      const removed = prev.find((item) => item.fileID === fileID);
-      if (removed) {
-        revokeAttachmentPreview(removed);
-      }
-      return next;
-    });
+    setAttachments((current) => current.filter((item) => item.fileID !== fileID));
   }, [setAttachments]);
 
   const onUploadFiles = React.useCallback(
@@ -341,6 +368,9 @@ export function useChatAttachments({
   React.useEffect(() => {
     return () => {
       for (const item of attachmentsRef.current) {
+        if (item.previewURL && transferredPreviewURLsRef.current.has(item.previewURL)) {
+          continue;
+        }
         revokeAttachmentPreview(item);
       }
     };
@@ -355,6 +385,7 @@ export function useChatAttachments({
     ragAvailable: chatFilePolicy?.ragAvailable ?? null,
     ragAvailabilityReason: chatFilePolicy?.ragAvailabilityReason ?? "",
     releaseAttachments,
+    transferAttachments,
     onRemoveAttachment,
     onUploadFiles,
     onCaptureScreenshot,

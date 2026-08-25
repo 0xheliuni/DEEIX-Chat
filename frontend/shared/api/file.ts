@@ -192,6 +192,7 @@ export async function fetchFileExtract(accessToken: string, fileID: string): Pro
 export async function getFileProcessingStatuses(
   accessToken: string,
   fileIDs: string[],
+  signal?: AbortSignal,
 ): Promise<FileProcessingStatusDTO[]> {
   if (fileIDs.length === 0) {
     return [];
@@ -204,6 +205,7 @@ export async function getFileProcessingStatuses(
         method: "POST",
         accessToken,
         body: { fileIDs: fileIDs.slice(index, index + 100) },
+        signal,
       },
       true,
     ));

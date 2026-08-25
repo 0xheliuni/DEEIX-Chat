@@ -94,7 +94,7 @@ function ChatMessagePositionPreview({
         <motion.div
           ref={previewRef}
           key="chat-message-position-preview"
-          className="pointer-events-none fixed z-[9999] w-[min(22rem,calc(100vw-5rem))] -translate-y-1/2"
+          className="pointer-events-none fixed z-30 w-[min(22rem,calc(100vw-5rem))] -translate-y-1/2"
           style={{ left: position.left, maxHeight: position.maxHeight, top }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

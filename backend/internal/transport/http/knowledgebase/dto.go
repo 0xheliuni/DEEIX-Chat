@@ -9,17 +9,18 @@ import (
 
 // KnowledgeBaseResponse 表示知识库响应。
 type KnowledgeBaseResponse struct {
-	PublicID       string    `json:"publicID"`
-	Scope          string    `json:"scope" enums:"builtin,user"`
-	Name           string    `json:"name"`
-	Description    string    `json:"description"`
-	Enabled        bool      `json:"enabled"`
-	SortOrder      int       `json:"sortOrder"`
-	Revision       uint64    `json:"revision"`
-	FileCount      int64     `json:"fileCount"`
-	ReadyFileCount int64     `json:"readyFileCount"`
-	CreatedAt      time.Time `json:"createdAt"`
-	UpdatedAt      time.Time `json:"updatedAt"`
+	PublicID            string    `json:"publicID"`
+	Scope               string    `json:"scope" enums:"builtin,user"`
+	Name                string    `json:"name"`
+	Description         string    `json:"description"`
+	Enabled             bool      `json:"enabled"`
+	SortOrder           int       `json:"sortOrder"`
+	Revision            uint64    `json:"revision"`
+	FileCount           int64     `json:"fileCount"`
+	ReadyFileCount      int64     `json:"readyFileCount"`
+	ProcessingFileCount int64     `json:"processingFileCount"`
+	CreatedAt           time.Time `json:"createdAt"`
+	UpdatedAt           time.Time `json:"updatedAt"`
 }
 
 // KnowledgeBaseFileResponse 表示知识库文件摘要。
@@ -70,6 +71,24 @@ type PatchKnowledgeBaseRequest struct {
 // AddKnowledgeBaseFilesRequest 表示批量添加文件请求。
 type AddKnowledgeBaseFilesRequest struct {
 	FileIDs []string `json:"fileIDs" binding:"required,min=1,max=100,dive,required,max=64"`
+}
+
+// GetKnowledgeBaseFileProcessingStatusesRequest 表示批量文件处理状态请求。
+type GetKnowledgeBaseFileProcessingStatusesRequest struct {
+	FileIDs []string `json:"fileIDs" binding:"required,min=1,max=100,dive,required,max=64"`
+}
+
+// KnowledgeBaseFileProcessingStatusResponse 表示知识库文件处理状态。
+type KnowledgeBaseFileProcessingStatusResponse struct {
+	FileID           string    `json:"fileID"`
+	DetectedMIME     string    `json:"detectedMIME"`
+	FileCategory     string    `json:"fileCategory"`
+	ProcessingStatus string    `json:"processingStatus"`
+	ProcessingReady  bool      `json:"processingReady"`
+	EmbedStatus      string    `json:"embedStatus"`
+	ChunkCount       int       `json:"chunkCount"`
+	RagOptOut        bool      `json:"ragOptOut"`
+	UpdatedAt        time.Time `json:"updatedAt"`
 }
 
 // KnowledgeBaseDataResponse 包裹单条知识库响应。
@@ -155,7 +174,8 @@ func toKnowledgeBaseResponse(item domainknowledgebase.KnowledgeBase) KnowledgeBa
 	return KnowledgeBaseResponse{
 		PublicID: item.PublicID, Scope: item.Scope, Name: item.Name, Description: item.Description,
 		Enabled: item.Enabled, SortOrder: item.SortOrder, Revision: item.Revision,
-		FileCount: item.FileCount, ReadyFileCount: item.ReadyFileCount, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt,
+		FileCount: item.FileCount, ReadyFileCount: item.ReadyFileCount, ProcessingFileCount: item.ProcessingFileCount,
+		CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt,
 	}
 }
 
@@ -171,6 +191,19 @@ func toKnowledgeBaseFileResponses(items []domainconversation.FileObject) []Knowl
 	results := make([]KnowledgeBaseFileResponse, 0, len(items))
 	for _, item := range items {
 		results = append(results, toKnowledgeBaseFileResponse(item))
+	}
+	return results
+}
+
+func toKnowledgeBaseFileProcessingStatusResponses(items []domainconversation.FileObject) []KnowledgeBaseFileProcessingStatusResponse {
+	results := make([]KnowledgeBaseFileProcessingStatusResponse, 0, len(items))
+	for _, item := range items {
+		results = append(results, KnowledgeBaseFileProcessingStatusResponse{
+			FileID: item.FileID, DetectedMIME: item.DetectedMIME, FileCategory: item.FileCategory,
+			ProcessingStatus: item.ProcessingStatus, ProcessingReady: item.ProcessingReady,
+			EmbedStatus: item.EmbedStatus, ChunkCount: item.ChunkCount, RagOptOut: item.RagOptOut,
+			UpdatedAt: item.UpdatedAt,
+		})
 	}
 	return results
 }

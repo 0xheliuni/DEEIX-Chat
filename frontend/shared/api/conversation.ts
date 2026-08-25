@@ -8,6 +8,7 @@ import { authedFetch, authedRequest } from "@/shared/api/authed-client";
 import type { PagePayload } from "@/shared/api/common.types";
 import type {
   ActiveConversationRunEvent,
+  ConversationRunStatusDTO,
   BatchSetConversationProjectRequest,
   BatchSetConversationProjectResult,
   ContextArtifactDTO,
@@ -810,6 +811,31 @@ export async function listConversationRuns(
     total: data.total ?? 0,
     results: data.results ?? [],
   };
+}
+
+export async function getConversationRunStatuses(
+  accessToken: string,
+  runIDs: string[],
+  signal?: AbortSignal,
+): Promise<ConversationRunStatusDTO[]> {
+  const normalizedRunIDs = Array.from(new Set(runIDs.map((runID) => runID.trim()).filter(Boolean)));
+  if (normalizedRunIDs.length === 0) {
+    return [];
+  }
+  const requests: Promise<ConversationRunStatusDTO[]>[] = [];
+  for (let index = 0; index < normalizedRunIDs.length; index += 100) {
+    requests.push(authedRequest<ConversationRunStatusDTO[]>(
+      "/api/v1/conversation-runs/statuses",
+      {
+        method: "POST",
+        accessToken,
+        body: { runIDs: normalizedRunIDs.slice(index, index + 100) },
+        signal,
+      },
+      true,
+    ));
+  }
+  return (await Promise.all(requests)).flat();
 }
 
 export async function streamActiveConversationRuns(

@@ -301,11 +301,13 @@ type FileObjectProcessing struct {
 	DetectedMIME       string
 	FileCategory       string
 	ProcessingStatus   string
+	ProcessingReady    bool
 	ExtractStatus      string
 	ExtractEngine      string
 	ExtractStoragePath string
 	ExtractChars       int
 	ExtractPages       int
+	PageCount          int
 	PreviewText        string
 	OCRUsed            bool
 	RAGReady           bool
@@ -316,6 +318,7 @@ type FileObjectProcessing struct {
 	PayloadJSON        string
 	StartedAt          *time.Time
 	CompletedAt        *time.Time
+	ExtractedAt        *time.Time
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 }
@@ -390,6 +393,12 @@ type Run struct {
 	EndedAt                  *time.Time
 	CreatedAt                time.Time
 	UpdatedAt                time.Time
+}
+
+// RunStatus 表示用于状态同步的最小运行快照。
+type RunStatus struct {
+	RunID  string
+	Status string
 }
 
 // MessageTrace 表示消息处理轨迹。

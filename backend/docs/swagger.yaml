@@ -2410,6 +2410,16 @@ definitions:
     - data
     - errorMsg
     type: object
+  ConversationRunStatusResponse:
+    properties:
+      runID:
+        type: string
+      status:
+        type: string
+    required:
+    - runID
+    - status
+    type: object
   ConversationSearchListResponseDoc:
     properties:
       data:
@@ -3319,7 +3329,29 @@ definitions:
     - quota
     - reused
     type: object
+  GetConversationRunStatusesRequest:
+    properties:
+      runIDs:
+        items:
+          type: string
+        maxItems: 100
+        minItems: 1
+        type: array
+    required:
+    - runIDs
+    type: object
   GetFileProcessingStatusesRequest:
+    properties:
+      fileIDs:
+        items:
+          type: string
+        maxItems: 100
+        minItems: 1
+        type: array
+    required:
+    - fileIDs
+    type: object
+  GetKnowledgeBaseFileProcessingStatusesRequest:
     properties:
       fileIDs:
         items:
@@ -3753,6 +3785,37 @@ definitions:
     - data
     - errorMsg
     type: object
+  KnowledgeBaseFileProcessingStatusResponse:
+    properties:
+      chunkCount:
+        type: integer
+      detectedMIME:
+        type: string
+      embedStatus:
+        type: string
+      fileCategory:
+        type: string
+      fileID:
+        type: string
+      processingReady:
+        type: boolean
+      processingStatus:
+        type: string
+      ragOptOut:
+        type: boolean
+      updatedAt:
+        type: string
+    required:
+    - chunkCount
+    - detectedMIME
+    - embedStatus
+    - fileCategory
+    - fileID
+    - processingReady
+    - processingStatus
+    - ragOptOut
+    - updatedAt
+    type: object
   KnowledgeBaseFileResponse:
     properties:
       chunkCount:
@@ -3838,6 +3901,8 @@ definitions:
         type: integer
       name:
         type: string
+      processingFileCount:
+        type: integer
       publicID:
         type: string
       readyFileCount:
@@ -3859,6 +3924,7 @@ definitions:
     - enabled
     - fileCount
     - name
+    - processingFileCount
     - publicID
     - readyFileCount
     - revision
@@ -10676,6 +10742,23 @@ paths:
       summary: 删除内置知识库
       tags:
       - admin-knowledge-bases
+    get:
+      parameters:
+      - description: 知识库ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/KnowledgeBaseResponseDoc'
+      security:
+      - BearerAuth: []
+      summary: 查询内置知识库详情
+      tags:
+      - admin-knowledge-bases
     patch:
       parameters:
       - description: 知识库ID
@@ -10850,6 +10933,48 @@ paths:
       security:
       - BearerAuth: []
       summary: 获取内置知识库文件内容
+      tags:
+      - admin-knowledge-bases
+  /admin/knowledge-bases/{id}/files/processing/statuses:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 知识库ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 文件ID，最多100个
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/GetKnowledgeBaseFileProcessingStatusesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/KnowledgeBaseFileProcessingStatusResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/KnowledgebaseErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/KnowledgebaseErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/KnowledgebaseErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 批量查询内置知识库文件处理状态
       tags:
       - admin-knowledge-bases
   /admin/knowledge-bases/files:
@@ -15566,6 +15691,40 @@ paths:
       summary: 恢复流式生成订阅
       tags:
       - chat
+  /conversation-runs/statuses:
+    post:
+      consumes:
+      - application/json
+      description: 按运行 ID 一次查询当前用户多个会话任务的最小状态快照
+      parameters:
+      - description: 运行ID，最多100个
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/GetConversationRunStatusesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/ConversationRunStatusResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 批量查询会话运行状态
+      tags:
+      - chat
   /conversation-runs/stream:
     get:
       description: Sends an authoritative snapshot followed by live user-scoped run
@@ -16928,6 +17087,48 @@ paths:
       security:
       - BearerAuth: []
       summary: 获取知识库文件内容
+      tags:
+      - knowledge-bases
+  /knowledge-bases/{id}/files/processing/statuses:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 知识库ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 文件ID，最多100个
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/GetKnowledgeBaseFileProcessingStatusesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/KnowledgeBaseFileProcessingStatusResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/KnowledgebaseErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/KnowledgebaseErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/KnowledgebaseErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 批量查询知识库文件处理状态
       tags:
       - knowledge-bases
   /knowledge-bases/mine:

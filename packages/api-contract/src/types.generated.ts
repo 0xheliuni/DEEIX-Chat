@@ -979,6 +979,11 @@ export interface ConversationRunListResponseDoc {
   errorMsg: string;
 }
 
+export interface ConversationRunStatusResponse {
+  runID: string;
+  status: string;
+}
+
 export interface ConversationSearchListResponseDoc {
   data: ConversationSearchPageResponse;
   errorMsg: string;
@@ -1455,7 +1460,23 @@ export interface FileUploadResponse {
   reused: boolean;
 }
 
+export interface GetConversationRunStatusesRequest {
+  /**
+   * @maxItems 100
+   * @minItems 1
+   */
+  runIDs: string[];
+}
+
 export interface GetFileProcessingStatusesRequest {
+  /**
+   * @maxItems 100
+   * @minItems 1
+   */
+  fileIDs: string[];
+}
+
+export interface GetKnowledgeBaseFileProcessingStatusesRequest {
   /**
    * @maxItems 100
    * @minItems 1
@@ -1654,6 +1675,18 @@ export interface KnowledgeBaseFilePageResponseDoc {
   errorMsg: string;
 }
 
+export interface KnowledgeBaseFileProcessingStatusResponse {
+  chunkCount: number;
+  detectedMIME: string;
+  embedStatus: string;
+  fileCategory: string;
+  fileID: string;
+  processingReady: boolean;
+  processingStatus: string;
+  ragOptOut: boolean;
+  updatedAt: string;
+}
+
 export interface KnowledgeBaseFileResponse {
   chunkCount: number;
   createdAt: string;
@@ -1689,6 +1722,7 @@ export interface KnowledgeBaseResponse {
   enabled: boolean;
   fileCount: number;
   name: string;
+  processingFileCount: number;
   publicID: string;
   readyFileCount: number;
   revision: number;
@@ -5041,6 +5075,25 @@ export namespace Admin {
   /**
    * No description
    * @tags admin-knowledge-bases
+   * @name KnowledgeBasesDetail
+   * @summary 查询内置知识库详情
+   * @request GET:/admin/knowledge-bases/{id}
+   * @secure
+   */
+  export namespace KnowledgeBasesDetail {
+    export type RequestParams = {
+      /** 知识库ID */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags admin-knowledge-bases
    * @name KnowledgeBasesDelete
    * @summary 删除内置知识库
    * @request DELETE:/admin/knowledge-bases/{id}
@@ -5150,6 +5203,25 @@ export namespace Admin {
     export type RequestBody = AddKnowledgeBaseFilesRequest;
     export type RequestHeaders = {};
     export type ResponseBody = KnowledgeBaseFileMutationResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags admin-knowledge-bases
+   * @name KnowledgeBasesFilesProcessingStatusesCreate
+   * @summary 批量查询内置知识库文件处理状态
+   * @request POST:/admin/knowledge-bases/{id}/files/processing/statuses
+   * @secure
+   */
+  export namespace KnowledgeBasesFilesProcessingStatusesCreate {
+    export type RequestParams = {
+      /** 知识库ID */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = GetKnowledgeBaseFileProcessingStatusesRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseFileProcessingStatusResponse[];
   }
 
   /**
@@ -7817,6 +7889,22 @@ export namespace ConversationProjects {
 
 export namespace ConversationRuns {
   /**
+   * @description 按运行 ID 一次查询当前用户多个会话任务的最小状态快照
+   * @tags chat
+   * @name StatusesCreate
+   * @summary 批量查询会话运行状态
+   * @request POST:/conversation-runs/statuses
+   * @secure
+   */
+  export namespace StatusesCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = GetConversationRunStatusesRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = ConversationRunStatusResponse[];
+  }
+
+  /**
    * @description Sends an authoritative snapshot followed by live user-scoped run state events
    * @tags chat
    * @name StreamList
@@ -8749,6 +8837,25 @@ export namespace KnowledgeBases {
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = KnowledgeBaseFilePageResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags knowledge-bases
+   * @name FilesProcessingStatusesCreate
+   * @summary 批量查询知识库文件处理状态
+   * @request POST:/knowledge-bases/{id}/files/processing/statuses
+   * @secure
+   */
+  export namespace FilesProcessingStatusesCreate {
+    export type RequestParams = {
+      /** 知识库ID */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = GetKnowledgeBaseFileProcessingStatusesRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseFileProcessingStatusResponse[];
   }
 
   /**

@@ -584,6 +584,31 @@ func (s *Service) ListConversationRunsByRunIDs(
 	return s.repo.ListConversationRunsByRunIDs(ctx, userID, conversationID, runIDs)
 }
 
+// ListConversationRunStatusesByRunIDs 批量查询当前用户的运行状态。
+func (s *Service) ListConversationRunStatusesByRunIDs(
+	ctx context.Context,
+	userID uint,
+	runIDs []string,
+) ([]model.RunStatus, error) {
+	normalized := make([]string, 0, len(runIDs))
+	seen := make(map[string]struct{}, len(runIDs))
+	for _, rawRunID := range runIDs {
+		runID := strings.TrimSpace(rawRunID)
+		if runID == "" {
+			continue
+		}
+		if _, exists := seen[runID]; exists {
+			continue
+		}
+		seen[runID] = struct{}{}
+		normalized = append(normalized, runID)
+	}
+	if len(normalized) == 0 {
+		return nil, nil
+	}
+	return s.repo.ListConversationRunStatusesByRunIDs(ctx, userID, normalized)
+}
+
 func normalizePage(page int, pageSize int) (int, int) {
 	return normalizePageWithMax(page, pageSize, maxPageSize)
 }
