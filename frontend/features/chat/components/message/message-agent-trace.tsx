@@ -46,6 +46,7 @@ function traceEventToBlock(event: ChatTraceEvent): ChatTraceBlock {
     roundID: event.roundID,
     parentEventID: event.parentEventID,
     startedAt: event.startedAt,
+    endedAt: event.endedAt,
     updatedAt: event.updatedAt,
     payloadJson: event.payloadJson,
   };
@@ -381,6 +382,8 @@ export function MessageAgentTrace({
       const thinkBlock = mergeThinkTraceBlock(group.thinkEvents, group.thinkBlock);
       if (thinkBlock) {
         const streaming = Boolean(messageStreaming && thinkBlock.status === "streaming");
+        const completedDurationMS = thinkEventDurationMS(group.thinkEvents)
+          ?? durationBetweenMS(thinkBlock.startedAt, thinkBlock.endedAt);
         list.push({
           kind: "think",
           key: `${group.key}:think`,
@@ -388,7 +391,7 @@ export function MessageAgentTrace({
           streaming,
           durationMS: streaming
             ? undefined
-            : thinkEventDurationMS(group.thinkEvents),
+            : completedDurationMS,
         });
       }
       groupToolSteps[index].forEach((step) => {

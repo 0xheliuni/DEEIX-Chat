@@ -737,6 +737,9 @@ func TestUpstreamThinkingDeltaIsCoalescedBetweenFlushes(t *testing.T) {
 	if !ok || recorder.upstreamThink == nil || !startedAt.Equal(recorder.upstreamThink.startedAt) {
 		t.Fatalf("expected live event to carry the authoritative thinking start, got %#v", events[0]["startedAt"])
 	}
+	if _, ok := events[0]["endedAt"]; ok {
+		t.Fatalf("streaming thinking event must not carry endedAt, got %#v", events[0]["endedAt"])
+	}
 	if _, ok := events[0]["trace"]; ok {
 		t.Fatalf("live thinking delta must not carry full trace: %#v", events[0])
 	}
@@ -758,6 +761,10 @@ func TestUpstreamThinkingDeltaIsCoalescedBetweenFlushes(t *testing.T) {
 	if !ok || !completedStartedAt.Equal(startedAt) {
 		t.Fatalf("expected all deltas in one thinking round to retain startedAt, got %v then %v",
 			events[0]["startedAt"], events[1]["startedAt"])
+	}
+	endedAt, ok := events[1]["endedAt"].(time.Time)
+	if !ok || recorder.upstreamThink == nil || recorder.upstreamThink.endedAt == nil || !endedAt.Equal(*recorder.upstreamThink.endedAt) {
+		t.Fatalf("expected completed thinking event to carry the authoritative end, got %#v", events[1]["endedAt"])
 	}
 }
 
