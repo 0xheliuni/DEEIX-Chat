@@ -1,7 +1,7 @@
 "use client";
 
-import * as React from "react";
 import { useTranslations } from "next-intl";
+import * as React from "react";
 
 import {
   SidebarGroup,
@@ -9,13 +9,18 @@ import {
   useSidebar,
   useSidebarVisualState,
 } from "@/components/ui/sidebar";
+import { useSidebarConversations } from "@/entities/conversation";
+import { NavMainItem } from "@/features/layouts/components/navigation/nav-main-item";
+import { NavigationSearch } from "@/features/layouts/components/navigation/navigation-search";
 import {
   useLayoutNavigationSearch,
   useLayoutNavigationShortcuts,
 } from "@/features/layouts/hooks/use-layout-navigation-search";
 import { NAVIGATION_ITEMS } from "@/features/layouts/model/navigation-items";
-import { NavigationSearch } from "@/features/layouts/components/navigation/navigation-search";
-import { NavMainItem } from "@/features/layouts/components/navigation/nav-main-item";
+import {
+  filterConversationSearchResults,
+  NAVIGATION_SEARCH_PAGE_SIZE,
+} from "@/features/layouts/model/navigation-search";
 
 export function NavMain({
   onCreateConversation,
@@ -26,9 +31,17 @@ export function NavMain({
   const { isMobile, setOpenMobile } = useSidebar();
   const state = useSidebarVisualState();
   const isCollapsed = !isMobile && state === "collapsed";
+  const { items: sidebarConversations } = useSidebarConversations();
+  const untitled = t("newChat");
+  const initialSearchResults = React.useMemo(
+    () => filterConversationSearchResults(sidebarConversations, "", { untitled })
+      .slice(0, NAVIGATION_SEARCH_PAGE_SIZE),
+    [sidebarConversations, untitled],
+  );
 
   const search = useLayoutNavigationSearch({
-    untitled: t("newChat"),
+    initialResults: initialSearchResults,
+    untitled,
   });
 
   const onCloseMobileSidebar = React.useCallback(() => {

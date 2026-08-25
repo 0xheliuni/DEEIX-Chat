@@ -1,9 +1,9 @@
 "use client";
 
 import { ChevronDown, CircleAlert, Film, GalleryHorizontalEnd } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import * as React from "react";
-import { GrainientBackground } from "@/components/reactbits/backgrounds/grainient";
 import {
   Accordion,
   AccordionContent,
@@ -47,6 +47,10 @@ import { useBranding } from "@/shared/config/branding-provider";
 import type { BillingDisplayCurrency } from "@/shared/lib/billing-display";
 
 const EMPTY_TRACE_EVENTS: NonNullable<ChatAreaMessage["processTrace"]>["events"] = [];
+const GrainientBackground = dynamic(
+  () => import("@/components/reactbits/backgrounds/grainient").then((mod) => mod.GrainientBackground),
+  { ssr: false, loading: () => null },
+);
 
 function isEditableImageAttachment(attachment: MessageAttachment): boolean {
   const mimeType = attachment.mimeType.toLowerCase();
@@ -664,7 +668,12 @@ export function AssistantImageGenerationSkeleton({
         <span className="inline-block size-3.5 animate-spin rounded-full border-2 border-muted border-t-foreground/50" />
         {label?.trim() || t("processing")}
       </div>
-      <div className={cn("relative w-full overflow-hidden rounded-xl bg-muted/20 text-primary", aspectClassName)}>
+      <div
+        className={cn(
+          "relative w-full overflow-hidden rounded-xl bg-[linear-gradient(135deg,#BAE6FD_0%,#60A5FA_52%,#A78BFA_100%)] text-primary",
+          aspectClassName,
+        )}
+      >
         <GrainientBackground
           className="absolute inset-0 text-primary/75"
           color1="#BAE6FD"
@@ -695,7 +704,7 @@ export function AssistantVideoGenerationSkeleton({ label }: { label?: string }) 
         <span className="inline-block size-3.5 animate-spin rounded-full border-2 border-muted border-t-foreground/50" />
         {label?.trim() || t("processing")}
       </div>
-      <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-muted/20 text-primary">
+      <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-[linear-gradient(135deg,#FDE68A_0%,#FDA4AF_52%,#FB7185_100%)] text-primary">
         <GrainientBackground
           className="absolute inset-0 text-primary/75"
           color1="#FDE68A"
