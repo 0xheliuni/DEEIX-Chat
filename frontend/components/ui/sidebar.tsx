@@ -1,13 +1,10 @@
 "use client"
 
-import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { PanelLeftIcon } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Slot } from "radix-ui"
-
-import { useIsMobile } from "@/shared/hooks/use-mobile"
-import { cn } from "@/lib/utils"
+import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
@@ -25,6 +22,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
+import { useIsMobile } from "@/shared/hooks/use-mobile"
+import {
+  createSidebarRevealTransitionState,
+  sidebarRevealTransitionReducer,
+} from "./sidebar-hover-transition"
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
@@ -35,6 +38,9 @@ const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 const SIDEBAR_AUTO_COLLAPSE_AT = 1180
 const SIDEBAR_AUTO_RESTORE_AT = 1360
+const SIDEBAR_HOVER_COLLAPSE_DELAY_MS = 80
+const SIDEBAR_HOVER_REVEAL_DURATION_MS = 200
+const SIDEBAR_TRANSITION_FALLBACK_MS = SIDEBAR_HOVER_REVEAL_DURATION_MS + 50
 
 type SidebarContextProps = {
   state: "expanded" | "collapsed"
@@ -46,8 +52,13 @@ type SidebarContextProps = {
   toggleSidebar: () => void
 }
 
+type SidebarHoverExpansionContextProps = {
+  acquireLock: () => () => void
+}
+
 const SidebarContext = React.createContext<SidebarContextProps | null>(null)
 const SidebarVisualStateContext = React.createContext<SidebarContextProps["state"] | null>(null)
+const SidebarHoverExpansionContext = React.createContext<SidebarHoverExpansionContextProps | null>(null)
 
 function useSidebar() {
   const context = React.useContext(SidebarContext)
@@ -67,12 +78,30 @@ function useSidebarVisualState() {
   return state
 }
 
+function useSidebarHoverExpansionLock(active: boolean) {
+  const context = React.useContext(SidebarHoverExpansionContext)
+
+  React.useLayoutEffect(() => {
+    if (!active || !context) {
+      return
+    }
+    return context.acquireLock()
+  }, [active, context])
+}
+
 function shouldAutoCollapseSidebar() {
   return typeof window !== "undefined" && window.innerWidth < SIDEBAR_AUTO_COLLAPSE_AT
 }
 
 function shouldAutoRestoreSidebar() {
   return typeof window !== "undefined" && window.innerWidth >= SIDEBAR_AUTO_RESTORE_AT
+}
+
+function shouldReduceSidebarMotion() {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  )
 }
 
 function readSidebarInitialOpen(defaultOpen: boolean) {
@@ -277,6 +306,7 @@ function Sidebar({
   children,
   onPointerEnter,
   onPointerLeave,
+  onTransitionEnd,
   ...props
 }: React.ComponentProps<"div"> & {
   side?: "left" | "right"
@@ -291,18 +321,126 @@ function Sidebar({
     setOpenMobile,
   } = useSidebar()
   const [hoverExpanded, setHoverExpanded] = React.useState(false)
+  const hoverCollapseTimerRef = React.useRef<number | null>(null)
+  const hoverExpansionLockCountRef = React.useRef(0)
+  const pointerInsideRef = React.useRef(false)
   const visualState = open || hoverExpanded ? "expanded" : "collapsed"
+  const usesHoverReveal = expandOnHover && collapsible === "icon" && variant === "sidebar"
+  // Keep the stable child layout separate from the animated shell target.
+  const [revealTransition, dispatchRevealTransition] = React.useReducer(
+    sidebarRevealTransitionReducer,
+    visualState,
+    createSidebarRevealTransitionState
+  )
+  const layoutState = revealTransition.layout
+  const isResizing = revealTransition.resizing
+  const transitionTargetRef = React.useRef<SidebarContextProps["state"]>(visualState)
+  const transitionTimerRef = React.useRef<number | null>(null)
   const t = useTranslations("common.navigation")
+
+  const clearHoverCollapseTimer = React.useCallback(() => {
+    if (hoverCollapseTimerRef.current === null) {
+      return
+    }
+    window.clearTimeout(hoverCollapseTimerRef.current)
+    hoverCollapseTimerRef.current = null
+  }, [])
+
+  const clearTransitionTimer = React.useCallback(() => {
+    if (transitionTimerRef.current === null) {
+      return
+    }
+    window.clearTimeout(transitionTimerRef.current)
+    transitionTimerRef.current = null
+  }, [])
+
+  const settleTransition = React.useCallback(
+    (state: SidebarContextProps["state"]) => {
+      clearTransitionTimer()
+      dispatchRevealTransition({ type: "settle", target: state })
+    },
+    [clearTransitionTimer]
+  )
+
+  const syncTransition = React.useCallback(
+    (state: SidebarContextProps["state"]) => {
+      clearTransitionTimer()
+      dispatchRevealTransition({ type: "sync", target: state })
+    },
+    [clearTransitionTimer]
+  )
+
+  const scheduleHoverCollapse = React.useCallback(() => {
+    clearHoverCollapseTimer()
+    hoverCollapseTimerRef.current = window.setTimeout(() => {
+      hoverCollapseTimerRef.current = null
+      setHoverExpanded(false)
+    }, SIDEBAR_HOVER_COLLAPSE_DELAY_MS)
+  }, [clearHoverCollapseTimer])
+
+  const acquireHoverExpansionLock = React.useCallback(() => {
+    let released = false
+    hoverExpansionLockCountRef.current += 1
+    clearHoverCollapseTimer()
+
+    return () => {
+      if (released) {
+        return
+      }
+      released = true
+      hoverExpansionLockCountRef.current = Math.max(0, hoverExpansionLockCountRef.current - 1)
+      if (hoverExpansionLockCountRef.current === 0 && !pointerInsideRef.current) {
+        scheduleHoverCollapse()
+      }
+    }
+  }, [clearHoverCollapseTimer, scheduleHoverCollapse])
+
+  const hoverExpansionContextValue = React.useMemo<SidebarHoverExpansionContextProps>(
+    () => ({ acquireLock: acquireHoverExpansionLock }),
+    [acquireHoverExpansionLock]
+  )
 
   React.useEffect(() => {
     if (isMobile || open || !expandOnHover || collapsible !== "icon") {
+      clearHoverCollapseTimer()
       setHoverExpanded(false)
     }
-  }, [collapsible, expandOnHover, isMobile, open])
+  }, [clearHoverCollapseTimer, collapsible, expandOnHover, isMobile, open])
+
+  React.useLayoutEffect(() => {
+    clearTransitionTimer()
+
+    if (!usesHoverReveal || shouldReduceSidebarMotion()) {
+      transitionTargetRef.current = visualState
+      syncTransition(visualState)
+      return
+    }
+
+    if (transitionTargetRef.current === visualState) {
+      return
+    }
+
+    transitionTargetRef.current = visualState
+    dispatchRevealTransition({ type: "begin", target: visualState })
+
+    transitionTimerRef.current = window.setTimeout(() => {
+      settleTransition(visualState)
+    }, SIDEBAR_TRANSITION_FALLBACK_MS)
+  }, [clearTransitionTimer, settleTransition, syncTransition, usesHoverReveal, visualState])
+
+  React.useEffect(
+    () => () => {
+      clearHoverCollapseTimer()
+      clearTransitionTimer()
+    },
+    [clearHoverCollapseTimer, clearTransitionTimer]
+  )
 
   const handlePointerEnter = React.useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       onPointerEnter?.(event)
+      pointerInsideRef.current = true
+      clearHoverCollapseTimer()
       if (
         expandOnHover &&
         collapsible === "icon" &&
@@ -312,17 +450,37 @@ function Sidebar({
         setHoverExpanded(true)
       }
     },
-    [collapsible, expandOnHover, onPointerEnter, open, setHoverExpanded]
+    [clearHoverCollapseTimer, collapsible, expandOnHover, onPointerEnter, open]
   )
 
   const handlePointerLeave = React.useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       onPointerLeave?.(event)
+      pointerInsideRef.current = false
       if (expandOnHover && collapsible === "icon" && event.pointerType === "mouse") {
-        setHoverExpanded(false)
+        if (hoverExpansionLockCountRef.current > 0) {
+          return
+        }
+        scheduleHoverCollapse()
       }
     },
-    [collapsible, expandOnHover, onPointerLeave, setHoverExpanded]
+    [collapsible, expandOnHover, onPointerLeave, scheduleHoverCollapse]
+  )
+
+  const handleContainerTransitionEnd = React.useCallback(
+    (event: React.TransitionEvent<HTMLDivElement>) => {
+      onTransitionEnd?.(event)
+      if (
+        !usesHoverReveal ||
+        event.target !== event.currentTarget ||
+        event.propertyName !== "width"
+      ) {
+        return
+      }
+
+      settleTransition(transitionTargetRef.current)
+    },
+    [onTransitionEnd, settleTransition, usesHoverReveal]
   )
 
   if (collapsible === "none") {
@@ -377,8 +535,9 @@ function Sidebar({
     <div
       className="group peer hidden text-sidebar-foreground md:block"
       data-state={visualState}
+      data-resizing={isResizing ? "true" : "false"}
       data-hover-expanded={hoverExpanded && !open ? "true" : "false"}
-      data-collapsible={visualState === "collapsed" ? collapsible : ""}
+      data-collapsible={layoutState === "collapsed" ? collapsible : ""}
       data-variant={variant}
       data-side={side}
       data-slot="sidebar"
@@ -399,15 +558,21 @@ function Sidebar({
       <div
         data-slot="sidebar-container"
         className={cn(
-          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear md:flex",
+          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) md:flex",
+          usesHoverReveal
+            ? "overflow-hidden transition-[width,box-shadow] duration-200 ease-linear motion-reduce:transition-none group-data-[state=collapsed]:w-(--sidebar-width-icon)"
+            : "transition-[left,right,width] duration-200 ease-linear",
           side === "left"
             ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
             : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
             ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
-            : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r-[0.5px] group-data-[side=right]:border-l-[0.5px]",
-          "group-data-[hover-expanded=true]:z-30",
+            : cn(
+                "group-data-[side=left]:border-r-[0.5px] group-data-[side=right]:border-l-[0.5px]",
+                !usesHoverReveal && "group-data-[collapsible=icon]:w-(--sidebar-width-icon)"
+              ),
+          "group-data-[hover-expanded=true]:z-40 group-data-[resizing=true]:z-40",
           side === "left"
             ? "group-data-[hover-expanded=true]:shadow-[8px_0_28px_-10px_rgb(0_0_0_/_0.16),1px_0_0_rgb(0_0_0_/_0.05)] dark:group-data-[hover-expanded=true]:shadow-[10px_0_32px_-10px_rgb(0_0_0_/_0.44),1px_0_0_rgb(255_255_255_/_0.06)]"
             : "group-data-[hover-expanded=true]:shadow-[-8px_0_28px_-10px_rgb(0_0_0_/_0.16),-1px_0_0_rgb(0_0_0_/_0.05)] dark:group-data-[hover-expanded=true]:shadow-[-10px_0_32px_-10px_rgb(0_0_0_/_0.44),-1px_0_0_rgb(255_255_255_/_0.06)]",
@@ -415,19 +580,29 @@ function Sidebar({
         )}
         onPointerEnter={handlePointerEnter}
         onPointerLeave={handlePointerLeave}
+        onTransitionEnd={handleContainerTransitionEnd}
         {...props}
       >
         <div
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
           className={cn(
-            "flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow-sm",
-            expandOnHover && "whitespace-nowrap"
+            "flex h-full shrink-0 flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow-sm",
+            usesHoverReveal
+              ? cn(
+                  "whitespace-nowrap",
+                  layoutState === "collapsed"
+                    ? "w-(--sidebar-width-icon)"
+                    : "w-(--sidebar-width)"
+                )
+              : "w-full"
           )}
         >
-          <SidebarVisualStateContext.Provider value={visualState}>
-            {children}
-          </SidebarVisualStateContext.Provider>
+          <SidebarHoverExpansionContext.Provider value={hoverExpansionContextValue}>
+            <SidebarVisualStateContext.Provider value={layoutState}>
+              {children}
+            </SidebarVisualStateContext.Provider>
+          </SidebarHoverExpansionContext.Provider>
         </div>
       </div>
     </div>
@@ -532,6 +707,26 @@ function SidebarFooter({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="sidebar-footer"
       data-sidebar="footer"
       className={cn("flex flex-col gap-2 p-2", className)}
+      {...props}
+    />
+  )
+}
+
+function SidebarTransitionContent({
+  className,
+  asChild = false,
+  ...props
+}: React.ComponentProps<"div"> & { asChild?: boolean }) {
+  const Comp = asChild ? Slot.Root : "div"
+
+  return (
+    <Comp
+      data-slot="sidebar-transition-content"
+      data-sidebar="transition-content"
+      className={cn(
+        "group-data-[resizing=true]:pointer-events-none group-data-[resizing=true]:invisible",
+        className
+      )}
       {...props}
     />
   )
@@ -902,7 +1097,9 @@ export {
   SidebarProvider,
   SidebarRail,
   SidebarSeparator,
+  SidebarTransitionContent,
   SidebarTrigger,
-  useSidebarVisualState,
   useSidebar,
+  useSidebarHoverExpansionLock,
+  useSidebarVisualState,
 }
