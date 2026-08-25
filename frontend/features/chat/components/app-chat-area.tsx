@@ -19,7 +19,7 @@ import {
   ConversationShareDialog,
   sharePatchFromDTO,
   useConversationExport,
-  useSidebarConversations,
+  useSidebarConversationField,
 } from "@/entities/conversation";
 import { ChatArea, ChatAreaLoadError, ChatAreaSkeleton } from "@/features/chat/components/sections/chat-area";
 import { ChatArtifactWorkspace } from "@/features/chat/components/sections/chat-artifact";
@@ -39,10 +39,10 @@ import { useChatData } from "@/features/chat/hooks/use-chat-data";
 import { useChatModelOptions } from "@/features/chat/hooks/use-chat-model-options";
 import { useChatRuntime } from "@/features/chat/hooks/use-chat-runtime";
 import { useChatScreenshot } from "@/features/chat/hooks/use-chat-screenshot";
-import { useTemporaryChatRuntime } from "@/features/chat/hooks/use-temporary-chat-runtime";
 import { useChatViewerProfile } from "@/features/chat/hooks/use-chat-viewer-profile";
 import { useChatVisualPrompt } from "@/features/chat/hooks/use-chat-visual-prompt";
 import { useNewConversationDefaults } from "@/features/chat/hooks/use-new-conversation-defaults";
+import { useTemporaryChatRuntime } from "@/features/chat/hooks/use-temporary-chat-runtime";
 import {
   cloneConversationOptions,
   isConversationOptionsObject,
@@ -246,19 +246,17 @@ export function AppChatArea() {
     reuseModelOptions,
   } = useSettingsChatPreferences();
   const { settings: userSettings, loaded: userSettingsLoaded } = useUserSettings();
-  const {
-    items,
-    projects,
-    prependNewConversation,
-    touchByPublicID,
-    renameByPublicID,
-    upsertConversation,
-    regenerateTitleByPublicID,
-    updateLabelsByPublicID,
-    setStarByPublicID,
-    setProjectByPublicID,
-    deleteByPublicID,
-  } = useSidebarConversations();
+  const items = useSidebarConversationField("items");
+  const projects = useSidebarConversationField("projects");
+  const prependNewConversation = useSidebarConversationField("prependNewConversation");
+  const touchByPublicID = useSidebarConversationField("touchByPublicID");
+  const renameByPublicID = useSidebarConversationField("renameByPublicID");
+  const upsertConversation = useSidebarConversationField("upsertConversation");
+  const regenerateTitleByPublicID = useSidebarConversationField("regenerateTitleByPublicID");
+  const updateLabelsByPublicID = useSidebarConversationField("updateLabelsByPublicID");
+  const setStarByPublicID = useSidebarConversationField("setStarByPublicID");
+  const setProjectByPublicID = useSidebarConversationField("setProjectByPublicID");
+  const deleteByPublicID = useSidebarConversationField("deleteByPublicID");
   const {
     cancelResumedGeneration,
     loading,

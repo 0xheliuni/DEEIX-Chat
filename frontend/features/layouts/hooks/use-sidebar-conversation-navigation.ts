@@ -1,9 +1,9 @@
 "use client";
 
-import * as React from "react";
 import { useRouter } from "next/navigation";
+import * as React from "react";
 
-import { useSidebar } from "@/components/ui/sidebar";
+import { useSidebarActions, useSidebarIsMobile } from "@/components/ui/sidebar";
 import { useLayoutConversationNavigation } from "@/features/layouts/context/layout-conversation-navigation-context";
 
 function shouldUseNativeNavigation(event: React.MouseEvent<HTMLAnchorElement>) {
@@ -19,7 +19,8 @@ function shouldUseNativeNavigation(event: React.MouseEvent<HTMLAnchorElement>) {
 
 export function useSidebarConversationNavigation() {
   const router = useRouter();
-  const { isMobile, setOpenMobile } = useSidebar();
+  const isMobile = useSidebarIsMobile();
+  const { setOpenMobile } = useSidebarActions();
   const { beginConversationNavigation } = useLayoutConversationNavigation();
 
   return React.useCallback((conversationID: string, href: string, event: React.MouseEvent<HTMLAnchorElement>) => {

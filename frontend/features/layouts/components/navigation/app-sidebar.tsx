@@ -65,7 +65,7 @@ export function AppSidebar({
           </motion.div>
         </SidebarTransitionContent>
       </SidebarContent>
-      <SidebarFooter className="px-0 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:bg-background">
+      <SidebarFooter className="group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:bg-background">
         <NavUser user={user} />
       </SidebarFooter>
     </Sidebar>

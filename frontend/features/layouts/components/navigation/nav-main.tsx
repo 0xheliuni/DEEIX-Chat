@@ -6,10 +6,11 @@ import * as React from "react";
 import {
   SidebarGroup,
   SidebarMenu,
-  useSidebar,
+  useSidebarActions,
+  useSidebarIsMobile,
   useSidebarVisualState,
 } from "@/components/ui/sidebar";
-import { useSidebarConversations } from "@/entities/conversation";
+import { useSidebarConversationField } from "@/entities/conversation";
 import { NavMainItem } from "@/features/layouts/components/navigation/nav-main-item";
 import { NavigationSearch } from "@/features/layouts/components/navigation/navigation-search";
 import {
@@ -28,10 +29,11 @@ export function NavMain({
   onCreateConversation: () => void;
 }) {
   const t = useTranslations("common.navigation");
-  const { isMobile, setOpenMobile } = useSidebar();
+  const isMobile = useSidebarIsMobile();
+  const { setOpenMobile } = useSidebarActions();
   const state = useSidebarVisualState();
   const isCollapsed = !isMobile && state === "collapsed";
-  const { items: sidebarConversations } = useSidebarConversations();
+  const sidebarConversations = useSidebarConversationField("items");
   const untitled = t("newChat");
   const initialSearchResults = React.useMemo(
     () => filterConversationSearchResults(sidebarConversations, "", { untitled })

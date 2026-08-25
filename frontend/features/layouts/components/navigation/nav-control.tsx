@@ -9,7 +9,8 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarTransitionContent,
-  useSidebar,
+  useSidebarActions,
+  useSidebarOpen,
   useSidebarVisualState,
 } from "@/components/ui/sidebar";
 import {
@@ -22,7 +23,8 @@ import { AppLogo } from "@/shared/components/app-logo";
 
 export function NavControl() {
   const t = useTranslations("common.navigation");
-  const { toggleSidebar, open } = useSidebar();
+  const open = useSidebarOpen();
+  const { toggleSidebar } = useSidebarActions();
   const state = useSidebarVisualState();
   const isVisuallyCollapsed = state === "collapsed";
   const isPersistentlyCollapsed = !open;
@@ -58,7 +60,7 @@ export function NavControl() {
                 aria-label={t("toggleSidebar")}
                 onClick={toggleSidebar}
                 className={cn(
-                  "shrink-0 text-sidebar-foreground transition-[background-color,color,margin-left] group-data-[resizing=true]:ml-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-sidebar-ring/50 [&_svg]:pointer-events-auto",
+                  "shrink-0 text-sidebar-foreground transition-[background-color,color,margin-left] group-data-[resizing=true]:ml-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&_svg]:pointer-events-auto",
                   isVisuallyCollapsed ? "ml-0" : "ml-auto",
                 )}
               >
