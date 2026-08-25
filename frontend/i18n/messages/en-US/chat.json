@@ -137,6 +137,14 @@
     "downloadImage": "Download image",
     "scrollableTable": "Scrollable data table",
     "scrollableTableHint": "Scroll horizontally to view more columns.",
+    "table": {
+      "download": "Download",
+      "downloadAsCsv": "Download CSV",
+      "downloadAsMarkdown": "Download Markdown",
+      "formatCsv": "CSV",
+      "formatMarkdown": "Markdown",
+      "downloadFailed": "Could not download table"
+    },
     "copyLatex": "Copy formula source",
     "latexCopied": "Formula source copied",
     "latexCopyFailed": "Could not copy formula source",
@@ -147,10 +155,6 @@
       "copy": "Copy link",
       "copied": "Link copied",
       "copyFailed": "Could not copy link"
-    },
-    "codeBlock": {
-      "collapse": "Collapse",
-      "expand": "Expand {count} lines"
     },
     "artifact": {
       "openPreview": "Preview",
@@ -170,10 +174,16 @@
       "done": "Thinking complete"
     },
     "diagram": {
-      "downloadDiagram": "Download diagram",
+      "downloadDiagram": "Download",
       "downloadDiagramAsSvg": "Download diagram as SVG",
       "downloadDiagramAsPng": "Download diagram as PNG",
-      "downloadDiagramAsMmd": "Download diagram as MMD"
+      "downloadDiagramAsMmd": "Download diagram as MMD",
+      "copyDiagram": "Copy",
+      "viewFullscreen": "Fullscreen",
+      "exitFullscreen": "Exit",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "resetView": "Reset view"
     }
   },
   "artifacts": {
