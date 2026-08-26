@@ -106,7 +106,12 @@ function resolveRichTextMarkdownPaste(clipboardData: DataTransfer): ClipboardMar
   }
 
   const markdown = turndownService.turndown(html).trim();
-  if (!markdown || normalizeText(markdown) === normalizeText(plainText)) {
+  const normalizedMarkdown = normalizeText(markdown);
+  if (
+    !markdown ||
+    normalizedMarkdown === normalizeText(plainText) ||
+    normalizedMarkdown === normalizeText(turndownService.escape(plainText))
+  ) {
     return null;
   }
 
