@@ -14,7 +14,7 @@ import (
 
 const (
 	defaultPageSize                     = 20
-	maxPageSize                         = 100
+	maxPageSize                         = 1000
 	maxMessagePageSize                  = 1000
 	conversationPreviewMessageLimit     = 10
 	conversationPreviewAncestorMaxDepth = 100

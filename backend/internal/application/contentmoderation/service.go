@@ -98,8 +98,6 @@ type Service struct {
 	queueCapacity  int
 	queuedCount    int // logical admission counter (paired with queueCapacity)
 	activeWorkers  int // logical concurrency counter (paired with maxConcurrency)
-	workerCount    int
-	workerCtx      context.Context
 	stopCh         chan struct{}
 	wg             sync.WaitGroup
 
@@ -158,15 +156,14 @@ func (s *Service) SetAuditWriter(writer auditWriter) {
 }
 
 // StartBackgroundWorkers starts the worker pool and cleanup loop.
+// Worker 循环一次性按物理上限启动，有效并发由逻辑额度（maxConcurrency）控制。
 func (s *Service) StartBackgroundWorkers(ctx context.Context) {
-	// workerCtx 与 resizeWorker 中的读取共用 workerMu，避免无同步的并发读写。
-	s.workerMu.Lock()
-	s.workerCtx = ctx
-	s.workerMu.Unlock()
 	if cfg, err := s.readRuntimeConfig(ctx); err == nil {
 		s.resizeWorker(cfg.MaxConcurrency, cfg.QueueCapacity)
-	} else {
-		s.ensureWorkers(ctx, s.maxConcurrency)
+	}
+	for range maxPhysicalConcurrency {
+		s.wg.Add(1)
+		go s.workerLoop(ctx)
 	}
 	s.wg.Add(1)
 	go s.cleanupLoop(ctx)
@@ -200,6 +197,7 @@ const maxPhysicalQueueCapacity = 4096
 // is enforced with activeWorkers so resize never replaces the semaphore channel.
 const maxPhysicalConcurrency = 64
 
+// resizeWorker 调整逻辑并发额度与队列额度，并唤醒等待逻辑槽位的 worker。
 func (s *Service) resizeWorker(maxConcurrency, queueCapacity int) {
 	s.workerMu.Lock()
 	defer s.workerMu.Unlock()
@@ -221,15 +219,6 @@ func (s *Service) resizeWorker(maxConcurrency, queueCapacity int) {
 	s.queueCapacity = queueCapacity
 	s.maxConcurrency = maxConcurrency
 
-	if s.taskQueue == nil {
-		s.taskQueue = make(chan *moderationTask, maxPhysicalQueueCapacity)
-	}
-	if s.workerSem == nil {
-		s.workerSem = make(chan struct{}, maxPhysicalConcurrency)
-	}
-	if s.workerWake == nil {
-		s.workerWake = make(chan struct{}, maxPhysicalConcurrency)
-	}
 	if maxConcurrency > previousConcurrency {
 		for i := previousConcurrency; i < maxConcurrency; i++ {
 			select {
@@ -237,31 +226,6 @@ func (s *Service) resizeWorker(maxConcurrency, queueCapacity int) {
 			default:
 			}
 		}
-	}
-
-	ctx := s.workerCtx
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	// Grow worker loops with configured demand. Existing loops are retained when
-	// the limit decreases, while the logical gate enforces the new lower limit.
-	for s.workerCount < maxConcurrency {
-		s.workerCount++
-		s.wg.Add(1)
-		go s.workerLoop(ctx)
-	}
-}
-
-func (s *Service) ensureWorkers(ctx context.Context, count int) {
-	s.workerMu.Lock()
-	defer s.workerMu.Unlock()
-	if count < 1 {
-		count = 1
-	}
-	for s.workerCount < count {
-		s.workerCount++
-		s.wg.Add(1)
-		go s.workerLoop(ctx)
 	}
 }
 

@@ -32,9 +32,9 @@ export function normalizeAdminPagePayload<T>(data: PagePayload<T>): PagePayload<
 
 export async function listAllAdminPages<T>(
   loader: (options: Required<AdminPageOptions>) => Promise<PagePayload<T>>,
-  pageSize = 100,
+  pageSize = 1000,
 ): Promise<T[]> {
-  const safePageSize = Math.min(Math.max(1, pageSize), 100);
+  const safePageSize = Math.min(Math.max(1, pageSize), 1000);
   const first = await loader({ page: 1, pageSize: safePageSize });
   const results = [...first.results];
   const total = first.total ?? results.length;

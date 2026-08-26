@@ -1580,7 +1580,7 @@ func (h *Handler) UpdateLLMSetting(c *gin.Context) {
 func pageParams(c *gin.Context) (int, int) {
 	page := 1
 	pageSize := 20
-	const maxPageSize = 100
+	const maxPageSize = 1000
 	if raw := c.Query("page"); raw != "" {
 		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
 			page = parsed

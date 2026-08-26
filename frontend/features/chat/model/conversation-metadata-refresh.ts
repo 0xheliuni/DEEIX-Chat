@@ -82,7 +82,7 @@ export async function refreshGeneratedConversationMetadata(
   previous: ConversationDTO | null,
   autoGenerateLabels: boolean,
   fallbackTitle: string,
-  touchByPublicID: (publicID: string, patch?: Partial<ConversationDTO>) => void,
+  touchByPublicID: (publicID: string, patch: Partial<ConversationDTO>) => void,
 ): Promise<void> {
   let elapsedMS = 0;
   let delayMS = CONVERSATION_METADATA_REFRESH_INITIAL_DELAY_MS;

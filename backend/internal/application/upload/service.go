@@ -157,7 +157,7 @@ func (s *Service) openObjectStore(ctx context.Context) (objectstore.Store, error
 
 const (
 	defaultPageSize            = 20
-	maxPageSize                = 100
+	maxPageSize                = 1000
 	embeddingTimeoutStaleAfter = 6 * time.Minute
 )
 

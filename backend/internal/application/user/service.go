@@ -37,7 +37,7 @@ type avatarFileValidator interface {
 
 const (
 	defaultPageSize = 20
-	maxPageSize     = 100
+	maxPageSize     = 1000
 )
 
 // NewService 创建服务。

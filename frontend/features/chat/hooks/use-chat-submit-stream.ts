@@ -4,12 +4,12 @@ import * as React from "react";
 
 import { useChatMessageSubmit } from "@/features/chat/hooks/use-chat-message-submit";
 import { useChatStreamBuffer } from "@/features/chat/hooks/use-chat-stream-buffer";
-import type { ChatAreaMessage } from "@/features/chat/types/messages";
 import type {
   ChatModelOption,
   PendingAttachment,
   PendingExchangeMap,
 } from "@/features/chat/types/chat-runtime";
+import type { ChatAreaMessage } from "@/features/chat/types/messages";
 import type {
   ConversationDTO,
   ConversationOptions,
@@ -82,7 +82,7 @@ export function useChatSubmitStream({
   prependNewConversation: (platformModelName: string) => Promise<ConversationDTO | null | undefined>;
   onConversationCreated?: (conversationPublicID: string) => void;
   onConversationForked?: (conversation: ConversationDTO) => Promise<void> | void;
-  touchByPublicID: (publicID: string, patch?: Partial<ConversationDTO>) => void;
+  touchByPublicID: (publicID: string, patch: Partial<ConversationDTO>) => void;
   reload: () => void;
   replaceMessage: (message: MessageDTO) => void;
   setDraft: React.Dispatch<React.SetStateAction<string>>;

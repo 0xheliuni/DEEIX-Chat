@@ -31,8 +31,7 @@ type Service struct {
 	embedClient *infraembedding.Client
 	logger      *zap.Logger
 	workSlots   chan struct{}
-	lifecycleMu sync.RWMutex
-	lifecycle   context.Context
+	reindexJobs chan string
 	reindexMu   sync.Mutex
 	reindexing  bool
 }
@@ -54,18 +53,25 @@ func NewServiceWithRuntime(cfg *config.Runtime, repo repository.EmbeddingReposit
 		embedClient: embedClient,
 		logger:      logger,
 		workSlots:   make(chan struct{}, embeddingWorkerConcurrency),
-		lifecycle:   context.Background(),
+		reindexJobs: make(chan string, 1),
 	}
 }
 
-// StartBackgroundWorkers 绑定后台重建任务的生命周期；ctx 取消后不再继续领取新任务。
+// StartBackgroundWorkers 启动后台重建任务的常驻执行协程；ctx 取消后不再领取新任务。
 func (s *Service) StartBackgroundWorkers(ctx context.Context) {
 	if s == nil || ctx == nil {
 		return
 	}
-	s.lifecycleMu.Lock()
-	s.lifecycle = ctx
-	s.lifecycleMu.Unlock()
+	background.Go(s.logger, "embedding_reindex_dispatch", func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case signature := <-s.reindexJobs:
+				s.runReindex(ctx, signature)
+			}
+		}
+	})
 }
 
 // Available 返回当前对话 RAG 检索能力是否可用及原因。
@@ -536,17 +542,9 @@ func (s *Service) ReindexStaleFiles(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 
-	s.lifecycleMu.RLock()
-	workerCtx := s.lifecycle
-	s.lifecycleMu.RUnlock()
-	if workerCtx == nil {
-		workerCtx = context.Background()
-	}
-	if err := workerCtx.Err(); err != nil {
-		return 0, err
-	}
 	started = true
-	go s.runReindex(workerCtx, configuredModelSignature(cfg))
+	// reindexing 标记保证同一时刻至多一个待执行任务，缓冲为 1 的通道不会阻塞。
+	s.reindexJobs <- configuredModelSignature(cfg)
 	return submitted, nil
 }
 
