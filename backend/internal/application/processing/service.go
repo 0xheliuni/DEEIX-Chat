@@ -23,6 +23,7 @@ const (
 	defaultExtractTimeout    = 60 * time.Second
 	fixedEmbeddingTimeout    = 5 * time.Minute
 	failurePersistTimeout    = 5 * time.Second
+	fileProcessingLeaseRenew = 15 * time.Second
 )
 
 var (
@@ -180,6 +181,9 @@ func (s *Service) ProcessFile(ctx context.Context, userID uint, fileID string) e
 	fileObj, err := s.repo.GetActiveFileObjectByID(ctx, userID, fileID)
 	if err != nil || fileObj == nil {
 		return err
+	}
+	if fileObj.ProcessingStatus == "ready" || fileObj.ProcessingStatus == "failed" {
+		return nil
 	}
 	if fileObj.FileCategory == "image" && !s.snapshot().ExtractImageOCREnabled {
 		return nil
@@ -475,7 +479,7 @@ func (s *Service) runFileProcessingWorker(ctx context.Context, consumerName stri
 			}
 		} else if len(claimed) > 0 {
 			for _, msg := range claimed {
-				s.handleProcessingMessage(ctx, msg)
+				s.handleProcessingMessage(ctx, consumerName, msg)
 			}
 			continue
 		}
@@ -496,28 +500,61 @@ func (s *Service) runFileProcessingWorker(ctx context.Context, consumerName stri
 			continue
 		}
 		for _, msg := range messages {
-			s.handleProcessingMessage(ctx, msg)
+			s.handleProcessingMessage(ctx, consumerName, msg)
 		}
 	}
 }
 
-func (s *Service) handleProcessingMessage(ctx context.Context, msg repository.FileProcessingMessage) {
+func (s *Service) handleProcessingMessage(ctx context.Context, consumerName string, msg repository.FileProcessingMessage) {
 	if msg.FileID == "" {
-		_ = s.cache.AckFileProcessingMessage(ctx, msg.ID)
-		_ = s.cache.DeleteFileProcessingMessage(ctx, msg.ID)
+		s.settleProcessingMessage(ctx, msg)
 		return
 	}
 
+	leaseCtx, stopLease := context.WithCancel(ctx)
+	leaseDone := make(chan struct{})
+	go s.renewProcessingMessageLease(leaseCtx, leaseDone, consumerName, msg)
 	err := s.ProcessFile(ctx, msg.UserID, msg.FileID)
+	stopLease()
+	<-leaseDone
 	if err != nil {
 		if ctx.Err() != nil {
 			return
 		}
 		if msg.Retry < fileProcessingMaxRetries {
-			_ = s.enqueueFileProcessing(ctx, msg.UserID, msg.FileID, msg.Retry+1, err.Error())
+			if enqueueErr := s.enqueueFileProcessing(ctx, msg.UserID, msg.FileID, msg.Retry+1, err.Error()); enqueueErr != nil {
+				if s.logger != nil {
+					s.logger.Warn("requeue_file_processing_failed",
+						zap.Uint("user_id", msg.UserID),
+						zap.String("file_id", msg.FileID),
+						zap.Int("retry", msg.Retry),
+						zap.Error(enqueueErr),
+					)
+				}
+				return
+			}
 		} else {
-			_ = s.cache.SendFileProcessingToDLQ(ctx, msg.UserID, msg.FileID, msg.Retry, err.Error())
-			s.forceFinalizeFailed(msg.UserID, msg.FileID, err)
+			if dlqErr := s.cache.SendFileProcessingToDLQ(ctx, msg.UserID, msg.FileID, msg.Retry, err.Error()); dlqErr != nil {
+				if s.logger != nil {
+					s.logger.Warn("send_file_processing_to_dlq_failed",
+						zap.Uint("user_id", msg.UserID),
+						zap.String("file_id", msg.FileID),
+						zap.Int("retry", msg.Retry),
+						zap.Error(dlqErr),
+					)
+				}
+				return
+			}
+			if finalizeErr := s.forceFinalizeFailed(msg.UserID, msg.FileID, err); finalizeErr != nil {
+				if s.logger != nil {
+					s.logger.Warn("force_finalize_file_processing_failed",
+						zap.Uint("user_id", msg.UserID),
+						zap.String("file_id", msg.FileID),
+						zap.Error(finalizeErr),
+					)
+				}
+				return
+			}
 		}
 		if s.logger != nil {
 			s.logger.Warn("process_queued_file_failed",
@@ -529,33 +566,77 @@ func (s *Service) handleProcessingMessage(ctx context.Context, msg repository.Fi
 		}
 	}
 
-	_ = s.cache.AckFileProcessingMessage(ctx, msg.ID)
-	_ = s.cache.DeleteFileProcessingMessage(ctx, msg.ID)
+	s.settleProcessingMessage(ctx, msg)
 }
 
-func (s *Service) forceFinalizeFailed(userID uint, fileID string, processingErr error) {
-	if s == nil || s.repo == nil || strings.TrimSpace(fileID) == "" {
+func (s *Service) renewProcessingMessageLease(
+	ctx context.Context,
+	done chan<- struct{},
+	consumerName string,
+	msg repository.FileProcessingMessage,
+) {
+	defer close(done)
+	ticker := time.NewTicker(fileProcessingLeaseRenew)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := s.cache.RenewFileProcessingMessageLease(ctx, consumerName, msg.ID); err != nil && ctx.Err() == nil && s.logger != nil {
+				s.logger.Warn("renew_file_processing_lease_failed",
+					zap.Uint("user_id", msg.UserID),
+					zap.String("file_id", msg.FileID),
+					zap.String("message_id", msg.ID),
+					zap.Error(err),
+				)
+			}
+		}
+	}
+}
+
+func (s *Service) settleProcessingMessage(ctx context.Context, msg repository.FileProcessingMessage) {
+	if err := s.cache.AckFileProcessingMessage(ctx, msg.ID); err != nil {
+		if s.logger != nil {
+			s.logger.Warn("ack_file_processing_message_failed",
+				zap.Uint("user_id", msg.UserID),
+				zap.String("file_id", msg.FileID),
+				zap.String("message_id", msg.ID),
+				zap.Error(err),
+			)
+		}
 		return
+	}
+	if err := s.cache.DeleteFileProcessingMessage(ctx, msg.ID); err != nil && s.logger != nil {
+		s.logger.Warn("delete_file_processing_message_failed",
+			zap.Uint("user_id", msg.UserID),
+			zap.String("file_id", msg.FileID),
+			zap.String("message_id", msg.ID),
+			zap.Error(err),
+		)
+	}
+}
+
+func (s *Service) forceFinalizeFailed(userID uint, fileID string, processingErr error) error {
+	if s == nil || s.repo == nil || strings.TrimSpace(fileID) == "" {
+		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), failurePersistTimeout)
 	defer cancel()
 
 	fileObj, err := s.repo.GetActiveFileObjectByID(ctx, userID, fileID)
-	if err != nil || fileObj == nil {
-		return
+	if err != nil {
+		return err
+	}
+	if fileObj == nil {
+		return nil
 	}
 	if fileObj.ProcessingStatus == "ready" || fileObj.ProcessingStatus == "failed" {
-		return
+		return nil
 	}
 
 	code, message := resolveProcessingFailure(fileObj, processingErr)
-	if persistErr := s.markFileProcessingFailed(ctx, fileObj, code, message); persistErr != nil && s.logger != nil {
-		s.logger.Warn("force_finalize_file_processing_failed",
-			zap.Uint("user_id", userID),
-			zap.String("file_id", fileID),
-			zap.Error(persistErr),
-		)
-	}
+	return s.markFileProcessingFailed(ctx, fileObj, code, message)
 }
 
 func (s *Service) enqueueFileProcessing(ctx context.Context, userID uint, fileID string, retry int, lastError string) error {

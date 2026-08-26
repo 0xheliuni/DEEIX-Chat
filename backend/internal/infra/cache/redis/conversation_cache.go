@@ -77,6 +77,15 @@ end
 return {id, tostring(seq)}
 `)
 
+var renewFileProcessingLeaseScript = redis.NewScript(`
+local pending = redis.call("XPENDING", KEYS[1], ARGV[1], ARGV[3], ARGV[3], 1)
+if #pending == 0 or pending[1][2] ~= ARGV[2] then
+	return 0
+end
+redis.call("XCLAIM", KEYS[1], ARGV[1], ARGV[2], 0, ARGV[3], "JUSTID")
+return 1
+`)
+
 var touchGenerationStreamActiveScript = redis.NewScript(`
 if redis.call("GET", KEYS[1]) ~= ARGV[1] then
 	return 0
@@ -228,6 +237,25 @@ func parseFileProcessingMessage(msg redis.XMessage) repository.FileProcessingMes
 		Retry:     int(getInt64Val(msg.Values["retry"])),
 		LastError: getStringVal(msg.Values["last_error"]),
 	}
+}
+
+// RenewFileProcessingMessageLease 刷新执行中消息的空闲时间，避免长任务被其他 worker 重复认领。
+func (c *conversationCache) RenewFileProcessingMessageLease(ctx context.Context, consumerName, messageID string) error {
+	if c.client == nil || strings.TrimSpace(consumerName) == "" || strings.TrimSpace(messageID) == "" {
+		return nil
+	}
+	_, err := renewFileProcessingLeaseScript.Run(
+		ctx,
+		c.client,
+		[]string{fileProcessingStreamName},
+		fileProcessingGroupName,
+		consumerName,
+		messageID,
+	).Result()
+	if errors.Is(err, redis.Nil) {
+		return nil
+	}
+	return err
 }
 
 // AckFileProcessingMessage 确认消息已处理。

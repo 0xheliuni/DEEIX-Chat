@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -85,6 +86,7 @@ func (s *Service) listActiveModelViews(ctx context.Context) ([]ModelView, error)
 	}
 
 	s.modelCatalogMu.RLock()
+	generation := s.modelCatalogGeneration
 	if s.modelCatalog != nil && s.modelCatalogMode == mode && now.Before(s.modelCatalogValidUntil) {
 		result := cloneModelViews(s.modelCatalog)
 		s.modelCatalogMu.RUnlock()
@@ -92,20 +94,42 @@ func (s *Service) listActiveModelViews(ctx context.Context) ([]ModelView, error)
 	}
 	s.modelCatalogMu.RUnlock()
 
-	items, err := s.listAllActiveModelRows(ctx)
-	if err != nil {
-		return nil, err
-	}
-	views := s.filterPublicRoutableModels(items)
-	if s.modelPricingFilter != nil && mode != "self" {
-		pricingByPlatformModelName, err := s.modelPricingFilter.ListPublicModelPricing(ctx)
+	resultCh := s.modelCatalogRequests.DoChan(mode+":"+strconv.FormatUint(generation, 10), func() (any, error) {
+		refreshCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer cancel()
+		refreshStartedAt := time.Now()
+		s.modelCatalogMu.RLock()
+		if s.modelCatalog != nil && s.modelCatalogMode == mode && refreshStartedAt.Before(s.modelCatalogValidUntil) {
+			result := cloneModelViews(s.modelCatalog)
+			s.modelCatalogMu.RUnlock()
+			return result, nil
+		}
+		s.modelCatalogMu.RUnlock()
+
+		items, err := s.listAllActiveModelRows(refreshCtx)
 		if err != nil {
 			return nil, err
 		}
-		views = filterPricedModelViews(views, pricingByPlatformModelName)
+		views := s.filterPublicRoutableModels(items)
+		if s.modelPricingFilter != nil && mode != "self" {
+			pricingByPlatformModelName, err := s.modelPricingFilter.ListPublicModelPricing(refreshCtx)
+			if err != nil {
+				return nil, err
+			}
+			views = filterPricedModelViews(views, pricingByPlatformModelName)
+		}
+		s.storeModelCatalog(refreshStartedAt, mode, generation, views)
+		return views, nil
+	})
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case result := <-resultCh:
+		if result.Err != nil {
+			return nil, result.Err
+		}
+		return cloneModelViews(result.Val.([]ModelView)), nil
 	}
-	s.storeModelCatalog(now, mode, views)
-	return cloneModelViews(views), nil
 }
 
 // filterModelsByPermission 按权限组过滤用户可访问的模型。
@@ -188,15 +212,18 @@ func (s *Service) ListNativeToolDefinitions(ctx context.Context) ([]nativetool.D
 	}
 }
 
-func (s *Service) storeModelCatalog(now time.Time, mode string, views []ModelView) {
+func (s *Service) storeModelCatalog(now time.Time, mode string, generation uint64, views []ModelView) {
 	if s == nil {
 		return
 	}
 	s.modelCatalogMu.Lock()
+	defer s.modelCatalogMu.Unlock()
+	if s.modelCatalogGeneration != generation {
+		return
+	}
 	s.modelCatalog = cloneModelViews(views)
 	s.modelCatalogMode = mode
 	s.modelCatalogValidUntil = now.Add(modelCatalogCacheTTL)
-	s.modelCatalogMu.Unlock()
 }
 
 func cloneModelViews(items []ModelView) []ModelView {

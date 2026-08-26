@@ -94,11 +94,17 @@ export async function deleteMyKnowledgeBase(accessToken: string, id: string, opt
   return authedRequest<KnowledgeBaseDeleteData>(`/api/v1/knowledge-bases/mine/${pathParam(id)}${query}`, { method: "DELETE", accessToken }, true);
 }
 
-export async function listKnowledgeBaseFiles(accessToken: string, id: string, page = 1, pageSize = 100): Promise<KnowledgeBaseFilePage> {
+export async function listKnowledgeBaseFiles(
+  accessToken: string,
+  id: string,
+  page = 1,
+  pageSize = 100,
+  signal?: AbortSignal,
+): Promise<KnowledgeBaseFilePage> {
   const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
   const data = await authedRequest<PagePayload<KnowledgeBaseFileDTO>>(
     `/api/v1/knowledge-bases/${pathParam(id)}/files?${params.toString()}`,
-    { accessToken },
+    { accessToken, signal },
     true,
   );
   return { results: data.results ?? [], total: data.total ?? 0 };
@@ -156,10 +162,11 @@ export async function listAvailableMyKnowledgeBaseFiles(
   accessToken: string,
   id: string,
   options: KnowledgeBaseListOptions = {},
+  signal?: AbortSignal,
 ): Promise<KnowledgeBaseFilePage> {
   const data = await authedRequest<PagePayload<KnowledgeBaseFileDTO>>(
     listPath(`/api/v1/knowledge-bases/mine/${pathParam(id)}/available-files`, options),
-    { accessToken },
+    { accessToken, signal },
     true,
   );
   return { results: data.results ?? [], total: data.total ?? 0 };
@@ -192,8 +199,16 @@ export async function removeMyKnowledgeBaseFile(accessToken: string, id: string,
   );
 }
 
-export async function listAdminKnowledgeBases(accessToken: string, options: KnowledgeBaseListOptions = {}): Promise<KnowledgeBasePage> {
-  const data = await authedRequest<PagePayload<KnowledgeBaseDTO>>(listPath("/api/v1/admin/knowledge-bases", options), { accessToken }, true);
+export async function listAdminKnowledgeBases(
+  accessToken: string,
+  options: KnowledgeBaseListOptions = {},
+  signal?: AbortSignal,
+): Promise<KnowledgeBasePage> {
+  const data = await authedRequest<PagePayload<KnowledgeBaseDTO>>(
+    listPath("/api/v1/admin/knowledge-bases", options),
+    { accessToken, signal },
+    true,
+  );
   return normalizePage(data);
 }
 
@@ -217,10 +232,11 @@ export async function uploadAdminKnowledgeBaseFile(
 export async function listAdminPlatformFiles(
   accessToken: string,
   options: KnowledgeBaseListOptions = {},
+  signal?: AbortSignal,
 ): Promise<KnowledgeBaseFilePage> {
   const data = await authedRequest<PagePayload<KnowledgeBaseFileDTO>>(
     listPath("/api/v1/admin/knowledge-bases/files", options),
-    { accessToken },
+    { accessToken, signal },
     true,
   );
   return { results: data.results ?? [], total: data.total ?? 0 };
@@ -257,11 +273,17 @@ export async function deleteAdminKnowledgeBase(accessToken: string, id: string, 
   return authedRequest<KnowledgeBaseDeleteData>(`/api/v1/admin/knowledge-bases/${pathParam(id)}${query}`, { method: "DELETE", accessToken }, true);
 }
 
-export async function listAdminKnowledgeBaseFiles(accessToken: string, id: string, page = 1, pageSize = 100): Promise<KnowledgeBaseFilePage> {
+export async function listAdminKnowledgeBaseFiles(
+  accessToken: string,
+  id: string,
+  page = 1,
+  pageSize = 100,
+  signal?: AbortSignal,
+): Promise<KnowledgeBaseFilePage> {
   const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
   const data = await authedRequest<PagePayload<KnowledgeBaseFileDTO>>(
     `/api/v1/admin/knowledge-bases/${pathParam(id)}/files?${params.toString()}`,
-    { accessToken },
+    { accessToken, signal },
     true,
   );
   return { results: data.results ?? [], total: data.total ?? 0 };
@@ -271,10 +293,11 @@ export async function listAvailableAdminKnowledgeBaseFiles(
   accessToken: string,
   id: string,
   options: KnowledgeBaseListOptions = {},
+  signal?: AbortSignal,
 ): Promise<KnowledgeBaseFilePage> {
   const data = await authedRequest<PagePayload<KnowledgeBaseFileDTO>>(
     listPath(`/api/v1/admin/knowledge-bases/${pathParam(id)}/available-files`, options),
-    { accessToken },
+    { accessToken, signal },
     true,
   );
   return { results: data.results ?? [], total: data.total ?? 0 };

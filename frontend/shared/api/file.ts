@@ -12,6 +12,7 @@ import type {
 
 type UploadFileOptions = {
   purpose?: string;
+  signal?: AbortSignal;
 };
 
 type ListFilesParams = {
@@ -62,6 +63,7 @@ export async function uploadFile(
       method: "POST",
       accessToken,
       body: formData,
+      signal: options.signal,
     },
     true,
   );
@@ -71,6 +73,7 @@ export async function uploadFile(
 export async function listFiles(
   accessToken: string,
   params: ListFilesParams = {},
+  signal?: AbortSignal,
 ): Promise<FileListResult> {
   const searchParams = new URLSearchParams();
 
@@ -96,6 +99,7 @@ export async function listFiles(
     {
       method: "GET",
       accessToken,
+      signal,
     },
     true,
   );
@@ -213,12 +217,13 @@ export async function getFileProcessingStatuses(
   return (await Promise.all(requests)).flat();
 }
 
-export async function getChatFilePolicy(accessToken: string): Promise<ChatFilePolicyDTO> {
+export async function getChatFilePolicy(accessToken: string, signal?: AbortSignal): Promise<ChatFilePolicyDTO> {
   return authedRequest<ChatFilePolicyDTO>(
     "/api/v1/runtime/chat-file-policy",
     {
       method: "GET",
       accessToken,
+      signal,
     },
     true,
   );

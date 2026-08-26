@@ -65,6 +65,10 @@ func (c *Cache) ReadFileProcessingMessages(ctx context.Context, consumerName str
 	}
 }
 
+func (c *Cache) RenewFileProcessingMessageLease(ctx context.Context, consumerName, messageID string) error {
+	return nil
+}
+
 func (c *Cache) AckFileProcessingMessage(ctx context.Context, messageID string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

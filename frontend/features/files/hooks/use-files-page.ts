@@ -120,6 +120,7 @@ export function useFilesPage(): UseFilesPageResult {
   const totalRef = React.useRef(0);
   const isMountedRef = React.useRef(false);
   const loadRequestSeqRef = React.useRef(0);
+  const loadRequestControllerRef = React.useRef<AbortController | null>(null);
   const hasLoadedOnceRef = React.useRef(false);
 
   const [files, setFiles] = React.useState<FileObjectDTO[]>([]);
@@ -155,6 +156,8 @@ export function useFilesPage(): UseFilesPageResult {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+      loadRequestControllerRef.current?.abort();
+      loadRequestControllerRef.current = null;
     };
   }, []);
 
@@ -194,11 +197,38 @@ export function useFilesPage(): UseFilesPageResult {
     async (options: LoadFilesOptions = {}) => {
       const requestSeq = loadRequestSeqRef.current + 1;
       loadRequestSeqRef.current = requestSeq;
-      const token = await ensureAccessToken();
+      loadRequestControllerRef.current?.abort();
+      const requestController = new AbortController();
+      loadRequestControllerRef.current = requestController;
       const page = options.page ?? 1;
       const isLatestRequest = () => loadRequestSeqRef.current === requestSeq;
+      let token = "";
+      try {
+        token = await ensureAccessToken();
+      } catch (error) {
+        if (loadRequestControllerRef.current === requestController) {
+          loadRequestControllerRef.current = null;
+        }
+        if (!requestController.signal.aborted && isMountedRef.current && isLatestRequest()) {
+          setLoading(false);
+          setLoadingMore(false);
+          setSyncing(false);
+          toast.error(t("toasts.listLoadFailed"), {
+            id: "files-list-load-error",
+            description: resolveErrorMessage(error, t("toasts.listLoadFailed")),
+          });
+        }
+        return;
+      }
+
+      if (requestController.signal.aborted) {
+        return;
+      }
 
       if (!token) {
+        if (loadRequestControllerRef.current === requestController) {
+          loadRequestControllerRef.current = null;
+        }
         if (!isMountedRef.current || !isLatestRequest()) {
           return;
         }
@@ -232,7 +262,7 @@ export function useFilesPage(): UseFilesPageResult {
           query: debouncedQuery,
           kind: filterKeys,
           sort: sortKey,
-        });
+        }, requestController.signal);
         if (!isMountedRef.current || !isLatestRequest()) {
           return;
         }
@@ -250,7 +280,7 @@ export function useFilesPage(): UseFilesPageResult {
             pageSize: 1,
             query: explicitPreferredFileID,
             sort: "created",
-          });
+          }, requestController.signal);
           if (!isMountedRef.current || !isLatestRequest()) {
             return;
           }
@@ -274,6 +304,9 @@ export function useFilesPage(): UseFilesPageResult {
         setHasMore(page * FILES_PAGE_SIZE < data.total);
         setNextPage(page + 1);
       } catch (error) {
+        if (requestController.signal.aborted) {
+          return;
+        }
         if (!isMountedRef.current || !isLatestRequest()) {
           return;
         }
@@ -282,6 +315,9 @@ export function useFilesPage(): UseFilesPageResult {
           toast.error(t("toasts.listLoadFailed"), { id: "files-list-load-error", description });
         }
       } finally {
+        if (loadRequestControllerRef.current === requestController) {
+          loadRequestControllerRef.current = null;
+        }
         if (isMountedRef.current && isLatestRequest()) {
           hasLoadedOnceRef.current = true;
           setLoading(false);

@@ -49,6 +49,8 @@ export function useChatAttachments({
   const attachmentsRef = React.useRef<PendingAttachment[]>(attachments);
   const previousAttachmentsRef = React.useRef<PendingAttachment[]>(attachments);
   const transferredPreviewURLsRef = React.useRef(new Set<string>());
+  const uploadControllersRef = React.useRef(new Set<AbortController>());
+  const mountedRef = React.useRef(true);
   const currentConversationKeyRef = React.useRef(conversationKey);
   const uploadingAttachments = uploadingByKey[conversationKey] ?? [];
   const uploading = uploadingAttachments.length > 0;
@@ -121,13 +123,17 @@ export function useChatAttachments({
   });
 
   React.useEffect(() => {
+    const controller = new AbortController();
     void (async () => {
       try {
         const token = await resolveAccessToken();
-        if (!token) {
+        if (!token || controller.signal.aborted) {
           return;
         }
-        const policy = await getChatFilePolicy(token);
+        const policy = await getChatFilePolicy(token, controller.signal);
+        if (controller.signal.aborted) {
+          return;
+        }
         setChatFilePolicy(policy);
         if (policy.maxMessageFiles > 0) {
           setMaxFilesPerMessage(policy.maxMessageFiles);
@@ -136,6 +142,7 @@ export function useChatAttachments({
         // Keep fallback value.
       }
     })();
+    return () => controller.abort();
   }, []);
 
   React.useEffect(() => {
@@ -153,7 +160,7 @@ export function useChatAttachments({
       if (!item.previewURL || currentPreviewURLs.get(item.fileID) === item.previewURL) {
         continue;
       }
-      if (!transferredPreviewURLsRef.current.delete(item.previewURL)) {
+      if (!transferredPreviewURLsRef.current.has(item.previewURL)) {
         revokeAttachmentPreview(item);
       }
     }
@@ -241,8 +248,13 @@ export function useChatAttachments({
         [targetConversationKey]: [...(prev[targetConversationKey] ?? []), ...placeholders],
       }));
 
+      const controller = new AbortController();
+      uploadControllersRef.current.add(controller);
       try {
         const token = await resolveAccessToken();
+        if (controller.signal.aborted || !mountedRef.current) {
+          return;
+        }
         if (!token) {
           toast.error(t("uploadFailed"), { description: t("uploadSignInRequired") });
           return;
@@ -252,9 +264,13 @@ export function useChatAttachments({
           policyAcceptedFiles.map((file) =>
             uploadFile(token, file, {
               purpose: "conversation_attachment",
+              signal: controller.signal,
             }),
           ),
         );
+        if (controller.signal.aborted || !mountedRef.current) {
+          return;
+        }
         const reusedCount = results.filter((result) => result.status === "fulfilled" && result.value.reused).length;
 
         const uploaded = results.flatMap((result, index) => {
@@ -311,21 +327,26 @@ export function useChatAttachments({
           toast.error(t("partialUploadFailed"), { description: t("retryFailedFiles") });
         }
       } catch (error) {
-        const description = resolveErrorMessage(error, t("retryLater"));
-        toast.error(t("uploadFailed"), { description });
+        if (!controller.signal.aborted && mountedRef.current) {
+          const description = resolveErrorMessage(error, t("retryLater"));
+          toast.error(t("uploadFailed"), { description });
+        }
       } finally {
-        setUploadingByKey((prev) => {
-          const tempIDs = new Set(placeholders.map((item) => item.tempID));
-          const nextItems = (prev[targetConversationKey] ?? []).filter((item) => !tempIDs.has(item.tempID));
-          if (nextItems.length === 0) {
-            const { [targetConversationKey]: _removed, ...rest } = prev;
-            return rest;
-          }
-          return {
-            ...prev,
-            [targetConversationKey]: nextItems,
-          };
-        });
+        uploadControllersRef.current.delete(controller);
+        if (mountedRef.current) {
+          setUploadingByKey((prev) => {
+            const tempIDs = new Set(placeholders.map((item) => item.tempID));
+            const nextItems = (prev[targetConversationKey] ?? []).filter((item) => !tempIDs.has(item.tempID));
+            if (nextItems.length === 0) {
+              const { [targetConversationKey]: _removed, ...rest } = prev;
+              return rest;
+            }
+            return {
+              ...prev,
+              [targetConversationKey]: nextItems,
+            };
+          });
+        }
       }
     },
     [
@@ -366,13 +387,23 @@ export function useChatAttachments({
   }, [onUploadFiles, t]);
 
   React.useEffect(() => {
+    mountedRef.current = true;
     return () => {
-      for (const item of attachmentsRef.current) {
-        if (item.previewURL && transferredPreviewURLsRef.current.has(item.previewURL)) {
-          continue;
-        }
-        revokeAttachmentPreview(item);
+      mountedRef.current = false;
+      for (const controller of uploadControllersRef.current) {
+        controller.abort();
       }
+      uploadControllersRef.current.clear();
+      const previewURLs = new Set(transferredPreviewURLsRef.current);
+      for (const item of attachmentsRef.current) {
+        if (item.previewURL) {
+          previewURLs.add(item.previewURL);
+        }
+      }
+      for (const previewURL of previewURLs) {
+        URL.revokeObjectURL(previewURL);
+      }
+      transferredPreviewURLsRef.current.clear();
     };
   }, []);
 

@@ -43,6 +43,7 @@ type FileProcessingQueueRepository interface {
 	EnqueueFileProcessing(ctx context.Context, userID uint, fileID string, retry int, lastError string) error
 	ClaimTimedOutFileProcessingMessages(ctx context.Context, consumerName string) ([]FileProcessingMessage, error)
 	ReadFileProcessingMessages(ctx context.Context, consumerName string) ([]FileProcessingMessage, error)
+	RenewFileProcessingMessageLease(ctx context.Context, consumerName, messageID string) error
 	AckFileProcessingMessage(ctx context.Context, messageID string) error
 	DeleteFileProcessingMessage(ctx context.Context, messageID string) error
 	SendFileProcessingToDLQ(ctx context.Context, userID uint, fileID string, retry int, lastError string) error

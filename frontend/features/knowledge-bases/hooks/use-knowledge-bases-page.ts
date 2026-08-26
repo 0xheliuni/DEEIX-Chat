@@ -108,11 +108,20 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
   const itemsRequestVersionRef = React.useRef(0);
   const filesRequestVersionRef = React.useRef(0);
   const availableFilesRequestVersionRef = React.useRef(0);
+  const itemsRequestControllerRef = React.useRef<AbortController | null>(null);
+  const filesRequestControllerRef = React.useRef<AbortController | null>(null);
+  const availableFilesRequestControllerRef = React.useRef<AbortController | null>(null);
   const filesRef = React.useRef(files);
   filesRef.current = files;
   const selectedIDRef = React.useRef(selectedID);
   selectedIDRef.current = selectedID;
   const previewSnapshot = useDialogSnapshot(previewTarget);
+
+  React.useEffect(() => () => {
+    itemsRequestControllerRef.current?.abort();
+    filesRequestControllerRef.current?.abort();
+    availableFilesRequestControllerRef.current?.abort();
+  }, []);
 
   const selected = React.useMemo(
     () => items.find((item) => item.publicID === selectedID) ?? null,
@@ -139,18 +148,22 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
     accessToken: string,
     knowledgeBaseID: string,
     page: number,
+    signal?: AbortSignal,
   ) => mode === "admin"
-    ? listAdminKnowledgeBaseFiles(accessToken, knowledgeBaseID, page, FILE_PAGE_SIZE)
-    : listKnowledgeBaseFiles(accessToken, knowledgeBaseID, page, FILE_PAGE_SIZE), [mode]);
+    ? listAdminKnowledgeBaseFiles(accessToken, knowledgeBaseID, page, FILE_PAGE_SIZE, signal)
+    : listKnowledgeBaseFiles(accessToken, knowledgeBaseID, page, FILE_PAGE_SIZE, signal), [mode]);
 
   const replaceFileList = React.useCallback(async (
     accessToken: string,
     knowledgeBaseID: string,
   ) => {
     const requestVersion = ++filesRequestVersionRef.current;
+    filesRequestControllerRef.current?.abort();
+    const requestController = new AbortController();
+    filesRequestControllerRef.current = requestController;
     setFilesLoadingMore(false);
     try {
-      const page = await listFilePage(accessToken, knowledgeBaseID, 1);
+      const page = await listFilePage(accessToken, knowledgeBaseID, 1, requestController.signal);
       if (
         selectedIDRef.current !== knowledgeBaseID ||
         filesRequestVersionRef.current !== requestVersion
@@ -158,7 +171,14 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
       setFiles(page.results);
       setFilesTotal(page.total);
       setFilesPage(1);
+    } catch (error) {
+      if (!requestController.signal.aborted) {
+        throw error;
+      }
     } finally {
+      if (filesRequestControllerRef.current === requestController) {
+        filesRequestControllerRef.current = null;
+      }
       if (
         selectedIDRef.current === knowledgeBaseID &&
         filesRequestVersionRef.current === requestVersion
@@ -183,6 +203,9 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
 
   const loadItems = React.useCallback(async (preferredID?: string, silent = false) => {
     const requestVersion = ++itemsRequestVersionRef.current;
+    itemsRequestControllerRef.current?.abort();
+    const requestController = new AbortController();
+    itemsRequestControllerRef.current = requestController;
     const targetID = preferredID || (silent ? selectedIDRef.current : "");
     setItemsLoadingMore(false);
     if (!silent) setLoading(true);
@@ -191,18 +214,19 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
       const page = mode === "admin"
         ? await listAdminKnowledgeBases(token, {
             page: 1, pageSize: 50, query: listQuery, sort: sortKey,
-          })
+          }, requestController.signal)
         : await listVisibleKnowledgeBases(token, {
             page: 1, pageSize: 50, query: listQuery, sort: sortKey,
-          });
+          }, requestController.signal);
       if (itemsRequestVersionRef.current !== requestVersion) return;
       let results = page.results;
       if (targetID && !results.some((item) => item.publicID === targetID)) {
         try {
-          const preferred = await getKnowledgeBase(token, targetID, mode === "admin");
+          const preferred = await getKnowledgeBase(token, targetID, mode === "admin", requestController.signal);
           if (itemsRequestVersionRef.current !== requestVersion) return;
           results = [preferred, ...results];
         } catch {
+          if (requestController.signal.aborted) return;
           // The selected item may have been deleted between the mutation and refresh.
         }
       }
@@ -214,8 +238,13 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
         return results.some((item) => item.publicID === next) ? next : (results[0]?.publicID ?? "");
       });
     } catch {
-      if (!silent && itemsRequestVersionRef.current === requestVersion) toast.error(t("loadFailed"));
+      if (!requestController.signal.aborted && !silent && itemsRequestVersionRef.current === requestVersion) {
+        toast.error(t("loadFailed"));
+      }
     } finally {
+      if (itemsRequestControllerRef.current === requestController) {
+        itemsRequestControllerRef.current = null;
+      }
       if (itemsRequestVersionRef.current === requestVersion) setLoading(false);
     }
   }, [listQuery, mode, sortKey, t]);
@@ -223,6 +252,9 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
   const loadMoreItems = React.useCallback(async () => {
     if (itemsLoadingMore || items.length >= itemsTotal) return;
     const requestVersion = itemsRequestVersionRef.current;
+    itemsRequestControllerRef.current?.abort();
+    const requestController = new AbortController();
+    itemsRequestControllerRef.current = requestController;
     setItemsLoadingMore(true);
     try {
       const token = await requireAccessToken();
@@ -230,10 +262,10 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
       const page = mode === "admin"
         ? await listAdminKnowledgeBases(token, {
             page: nextPage, pageSize: 50, query: listQuery, sort: sortKey,
-          })
+          }, requestController.signal)
         : await listVisibleKnowledgeBases(token, {
             page: nextPage, pageSize: 50, query: listQuery, sort: sortKey,
-          });
+          }, requestController.signal);
       if (itemsRequestVersionRef.current !== requestVersion) return;
       setItems((current) => {
         const existing = new Set(current.map((item) => item.publicID));
@@ -242,8 +274,13 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
       setItemsTotal(page.total);
       setItemsPage(nextPage);
     } catch {
-      if (itemsRequestVersionRef.current === requestVersion) toast.error(t("loadFailed"));
+      if (!requestController.signal.aborted && itemsRequestVersionRef.current === requestVersion) {
+        toast.error(t("loadFailed"));
+      }
     } finally {
+      if (itemsRequestControllerRef.current === requestController) {
+        itemsRequestControllerRef.current = null;
+      }
       if (itemsRequestVersionRef.current === requestVersion) setItemsLoadingMore(false);
     }
   }, [items.length, itemsLoadingMore, itemsPage, itemsTotal, listQuery, mode, sortKey, t]);
@@ -279,6 +316,8 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
 
   React.useEffect(() => {
     if (!selectedID) {
+      filesRequestControllerRef.current?.abort();
+      filesRequestControllerRef.current = null;
       filesRequestVersionRef.current += 1;
       setFiles([]);
       setFilesTotal(0);
@@ -289,12 +328,15 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
     }
     let cancelled = false;
     const requestVersion = ++filesRequestVersionRef.current;
+    filesRequestControllerRef.current?.abort();
+    const requestController = new AbortController();
+    filesRequestControllerRef.current = requestController;
     setFilesLoading(true);
     setFilesLoadingMore(false);
     void (async () => {
       try {
         const token = await requireAccessToken();
-        const page = await listFilePage(token, selectedID, 1);
+        const page = await listFilePage(token, selectedID, 1, requestController.signal);
         if (
           !cancelled &&
           selectedIDRef.current === selectedID &&
@@ -306,11 +348,15 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
         }
       } catch {
         if (
+          !requestController.signal.aborted &&
           !cancelled &&
           selectedIDRef.current === selectedID &&
           filesRequestVersionRef.current === requestVersion
         ) toast.error(t("filesLoadFailed"));
       } finally {
+        if (filesRequestControllerRef.current === requestController) {
+          filesRequestControllerRef.current = null;
+        }
         if (
           !cancelled &&
           selectedIDRef.current === selectedID &&
@@ -320,6 +366,7 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
     })();
     return () => {
       cancelled = true;
+      requestController.abort();
     };
   }, [listFilePage, selectedID, t]);
 
@@ -409,9 +456,16 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
   });
 
   React.useEffect(() => {
-    if (!addFilesOpen || !selected) return;
+    if (!addFilesOpen || !selected) {
+      availableFilesRequestControllerRef.current?.abort();
+      availableFilesRequestControllerRef.current = null;
+      return;
+    }
     let cancelled = false;
     const requestVersion = ++availableFilesRequestVersionRef.current;
+    availableFilesRequestControllerRef.current?.abort();
+    const requestController = new AbortController();
+    availableFilesRequestControllerRef.current = requestController;
     setAvailableFilesLoading(true);
     setAvailableFilesLoadingMore(false);
     const timer = window.setTimeout(() => void (async () => {
@@ -420,23 +474,31 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
         const result = mode === "admin"
           ? await listAvailableAdminKnowledgeBaseFiles(token, selected.publicID, {
               page: 1, pageSize: AVAILABLE_FILE_PAGE_SIZE, query: fileQuery,
-            })
+            }, requestController.signal)
           : await listAvailableMyKnowledgeBaseFiles(token, selected.publicID, {
               page: 1, pageSize: AVAILABLE_FILE_PAGE_SIZE, query: fileQuery,
-            });
+            }, requestController.signal);
         if (!cancelled && availableFilesRequestVersionRef.current === requestVersion) {
           setAvailableFiles(result.results);
           setAvailableFilesTotal(result.total);
           setAvailableFilesPage(1);
         }
       } catch {
-        if (!cancelled && availableFilesRequestVersionRef.current === requestVersion) toast.error(t("filesLoadFailed"));
+        if (
+          !requestController.signal.aborted &&
+          !cancelled &&
+          availableFilesRequestVersionRef.current === requestVersion
+        ) toast.error(t("filesLoadFailed"));
       } finally {
+        if (availableFilesRequestControllerRef.current === requestController) {
+          availableFilesRequestControllerRef.current = null;
+        }
         if (!cancelled && availableFilesRequestVersionRef.current === requestVersion) setAvailableFilesLoading(false);
       }
     })(), AVAILABLE_FILE_SEARCH_DEBOUNCE_MS);
     return () => {
       cancelled = true;
+      requestController.abort();
       window.clearTimeout(timer);
       if (availableFilesRequestVersionRef.current === requestVersion) {
         availableFilesRequestVersionRef.current += 1;
@@ -446,6 +508,9 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
 
   const loadMoreAvailableFiles = React.useCallback(async () => {
     if (!selected || availableFilesLoadingMore || availableFilesPage * AVAILABLE_FILE_PAGE_SIZE >= availableFilesTotal) return;
+    availableFilesRequestControllerRef.current?.abort();
+    const requestController = new AbortController();
+    availableFilesRequestControllerRef.current = requestController;
     setAvailableFilesLoadingMore(true);
     const requestVersion = availableFilesRequestVersionRef.current;
     try {
@@ -454,10 +519,10 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
       const result = mode === "admin"
         ? await listAvailableAdminKnowledgeBaseFiles(token, selected.publicID, {
             page: nextPage, pageSize: AVAILABLE_FILE_PAGE_SIZE, query: fileQuery,
-          })
+          }, requestController.signal)
         : await listAvailableMyKnowledgeBaseFiles(token, selected.publicID, {
             page: nextPage, pageSize: AVAILABLE_FILE_PAGE_SIZE, query: fileQuery,
-          });
+          }, requestController.signal);
       if (availableFilesRequestVersionRef.current !== requestVersion) return;
       setAvailableFiles((current) => {
         const seen = new Set(current.map((file) => file.fileID));
@@ -466,8 +531,13 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
       setAvailableFilesTotal(result.total);
       setAvailableFilesPage(nextPage);
     } catch {
-      if (availableFilesRequestVersionRef.current === requestVersion) toast.error(t("filesLoadFailed"));
+      if (!requestController.signal.aborted && availableFilesRequestVersionRef.current === requestVersion) {
+        toast.error(t("filesLoadFailed"));
+      }
     } finally {
+      if (availableFilesRequestControllerRef.current === requestController) {
+        availableFilesRequestControllerRef.current = null;
+      }
       if (availableFilesRequestVersionRef.current === requestVersion) setAvailableFilesLoadingMore(false);
     }
   }, [availableFilesLoadingMore, availableFilesPage, availableFilesTotal, fileQuery, mode, selected, t]);
@@ -630,11 +700,14 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
     if (!selected || filesLoadingMore || files.length >= filesTotal) return;
     const knowledgeBaseID = selected.publicID;
     const requestVersion = filesRequestVersionRef.current;
+    filesRequestControllerRef.current?.abort();
+    const requestController = new AbortController();
+    filesRequestControllerRef.current = requestController;
     setFilesLoadingMore(true);
     try {
       const token = await requireAccessToken();
       const nextPage = filesPage + 1;
-      const page = await listFilePage(token, knowledgeBaseID, nextPage);
+      const page = await listFilePage(token, knowledgeBaseID, nextPage, requestController.signal);
       if (
         selectedIDRef.current !== knowledgeBaseID ||
         filesRequestVersionRef.current !== requestVersion
@@ -646,8 +719,13 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
       setFilesTotal(page.total);
       setFilesPage(nextPage);
     } catch {
-      if (filesRequestVersionRef.current === requestVersion) toast.error(t("filesLoadFailed"));
+      if (!requestController.signal.aborted && filesRequestVersionRef.current === requestVersion) {
+        toast.error(t("filesLoadFailed"));
+      }
     } finally {
+      if (filesRequestControllerRef.current === requestController) {
+        filesRequestControllerRef.current = null;
+      }
       if (
         selectedIDRef.current === knowledgeBaseID &&
         filesRequestVersionRef.current === requestVersion
