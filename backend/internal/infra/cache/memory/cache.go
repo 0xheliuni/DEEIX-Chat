@@ -31,7 +31,7 @@ type Cache struct {
 	upstreamCB   map[uint]*circuitState
 	modelCB      map[string]*circuitState
 	upstreamMeta map[uint]upstreamMetadata
-	rateLimits   map[uint]rateLimitState
+	rateLimits   map[routeRateLimitKey]rateLimitState
 	keyCounters  map[uint]int64
 
 	slidingHTTP map[string][]time.Time
@@ -65,7 +65,7 @@ func New() *Cache {
 		upstreamCB:               map[uint]*circuitState{},
 		modelCB:                  map[string]*circuitState{},
 		upstreamMeta:             map[uint]upstreamMetadata{},
-		rateLimits:               map[uint]rateLimitState{},
+		rateLimits:               map[routeRateLimitKey]rateLimitState{},
 		keyCounters:              map[uint]int64{},
 		slidingHTTP:              map[string][]time.Time{},
 		fixedHTTP:                map[string]fixedWindowCounter{},

@@ -361,20 +361,8 @@ func (s *Service) sendMessageInternal(
 	}
 	route, err := s.routeResolver.ResolveRoute(ctx, routeResolveInput)
 	if err != nil {
-		if errors.Is(err, channel.ErrModelAccessDenied) {
-			retErr = ErrModelAccessDenied
-			return nil, retErr
-		}
-		if errors.Is(err, channel.ErrRouteNotFound) || errors.Is(err, channel.ErrModelNotFound) {
-			retErr = ErrModelRouteNotConfigured
-			return nil, retErr
-		}
-		if errors.Is(err, channel.ErrAllRoutesUnavailable) {
-			retErr = wrapUpstreamRequestError(err)
-			return nil, retErr
-		}
-		retErr = err
-		return nil, err
+		retErr = mapRouteResolutionError(err)
+		return nil, retErr
 	}
 	resolvedRoute = route
 	reasoningContentPassback := s.reasoningContentPassbackEnabled(ctx, input.UserID, route)
