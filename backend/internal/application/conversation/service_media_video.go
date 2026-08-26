@@ -108,7 +108,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 		RequestID:         strings.TrimSpace(input.RequestID),
 	})
 	if err != nil {
-		return nil, ErrModelRouteNotConfigured
+		return nil, mapRouteResolutionError(err)
 	}
 	if !llm.IsVideoGenerationAdapter(route.Protocol) {
 		return nil, ErrMediaRouteProtocolMismatch

@@ -324,6 +324,7 @@
     "smtpInvalid": "SMTP 设置无效。"
   },
   "upstream": {
+    "rateLimited": "上游请求正在限流，请稍后重试。",
     "unavailable": "上游服务不可用。"
   },
   "upstreamEmptyResponse": "上游返回了空响应，请稍后重试或联系管理员检查模型路由。",

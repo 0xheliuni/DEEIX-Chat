@@ -35,6 +35,11 @@ type rateLimitState struct {
 	countExpires time.Time
 }
 
+type routeRateLimitKey struct {
+	upstreamID uint
+	routeID    uint
+}
+
 func (c *Cache) CheckUpstreamCircuitState(ctx context.Context, upstreamID uint) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -217,16 +222,27 @@ func (c *Cache) QueryModelCircuitStatus(ctx context.Context, upstreamID uint, mo
 	return queryCircuitStatus(c.modelCB[modelCircuitKey(upstreamID, modelKey)])
 }
 
-func (c *Cache) IsRateLimited(ctx context.Context, upstreamID uint) bool {
+func (c *Cache) GetRateLimitBackoff(ctx context.Context, upstreamID uint, routeID uint) (time.Duration, error) {
+	if upstreamID == 0 || routeID == 0 {
+		return 0, nil
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return time.Now().Before(c.rateLimits[upstreamID].backoffUntil)
+	remaining := time.Until(c.rateLimits[routeRateLimitKey{upstreamID: upstreamID, routeID: routeID}].backoffUntil)
+	if remaining <= 0 {
+		return 0, nil
+	}
+	return remaining, nil
 }
 
-func (c *Cache) RecordRateLimitBackoff(ctx context.Context, upstreamID uint, params repository.RateLimitBackoffParams) error {
+func (c *Cache) RecordRateLimitBackoff(ctx context.Context, params repository.RateLimitBackoffParams) error {
+	if params.UpstreamID == 0 || params.RouteID == 0 {
+		return nil
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	state := c.rateLimits[upstreamID]
+	key := routeRateLimitKey{upstreamID: params.UpstreamID, routeID: params.RouteID}
+	state := c.rateLimits[key]
 	now := time.Now()
 	if now.After(state.countExpires) {
 		state.backoffCount = 0
@@ -234,8 +250,18 @@ func (c *Cache) RecordRateLimitBackoff(ctx context.Context, upstreamID uint, par
 	state.backoffCount++
 	state.countExpires = now.Add(5 * time.Minute)
 	state.backoffUntil = now.Add(time.Duration(calculateBackoffSeconds(state.backoffCount, params)) * time.Second)
-	c.rateLimits[upstreamID] = state
+	c.rateLimits[key] = state
 	c.maybeSweepLocked(now)
+	return nil
+}
+
+func (c *Cache) ClearRateLimitBackoff(ctx context.Context, upstreamID uint, routeID uint) error {
+	if upstreamID == 0 || routeID == 0 {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.rateLimits, routeRateLimitKey{upstreamID: upstreamID, routeID: routeID})
 	return nil
 }
 
@@ -346,12 +372,20 @@ func calculateBackoffSeconds(attempt int64, params repository.RateLimitBackoffPa
 	backoff := base
 	for i := int64(1); i < attempt; i++ {
 		if backoff >= maxSec {
-			return maxSec
+			backoff = maxSec
+			break
 		}
 		backoff *= multiplier
 		if backoff >= maxSec {
-			return maxSec
+			backoff = maxSec
+			break
 		}
+	}
+	if params.RetryAfterSec > backoff {
+		backoff = params.RetryAfterSec
+	}
+	if backoff > maxSec {
+		return maxSec
 	}
 	return backoff
 }

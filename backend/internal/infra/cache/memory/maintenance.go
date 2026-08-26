@@ -75,9 +75,9 @@ func (c *Cache) sweepExpiredLocked(now time.Time) {
 		}
 		c.slidingHTTP[key] = kept
 	}
-	for upstreamID, item := range c.rateLimits {
+	for key, item := range c.rateLimits {
 		if now.After(item.backoffUntil) && now.After(item.countExpires) {
-			delete(c.rateLimits, upstreamID)
+			delete(c.rateLimits, key)
 		}
 	}
 	for upstreamID, item := range c.upstreamMeta {

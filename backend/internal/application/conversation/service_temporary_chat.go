@@ -2,7 +2,6 @@ package conversation
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"time"
 
@@ -60,14 +59,7 @@ func (s *Service) StreamTemporaryChat(
 		RequestID:         strings.TrimSpace(input.RequestID),
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, channel.ErrModelAccessDenied):
-			return nil, ErrModelAccessDenied
-		case errors.Is(err, channel.ErrRouteNotFound), errors.Is(err, channel.ErrModelNotFound):
-			return nil, ErrModelRouteNotConfigured
-		default:
-			return nil, wrapUpstreamRequestError(err)
-		}
+		return nil, mapRouteResolutionError(err)
 	}
 	attributionReferer, attributionTitle := s.llmAttribution()
 	routeConfig := messageRouteConfig(route, attributionReferer, attributionTitle)

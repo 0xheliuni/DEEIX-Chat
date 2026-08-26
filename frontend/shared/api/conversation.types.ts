@@ -347,6 +347,7 @@ export type StreamMessageEvent =
   | {
       type: "error";
       seq?: number;
+      status?: number;
       message: string;
       errorCode?: string;
       debug?: UpstreamDebugInfo;

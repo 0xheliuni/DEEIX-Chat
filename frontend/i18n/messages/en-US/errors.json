@@ -324,6 +324,7 @@
     "smtpInvalid": "Invalid SMTP settings."
   },
   "upstream": {
+    "rateLimited": "The upstream is rate limiting requests. Try again shortly.",
     "unavailable": "Upstream service is unavailable."
   },
   "upstreamEmptyResponse": "The upstream returned an empty response. Try again later or ask an administrator to check the model route.",

@@ -171,6 +171,10 @@ func mapStreamError(err error) streamError {
 	case errors.Is(err, appconversation.ErrMessageGenerationCanceled):
 		status = http.StatusBadRequest
 		message = "message generation canceled"
+	case appconversation.IsUpstreamRateLimitError(err):
+		status = http.StatusTooManyRequests
+		code = appconversation.MessageErrorCodeUpstreamRateLimited
+		message = "upstream rate limited"
 	case errors.Is(err, appconversation.ErrMediaImagePromptRequired):
 		status = http.StatusBadRequest
 		message = "image prompt is required"
@@ -223,6 +227,7 @@ func streamErrorPayload(err error) map[string]interface{} {
 	mapped := mapStreamError(err)
 	payload := map[string]interface{}{
 		"type":      "error",
+		"status":    mapped.Status,
 		"message":   mapped.Message,
 		"errorCode": mapped.Code,
 	}
@@ -288,6 +293,9 @@ func mapClientErrorMessage(err error) string {
 	}
 	if errors.Is(err, appconversation.ErrGeneratedMediaArtifactUnavailable) {
 		return "generated media artifact is temporarily unavailable"
+	}
+	if appconversation.IsUpstreamRateLimitError(err) {
+		return "upstream rate limited"
 	}
 	if errors.Is(err, appconversation.ErrUpstreamRequestFailed) {
 		detail := appconversation.MessageErrorSummary(err)
