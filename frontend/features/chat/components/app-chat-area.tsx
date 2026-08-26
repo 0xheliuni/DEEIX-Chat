@@ -58,6 +58,7 @@ import type { FileObjectDTO } from "@/shared/api/file.types";
 import { listAvailableMCPTools } from "@/shared/api/mcp";
 import type { MCPToolDTO } from "@/shared/api/mcp.types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { useAuthSession } from "@/shared/auth/auth-session-context";
 import { DeleteFilesOption } from "@/shared/components/delete-files-option";
 import { parseConversationLabelsJSON } from "@/shared/lib/conversation-labels";
 import {
@@ -179,6 +180,7 @@ export function AppChatArea() {
   const tScreenshot = useTranslations("chat.screenshot");
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user } = useAuthSession();
   const temporaryMode = searchParams.get("temporary") === "true";
   const routeConversationID = temporaryMode ? null : searchParams.get("conversation_id")?.trim() || null;
   const routeProjectID = temporaryMode ? null : searchParams.get("project_id")?.trim() || null;
@@ -395,6 +397,7 @@ export function AppChatArea() {
   } = useChatComposerState(conversationID, {
     preserveDrafts: preserveConversationDrafts,
     resetToken: newConversationRevision,
+    storageScope: user?.publicID ?? "",
     transient: temporaryMode,
   });
   const selectionConversationKey = resolveConversationComposerKey(conversationID);
@@ -421,6 +424,7 @@ export function AppChatArea() {
     createdConversationID: locallyCreatedConversationID,
     resetToken: newConversationRevision,
     hasConversation: Boolean(conversationID),
+    storageScope: user?.publicID ?? "",
   });
   const [defaultToolIDs, setDefaultToolIDs] = React.useState<number[]>([]);
   const newConversationSelectionKey = `${newConversationRevision}:${newConversationProjectID || "unassigned"}`;

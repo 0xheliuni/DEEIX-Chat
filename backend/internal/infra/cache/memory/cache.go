@@ -19,7 +19,7 @@ type Cache struct {
 
 	fileSeq      int64
 	fileQueue    []repository.FileProcessingMessage
-	fileInflight map[string]repository.FileProcessingMessage
+	fileInflight map[string]fileProcessingLease
 	fileDLQ      []repository.FileProcessingMessage
 	fileNotify   chan struct{}
 
@@ -57,7 +57,7 @@ func New() *Cache {
 		settings:                 map[string]expiringString{},
 		userSettings:             map[string]expiringString{},
 		userSettingVersions:      map[string]expiringString{},
-		fileInflight:             map[string]repository.FileProcessingMessage{},
+		fileInflight:             map[string]fileProcessingLease{},
 		fileNotify:               make(chan struct{}),
 		rag:                      map[string]expiringRAG{},
 		streams:                  map[string]*generationStream{},

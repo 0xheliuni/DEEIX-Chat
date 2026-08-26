@@ -177,11 +177,12 @@ export async function fetchKnowledgeBaseFileContent(
   id: string,
   fileID: string,
   admin = false,
+  signal?: AbortSignal,
 ): Promise<FileContentResult> {
   const basePath = admin ? "/api/v1/admin/knowledge-bases" : "/api/v1/knowledge-bases";
   const response = await authedFetch(
     `${basePath}/${pathParam(id)}/files/${pathParam(fileID)}/content`,
-    { method: "GET", accessToken, cache: "no-store" },
+    { method: "GET", accessToken, cache: "no-store", signal },
     true,
   );
   return readFileContentResponse(response);
@@ -219,12 +220,13 @@ export async function createAdminKnowledgeBase(accessToken: string, payload: Wri
 export async function uploadAdminKnowledgeBaseFile(
   accessToken: string,
   file: File,
+  signal?: AbortSignal,
 ): Promise<KnowledgeBaseFileData> {
   const formData = new FormData();
   formData.append("file", file);
   return authedRequest<KnowledgeBaseFileData>(
     "/api/v1/admin/knowledge-bases/files",
-    { method: "POST", accessToken, body: formData },
+    { method: "POST", accessToken, body: formData, signal },
     true,
   );
 }
@@ -245,10 +247,11 @@ export async function listAdminPlatformFiles(
 export async function fetchAdminPlatformFileContent(
   accessToken: string,
   fileID: string,
+  signal?: AbortSignal,
 ): Promise<FileContentResult> {
   const response = await authedFetch(
     `/api/v1/admin/knowledge-bases/files/${pathParam(fileID)}/content`,
-    { method: "GET", accessToken, cache: "no-store" },
+    { method: "GET", accessToken, cache: "no-store", signal },
     true,
   );
   return readFileContentResponse(response);

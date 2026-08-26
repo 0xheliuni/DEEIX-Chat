@@ -42,11 +42,10 @@ import type { PreviewDialogFile } from "@/shared/components/file-preview/preview
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { formatBytes, resolveFileIcon } from "@/shared/lib/file-display";
 import { resolveFileRetrievalBadge } from "@/shared/lib/file-processing";
-import { runSettledBulkItems } from "@/shared/lib/bulk-action";
+import { runSettledBulkItems, runSettledItemsWithConcurrency } from "@/shared/lib/bulk-action";
 
 const PAGE_SIZE = 50;
 const UPLOAD_LIMIT = 100;
-const UPLOAD_CONCURRENCY = 4;
 const SEARCH_DEBOUNCE_MS = 200;
 
 const FilePreviewDialog = dynamic(
@@ -67,6 +66,7 @@ export function AdminPlatformFilesDialog({
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const requestVersionRef = React.useRef(0);
   const requestControllerRef = React.useRef<AbortController | null>(null);
+  const uploadRequestControllerRef = React.useRef<AbortController | null>(null);
   const [query, setQuery] = React.useState("");
   const [files, setFiles] = React.useState<KnowledgeBaseFileDTO[]>([]);
   const [total, setTotal] = React.useState(0);
@@ -120,6 +120,11 @@ export function AdminPlatformFilesDialog({
     if (!open) {
       requestControllerRef.current?.abort();
       requestControllerRef.current = null;
+      uploadRequestControllerRef.current?.abort();
+      uploadRequestControllerRef.current = null;
+      setLoading(false);
+      setLoadingMore(false);
+      setUploading(false);
       return;
     }
     setSelectedFileIDs([]);
@@ -139,6 +144,11 @@ export function AdminPlatformFilesDialog({
       if (requestVersionRef.current === requestVersion) requestVersionRef.current += 1;
     };
   }, [loadFirstPage, open, query]);
+
+  React.useEffect(() => () => {
+    uploadRequestControllerRef.current?.abort();
+    uploadRequestControllerRef.current = null;
+  }, []);
 
   const refresh = React.useCallback(() => {
     const requestVersion = ++requestVersionRef.current;
@@ -192,24 +202,22 @@ export function AdminPlatformFilesDialog({
       return;
     }
     setUploading(true);
+    uploadRequestControllerRef.current?.abort();
+    const requestController = new AbortController();
+    uploadRequestControllerRef.current = requestController;
     let uploaded = 0;
     let failed = 0;
     try {
       const token = await requireAccessToken();
-      let nextIndex = 0;
-      const workerCount = Math.min(UPLOAD_CONCURRENCY, selectedFiles.length);
-      await Promise.all(Array.from({ length: workerCount }, async () => {
-        while (nextIndex < selectedFiles.length) {
-          const index = nextIndex;
-          nextIndex += 1;
-          try {
-            await uploadAdminKnowledgeBaseFile(token, selectedFiles[index]);
-            uploaded += 1;
-          } catch {
-            failed += 1;
-          }
-        }
-      }));
+      if (requestController.signal.aborted) return;
+      const results = await runSettledItemsWithConcurrency({
+        items: selectedFiles,
+        signal: requestController.signal,
+        runItem: (file) => uploadAdminKnowledgeBaseFile(token, file, requestController.signal),
+      });
+      if (requestController.signal.aborted) return;
+      uploaded = results.filter((result) => result.status === "fulfilled").length;
+      failed = results.length - uploaded;
       if (uploaded > 0) {
         toast.success(t("localFilesUploaded", { count: uploaded }));
         refresh();
@@ -220,9 +228,13 @@ export function AdminPlatformFilesDialog({
         });
       }
     } catch (error) {
+      if (requestController.signal.aborted) return;
       toast.error(t("uploadFailed"), { description: resolveErrorMessage(error) });
     } finally {
-      setUploading(false);
+      if (uploadRequestControllerRef.current === requestController) {
+        uploadRequestControllerRef.current = null;
+        if (!requestController.signal.aborted) setUploading(false);
+      }
     }
   }, [refresh, resolveErrorMessage, t, uploading]);
 
@@ -304,9 +316,9 @@ export function AdminPlatformFilesDialog({
     }
   }, [bulkDeleteTargetIDs, bulkDeleting, refresh, resolveErrorMessage, t]);
 
-  const loadPreviewContent = React.useCallback(async (file: PreviewDialogFile) => {
+  const loadPreviewContent = React.useCallback(async (file: PreviewDialogFile, signal: AbortSignal) => {
     const token = await requireAccessToken();
-    return fetchAdminPlatformFileContent(token, file.fileID);
+    return fetchAdminPlatformFileContent(token, file.fileID, signal);
   }, []);
 
   return (

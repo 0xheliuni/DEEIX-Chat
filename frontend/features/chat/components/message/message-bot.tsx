@@ -36,9 +36,9 @@ import type {
 import { isUpstreamStreamingDebugBody, summarizeUpstreamError } from "@/features/chat/utils/chat-runtime";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { cn } from "@/lib/utils";
-import { type FileContentResult, fetchFileContent } from "@/shared/api/file";
+import { fetchFileContent } from "@/shared/api/file";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import type { PreviewDialogFile } from "@/shared/components/file-preview/preview-dialog";
+import type { FileContentLoader } from "@/shared/components/file-preview/preview-dialog";
 import { PreviewMedia } from "@/shared/components/file-preview/preview-media";
 import { type MarkdownArtifactActions, MarkdownImage } from "@/shared/components/markdown/streamdown-components";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
@@ -160,7 +160,7 @@ type ChatMessageBotProps = {
   billingDisplayCurrency?: BillingDisplayCurrency;
   billingDisplayUsdToCnyRate?: number | null;
   readOnly?: boolean;
-  attachmentContentLoader?: (file: PreviewDialogFile) => Promise<FileContentResult>;
+  attachmentContentLoader?: FileContentLoader;
   onEditImageAttachment?: (attachment: MessageAttachment, sourceModelName?: string) => void;
   onExtendVideoAttachment?: (attachment: MessageAttachment, sourceModelName?: string) => void;
   artifactActions?: MarkdownArtifactActions;
@@ -748,7 +748,7 @@ function MessageInlineVideoPreview({
   onExtend,
 }: {
   attachment: MessageAttachment;
-  loadContent?: (file: PreviewDialogFile) => Promise<FileContentResult>;
+  loadContent?: FileContentLoader;
   onExtend?: () => void;
 }) {
   const tPreview = useTranslations("files.previewDialog");
@@ -780,6 +780,7 @@ function MessageInlineVideoPreview({
 
   React.useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     revokeObjectURL();
 
     if (previewURL) {
@@ -801,18 +802,18 @@ function MessageInlineVideoPreview({
           sizeBytes,
         };
         const result = loadContent
-          ? await loadContent(file)
+          ? await loadContent(file, controller.signal)
           : await (async () => {
               const token = await resolveAccessToken();
               if (!token) {
                 throw new Error(tPreview("sessionExpired"));
               }
-              return fetchFileContent(token, fileID);
+              return fetchFileContent(token, fileID, controller.signal);
             })();
         const objectURL = URL.createObjectURL(result.blob);
         objectURLRef.current = objectURL;
 
-        if (cancelled) {
+        if (cancelled || controller.signal.aborted) {
           URL.revokeObjectURL(objectURL);
           if (objectURLRef.current === objectURL) {
             objectURLRef.current = null;
@@ -826,7 +827,7 @@ function MessageInlineVideoPreview({
           contentType: result.contentType || detectedMime || mimeType,
         });
       } catch (error) {
-        if (cancelled) {
+        if (cancelled || controller.signal.aborted) {
           return;
         }
         setState({ status: "error", message: resolveErrorMessage(error, tPreview("loadFailed")) });
@@ -835,6 +836,7 @@ function MessageInlineVideoPreview({
 
     return () => {
       cancelled = true;
+      controller.abort();
       revokeObjectURL();
     };
   }, [

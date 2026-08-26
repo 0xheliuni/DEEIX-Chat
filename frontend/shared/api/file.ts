@@ -148,13 +148,18 @@ export async function updateFileRagOptOut(
   );
 }
 
-export async function fetchFileContent(accessToken: string, fileID: string): Promise<FileContentResult> {
+export async function fetchFileContent(
+  accessToken: string,
+  fileID: string,
+  signal?: AbortSignal,
+): Promise<FileContentResult> {
   const response = await authedFetch(
     `/api/v1/files/${pathParam(fileID)}/content`,
     {
       method: "GET",
       accessToken,
       cache: "no-store",
+      signal,
     },
     true,
   );
@@ -162,13 +167,18 @@ export async function fetchFileContent(accessToken: string, fileID: string): Pro
   return readFileContentResponse(response);
 }
 
-export async function fetchSharedFileContent(shareID: string, fileID: string): Promise<FileContentResult> {
+export async function fetchSharedFileContent(
+  shareID: string,
+  fileID: string,
+  signal?: AbortSignal,
+): Promise<FileContentResult> {
   const response = await fetch(
     `${resolveApiBaseURL()}/api/v1/shared-conversations/${pathParam(shareID)}/files/${pathParam(fileID)}/content`,
     {
       method: "GET",
       cache: "no-store",
       credentials: "include",
+      signal,
     },
   );
 

@@ -38,9 +38,9 @@ export function ChatKnowledgeBases({
   const [page, setPage] = React.useState(1);
   const [total, setTotal] = React.useState(0);
   const [query, setQuery] = React.useState("");
-  const mountedRef = React.useRef(true);
   const openRef = React.useRef(open);
   const requestVersionRef = React.useRef(0);
+  const requestControllerRef = React.useRef<AbortController | null>(null);
   const selectedIDsRef = React.useRef(selectedIDs);
   const onChangeRef = React.useRef(onChange);
   const translationRef = React.useRef(t);
@@ -52,25 +52,29 @@ export function ChatKnowledgeBases({
 
   const loadCatalog = React.useCallback(async (nextQuery: string, nextPage = 1) => {
     const requestVersion = ++requestVersionRef.current;
+    requestControllerRef.current?.abort();
+    const requestController = new AbortController();
+    requestControllerRef.current = requestController;
     if (nextPage === 1) setLoading(true);
     else setLoadingMore(true);
     try {
       const token = await resolveAccessToken();
+      if (requestController.signal.aborted) return;
       if (!token) throw new Error("missing access token");
       const [catalog, selected] = await Promise.all([
         listVisibleKnowledgeBases(token, {
           query: nextQuery,
           page: nextPage,
           pageSize: 50,
-        }),
+        }, requestController.signal),
         nextPage === 1 && selectedIDsRef.current.length > 0
           ? listVisibleKnowledgeBases(token, {
               ids: selectedIDsRef.current.slice(0, MAX_SELECTED_KNOWLEDGE_BASES),
               pageSize: MAX_SELECTED_KNOWLEDGE_BASES,
-            })
+            }, requestController.signal)
           : Promise.resolve({ results: [], total: 0 }),
       ]);
-      if (!mountedRef.current || requestVersionRef.current !== requestVersion) return;
+      if (requestController.signal.aborted || requestVersionRef.current !== requestVersion) return;
       setItems((current) => {
         const next = nextPage === 1 ? catalog.results.slice() : [...current, ...catalog.results];
         const seen = new Set(next.map((item) => item.publicID));
@@ -91,11 +95,14 @@ export function ChatKnowledgeBases({
         if (nextIDs.length !== currentIDs.length) onChangeRef.current(nextIDs);
       }
     } catch {
-      if (mountedRef.current && openRef.current && requestVersionRef.current === requestVersion) {
+      if (!requestController.signal.aborted && openRef.current && requestVersionRef.current === requestVersion) {
         toast.error(translationRef.current("knowledgeBaseLoadFailed"));
       }
     } finally {
-      if (mountedRef.current && requestVersionRef.current === requestVersion) {
+      if (requestControllerRef.current === requestController) {
+        requestControllerRef.current = null;
+      }
+      if (!requestController.signal.aborted && requestVersionRef.current === requestVersion) {
         setLoading(false);
         setLoadingMore(false);
       }
@@ -103,17 +110,17 @@ export function ChatKnowledgeBases({
   }, []);
 
   React.useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
+    return () => requestControllerRef.current?.abort();
   }, []);
 
   React.useEffect(() => {
     if (!open) return;
     setLoading(true);
     const timer = window.setTimeout(() => void loadCatalog(query.trim(), 1), 200);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      requestControllerRef.current?.abort();
+    };
   }, [loadCatalog, open, query]);
 
   React.useEffect(() => {
@@ -155,6 +162,8 @@ export function ChatKnowledgeBases({
       setOpen(nextOpen);
       openRef.current = nextOpen;
       if (!nextOpen) {
+        requestControllerRef.current?.abort();
+        requestControllerRef.current = null;
         setQuery("");
       }
     }}>

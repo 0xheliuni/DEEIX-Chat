@@ -53,14 +53,15 @@ import {
   useFileStatusPolling,
   type FileStatusPollingResult,
 } from "@/shared/hooks/use-file-processing-status-polling";
-import { runSettledBulkItems } from "@/shared/lib/bulk-action";
+import { runSettledBulkItems, runSettledItemsWithConcurrency } from "@/shared/lib/bulk-action";
 import { isFileProcessing } from "@/shared/lib/file-processing";
 
 const FILE_ACTION_LIMIT = 100;
 const FILE_PAGE_SIZE = 100;
 const AVAILABLE_FILE_PAGE_SIZE = 50;
-const UPLOAD_CONCURRENCY = 4;
 const AVAILABLE_FILE_SEARCH_DEBOUNCE_MS = 200;
+
+type KnowledgeFileUploadResult = { file: { fileID: string } };
 
 export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
   const t = useTranslations("knowledgeBases");
@@ -111,6 +112,9 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
   const itemsRequestControllerRef = React.useRef<AbortController | null>(null);
   const filesRequestControllerRef = React.useRef<AbortController | null>(null);
   const availableFilesRequestControllerRef = React.useRef<AbortController | null>(null);
+  const uploadRequestControllerRef = React.useRef<AbortController | null>(null);
+  const itemsPageRef = React.useRef(itemsPage);
+  itemsPageRef.current = itemsPage;
   const filesRef = React.useRef(files);
   filesRef.current = files;
   const selectedIDRef = React.useRef(selectedID);
@@ -121,6 +125,7 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
     itemsRequestControllerRef.current?.abort();
     filesRequestControllerRef.current?.abort();
     availableFilesRequestControllerRef.current?.abort();
+    uploadRequestControllerRef.current?.abort();
   }, []);
 
   const selected = React.useMemo(
@@ -186,7 +191,7 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
     }
   }, [listFilePage]);
 
-  const loadPreviewContent = React.useCallback(async (file: PreviewDialogFile) => {
+  const loadPreviewContent = React.useCallback(async (file: PreviewDialogFile, signal: AbortSignal) => {
     if (!previewSnapshot) throw new Error("missing knowledge base preview target");
     const token = await requireAccessToken();
     return fetchKnowledgeBaseFileContent(
@@ -194,6 +199,7 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
       previewSnapshot.knowledgeBaseID,
       file.fileID,
       previewSnapshot.admin,
+      signal,
     );
   }, [previewSnapshot]);
 
@@ -285,34 +291,93 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
     }
   }, [items.length, itemsLoadingMore, itemsPage, itemsTotal, listQuery, mode, sortKey, t]);
 
+  const refreshLoadedItems = React.useCallback(async () => {
+    const requestVersion = ++itemsRequestVersionRef.current;
+    itemsRequestControllerRef.current?.abort();
+    const requestController = new AbortController();
+    itemsRequestControllerRef.current = requestController;
+    const loadedPages = Math.max(1, itemsPageRef.current);
+    const targetCount = loadedPages * 50;
+    setItemsLoadingMore(false);
+    try {
+      const token = await requireAccessToken();
+      const merged: KnowledgeBaseDTO[] = [];
+      const seen = new Set<string>();
+      let total = 0;
+      for (let pageNumber = 1; pageNumber <= Math.ceil(targetCount / 100); pageNumber += 1) {
+        const page = mode === "admin"
+          ? await listAdminKnowledgeBases(token, {
+              page: pageNumber, pageSize: 100, query: listQuery, sort: sortKey,
+            }, requestController.signal)
+          : await listVisibleKnowledgeBases(token, {
+              page: pageNumber, pageSize: 100, query: listQuery, sort: sortKey,
+            }, requestController.signal);
+        if (itemsRequestVersionRef.current !== requestVersion) return;
+        total = page.total;
+        for (const item of page.results) {
+          if (!seen.has(item.publicID)) {
+            seen.add(item.publicID);
+            merged.push(item);
+          }
+        }
+        if (merged.length >= total) break;
+      }
+
+      let results = merged.slice(0, Math.min(targetCount, total));
+      const targetID = selectedIDRef.current;
+      if (targetID && !results.some((item) => item.publicID === targetID)) {
+        try {
+          const preferred = await getKnowledgeBase(token, targetID, mode === "admin", requestController.signal);
+          if (itemsRequestVersionRef.current !== requestVersion) return;
+          results = [preferred, ...results];
+        } catch {
+          if (requestController.signal.aborted) return;
+          // The selected item may have been deleted while the page was inactive.
+        }
+      }
+
+      setItems(results);
+      setItemsTotal(total);
+      setItemsPage(Math.max(1, Math.min(loadedPages, Math.ceil(total / 50))));
+      setSelectedID((current) =>
+        results.some((item) => item.publicID === current) ? current : (results[0]?.publicID ?? ""),
+      );
+    } catch {
+      // Focus refresh is best-effort; keep the current list on transient failures.
+    } finally {
+      if (itemsRequestControllerRef.current === requestController) {
+        itemsRequestControllerRef.current = null;
+      }
+      if (itemsRequestVersionRef.current === requestVersion) setLoading(false);
+    }
+  }, [listQuery, mode, sortKey]);
+
   React.useEffect(() => {
     void loadItems();
   }, [loadItems]);
 
   React.useEffect(() => {
     let lastRefreshAt = 0;
-    const refreshCounts = () => {
+    const refresh = () => {
       const now = Date.now();
       if (now - lastRefreshAt < 250) {
         return;
       }
       lastRefreshAt = now;
-      void loadItems(undefined, true);
+      void refreshLoadedItems();
     };
-    const unsubscribe = subscribeKnowledgeBaseInvalidated(refreshCounts);
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        refreshCounts();
-      }
+    const refreshWhenVisible = () => {
+      if (!document.hidden) refresh();
     };
-    window.addEventListener("focus", refreshCounts);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    const unsubscribe = subscribeKnowledgeBaseInvalidated(refresh);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
       unsubscribe();
-      window.removeEventListener("focus", refreshCounts);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [loadItems]);
+  }, [refreshLoadedItems]);
 
   React.useEffect(() => {
     if (!selectedID) {
@@ -603,13 +668,33 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
       return;
     }
     setUploadingFiles(true);
+    uploadRequestControllerRef.current?.abort();
+    const requestController = new AbortController();
+    uploadRequestControllerRef.current = requestController;
     let token = "";
     let fileIDs: string[] = [];
     let failedCount = 0;
     try {
       token = await requireAccessToken();
-      const upload = mode === "admin" ? uploadAdminKnowledgeBaseFile : uploadFile;
-      const { uploaded, failed } = await uploadFiles(token, nextFiles, upload);
+      if (requestController.signal.aborted) return;
+      const upload: (
+        accessToken: string,
+        file: File,
+        signal: AbortSignal,
+      ) => Promise<KnowledgeFileUploadResult> = mode === "admin"
+        ? (accessToken: string, file: File, signal: AbortSignal) =>
+            uploadAdminKnowledgeBaseFile(accessToken, file, signal)
+        : (accessToken: string, file: File, signal: AbortSignal) =>
+            uploadFile(accessToken, file, { signal });
+      const uploadResults = await runSettledItemsWithConcurrency({
+        items: nextFiles,
+        signal: requestController.signal,
+        runItem: (file) => upload(token, file, requestController.signal),
+      });
+      if (requestController.signal.aborted) return;
+      const uploaded = uploadResults.flatMap((result) =>
+        result.status === "fulfilled" ? [result.value] : []);
+      const failed = uploadResults.length - uploaded.length;
       fileIDs = Array.from(new Set(uploaded.map((result) => result.file.fileID)));
       failedCount = failed;
       if (fileIDs.length === 0) {
@@ -617,10 +702,17 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
         return;
       }
     } catch (error) {
+      if (requestController.signal.aborted) return;
       toast.error(t("uploadFailed"), { description: resolveErrorMessage(error) });
       return;
     } finally {
-      if (fileIDs.length === 0) setUploadingFiles(false);
+      if (
+        fileIDs.length === 0 &&
+        uploadRequestControllerRef.current === requestController
+      ) {
+        uploadRequestControllerRef.current = null;
+        if (!requestController.signal.aborted) setUploadingFiles(false);
+      }
     }
 
     try {
@@ -644,7 +736,10 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
     } catch (error) {
       toast.error(t("uploadSucceededAddFailed"), { description: resolveErrorMessage(error) });
     } finally {
-      setUploadingFiles(false);
+      if (uploadRequestControllerRef.current === requestController) {
+        uploadRequestControllerRef.current = null;
+        if (!requestController.signal.aborted) setUploadingFiles(false);
+      }
     }
   }, [addingFiles, loadItems, mode, replaceFileList, resolveErrorMessage, selected, t, uploadingFiles]);
 
@@ -969,29 +1064,4 @@ async function requireAccessToken(): Promise<string> {
   const token = await resolveAccessToken();
   if (!token) throw new Error("missing access token");
   return token;
-}
-
-type KnowledgeFileUploadResult = { file: { fileID: string } };
-
-async function uploadFiles(
-  accessToken: string,
-  files: File[],
-  upload: (accessToken: string, file: File) => Promise<KnowledgeFileUploadResult>,
-) {
-  const uploaded: KnowledgeFileUploadResult[] = [];
-  let failed = 0;
-  let nextIndex = 0;
-  const workerCount = Math.min(UPLOAD_CONCURRENCY, files.length);
-  await Promise.all(Array.from({ length: workerCount }, async () => {
-    while (nextIndex < files.length) {
-      const index = nextIndex;
-      nextIndex += 1;
-      try {
-        uploaded.push(await upload(accessToken, files[index]));
-      } catch {
-        failed += 1;
-      }
-    }
-  }));
-  return { uploaded, failed };
 }

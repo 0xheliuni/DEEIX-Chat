@@ -36,11 +36,10 @@ import { MAX_SCREENSHOT_MESSAGES } from "@/features/chat/model/conversation-scre
 import type { ChatModelOption } from "@/features/chat/types/chat-runtime";
 import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
 import { cn } from "@/lib/utils";
-import type { FileContentResult } from "@/shared/api/file";
 import { AppLogo, DeeixLogo } from "@/shared/components/app-logo";
 import { ConversationShareExportIconDropdown } from "@/shared/components/conversation-share-export-menu";
 import { useCopyAction } from "@/shared/components/copy-action";
-import type { PreviewDialogFile } from "@/shared/components/file-preview/preview-dialog";
+import type { FileContentLoader } from "@/shared/components/file-preview/preview-dialog";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import { PoweredByDeeix } from "@/shared/components/powered-by-deeix";
 import { useBranding } from "@/shared/config/branding-provider";
@@ -166,7 +165,7 @@ type ChatAreaProps = {
   selectedPlatformModelName: string;
   onModelChange: (platformModelName: string) => void;
   onModelCatalogRefresh?: () => void | Promise<void>;
-  attachmentContentLoader?: (file: PreviewDialogFile) => Promise<FileContentResult>;
+  attachmentContentLoader?: FileContentLoader;
   onEditImageAttachment?: (attachment: MessageAttachment, sourceModelName?: string) => void;
   onExtendVideoAttachment?: (attachment: MessageAttachment, sourceModelName?: string) => void;
   onOpenCodeArtifact?: (message: ChatAreaMessage, artifact: OpenCodeArtifactInput) => void;
@@ -368,7 +367,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   selectedPlatformModelName: string;
   onModelChange: (platformModelName: string) => void;
   onModelCatalogRefresh?: () => void | Promise<void>;
-  attachmentContentLoader?: (file: PreviewDialogFile) => Promise<FileContentResult>;
+  attachmentContentLoader?: FileContentLoader;
   onEditImageAttachment?: (attachment: MessageAttachment, sourceModelName?: string) => void;
   onExtendVideoAttachment?: (attachment: MessageAttachment, sourceModelName?: string) => void;
   onCycleMessageBranch: (parentPublicID: string | null, direction: "previous" | "next") => void;

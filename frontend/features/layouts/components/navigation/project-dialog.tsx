@@ -592,6 +592,7 @@ function ProjectDefaultSelector<T extends string | number>({
     <div className="space-y-1 pt-1">
       <p className="text-xs text-muted-foreground">{label}</p>
       <Popover
+        modal
         open={open}
         onOpenChange={(nextOpen) => {
           setOpen(nextOpen);
@@ -630,7 +631,7 @@ function ProjectDefaultSelector<T extends string | number>({
               }}
             />
           </div>
-          <div className="max-h-64 space-y-0.5 overflow-y-auto">
+          <div className="max-h-64 touch-pan-y space-y-0.5 overflow-y-auto overscroll-contain">
             {filteredOptions.map((option) => {
               const selected = selectedIDSet.has(option.id);
               const unavailable = option.disabled === true && !selected;

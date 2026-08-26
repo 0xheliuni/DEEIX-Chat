@@ -430,6 +430,9 @@ func (s *Service) UpdateAssistantMessageContent(
 	if err = s.hydrateMessageFeedback(ctx, userID, items); err != nil {
 		return nil, err
 	}
+	if err = s.hydrateMessageProcessTraces(ctx, items); err != nil {
+		return nil, err
+	}
 	updated = &items[0]
 	return updated, nil
 }

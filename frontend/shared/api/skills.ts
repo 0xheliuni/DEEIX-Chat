@@ -97,10 +97,14 @@ export async function deleteMySkill(accessToken: string, id: number): Promise<Sk
   );
 }
 
-export async function listAdminSkills(accessToken: string, options: SkillListOptions = {}): Promise<SkillPage> {
+export async function listAdminSkills(
+  accessToken: string,
+  options: SkillListOptions = {},
+  signal?: AbortSignal,
+): Promise<SkillPage> {
   const data = await authedRequest<PagePayload<SkillDTO>>(
     skillListPath("/api/v1/admin/skills", options),
-    { accessToken },
+    { accessToken, signal },
     true,
   );
   return normalizePagePayload(data);
