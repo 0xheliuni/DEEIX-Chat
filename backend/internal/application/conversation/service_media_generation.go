@@ -129,7 +129,7 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 		RequestID:         strings.TrimSpace(input.RequestID),
 	})
 	if err != nil {
-		return nil, ErrModelRouteNotConfigured
+		return nil, mapRouteResolutionError(err)
 	}
 	if input.TaskType == MediaImageTaskGeneration && !llm.IsImageGenerationAdapter(route.Protocol) {
 		return nil, ErrMediaRouteProtocolMismatch

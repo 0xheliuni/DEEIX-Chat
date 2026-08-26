@@ -409,6 +409,8 @@ func handleSendMessageError(c *gin.Context, err error) {
 		response.ErrorWithCode(c, http.StatusBadGateway, appconversation.MessageErrorCode(err), "generated media artifact is temporarily unavailable")
 	case errors.Is(err, appconversation.ErrUpstreamEmptyResponse):
 		response.Error(c, http.StatusBadGateway, "model returned empty response")
+	case appconversation.IsUpstreamRateLimitError(err):
+		response.ErrorWithCode(c, http.StatusTooManyRequests, appconversation.MessageErrorCodeUpstreamRateLimited, "upstream rate limited")
 	case errors.Is(err, appconversation.ErrUpstreamRequestFailed):
 		if code := appconversation.MessageErrorCode(err); code != "" {
 			response.ErrorWithCode(c, http.StatusBadGateway, code, mapClientErrorMessage(err))

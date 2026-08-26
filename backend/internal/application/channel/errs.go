@@ -2,6 +2,7 @@ package channel
 
 import (
 	"errors"
+	"time"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
@@ -15,6 +16,8 @@ var (
 	ErrRouteNotFound = errors.New("route not found")
 	// ErrAllRoutesUnavailable 所有候选路由暂时不可用。
 	ErrAllRoutesUnavailable = errors.New("all routes unavailable")
+	// ErrAllRoutesRateLimited 所有可用候选路由都处于短期限流退避中。
+	ErrAllRoutesRateLimited = errors.New("all routes rate limited")
 	// ErrCircuitBreakerDisabled 全局模型熔断功能未开启。
 	ErrCircuitBreakerDisabled = errors.New("circuit breaker is disabled")
 	// ErrDuplicatePlatformModelName 平台模型名重复。
@@ -98,3 +101,16 @@ var (
 	// ErrLLMSettingNotFound LLM 全局设置不存在。
 	ErrLLMSettingNotFound = repository.ErrLLMSettingNotFound
 )
+
+// RoutesRateLimitedError 携带全部候选路由恢复前的最短等待时间。
+type RoutesRateLimitedError struct {
+	RetryAfter time.Duration
+}
+
+func (e *RoutesRateLimitedError) Error() string {
+	return ErrAllRoutesRateLimited.Error()
+}
+
+func (e *RoutesRateLimitedError) Unwrap() error {
+	return ErrAllRoutesRateLimited
+}

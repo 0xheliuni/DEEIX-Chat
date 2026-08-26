@@ -34,6 +34,7 @@ const (
 	CodeFileNotReady             = "file.not_ready"
 	CodeFileTypeBlocked          = "file.type_blocked"
 	CodeUpstreamUnavailable      = "upstream.unavailable"
+	CodeUpstreamRateLimited      = "upstream.rate_limited"
 	CodeServiceUnavailable       = "service.unavailable"
 	CodeInternal                 = "internal.error"
 )
@@ -475,6 +476,8 @@ func fallbackMessage(status int, code string) string {
 		return "file type is not allowed"
 	case CodeUpstreamUnavailable:
 		return "upstream service unavailable"
+	case CodeUpstreamRateLimited:
+		return "upstream rate limited"
 	case CodeServiceUnavailable:
 		return "service unavailable"
 	}

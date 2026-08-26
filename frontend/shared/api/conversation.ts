@@ -311,7 +311,7 @@ function handleStreamEvent(event: StreamMessageEvent, options: ConversationStrea
     }
   }
 
-  throw new ApiError(event.message || "stream failed", responseStatus, event.debug, event.errorCode);
+  throw new ApiError(event.message || "stream failed", event.status ?? responseStatus, event.debug, event.errorCode);
 }
 
 type ListConversationsOptions = {
