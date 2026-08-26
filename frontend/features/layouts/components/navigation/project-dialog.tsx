@@ -129,7 +129,7 @@ function usePaginatedProjectCatalog<Item, ID extends string | number>({
             accessToken,
             { ids: requestedSelectedIDs, page: 1, pageSize: requestedSelectedIDs.length },
             controller.signal,
-          ).then((selectedPage) => ({ selectedPage, loaded: true })).catch((error: unknown) => {
+          ).then((selectedPage) => ({ selectedPage, loaded: true })).catch((error: unknown): { selectedPage: null; loaded: boolean } => {
             if (controller.signal.aborted) {
               throw error;
             }
@@ -204,7 +204,7 @@ function usePaginatedProjectCatalog<Item, ID extends string | number>({
     requestControllerRef.current?.abort();
     setLoading(true);
     setLoadingMore(false);
-    const timer = window.setTimeout(() => void load(query.trim(), 1), 200);
+    const timer = window.setTimeout((): void => void load(query.trim(), 1), 200);
     return () => window.clearTimeout(timer);
   }, [load, open, query]);
 

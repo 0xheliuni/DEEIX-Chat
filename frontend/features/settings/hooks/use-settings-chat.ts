@@ -50,7 +50,7 @@ export function useSettingsChat(): UseSettingsChatResult {
       try {
         const [modelList, billingConfig, contextPolicy] = await Promise.all([
           listPublicModels(accessToken).catch((): PublicModelDTO[] => []),
-          getBillingConfig(accessToken).catch(() => null),
+          getBillingConfig(accessToken).catch((): null => null),
           getChatContextPolicy(accessToken).catch(() => ({ contextCompactEnabled: false })),
         ]);
 

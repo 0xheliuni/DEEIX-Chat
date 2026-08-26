@@ -51,7 +51,7 @@ function ScrollToLiveUser({
 }: {
   scrollKey: string;
   viewportRef: React.RefObject<HTMLDivElement | null>;
-}) {
+}): null {
   const handledScrollKeyRef = React.useRef("");
   const followWhenOverflowingRef = React.useRef(false);
   const { scrollToEnd, scrollToMessage } = useMessageScroller();
@@ -582,12 +582,12 @@ export function ChatArea({
   const { getReaction, onReactAssistantMessage } = useChatMessageFeedback(messages);
   const stableOnRetryUserMessage = useStableEvent(onRetryUserMessage);
   const stableOnRetryAssistantMessage = useStableEvent(onRetryAssistantMessage);
-  const stableOnContinueAssistantMessage = useStableEvent(onContinueAssistantMessage ?? (() => undefined));
+  const stableOnContinueAssistantMessage = useStableEvent(onContinueAssistantMessage ?? ((): undefined => undefined));
   const stableOnEditAssistantMessage = useStableEvent(onEditAssistantMessage);
   const stableOnEditUserMessage = useStableEvent(onEditUserMessage);
-  const stableOnForkMessage = useStableEvent(onForkMessage ?? (() => undefined));
+  const stableOnForkMessage = useStableEvent(onForkMessage ?? ((): undefined => undefined));
   const stableOnModelChange = useStableEvent(onModelChange);
-  const stableOnModelCatalogRefresh = useStableEvent(onModelCatalogRefresh ?? (() => undefined));
+  const stableOnModelCatalogRefresh = useStableEvent(onModelCatalogRefresh ?? ((): undefined => undefined));
   const stableOnEditImageAttachment = useStableEvent((attachment: MessageAttachment, sourceModelName?: string) => {
     onEditImageAttachment?.(attachment, sourceModelName);
   });

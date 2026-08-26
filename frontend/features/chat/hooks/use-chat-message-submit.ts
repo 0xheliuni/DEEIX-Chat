@@ -1734,7 +1734,7 @@ export function useChatMessageSubmit({
         if (!token) {
           return;
         }
-        await cancelMessageGeneration(token, visibleRunID).catch(() => undefined);
+        await cancelMessageGeneration(token, visibleRunID).catch((): undefined => undefined);
         reload();
       });
       return true;

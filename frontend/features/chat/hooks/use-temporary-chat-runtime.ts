@@ -259,7 +259,7 @@ export function useTemporaryChatRuntime({
   }, [active, draft, finishSending, htmlVisualPromptEnabled, model, onDraftChange, options, selectedKnowledgeBaseIDs, selectedSkillIDs, selectedToolIDs, t, updateMessage]);
 
   const areaMessages = React.useMemo<ChatAreaMessage[]>(
-    () => messages.map((message) => ({
+    () => messages.map((message): ChatAreaMessage => ({
       key: message.id,
       publicID: message.id,
       parentPublicID: null,

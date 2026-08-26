@@ -54,7 +54,7 @@ export function useVirtualTableRows<T>(
           : { item, index: virtualItem.index, virtualItem };
       })
       .filter((row): row is VirtualTableRow<T> => row !== null)
-    : items.map((item, index) => ({ item, index, virtualItem: null }));
+    : items.map((item, index): VirtualTableRow<T> => ({ item, index, virtualItem: null }));
 
   return {
     enabled,

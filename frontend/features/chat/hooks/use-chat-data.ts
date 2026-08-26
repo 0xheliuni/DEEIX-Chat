@@ -269,7 +269,7 @@ export function useChatData(
       return false;
     }
 
-    const result = await cancelMessageGeneration(token, active.runID).catch(() => null);
+    const result = await cancelMessageGeneration(token, active.runID).catch((): null => null);
     if (result?.canceled) {
       onConversationRunFinished?.(active.runID);
     }

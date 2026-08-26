@@ -9,7 +9,13 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
-const fileProcessingMinIdle = 45 * time.Second
+const (
+	fileProcessingMinIdle = 45 * time.Second
+	// maxFileQueueLength 限制内存主队列长度，避免积压时内存无界增长；
+	// 达到上限后新任务入队返回 ErrFileProcessingQueueFull，
+	// 由 processing.InitializeUploadedFile 将文件标为 failed，避免永远停在 queued。
+	maxFileQueueLength = 10_000
+)
 
 type fileProcessingLease struct {
 	consumerName string
@@ -30,6 +36,11 @@ func (c *Cache) EnqueueFileProcessing(ctx context.Context, userID uint, fileID s
 	}
 	c.mu.Lock()
 	now := time.Now()
+	if len(c.fileQueue) >= maxFileQueueLength {
+		c.maybeSweepLocked(now)
+		c.mu.Unlock()
+		return repository.ErrFileProcessingQueueFull
+	}
 	c.fileSeq++
 	msg := repository.FileProcessingMessage{
 		ID:        strconv.FormatInt(c.fileSeq, 10),
@@ -171,6 +182,7 @@ func (c *Cache) RequeueFileProcessingMessage(
 	if !exists || lease.consumerName != strings.TrimSpace(consumerName) {
 		return false, nil
 	}
+	// 重入队不受 maxFileQueueLength 限制：消息只是从 inflight 移回队列，总量无净增长。
 	c.fileSeq++
 	c.fileQueue = append(c.fileQueue, repository.FileProcessingMessage{
 		ID:        strconv.FormatInt(c.fileSeq, 10),

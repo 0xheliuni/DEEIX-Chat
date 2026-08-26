@@ -6,17 +6,17 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { ChatMessageBot } from "@/features/chat/components/message/message-bot";
-import { ChatMessageUser } from "@/features/chat/components/message/message-user";
-import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import {
   buildChildrenIndex,
   buildVisibleMessages,
+  ChatMessageBot,
+  ChatMessageUser,
   mapServerMessage,
   reconcileBranchSelections,
   toBranchKey,
-} from "@/features/chat/model/chat-thread";
-import type { ChatAreaMessage } from "@/features/chat/types/messages";
+  type ChatAreaMessage,
+} from "@/features/chat";
+import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import { cloneSharedConversation, getSharedConversation } from "@/shared/api/conversation";
 import type {
   MessageDTO,
@@ -143,8 +143,8 @@ function mapPublicSharedMessage(
   };
 }
 
-const noop = () => undefined;
-const noopAsync = async () => undefined;
+const noop = (): undefined => undefined;
+const noopAsync = async (): Promise<undefined> => undefined;
 
 function branchSelectionsFromDefaultPath(
   messages: ChatAreaMessage[],

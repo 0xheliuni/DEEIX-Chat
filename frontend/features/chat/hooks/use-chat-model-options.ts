@@ -135,7 +135,7 @@ function resolveNativeTools(raw: string): ModelNativeToolConfig[] {
     id: nativeToolID({ key, protocols: [], type: "", index }),
     key,
     protocol: "",
-    protocols: [],
+    protocols: [] as string[],
     type: "",
     label: key,
     enabled: true,
@@ -446,7 +446,7 @@ export function useChatModelOptions({
 
       const [models, modelOptionPolicy] = await Promise.all([
         listPublicModels(token),
-        getModelOptionPolicy(token).catch(() => null),
+        getModelOptionPolicy(token).catch((): null => null),
       ]);
       return { models, modelOptionPolicy };
     })().finally(() => {
@@ -496,8 +496,8 @@ export function useChatModelOptions({
         }
         const [catalog, billingConfig, nextMCPPolicy] = await Promise.all([
           loadModelCatalog(token),
-          getBillingConfig(token).catch(() => null),
-          getMCPPolicy(token).catch(() => null),
+          getBillingConfig(token).catch((): null => null),
+          getMCPPolicy(token).catch((): null => null),
         ]);
         if (cancelled) {
           return;
@@ -562,7 +562,7 @@ export function useChatModelOptions({
       setSelectedPlatformModelName(latestRunModel || fallbackModel);
     }
 
-    void loadLatestRunModel().catch(() => undefined);
+    void loadLatestRunModel().catch((): undefined => undefined);
 
     return () => {
       cancelled = true;

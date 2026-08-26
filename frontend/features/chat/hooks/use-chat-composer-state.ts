@@ -90,7 +90,7 @@ function mergeAttachmentsByFileID<T extends Pick<PendingAttachment, "fileID">>(c
 }
 
 function restoreAttachments(items: PersistedAttachment[]): PendingAttachment[] {
-  return items.map((item) => ({
+  return items.map((item): PendingAttachment => ({
     ...item,
     previewURL: undefined,
   }));

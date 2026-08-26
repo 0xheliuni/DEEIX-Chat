@@ -44,7 +44,7 @@ export async function resolveConversationDefaultModel({
     return { platformModelName: userDefault, source: "user_default" };
   }
 
-  const candidate = await getConversationDefaultModelCandidate(accessToken).catch(() => null);
+  const candidate = await getConversationDefaultModelCandidate(accessToken).catch((): null => null);
   const candidateModel = findAvailableModel(models, candidate?.platformModelName ?? "");
   if (candidateModel) {
     return {

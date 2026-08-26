@@ -768,7 +768,7 @@ export function AppChatArea() {
 
       loadingOlderInFlightRef.current = true;
       Promise.resolve(loadOlderMessages())
-        .catch(() => undefined)
+        .catch((): undefined => undefined)
         .finally(() => {
           loadingOlderInFlightRef.current = false;
         });

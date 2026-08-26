@@ -3,7 +3,6 @@
 import * as React from "react";
 import { CornerDownRight, Trash2 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { toast } from "sonner";
 
 import {
   AlertDialog,
@@ -54,17 +53,18 @@ import type {
   AdminAuditLogDTO,
   AdminConversationEventDTO,
   AdminPaymentOrderDTO,
-  AdminSystemEventDTO,
   AdminUsageLogDTO,
   AdminUserAuthEventDTO,
 } from "@/features/admin/api/admin.types";
-import { getAdminBillingConfig } from "@/features/admin/api/billing";
+import { type AdminLogCleanupType } from "@/features/admin/api/audit";
 import {
-  cleanupAdminConversationRuns,
-  cleanupAdminLogs,
-  getAdminConversationEvent,
-  type AdminLogCleanupType,
-} from "@/features/admin/api/audit";
+  cleanupDateToISOString,
+  useAdminBillingDisplayOptions,
+  useAdminConversationRunsCleanup,
+  useAdminLogCleanupDialog,
+  useAdminLogDetail,
+  type LogDetail,
+} from "@/features/admin/hooks/use-admin-logs-actions";
 import {
   AUDIT_LOG_SORT_OPTIONS,
   CONVERSATION_EVENT_SORT_OPTIONS,
@@ -83,9 +83,7 @@ import {
   type UsageLogSortValue,
 } from "@/features/admin/hooks/use-admin-logs";
 import { cn } from "@/lib/utils";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { formatBillingBalance } from "@/features/admin/utils/account-display";
-import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import {
   billingRateMultiplierNote,
   cacheWriteBillingLabel,
@@ -93,7 +91,6 @@ import {
   formatBillingDisplayCompactAmountFromUSD,
   formatBillingDisplayPreciseAmountFromUSD,
   formatBillingDisplayUnitPriceFromUSD,
-  normalizeBillingDisplayCurrency,
   type BillingDisplayLabels,
   type BillingDisplayOptions,
 } from "@/shared/lib/billing-display";
@@ -101,14 +98,6 @@ import { ModelSelect, type ModelSelectOption } from "@/shared/components/model-s
 import { formatBytes } from "@/shared/lib/file-display";
 import { ModerationEventTable } from "@/features/admin/components/sections/logs/admin-moderation-events";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
-
-type LogDetail =
-  | { kind: "audit"; item: AdminAuditLogDTO }
-  | { kind: "auth"; item: AdminUserAuthEventDTO }
-  | { kind: "usage"; item: AdminUsageLogDTO }
-  | { kind: "system"; item: AdminSystemEventDTO }
-  | { kind: "order"; item: AdminPaymentOrderDTO }
-  | { kind: "conversation"; item: AdminConversationEventDTO };
 
 const ALL_MODELS_VALUE = "__all__";
 
@@ -1593,76 +1582,22 @@ function ConversationEventTable({ onOpenDetail }: { onOpenDetail: (item: AdminCo
   const t = useTranslations("adminLogs");
   const commonT = useTranslations("common.actions");
   const logs = useAdminConversationEvents();
-  const [selectedRunIDs, setSelectedRunIDs] = React.useState<Set<string>>(new Set());
-  const [cleanupOpen, setCleanupOpen] = React.useState(false);
-  const [cleanupPending, setCleanupPending] = React.useState(false);
+  const {
+    selectedRunIDs,
+    visibleRunIDs,
+    allVisibleSelected,
+    someVisibleSelected,
+    cleanupOpen,
+    setCleanupOpen,
+    cleanupPending,
+    toggleRun,
+    toggleVisibleRuns,
+    cleanupSelectedRuns,
+  } = useAdminConversationRunsCleanup(logs);
   const virtualRows = useVirtualTableRows(logs.events, {
     enabled: logs.events.length > 100,
     estimateSize: 40,
   });
-  const visibleRunIDs = React.useMemo(
-    () => [...new Set(logs.events.map((item) => item.runID.trim()).filter(Boolean))],
-    [logs.events],
-  );
-  const allVisibleSelected = visibleRunIDs.length > 0 && visibleRunIDs.every((runID) => selectedRunIDs.has(runID));
-  const someVisibleSelected = visibleRunIDs.some((runID) => selectedRunIDs.has(runID));
-
-  React.useEffect(() => {
-    setSelectedRunIDs(new Set());
-  }, [logs.events]);
-
-  const toggleRun = React.useCallback((runID: string, selected: boolean) => {
-    if (!runID) return;
-    setSelectedRunIDs((current) => {
-      const next = new Set(current);
-      if (selected) {
-        if (next.size >= 100 && !next.has(runID)) {
-          toast.error(t("conversation.cleanup.maxSelection"));
-          return current;
-        }
-        next.add(runID);
-      } else {
-        next.delete(runID);
-      }
-      return next;
-    });
-  }, [t]);
-
-  const toggleVisibleRuns = React.useCallback((selected: boolean) => {
-    if (!selected) {
-      setSelectedRunIDs(new Set());
-      return;
-    }
-    if (visibleRunIDs.length > 100) {
-      toast.error(t("conversation.cleanup.maxSelection"));
-    }
-    setSelectedRunIDs(new Set(visibleRunIDs.slice(0, 100)));
-  }, [t, visibleRunIDs]);
-
-  const cleanupSelectedRuns = React.useCallback(async () => {
-    const runIDs = [...selectedRunIDs];
-    if (runIDs.length === 0) return;
-    setCleanupPending(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
-        return;
-      }
-      const result = await cleanupAdminConversationRuns(token, { runIDs });
-      toast.success(t("conversation.cleanup.success", {
-        runs: result.runCount,
-        events: result.deletedCount,
-      }));
-      setCleanupOpen(false);
-      setSelectedRunIDs(new Set());
-      await logs.loadConversationEvents(logs.page, logs.pageSize);
-    } catch (error) {
-      toast.error(t("conversation.cleanup.failed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setCleanupPending(false);
-    }
-  }, [logs, selectedRunIDs, t]);
   const scopeLabel = React.useCallback((value: string) => {
     switch (value) {
       case "trace_block":
@@ -1883,26 +1818,6 @@ const LOG_CLEANUP_TYPES: AdminLogCleanupType[] = [
   "system",
 ];
 
-function cleanupDateToISOString(value: string): string | null {
-  const [yearText, monthText, dayText] = value.trim().split("-");
-  const year = Number.parseInt(yearText ?? "", 10);
-  const month = Number.parseInt(monthText ?? "", 10);
-  const day = Number.parseInt(dayText ?? "", 10);
-  if (!year || !month || !day) {
-    return null;
-  }
-  const date = new Date(year, month - 1, day, 0, 0, 0, 0);
-  if (
-    Number.isNaN(date.getTime()) ||
-    date.getFullYear() !== year ||
-    date.getMonth() !== month - 1 ||
-    date.getDate() !== day
-  ) {
-    return null;
-  }
-  return date.toISOString();
-}
-
 function LogCleanupDialog({
   open,
   onOpenChange,
@@ -1914,47 +1829,11 @@ function LogCleanupDialog({
 }) {
   const t = useTranslations("adminLogs.cleanup");
   const commonT = useTranslations("common.actions");
-  const [logType, setLogType] = React.useState<AdminLogCleanupType>("audit");
-  const [date, setDate] = React.useState("");
-  const [pending, setPending] = React.useState(false);
+  const { logType, setLogType, date, setDate, pending, handleOpenChange, submit } = useAdminLogCleanupDialog({
+    onOpenChange,
+    onSuccess,
+  });
   const highRisk = logType === "usage" || logType === "orders";
-
-  const handleOpenChange = React.useCallback((nextOpen: boolean) => {
-    if (pending) {
-      return;
-    }
-    onOpenChange(nextOpen);
-    if (!nextOpen) {
-      setLogType("audit");
-      setDate("");
-    }
-  }, [onOpenChange, pending]);
-
-  const submit = React.useCallback(async () => {
-    const before = cleanupDateToISOString(date);
-    if (!before) {
-      return;
-    }
-
-    setPending(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
-        return;
-      }
-      const result = await cleanupAdminLogs(token, { type: logType, before });
-      toast.success(t("toast.success", { count: result.deletedCount }));
-      onSuccess(logType);
-      onOpenChange(false);
-      setLogType("audit");
-      setDate("");
-    } catch (error) {
-      toast.error(t("toast.failed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setPending(false);
-    }
-  }, [date, logType, onOpenChange, onSuccess, t]);
 
   return (
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
@@ -2040,14 +1919,9 @@ export function AdminLogsPage() {
   const t = useTranslations("adminLogs");
   const { user } = useAuthSession();
   const isSuperAdmin = user?.role === "superadmin";
-  const [detail, setDetail] = React.useState<LogDetail | null>(null);
-  const [conversationDetailLoading, setConversationDetailLoading] = React.useState(false);
-  const detailRequestRef = React.useRef(0);
+  const { detail, setDetail, conversationDetailLoading, openConversationDetail, closeDetail } = useAdminLogDetail();
   const [cleanupOpen, setCleanupOpen] = React.useState(false);
-  const [billingDisplay, setBillingDisplay] = React.useState<BillingDisplayOptions>({
-    currency: "USD",
-    usdToCnyRate: null,
-  });
+  const billingDisplay = useAdminBillingDisplayOptions();
   const [cleanupRevisions, setCleanupRevisions] = React.useState<Record<AdminLogCleanupType, number>>({
     audit: 0,
     auth: 0,
@@ -2057,66 +1931,11 @@ export function AdminLogsPage() {
     system: 0,
   });
 
-  React.useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const token = await resolveAccessToken();
-        if (!token) return;
-        const result = await getAdminBillingConfig(token);
-        if (cancelled) return;
-        setBillingDisplay({
-          currency: normalizeBillingDisplayCurrency(result.config.displayCurrency),
-          usdToCnyRate: result.config.usdToCNYRate ?? null,
-        });
-      } catch {
-        if (!cancelled) {
-          setBillingDisplay({ currency: "USD", usdToCnyRate: null });
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const handleCleanupSuccess = React.useCallback((type: AdminLogCleanupType) => {
     setCleanupRevisions((current) => ({
       ...current,
       [type]: current[type] + 1,
     }));
-  }, []);
-
-  const openConversationDetail = React.useCallback(async (item: AdminConversationEventDTO) => {
-    const requestID = detailRequestRef.current + 1;
-    detailRequestRef.current = requestID;
-    setDetail({ kind: "conversation", item });
-    setConversationDetailLoading(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.signInAgain") });
-        return;
-      }
-      const loaded = await getAdminConversationEvent(token, item.id);
-      if (detailRequestRef.current === requestID) {
-        setDetail({ kind: "conversation", item: loaded });
-      }
-    } catch (error) {
-      if (detailRequestRef.current === requestID) {
-        toast.error(t("toast.conversationEventDetailLoadFailed"), { description: resolveAdminErrorMessage(error) });
-      }
-    } finally {
-      if (detailRequestRef.current === requestID) {
-        setConversationDetailLoading(false);
-      }
-    }
-  }, [t]);
-
-  const closeDetail = React.useCallback(() => {
-    detailRequestRef.current += 1;
-    setConversationDetailLoading(false);
-    setDetail(null);
   }, []);
 
   return (
