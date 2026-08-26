@@ -5,7 +5,7 @@ import * as React from "react";
 const SUBSECOND_TICK_MS = 100;
 const WHOLE_SECOND_TICK_MS = 1000;
 
-export function useElapsedDurationMS(active: boolean, startedAt: string | undefined): number | undefined {
+export function useChatElapsedDurationMS(active: boolean, startedAt: string | undefined): number | undefined {
   const [elapsedMS, setElapsedMS] = React.useState<number>();
 
   React.useEffect(() => {

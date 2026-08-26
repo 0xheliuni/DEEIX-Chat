@@ -67,6 +67,7 @@ type Service struct {
 	uploadGates      map[string]*uploadContentGate
 }
 
+// uploadContentGate 同一内容（用户+SHA+大小）上传的互斥闸门：token 为容量 1 的许可通道，users 记录等待者数量用于回收。
 type uploadContentGate struct {
 	token chan struct{}
 	users int
@@ -380,6 +381,8 @@ func (s *Service) UploadFile(ctx context.Context, input UploadFileInput) (*Uploa
 	}, nil
 }
 
+// acquireUploadGate 获取同一内容的上传互斥许可，保证相同内容的并发上传串行执行；
+// 返回释放函数，ctx 取消时返回错误并回收等待计数。
 func (s *Service) acquireUploadGate(ctx context.Context, userID uint, shaValue string, sizeBytes int64) (func(), error) {
 	key := fmt.Sprintf("%d:%s:%d", userID, shaValue, sizeBytes)
 	s.uploadGatesMu.Lock()
@@ -404,6 +407,7 @@ func (s *Service) acquireUploadGate(ctx context.Context, userID uint, shaValue s
 	}
 }
 
+// releaseUploadGate 递减闸门使用计数，最后一个使用者负责从映射中删除闸门，避免条目泄漏。
 func (s *Service) releaseUploadGate(key string, gate *uploadContentGate) {
 	s.uploadGatesMu.Lock()
 	defer s.uploadGatesMu.Unlock()

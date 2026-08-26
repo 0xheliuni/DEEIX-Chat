@@ -12,7 +12,7 @@ const RUN_STREAM_RECONNECT_MAX_MS = 30_000;
 const RUN_STREAM_RECONNECT_JITTER_RATIO = 0.2;
 const RUN_STATE_CHANNEL = "deeix-conversation-runs";
 
-export function useConversationRunState() {
+export function useChatRunState() {
   const authSession = useOptionalAuthSession();
   const accessToken = authSession?.accessToken ?? "";
   const userPublicID = authSession?.user?.publicID.trim() ?? "";

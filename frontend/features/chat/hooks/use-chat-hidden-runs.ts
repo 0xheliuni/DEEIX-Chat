@@ -15,7 +15,7 @@ function isTerminalRunStatus(status: string | null | undefined): boolean {
   return ["success", "interrupted", "error", "canceled", "cancelled", "blocked", "unavailable"].includes(normalized);
 }
 
-export function useHiddenQueuedParentRuns({
+export function useChatHiddenRuns({
   queuedParents,
   getPendingExchanges,
   isRunActive,

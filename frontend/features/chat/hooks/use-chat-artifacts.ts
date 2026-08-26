@@ -3,9 +3,9 @@
 import * as React from "react";
 
 import {
+  type ChatArtifact,
   extractArtifactsFromContent,
   extractArtifactsFromMessages,
-  type ChatArtifact,
   type OpenCodeArtifactInput,
 } from "@/features/chat/model/chat-artifacts";
 import type { ChatAreaMessage } from "@/features/chat/types/messages";

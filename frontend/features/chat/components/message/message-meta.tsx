@@ -37,7 +37,7 @@ import {
   firstDurationMS,
   formatDurationMS,
 } from "@/features/chat/model/duration";
-import { useElapsedDurationMS } from "@/features/chat/hooks/use-elapsed-duration";
+import { useChatElapsedDurationMS } from "@/features/chat/hooks/use-chat-elapsed-duration";
 import { resolvePersistedPublicID } from "@/features/chat/model/message-submit";
 import type { ChatBillingCost, ChatMessageBranchNavigator } from "@/features/chat/types/messages";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
@@ -408,7 +408,7 @@ function TokenMetric({ label, value, icon }: { label: string; value: number; ico
 function LatencyBadge({ item }: { item: ChatMetaMessage }) {
   const t = useTranslations("chat.meta");
   const isLive = Boolean(item.isPending || item.isStreaming);
-  const liveLatencyMS = useElapsedDurationMS(isLive, item.createdAt);
+  const liveLatencyMS = useChatElapsedDurationMS(isLive, item.createdAt);
   const calculatedLatencyMS = durationBetweenMS(item.createdAt, item.updatedAt);
   const latencyMS = isLive
     ? firstDurationMS(liveLatencyMS, calculatedLatencyMS, item.latencyMS)

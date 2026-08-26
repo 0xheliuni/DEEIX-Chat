@@ -18,8 +18,8 @@ import type {
 } from "@/features/admin/api/llm.types";
 import { listAllAdminPages } from "@/features/admin/api/shared";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { ApiError } from "@/shared/api/http-client";
+import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 
 export type PresentationTab = "vendors" | "groups";
@@ -50,7 +50,7 @@ const EMPTY_EDITOR: ModelPresentationEditorState = {
   membersDirty: false,
 };
 
-export function useModelPresentationEditor({
+export function useAdminPresentationEditor({
   onChanged,
   onClose,
 }: {

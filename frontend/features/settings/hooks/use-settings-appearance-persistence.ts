@@ -1,19 +1,19 @@
 "use client";
 
-import * as React from "react";
 import { useTranslations } from "next-intl";
+import * as React from "react";
 import { toast } from "sonner";
 
 import {
+  type AppearancePreferencePatch,
   readLocalAppearancePreferences,
   serializeAppearancePreferences,
-  type AppearancePreferencePatch,
 } from "@/features/settings/utils/appearance-preferences";
 import { resolveLocalizedErrorMessage } from "@/i18n/resolve-error-message";
 import { patchMe } from "@/shared/api/auth";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
 
-export function useAppearancePreferencesPersistence() {
+export function useSettingsAppearancePersistence() {
   const t = useTranslations("settings");
   const { accessToken } = useAuthSession();
   const appearanceSaveTimerRef = React.useRef<number | null>(null);

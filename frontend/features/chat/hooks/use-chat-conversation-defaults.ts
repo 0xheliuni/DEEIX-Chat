@@ -7,7 +7,7 @@ import { listVisibleSkills } from "@/shared/api/skills";
 import type { SkillSummaryDTO } from "@/shared/api/skills.types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 
-export function useNewConversationDefaults({
+export function useChatConversationDefaults({
   conversationID,
   contextKey,
   defaultsPending,

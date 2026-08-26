@@ -9,7 +9,7 @@ type MarkdownScrollAnchor = {
 
 type MarkdownScrollDirection = "preview" | "source";
 
-type UseMarkdownPreviewSyncArgs = {
+type UseChatPreviewSyncArgs = {
   enabled: boolean;
   previewRef: React.RefObject<HTMLDivElement | null>;
   source: string;
@@ -180,12 +180,12 @@ function collectMarkdownSourceAnchors(
   return normalizeMarkdownAnchors(anchors);
 }
 
-export function useMarkdownPreviewSync({
+export function useChatPreviewSync({
   enabled,
   previewRef,
   source,
   textareaRef,
-}: UseMarkdownPreviewSyncArgs) {
+}: UseChatPreviewSyncArgs) {
   const sourceAnchorsRef = React.useRef<MarkdownScrollAnchor[]>([]);
   const previewAnchorsRef = React.useRef<MarkdownScrollAnchor[]>([]);
   const enabledRef = React.useRef(enabled);

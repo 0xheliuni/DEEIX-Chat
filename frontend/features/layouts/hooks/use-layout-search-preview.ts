@@ -23,7 +23,7 @@ const EMPTY_PREVIEW_STATE: ConversationPreviewState = {
   loadFailed: false,
 };
 
-export function useConversationSearchPreview(open: boolean) {
+export function useLayoutSearchPreview(open: boolean) {
   const [preview, setPreview] = React.useState<ConversationPreviewState>(EMPTY_PREVIEW_STATE);
   const [revision, setRevision] = React.useState(0);
   const requestVersionRef = React.useRef(0);

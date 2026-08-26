@@ -42,7 +42,7 @@ type TemporaryChatRuntimeInput = {
   onDraftChange: (value: string) => void;
 };
 
-export function useTemporaryChatRuntime({
+export function useChatTemporaryRuntime({
   active,
   draft,
   model,

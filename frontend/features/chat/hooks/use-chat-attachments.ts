@@ -273,11 +273,11 @@ export function useChatAttachments({
         }
         const reusedCount = results.filter((result) => result.status === "fulfilled" && result.value.reused).length;
 
-        const uploaded = results.flatMap((result, index) => {
+        const uploaded = results.flatMap((result) => {
           if (result.status !== "fulfilled") {
             return [];
           }
-          const sourceFile = policyAcceptedFiles[index];
+          const sourceFile = result.item;
           const previewURL = sourceFile.type.startsWith("image/") ? URL.createObjectURL(sourceFile) : undefined;
           return [
             {

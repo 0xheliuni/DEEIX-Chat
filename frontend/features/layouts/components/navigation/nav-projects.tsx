@@ -76,7 +76,7 @@ import { ProjectDialog, type ProjectDraft } from "@/features/layouts/components/
 import { SidebarConversationItem } from "@/features/layouts/components/navigation/sidebar-conversation-item";
 import { useLayoutActiveConversation } from "@/features/layouts/hooks/use-layout-active-conversation";
 import { useLayoutProjectConversations } from "@/features/layouts/hooks/use-layout-project-conversations";
-import { useSidebarConversationNavigation } from "@/features/layouts/hooks/use-sidebar-conversation-navigation";
+import { useLayoutSidebarNavigation } from "@/features/layouts/hooks/use-layout-sidebar-navigation";
 import type {
   SidebarConversationDeleteTarget,
   SidebarConversationRenameTarget,
@@ -387,7 +387,7 @@ export function NavProjects() {
   const isMobile = useSidebarIsMobile();
   const { setOpenMobile } = useSidebarActions();
   const router = useRouter();
-  const onNavigate = useSidebarConversationNavigation();
+  const onNavigate = useLayoutSidebarNavigation();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const activeRecentProjectID = searchParams.get("project") ?? "";

@@ -47,8 +47,8 @@ import { useChatRuntime } from "@/features/chat/hooks/use-chat-runtime";
 import { useChatScreenshot } from "@/features/chat/hooks/use-chat-screenshot";
 import { useChatViewerProfile } from "@/features/chat/hooks/use-chat-viewer-profile";
 import { useChatVisualPrompt } from "@/features/chat/hooks/use-chat-visual-prompt";
-import { useNewConversationDefaults } from "@/features/chat/hooks/use-new-conversation-defaults";
-import { useTemporaryChatRuntime } from "@/features/chat/hooks/use-temporary-chat-runtime";
+import { useChatConversationDefaults } from "@/features/chat/hooks/use-chat-conversation-defaults";
+import { useChatTemporaryRuntime } from "@/features/chat/hooks/use-chat-temporary-runtime";
 import { filterAvailableMCPToolIDs } from "@/features/chat/model/chat-mcp-tool-defaults";
 import type { ChatAreaMessage, } from "@/features/chat/types/messages";
 import { useSettingsChatPreferences } from "@/features/settings";
@@ -350,7 +350,7 @@ export function AppChatArea() {
     () => (newConversationProject?.defaultKnowledgeBaseIDs ?? []).slice(0, 8),
     [newConversationProject],
   );
-  const { onSelectedKnowledgeBasesChange, onSelectedSkillsChange, onSelectedToolsChange: applySelectedToolsChange } = useNewConversationDefaults({
+  const { onSelectedKnowledgeBasesChange, onSelectedSkillsChange, onSelectedToolsChange: applySelectedToolsChange } = useChatConversationDefaults({
     conversationID,
     contextKey: newConversationSelectionKey,
     defaultsPending: Boolean(newConversationProjectID && !newConversationProject),
@@ -626,7 +626,7 @@ export function AppChatArea() {
     () => selectedSkills.map((skill) => skill.id),
     [selectedSkills],
   );
-  const temporaryRuntime = useTemporaryChatRuntime({
+  const temporaryRuntime = useChatTemporaryRuntime({
     active: temporaryMode,
     draft,
     model: selectedPlatformModelName,

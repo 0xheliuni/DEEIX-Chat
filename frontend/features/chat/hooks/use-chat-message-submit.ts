@@ -4,12 +4,12 @@ import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 import { useChatExchangeSync } from "@/features/chat/hooks/use-chat-exchange-sync";
+import { useChatHiddenRuns } from "@/features/chat/hooks/use-chat-hidden-runs";
 import { useChatMessageActions } from "@/features/chat/hooks/use-chat-message-actions";
 import { useChatQueueDispatch } from "@/features/chat/hooks/use-chat-queue-dispatch";
 import { useChatRunStream } from "@/features/chat/hooks/use-chat-run-stream";
 import { useChatStopMessage } from "@/features/chat/hooks/use-chat-stop-message";
 import { useChatSubmissionQueue } from "@/features/chat/hooks/use-chat-submission-queue";
-import { useHiddenQueuedParentRuns } from "@/features/chat/hooks/use-hidden-queued-parent-runs";
 import { toBranchKey } from "@/features/chat/model/chat-thread";
 import {
   conversationTitleFromFirstUserMessage,
@@ -198,7 +198,7 @@ export function useChatMessageSubmit({
   const {
     getStatus: getHiddenParentRunStatus,
     revision: hiddenParentRunStatusRevision,
-  } = useHiddenQueuedParentRuns({
+  } = useChatHiddenRuns({
     queuedParents: queuedSubmissions,
     getPendingExchanges,
     isRunActive,

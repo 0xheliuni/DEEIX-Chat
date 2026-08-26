@@ -17,7 +17,7 @@ function shouldUseNativeNavigation(event: React.MouseEvent<HTMLAnchorElement>) {
     Boolean(target && target !== "_self");
 }
 
-export function useSidebarConversationNavigation() {
+export function useLayoutSidebarNavigation() {
   const router = useRouter();
   const isMobile = useSidebarIsMobile();
   const { setOpenMobile } = useSidebarActions();

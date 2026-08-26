@@ -35,7 +35,7 @@ import { SidebarConversationItem } from "@/features/layouts/components/navigatio
 import { SidebarConversationSkeleton } from "@/features/layouts/components/navigation/sidebar-conversation-skeleton";
 import { useLayoutActiveConversation } from "@/features/layouts/hooks/use-layout-active-conversation";
 import { useLayoutSidebarListFlip } from "@/features/layouts/hooks/use-layout-sidebar-list-flip";
-import { useSidebarConversationNavigation } from "@/features/layouts/hooks/use-sidebar-conversation-navigation";
+import { useLayoutSidebarNavigation } from "@/features/layouts/hooks/use-layout-sidebar-navigation";
 import { groupConversationsByTime } from "@/features/layouts/model/conversation-time-groups";
 import type {
   SidebarConversationDeleteTarget,
@@ -54,7 +54,7 @@ const RECENTS_OPEN_STORAGE_KEY = "deeix.sidebar.recents.open";
 
 export function NavRecents() {
   const t = useTranslations("recent");
-  const onNavigate = useSidebarConversationNavigation();
+  const onNavigate = useLayoutSidebarNavigation();
   const router = useRouter();
   const activeConversationID = useLayoutActiveConversation();
   const { deleteFilesByDefault } = useSettingsChatPreferences();

@@ -1,7 +1,7 @@
 "use client";
 
-import * as React from "react";
 import { useTranslations } from "next-intl";
+import * as React from "react";
 
 export type ProcessTraceLabels = {
   fileBadges: {
@@ -134,7 +134,7 @@ export type ProcessTraceLabels = {
   };
 };
 
-export function useProcessTraceLabels(): ProcessTraceLabels {
+export function useChatTraceLabels(): ProcessTraceLabels {
   const t = useTranslations("chat.processTrace");
 
   return React.useMemo(
