@@ -30,7 +30,7 @@ type Service struct {
 
 const (
 	defaultPageSize = 20
-	maxPageSize     = 1000
+	maxPageSize     = 100
 )
 
 // NewService 创建服务。

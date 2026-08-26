@@ -14,9 +14,10 @@ type AuthedRequestOptions = Omit<ApiRequestOptions, "accessToken"> & {
   accessToken: string;
 };
 
-type AuthedFetchOptions = Omit<RequestInit, "headers"> & {
+type AuthedFetchOptions = Omit<RequestInit, "headers" | "signal"> & {
   accessToken: string;
   headers?: HeadersInit;
+  signal?: AbortSignal;
 };
 
 type NavigatorWithLocks = Navigator & {

@@ -871,17 +871,17 @@ func (s *Service) DeleteAccount(
 		return ErrAccountDeleteVerificationRequired
 	}
 	if !containsSecurityVerificationMethod(methods, method) {
-		return fmt.Errorf("verification method is unavailable")
+		return ErrSecurityVerificationMethodUnavailable
 	}
 	normalizedEmail := ""
 	if method == SecurityVerificationMethodEmail {
 		normalizedEmail, err = normalizeRegistrationEmail(item.Email)
 		if err != nil {
-			return fmt.Errorf("user email is invalid")
+			return ErrSecurityVerificationEmailInvalid
 		}
 	}
 	if err = s.verifySecurityCodeWithMethod(ctx, item, method, domainuser.ContactVerificationPurposeAccountDelete, normalizedEmail, code, time.Now()); err != nil {
-		return fmt.Errorf("verification code is invalid or expired")
+		return ErrSecurityVerificationCodeInvalid
 	}
 
 	normalizedAuditCtx := s.resolveSessionAuditContext(ctx, auditCtx)

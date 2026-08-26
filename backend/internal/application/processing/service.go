@@ -12,6 +12,7 @@ import (
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -808,7 +809,7 @@ func (s *Service) processInFallbackMode(userID uint, fileID string) error {
 	default:
 		return repository.ErrFileProcessingQueueFull
 	}
-	go func() {
+	background.Go(s.logger, "fallback_file_processing", func() {
 		defer func() { <-s.fallbackSlots }()
 		attemptID := uuid.NewString()
 		taskCtx, cancel := context.WithTimeout(context.Background(), fallbackProcessingTimeout)
@@ -827,7 +828,7 @@ func (s *Service) processInFallbackMode(userID uint, fileID string) error {
 				zap.Error(err),
 			)
 		}
-	}()
+	})
 	return nil
 }
 

@@ -159,7 +159,10 @@ func (s *Service) SetAuditWriter(writer auditWriter) {
 
 // StartBackgroundWorkers starts the worker pool and cleanup loop.
 func (s *Service) StartBackgroundWorkers(ctx context.Context) {
+	// workerCtx 与 resizeWorker 中的读取共用 workerMu，避免无同步的并发读写。
+	s.workerMu.Lock()
 	s.workerCtx = ctx
+	s.workerMu.Unlock()
 	if cfg, err := s.readRuntimeConfig(ctx); err == nil {
 		s.resizeWorker(cfg.MaxConcurrency, cfg.QueueCapacity)
 	} else {
@@ -167,8 +170,11 @@ func (s *Service) StartBackgroundWorkers(ctx context.Context) {
 	}
 	s.wg.Add(1)
 	go s.cleanupLoop(ctx)
+	s.wg.Add(1)
 	go func() {
-		bg, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer s.wg.Done()
+		// 从生命周期 ctx 派生，进程关停时可即时取消，避免 Stop 阻塞等待恢复任务。
+		bg, cancel := context.WithTimeout(ctx, 2*time.Minute)
 		defer cancel()
 		s.runCleanup(bg)
 		s.recoverPendingBlocks(bg)

@@ -28,6 +28,8 @@ var (
 	ErrInvalidToolAttachmentConfig = errors.New("invalid mcp tool attachment configuration")
 	ErrInvalidToolSelection        = errors.New("invalid mcp tool selection")
 	ErrMCPClientUnavailable        = errors.New("mcp client unavailable")
+	// ErrServerLimitExceeded MCP 服务数量超限。
+	ErrServerLimitExceeded = repository.ErrMCPServerLimitExceeded
 )
 
 const mcpServerToolListTimeoutMS = 10000

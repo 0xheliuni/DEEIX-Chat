@@ -365,7 +365,8 @@ func writeServiceError(c *gin.Context, err error) {
 		errors.Is(err, appmcp.ErrInvalidToolName),
 		errors.Is(err, appmcp.ErrInvalidToolDesc),
 		errors.Is(err, appmcp.ErrInvalidToolAttachmentConfig),
-		errors.Is(err, appmcp.ErrInvalidToolSelection):
+		errors.Is(err, appmcp.ErrInvalidToolSelection),
+		errors.Is(err, appmcp.ErrServerLimitExceeded):
 		response.ErrorFrom(c, http.StatusBadRequest, err)
 	default:
 		response.ErrorFrom(c, http.StatusInternalServerError, err)

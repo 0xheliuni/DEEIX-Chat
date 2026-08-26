@@ -14,6 +14,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	infraembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/embedding"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/embeddingutil"
 	"go.uber.org/zap"
 )
@@ -141,7 +142,7 @@ func (s *Service) MaybeTrigger(fileObj domainconversation.FileObject) {
 
 // Trigger 异步触发 embedding。
 func (s *Service) Trigger(fileObj domainconversation.FileObject) {
-	go func() {
+	background.Go(s.logger, "embedding_process_file", func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 		if err := s.ProcessFile(ctx, fileObj); err != nil && s.logger != nil {
@@ -150,7 +151,7 @@ func (s *Service) Trigger(fileObj domainconversation.FileObject) {
 				zap.Error(err),
 			)
 		}
-	}()
+	})
 }
 
 // ProcessFile 执行 embedding 完整流程。

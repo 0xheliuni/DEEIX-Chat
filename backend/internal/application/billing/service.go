@@ -21,7 +21,7 @@ import (
 
 const (
 	defaultPageSize            = 20
-	maxPageSize                = 1000
+	maxPageSize                = 100
 	defaultMonthlyUsageMonths  = 12
 	maxMonthlyUsageMonths      = 24
 	defaultDailyUsageDays      = 30

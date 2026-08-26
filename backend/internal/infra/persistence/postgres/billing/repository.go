@@ -550,9 +550,8 @@ func (r *Repo) AddUsageAndSettleBalance(ctx context.Context, usage *domainbillin
 			return translateError(err)
 		}
 		if chargeNanousd > 0 {
-			// 上游已产生真实用量时必须完整入账；余额可以转负，后续调用由原子预算预留拦截。
 			if err := tx.Model(account).Updates(map[string]interface{}{
-				"balance_nanousd": nextBalance,
+				"balance_nanousd": gorm.Expr("balance_nanousd - ?", chargeNanousd),
 				"currency":        "USD",
 				"status":          "active",
 			}).Error; err != nil {
@@ -672,8 +671,9 @@ func (r *Repo) AddPeriodUsageAndSettleOverage(
 		}
 		if overageNanousd > 0 {
 			// 超出周期额度的真实用量必须完整入账；预留仅限制并发风险，不改变最终扣费金额。
+			// 扣减使用表达式更新而非内存值写回，避免任何绕开行锁的并发写导致覆盖。
 			if err := tx.Model(account).Updates(map[string]interface{}{
-				"balance_nanousd": nextBalance,
+				"balance_nanousd": gorm.Expr("balance_nanousd - ?", overageNanousd),
 				"currency":        "USD",
 				"status":          "active",
 			}).Error; err != nil {

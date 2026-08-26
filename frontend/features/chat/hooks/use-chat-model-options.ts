@@ -8,8 +8,7 @@ import type {
   ModelOptionControl,
   ModelOptionControlType,
 } from "@/features/chat/types/chat-runtime";
-import type { SendShortcut } from "@/features/settings/types/settings";
-import { parseSendShortcut } from "@/features/settings/utils/chat-settings";
+import { parseSendShortcut, type SendShortcut } from "@/features/settings";
 import { getBillingConfig } from "@/shared/api/billing";
 import { listConversationRuns } from "@/shared/api/conversation";
 import type { ConversationOptions } from "@/shared/api/conversation.types";
@@ -547,13 +546,16 @@ export function useChatModelOptions({
     const requestID = runModelRequestRef.current + 1;
     runModelRequestRef.current = requestID;
 
+    // 本次请求绑定的会话 ID（非空）。
+    const activeConversationID = normalizedConversationID;
+
     async function loadLatestRunModel() {
       const token = await resolveAccessToken();
       if (!token) {
         return;
       }
 
-      const runs = await listConversationRuns(token, normalizedConversationID, { page: 1, pageSize: 1 });
+      const runs = await listConversationRuns(token, activeConversationID, { page: 1, pageSize: 1 });
       if (cancelled || requestID !== runModelRequestRef.current || userSelectedModelRef.current) {
         return;
       }

@@ -1075,7 +1075,7 @@ export function AssistantMessageMeta({
                     <Forward className="size-3.5" strokeWidth={1.8} />
                   </MetaIconButton>
                 ) : null}
-                {canFork ? (
+                {canFork && onFork ? (
                   <ForkMessageButton
                     label={t("forkMessage")}
                     onFork={onFork}

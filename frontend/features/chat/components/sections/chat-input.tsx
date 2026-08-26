@@ -64,7 +64,7 @@ import {
   formatClipboardMarkdownPaste,
   resolveClipboardMarkdownPaste,
 } from "@/features/chat/utils/markdown-paste";
-import type { SendShortcut } from "@/features/settings/types/settings";
+import type { SendShortcut } from "@/features/settings";
 import { cn } from "@/lib/utils";
 import type { ConversationOptions } from "@/shared/api/conversation.types";
 import type { FileObjectDTO } from "@/shared/api/file.types";
