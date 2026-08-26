@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -75,45 +76,60 @@ func (s *Service) ListActiveModels(ctx context.Context, userID uint) ([]ModelVie
 
 func (s *Service) listActiveModelViews(ctx context.Context) ([]ModelView, error) {
 	now := time.Now()
-	if s.modelPricingFilter == nil {
-		items, err := s.listAllActiveModelRows(ctx)
+	mode := "unfiltered"
+	if s.modelPricingFilter != nil {
+		var err error
+		mode, err = s.modelPricingFilter.GetBillingMode(ctx)
 		if err != nil {
 			return nil, err
 		}
-		return s.filterPublicRoutableModels(items), nil
-	}
-	mode, err := s.modelPricingFilter.GetBillingMode(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if mode == "self" {
-		items, err := s.listAllActiveModelRows(ctx)
-		if err != nil {
-			return nil, err
-		}
-		return s.filterPublicRoutableModels(items), nil
 	}
 
 	s.modelCatalogMu.RLock()
-	if s.modelCatalog != nil && now.Before(s.modelCatalogValidUntil) {
+	generation := s.modelCatalogGeneration
+	if s.modelCatalog != nil && s.modelCatalogMode == mode && now.Before(s.modelCatalogValidUntil) {
 		result := cloneModelViews(s.modelCatalog)
 		s.modelCatalogMu.RUnlock()
 		return result, nil
 	}
 	s.modelCatalogMu.RUnlock()
 
-	items, err := s.listAllActiveModelRows(ctx)
-	if err != nil {
-		return nil, err
+	resultCh := s.modelCatalogRequests.DoChan(mode+":"+strconv.FormatUint(generation, 10), func() (any, error) {
+		refreshCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer cancel()
+		refreshStartedAt := time.Now()
+		s.modelCatalogMu.RLock()
+		if s.modelCatalog != nil && s.modelCatalogMode == mode && refreshStartedAt.Before(s.modelCatalogValidUntil) {
+			result := cloneModelViews(s.modelCatalog)
+			s.modelCatalogMu.RUnlock()
+			return result, nil
+		}
+		s.modelCatalogMu.RUnlock()
+
+		items, err := s.listAllActiveModelRows(refreshCtx)
+		if err != nil {
+			return nil, err
+		}
+		views := s.filterPublicRoutableModels(items)
+		if s.modelPricingFilter != nil && mode != "self" {
+			pricingByPlatformModelName, err := s.modelPricingFilter.ListPublicModelPricing(refreshCtx)
+			if err != nil {
+				return nil, err
+			}
+			views = filterPricedModelViews(views, pricingByPlatformModelName)
+		}
+		s.storeModelCatalog(refreshStartedAt, mode, generation, views)
+		return views, nil
+	})
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case result := <-resultCh:
+		if result.Err != nil {
+			return nil, result.Err
+		}
+		return cloneModelViews(result.Val.([]ModelView)), nil
 	}
-	views := s.filterPublicRoutableModels(items)
-	pricingByPlatformModelName, err := s.modelPricingFilter.ListPublicModelPricing(ctx)
-	if err != nil {
-		return nil, err
-	}
-	views = filterPricedModelViews(views, pricingByPlatformModelName)
-	s.storeModelCatalog(now, views)
-	return cloneModelViews(views), nil
 }
 
 // filterModelsByPermission 按权限组过滤用户可访问的模型。
@@ -196,14 +212,18 @@ func (s *Service) ListNativeToolDefinitions(ctx context.Context) ([]nativetool.D
 	}
 }
 
-func (s *Service) storeModelCatalog(now time.Time, views []ModelView) {
+func (s *Service) storeModelCatalog(now time.Time, mode string, generation uint64, views []ModelView) {
 	if s == nil {
 		return
 	}
 	s.modelCatalogMu.Lock()
+	defer s.modelCatalogMu.Unlock()
+	if s.modelCatalogGeneration != generation {
+		return
+	}
 	s.modelCatalog = cloneModelViews(views)
+	s.modelCatalogMode = mode
 	s.modelCatalogValidUntil = now.Add(modelCatalogCacheTTL)
-	s.modelCatalogMu.Unlock()
 }
 
 func cloneModelViews(items []ModelView) []ModelView {
@@ -338,18 +358,15 @@ func (s *Service) SupportsVideoGeneration(ctx context.Context, platformModelName
 	if err != nil {
 		return false, nil
 	}
-	items, err := s.listAllActiveModelRows(ctx)
+	kindsJSON, found, err := s.repo.GetActiveRoutableModelKindsJSON(ctx, name)
 	if err != nil {
 		return false, err
 	}
-	for _, item := range items {
-		if item.ActiveSourceCount <= 0 || strings.TrimSpace(item.PlatformModelName) != name {
-			continue
-		}
-		kinds := parseKinds(item.KindsJSON)
-		return hasModelKind(kinds, modelKindVideoGen) || hasModelKind(kinds, modelKindVideoExtension), nil
+	if !found {
+		return false, nil
 	}
-	return false, nil
+	kinds := parseKinds(kindsJSON)
+	return hasModelKind(kinds, modelKindVideoGen) || hasModelKind(kinds, modelKindVideoExtension), nil
 }
 
 // CreateModel 创建平台模型目录项。

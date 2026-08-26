@@ -18,8 +18,7 @@ import {
 import type { ChatModelOption } from "@/features/chat/types/chat-runtime";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { FileContentResult } from "@/shared/api/file";
-import type { PreviewDialogFile } from "@/shared/components/file-preview/preview-dialog";
+import type { FileContentLoader } from "@/shared/components/file-preview/preview-dialog";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 
 const USER_MESSAGE_COLLAPSED_LINES = 6;
@@ -46,7 +45,7 @@ type ChatMessageUserProps = {
   onCopy: () => void;
   copySucceeded?: boolean;
   readOnly?: boolean;
-  attachmentContentLoader?: (file: PreviewDialogFile) => Promise<FileContentResult>;
+  attachmentContentLoader?: FileContentLoader;
   showBranchNavigator?: boolean;
   screenshotMeta?: React.ReactNode;
 };

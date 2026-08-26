@@ -43,6 +43,7 @@ export function useChatSubmitStream({
   setDraft,
   setAttachments,
   releaseAttachments,
+  transferAttachments,
   getPendingExchanges,
   pendingExchanges,
   setPendingExchanges,
@@ -87,6 +88,7 @@ export function useChatSubmitStream({
   setDraft: React.Dispatch<React.SetStateAction<string>>;
   setAttachments: React.Dispatch<React.SetStateAction<PendingAttachment[]>>;
   releaseAttachments: (items: PendingAttachment[]) => void;
+  transferAttachments: (items: PendingAttachment[]) => void;
   getPendingExchanges: () => PendingExchangeMap;
   pendingExchanges: PendingExchangeMap;
   setPendingExchanges: React.Dispatch<React.SetStateAction<PendingExchangeMap>>;
@@ -136,6 +138,7 @@ export function useChatSubmitStream({
     setDraft,
     setAttachments,
     releaseAttachments,
+    transferAttachments,
     getPendingExchanges,
     pendingExchanges,
     setPendingExchanges,
@@ -152,6 +155,7 @@ export function useChatSubmitStream({
     flushStreamTextNow: streamBuffer.flushStreamTextNow,
     flushUpstreamThinkNow: streamBuffer.flushUpstreamThinkNow,
     resetStreamBuffer: streamBuffer.resetStreamBuffer,
+    setStreamTextSnapshot: streamBuffer.setStreamTextSnapshot,
     startStream: streamBuffer.startStream,
     activeGenerationRunsRef,
     activeGenerationRunsRevision,

@@ -15,6 +15,7 @@ type FileProcessingMessage struct {
 	FileID    string
 	Retry     int
 	LastError string
+	Reclaimed bool
 }
 
 // GenerationStreamMessage 是生成流中的一条可恢复事件。
@@ -43,9 +44,10 @@ type FileProcessingQueueRepository interface {
 	EnqueueFileProcessing(ctx context.Context, userID uint, fileID string, retry int, lastError string) error
 	ClaimTimedOutFileProcessingMessages(ctx context.Context, consumerName string) ([]FileProcessingMessage, error)
 	ReadFileProcessingMessages(ctx context.Context, consumerName string) ([]FileProcessingMessage, error)
-	AckFileProcessingMessage(ctx context.Context, messageID string) error
-	DeleteFileProcessingMessage(ctx context.Context, messageID string) error
-	SendFileProcessingToDLQ(ctx context.Context, userID uint, fileID string, retry int, lastError string) error
+	RenewFileProcessingMessageLease(ctx context.Context, consumerName, messageID string) (bool, error)
+	SettleFileProcessingMessage(ctx context.Context, consumerName, messageID string) (bool, error)
+	RequeueFileProcessingMessage(ctx context.Context, consumerName string, message FileProcessingMessage, retry int, lastError string) (bool, error)
+	DeadLetterFileProcessingMessage(ctx context.Context, consumerName string, message FileProcessingMessage, lastError string) (bool, error)
 }
 
 // RAGCacheRepository 封装 RAG 检索缓存能力。

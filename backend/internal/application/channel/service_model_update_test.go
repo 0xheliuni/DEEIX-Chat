@@ -764,6 +764,10 @@ func (r *modelUpdateRepo) GetActiveModelByName(context.Context, string) (*domain
 	return nil, repository.ErrNotFound
 }
 
+func (r *modelUpdateRepo) GetActiveRoutableModelKindsJSON(context.Context, string) (string, bool, error) {
+	return "", false, nil
+}
+
 func (r *modelUpdateRepo) ListModels(context.Context, repository.ListChannelModelsInput) ([]repository.ChannelModelListRow, int64, error) {
 	return r.modelRows, int64(len(r.modelRows)), nil
 }

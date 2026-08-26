@@ -29,26 +29,13 @@ import {
   sidebarRevealTransitionReducer,
 } from "./sidebar-hover-transition"
 
-const SIDEBAR_COOKIE_NAME = "sidebar_state"
-const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
 const SIDEBAR_STORAGE_KEY = "deeix.sidebar.open"
-const SIDEBAR_WIDTH = "17.96875rem"
-const SIDEBAR_WIDTH_MOBILE = "17.96875rem"
-const SIDEBAR_WIDTH_ICON = "3rem"
-const SIDEBAR_KEYBOARD_SHORTCUT = "b"
-const SIDEBAR_AUTO_COLLAPSE_AT = 1180
-const SIDEBAR_AUTO_RESTORE_AT = 1360
-const SIDEBAR_HOVER_COLLAPSE_DELAY_MS = 80
-const SIDEBAR_HOVER_REVEAL_DURATION_MS = 200
-const SIDEBAR_TRANSITION_FALLBACK_MS = SIDEBAR_HOVER_REVEAL_DURATION_MS + 50
 
-type SidebarContextProps = {
-  state: "expanded" | "collapsed"
-  open: boolean
-  setOpen: (open: boolean) => void
-  openMobile: boolean
-  setOpenMobile: (open: boolean) => void
-  isMobile: boolean
+type SidebarState = "expanded" | "collapsed"
+
+type SidebarActionsContextProps = {
+  setOpen: (open: boolean | ((open: boolean) => boolean)) => void
+  setOpenMobile: React.Dispatch<React.SetStateAction<boolean>>
   toggleSidebar: () => void
 }
 
@@ -56,17 +43,36 @@ type SidebarHoverExpansionContextProps = {
   acquireLock: () => () => void
 }
 
-const SidebarContext = React.createContext<SidebarContextProps | null>(null)
-const SidebarVisualStateContext = React.createContext<SidebarContextProps["state"] | null>(null)
+const SidebarOpenContext = React.createContext<boolean | null>(null)
+const SidebarMobileOpenContext = React.createContext<boolean | null>(null)
+const SidebarIsMobileContext = React.createContext<boolean | null>(null)
+const SidebarActionsContext = React.createContext<SidebarActionsContextProps | null>(null)
+const SidebarVisualStateContext = React.createContext<SidebarState | null>(null)
 const SidebarHoverExpansionContext = React.createContext<SidebarHoverExpansionContextProps | null>(null)
 
-function useSidebar() {
-  const context = React.useContext(SidebarContext)
-  if (!context) {
-    throw new Error("useSidebar must be used within a SidebarProvider.")
+function useRequiredSidebarContext<T>(context: React.Context<T | null>, hookName: string) {
+  const value = React.useContext(context)
+  if (value === null) {
+    throw new Error(`${hookName} must be used within a SidebarProvider.`)
   }
 
-  return context
+  return value
+}
+
+function useSidebarOpen() {
+  return useRequiredSidebarContext(SidebarOpenContext, "useSidebarOpen")
+}
+
+function useSidebarMobileOpen() {
+  return useRequiredSidebarContext(SidebarMobileOpenContext, "useSidebarMobileOpen")
+}
+
+function useSidebarIsMobile() {
+  return useRequiredSidebarContext(SidebarIsMobileContext, "useSidebarIsMobile")
+}
+
+function useSidebarActions() {
+  return useRequiredSidebarContext(SidebarActionsContext, "useSidebarActions")
 }
 
 function useSidebarVisualState() {
@@ -90,11 +96,11 @@ function useSidebarHoverExpansionLock(active: boolean) {
 }
 
 function shouldAutoCollapseSidebar() {
-  return typeof window !== "undefined" && window.innerWidth < SIDEBAR_AUTO_COLLAPSE_AT
+  return typeof window !== "undefined" && window.innerWidth < 1180
 }
 
 function shouldAutoRestoreSidebar() {
-  return typeof window !== "undefined" && window.innerWidth >= SIDEBAR_AUTO_RESTORE_AT
+  return typeof window !== "undefined" && window.innerWidth >= 1360
 }
 
 function shouldReduceSidebarMotion() {
@@ -134,8 +140,8 @@ function useSidebarAutoViewport() {
   }))
 
   React.useEffect(() => {
-    const collapseQuery = window.matchMedia(`(max-width: ${SIDEBAR_AUTO_COLLAPSE_AT - 1}px)`)
-    const restoreQuery = window.matchMedia(`(min-width: ${SIDEBAR_AUTO_RESTORE_AT}px)`)
+    const collapseQuery = window.matchMedia("(max-width: 1179px)")
+    const restoreQuery = window.matchMedia("(min-width: 1360px)")
     const sync = () => {
       setAutoViewport({
         shouldCollapse: collapseQuery.matches,
@@ -179,9 +185,16 @@ function SidebarProvider({
   // We use openProp and setOpenProp for control from outside the component.
   const [_open, _setOpen] = React.useState(() => readSidebarInitialOpen(defaultOpen) && !shouldAutoCollapseSidebar())
   const open = openProp ?? _open
+  const openRef = React.useRef(open)
+  const isMobileRef = React.useRef(isMobile)
+  React.useLayoutEffect(() => {
+    openRef.current = open
+    isMobileRef.current = isMobile
+  }, [isMobile, open])
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
-      const openState = typeof value === "function" ? value(open) : value
+      const openState = typeof value === "function" ? value(openRef.current) : value
+      openRef.current = openState
       autoCollapsedRef.current = false
       if (setOpenProp) {
         setOpenProp(openState)
@@ -190,14 +203,14 @@ function SidebarProvider({
       }
 
       // This sets the cookie to keep the sidebar state.
-      document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
+      document.cookie = `sidebar_state=${openState}; path=/; max-age=${60 * 60 * 24 * 7}`
       try {
         window.localStorage.setItem(SIDEBAR_STORAGE_KEY, openState ? "true" : "false")
       } catch {
         // Ignore storage failures; the current in-memory state still controls the UI.
       }
     },
-    [setOpenProp, open]
+    [setOpenProp]
   )
 
   React.useEffect(() => {
@@ -212,6 +225,7 @@ function SidebarProvider({
         return
       }
 
+      openRef.current = false
       if (setOpenProp) {
         setOpenProp(false)
         return
@@ -226,6 +240,7 @@ function SidebarProvider({
     }
 
     autoCollapsedRef.current = false
+    openRef.current = true
     if (setOpenProp) {
       setOpenProp(true)
       return
@@ -236,14 +251,16 @@ function SidebarProvider({
 
   // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(() => {
-    return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open)
-  }, [isMobile, setOpen, setOpenMobile])
+    return isMobileRef.current
+      ? setOpenMobile((current) => !current)
+      : setOpen((current) => !current)
+  }, [setOpen])
 
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
-        event.key === SIDEBAR_KEYBOARD_SHORTCUT &&
+        event.key === "b" &&
         (event.metaKey || event.ctrlKey)
       ) {
         event.preventDefault()
@@ -255,45 +272,43 @@ function SidebarProvider({
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [toggleSidebar])
 
-  // We add a state so that we can do data-state="expanded" or "collapsed".
-  // This makes it easier to style the sidebar with Tailwind classes.
-  const state = open ? "expanded" : "collapsed"
-
-  const contextValue = React.useMemo<SidebarContextProps>(
+  const actionsContextValue = React.useMemo<SidebarActionsContextProps>(
     () => ({
-      state,
-      open,
       setOpen,
-      isMobile,
-      openMobile,
       setOpenMobile,
       toggleSidebar,
     }),
-    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
+    [setOpen, toggleSidebar]
   )
 
   return (
-    <SidebarContext.Provider value={contextValue}>
-      <TooltipProvider delayDuration={0}>
-        <div
-          data-slot="sidebar-wrapper"
-          style={
-            {
-              "--sidebar-width": SIDEBAR_WIDTH,
-              "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
-              ...style,
-            } as React.CSSProperties
-          }
-          className={cn(
-            "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar",
-            className
-          )}
-          {...props}
-        >
-          {children}
-        </div>
-      </TooltipProvider>
-    </SidebarContext.Provider>
+    <SidebarActionsContext.Provider value={actionsContextValue}>
+      <SidebarIsMobileContext.Provider value={isMobile}>
+        <SidebarOpenContext.Provider value={open}>
+          <SidebarMobileOpenContext.Provider value={openMobile}>
+            <TooltipProvider delayDuration={0}>
+              <div
+                data-slot="sidebar-wrapper"
+                style={
+                  {
+                    "--sidebar-width": "17.96875rem",
+                    "--sidebar-width-icon": "3rem",
+                    ...style,
+                  } as React.CSSProperties
+                }
+                className={cn(
+                  "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar",
+                  className
+                )}
+                {...props}
+              >
+                {children}
+              </div>
+            </TooltipProvider>
+          </SidebarMobileOpenContext.Provider>
+        </SidebarOpenContext.Provider>
+      </SidebarIsMobileContext.Provider>
+    </SidebarActionsContext.Provider>
   )
 }
 
@@ -314,12 +329,10 @@ function Sidebar({
   collapsible?: "offcanvas" | "icon" | "none"
   expandOnHover?: boolean
 }) {
-  const {
-    isMobile,
-    open,
-    openMobile,
-    setOpenMobile,
-  } = useSidebar()
+  const open = useSidebarOpen()
+  const openMobile = useSidebarMobileOpen()
+  const isMobile = useSidebarIsMobile()
+  const { setOpenMobile } = useSidebarActions()
   const [hoverExpanded, setHoverExpanded] = React.useState(false)
   const hoverCollapseTimerRef = React.useRef<number | null>(null)
   const hoverExpansionLockCountRef = React.useRef(0)
@@ -334,7 +347,7 @@ function Sidebar({
   )
   const layoutState = revealTransition.layout
   const isResizing = revealTransition.resizing
-  const transitionTargetRef = React.useRef<SidebarContextProps["state"]>(visualState)
+  const transitionTargetRef = React.useRef<SidebarState>(visualState)
   const transitionTimerRef = React.useRef<number | null>(null)
   const t = useTranslations("common.navigation")
 
@@ -355,7 +368,7 @@ function Sidebar({
   }, [])
 
   const settleTransition = React.useCallback(
-    (state: SidebarContextProps["state"]) => {
+    (state: SidebarState) => {
       clearTransitionTimer()
       dispatchRevealTransition({ type: "settle", target: state })
     },
@@ -363,7 +376,7 @@ function Sidebar({
   )
 
   const syncTransition = React.useCallback(
-    (state: SidebarContextProps["state"]) => {
+    (state: SidebarState) => {
       clearTransitionTimer()
       dispatchRevealTransition({ type: "sync", target: state })
     },
@@ -375,7 +388,7 @@ function Sidebar({
     hoverCollapseTimerRef.current = window.setTimeout(() => {
       hoverCollapseTimerRef.current = null
       setHoverExpanded(false)
-    }, SIDEBAR_HOVER_COLLAPSE_DELAY_MS)
+    }, 80)
   }, [clearHoverCollapseTimer])
 
   const acquireHoverExpansionLock = React.useCallback(() => {
@@ -425,7 +438,7 @@ function Sidebar({
 
     transitionTimerRef.current = window.setTimeout(() => {
       settleTransition(visualState)
-    }, SIDEBAR_TRANSITION_FALLBACK_MS)
+    }, 200 + 50)
   }, [clearTransitionTimer, settleTransition, syncTransition, usesHoverReveal, visualState])
 
   React.useEffect(
@@ -513,7 +526,7 @@ function Sidebar({
             className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
             style={
               {
-                "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
+                "--sidebar-width": "17.96875rem",
               } as React.CSSProperties
             }
             side={side}
@@ -614,7 +627,7 @@ function SidebarTrigger({
   onClick,
   ...props
 }: React.ComponentProps<typeof Button>) {
-  const { toggleSidebar } = useSidebar()
+  const { toggleSidebar } = useSidebarActions()
   const t = useTranslations("common.navigation")
 
   return (
@@ -637,7 +650,7 @@ function SidebarTrigger({
 }
 
 function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
-  const { toggleSidebar } = useSidebar()
+  const { toggleSidebar } = useSidebarActions()
   const t = useTranslations("common.navigation")
 
   return (
@@ -783,7 +796,7 @@ function SidebarGroupLabel({
       data-slot="sidebar-group-label"
       data-sidebar="group-label"
       className={cn(
-        "flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-sidebar-foreground/70 ring-sidebar-ring outline-hidden transition-[margin,opacity] duration-200 ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
+        "flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-sidebar-foreground/70 outline-hidden transition-[margin,opacity] duration-200 ease-linear focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground focus-visible:ring-0! [&>svg]:size-4 [&>svg]:shrink-0",
         "group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0",
         className
       )}
@@ -804,7 +817,7 @@ function SidebarGroupAction({
       data-slot="sidebar-group-action"
       data-sidebar="group-action"
       className={cn(
-        "absolute top-3.5 right-3 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground ring-sidebar-ring outline-hidden transition-transform hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
+        "absolute top-3.5 right-3 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground outline-hidden transition-transform hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground focus-visible:ring-0! [&>svg]:size-4 [&>svg]:shrink-0",
         // Increases the hit area of the button on mobile.
         "after:absolute after:-inset-2 md:after:hidden",
         "group-data-[collapsible=icon]:hidden",
@@ -852,7 +865,7 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
 }
 
 const sidebarMenuButtonVariants = cva(
-  "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm ring-sidebar-ring outline-hidden transition-[width,height,padding] group-has-data-[sidebar=menu-action]/menu-item:pr-8 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
+  "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-hidden transition-[width,height,padding] group-has-data-[sidebar=menu-action]/menu-item:pr-8 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground focus-visible:ring-0! active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -887,7 +900,7 @@ function SidebarMenuButton({
   tooltip?: string | React.ComponentProps<typeof TooltipContent>
 } & VariantProps<typeof sidebarMenuButtonVariants>) {
   const Comp = asChild ? Slot.Root : "button"
-  const { isMobile } = useSidebar()
+  const isMobile = useSidebarIsMobile()
   const state = useSidebarVisualState()
 
   const button = (
@@ -940,7 +953,7 @@ function SidebarMenuAction({
       data-slot="sidebar-menu-action"
       data-sidebar="menu-action"
       className={cn(
-        "absolute top-1.5 right-1 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground ring-sidebar-ring outline-hidden transition-transform peer-hover/menu-button:text-sidebar-accent-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
+        "absolute top-1.5 right-1 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground outline-hidden transition-transform peer-hover/menu-button:text-sidebar-accent-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground focus-visible:ring-0! [&>svg]:size-4 [&>svg]:shrink-0",
         // Increases the hit area of the button on mobile.
         "after:absolute after:-inset-2 md:after:hidden",
         "peer-data-[size=sm]/menu-button:top-1",
@@ -1062,7 +1075,7 @@ function SidebarMenuSubButton({
       data-size={size}
       data-active={isActive}
       className={cn(
-        "flex h-7 min-w-0 -translate-x-px items-center gap-2 overflow-hidden rounded-md px-2 text-sidebar-foreground ring-sidebar-ring outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-accent-foreground",
+        "flex h-7 min-w-0 -translate-x-px items-center gap-2 overflow-hidden rounded-md px-2 text-sidebar-foreground outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground focus-visible:ring-0! active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-accent-foreground",
         "data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground",
         size === "sm" && "text-xs",
         size === "md" && "text-sm",
@@ -1099,7 +1112,10 @@ export {
   SidebarSeparator,
   SidebarTransitionContent,
   SidebarTrigger,
-  useSidebar,
+  useSidebarActions,
   useSidebarHoverExpansionLock,
+  useSidebarIsMobile,
+  useSidebarMobileOpen,
+  useSidebarOpen,
   useSidebarVisualState,
 }

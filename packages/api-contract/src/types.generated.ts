@@ -979,6 +979,11 @@ export interface ConversationRunListResponseDoc {
   errorMsg: string;
 }
 
+export interface ConversationRunStatusResponse {
+  runID: string;
+  status: string;
+}
+
 export interface ConversationSearchListResponseDoc {
   data: ConversationSearchPageResponse;
   errorMsg: string;
@@ -1421,6 +1426,29 @@ export interface FileObjectResponse {
   updatedAt: string;
 }
 
+export interface FileProcessingStatusResponse {
+  chunkCount: number;
+  completedAt: string | null;
+  detectedMIME: string;
+  embedError: string;
+  embedStatus: string;
+  errorCode: string;
+  errorMessage: string;
+  extractChars: number;
+  extractPages: number;
+  extractStatus: string;
+  fileCategory: string;
+  fileID: string;
+  ocrUsed: boolean;
+  previewText: string;
+  processingReady: boolean;
+  processingStatus: string;
+  ragReady: boolean;
+  ragReason: string;
+  startedAt: string | null;
+  updatedAt: string;
+}
+
 export interface FileUpdateResponseDoc {
   data: FileObjectResponse;
   errorMsg: string;
@@ -1430,6 +1458,35 @@ export interface FileUploadResponse {
   file: FileObjectResponse;
   quota: StorageQuotaResponse;
   reused: boolean;
+}
+
+export interface GetConversationRunStatusesRequest {
+  /**
+   * @maxItems 100
+   * @minItems 1
+   */
+  runIDs: string[];
+}
+
+export interface GetFileProcessingStatusesRequest {
+  /**
+   * @maxItems 100
+   * @minItems 1
+   */
+  fileIDs: string[];
+}
+
+export interface GetKnowledgeBaseFileProcessingSnapshotRequest {
+  /** @maxItems 100 */
+  fileIDs: string[];
+}
+
+export interface GetKnowledgeBaseFileProcessingStatusesRequest {
+  /**
+   * @maxItems 100
+   * @minItems 1
+   */
+  fileIDs: string[];
 }
 
 export interface GroupModelsResponse {
@@ -1623,6 +1680,24 @@ export interface KnowledgeBaseFilePageResponseDoc {
   errorMsg: string;
 }
 
+export interface KnowledgeBaseFileProcessingSnapshotResponse {
+  knowledgeBase: KnowledgeBaseResponse;
+  statuses: KnowledgeBaseFileProcessingStatusResponse[];
+}
+
+export interface KnowledgeBaseFileProcessingStatusResponse {
+  chunkCount: number;
+  detectedMIME: string;
+  embedStatus: string;
+  fileCategory: string;
+  fileID: string;
+  processing: boolean;
+  processingReady: boolean;
+  processingStatus: string;
+  ragOptOut: boolean;
+  updatedAt: string;
+}
+
 export interface KnowledgeBaseFileResponse {
   chunkCount: number;
   createdAt: string;
@@ -1632,6 +1707,7 @@ export interface KnowledgeBaseFileResponse {
   fileID: string;
   fileName: string;
   mimeType: string;
+  processing: boolean;
   processingReady: boolean;
   processingStatus: string;
   ragOptOut: boolean;
@@ -1658,6 +1734,7 @@ export interface KnowledgeBaseResponse {
   enabled: boolean;
   fileCount: number;
   name: string;
+  processingFileCount: number;
   publicID: string;
   readyFileCount: number;
   revision: number;
@@ -4896,12 +4973,16 @@ export namespace Admin {
     export type RequestQuery = {
       /** 可用状态 */
       enabled?: boolean;
+      /** 知识库ID */
+      id?: string[];
       /** 页码 */
       page?: number;
       /** 每页数量 */
       page_size?: number;
       /** 搜索关键词 */
       q?: string;
+      /** 排序方式(default/name/created/updated/files) */
+      sort?: string;
     };
     export type RequestBody = never;
     export type RequestHeaders = {};
@@ -5005,6 +5086,25 @@ export namespace Admin {
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = Blob;
+  }
+
+  /**
+   * No description
+   * @tags admin-knowledge-bases
+   * @name KnowledgeBasesDetail
+   * @summary 查询内置知识库详情
+   * @request GET:/admin/knowledge-bases/{id}
+   * @secure
+   */
+  export namespace KnowledgeBasesDetail {
+    export type RequestParams = {
+      /** 知识库ID */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseResponseDoc;
   }
 
   /**
@@ -5119,6 +5219,44 @@ export namespace Admin {
     export type RequestBody = AddKnowledgeBaseFilesRequest;
     export type RequestHeaders = {};
     export type ResponseBody = KnowledgeBaseFileMutationResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags admin-knowledge-bases
+   * @name KnowledgeBasesFilesProcessingSnapshotCreate
+   * @summary 查询内置知识库处理快照
+   * @request POST:/admin/knowledge-bases/{id}/files/processing/snapshot
+   * @secure
+   */
+  export namespace KnowledgeBasesFilesProcessingSnapshotCreate {
+    export type RequestParams = {
+      /** 知识库公开ID */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = GetKnowledgeBaseFileProcessingSnapshotRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseFileProcessingSnapshotResponse;
+  }
+
+  /**
+   * No description
+   * @tags admin-knowledge-bases
+   * @name KnowledgeBasesFilesProcessingStatusesCreate
+   * @summary 批量查询内置知识库文件处理状态
+   * @request POST:/admin/knowledge-bases/{id}/files/processing/statuses
+   * @secure
+   */
+  export namespace KnowledgeBasesFilesProcessingStatusesCreate {
+    export type RequestParams = {
+      /** 知识库ID */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = GetKnowledgeBaseFileProcessingStatusesRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseFileProcessingStatusResponse[];
   }
 
   /**
@@ -7786,6 +7924,22 @@ export namespace ConversationProjects {
 
 export namespace ConversationRuns {
   /**
+   * @description 按运行 ID 一次查询当前用户多个会话任务的最小状态快照
+   * @tags chat
+   * @name StatusesCreate
+   * @summary 批量查询会话运行状态
+   * @request POST:/conversation-runs/statuses
+   * @secure
+   */
+  export namespace StatusesCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = GetConversationRunStatusesRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = ConversationRunStatusResponse[];
+  }
+
+  /**
    * @description Sends an authoritative snapshot followed by live user-scoped run state events
    * @tags chat
    * @name StreamList
@@ -8432,6 +8586,22 @@ export namespace Files {
   }
 
   /**
+   * @description 一次查询当前用户多个文件的处理状态
+   * @tags chat
+   * @name ProcessingStatusesCreate
+   * @summary 批量查询文件处理状态
+   * @request POST:/files/processing/statuses
+   * @secure
+   */
+  export namespace ProcessingStatusesCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = GetFileProcessingStatusesRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = FileProcessingStatusResponse[];
+  }
+
+  /**
    * @description 删除指定文件并回收用户配额
    * @tags chat
    * @name FilesDelete
@@ -8501,12 +8671,16 @@ export namespace KnowledgeBases {
   export namespace KnowledgeBasesList {
     export type RequestParams = {};
     export type RequestQuery = {
+      /** 知识库ID */
+      id?: string[];
       /** 页码 */
       page?: number;
       /** 每页数量 */
       page_size?: number;
       /** 搜索关键词 */
       q?: string;
+      /** 排序方式(default/name/created/updated/files) */
+      sort?: string;
     };
     export type RequestBody = never;
     export type RequestHeaders = {};
@@ -8526,12 +8700,16 @@ export namespace KnowledgeBases {
     export type RequestQuery = {
       /** 可用状态 */
       enabled?: boolean;
+      /** 知识库ID */
+      id?: string[];
       /** 页码 */
       page?: number;
       /** 每页数量 */
       page_size?: number;
       /** 搜索关键词 */
       q?: string;
+      /** 排序方式(default/name/created/updated/files) */
+      sort?: string;
     };
     export type RequestBody = never;
     export type RequestHeaders = {};
@@ -8702,6 +8880,44 @@ export namespace KnowledgeBases {
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = KnowledgeBaseFilePageResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags knowledge-bases
+   * @name FilesProcessingSnapshotCreate
+   * @summary 查询当前用户可见知识库处理快照
+   * @request POST:/knowledge-bases/{id}/files/processing/snapshot
+   * @secure
+   */
+  export namespace FilesProcessingSnapshotCreate {
+    export type RequestParams = {
+      /** 知识库公开ID */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = GetKnowledgeBaseFileProcessingSnapshotRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseFileProcessingSnapshotResponse;
+  }
+
+  /**
+   * No description
+   * @tags knowledge-bases
+   * @name FilesProcessingStatusesCreate
+   * @summary 批量查询知识库文件处理状态
+   * @request POST:/knowledge-bases/{id}/files/processing/statuses
+   * @secure
+   */
+  export namespace FilesProcessingStatusesCreate {
+    export type RequestParams = {
+      /** 知识库ID */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = GetKnowledgeBaseFileProcessingStatusesRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseFileProcessingStatusResponse[];
   }
 
   /**

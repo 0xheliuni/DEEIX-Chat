@@ -1,5 +1,12 @@
 import { clearSessionSnapshot, readAccessToken, readSessionRevision, writeSessionSnapshot } from "@/shared/auth/session";
-import { apiRequest, ApiError, ApiNetworkError, resolveApiBaseURL, type ApiRequestOptions } from "@/shared/api/http-client";
+import {
+  apiRequest,
+  ApiError,
+  ApiNetworkError,
+  resolveAbortError,
+  resolveApiBaseURL,
+  type ApiRequestOptions,
+} from "@/shared/api/http-client";
 import type { ApiEnvelope } from "@/shared/api/common.types";
 import type { LoginData } from "@/shared/api/auth.types";
 
@@ -105,12 +112,20 @@ export async function authedRequest<T>(
   try {
     return await apiRequest<T>(path, options);
   } catch (error) {
+    const abortError = resolveAbortError(error, options.signal);
+    if (abortError) {
+      throw abortError;
+    }
     const isUnauthorized = error instanceof ApiError && error.status === 401;
     if (!allowRefresh || !isUnauthorized) {
       throw error;
     }
 
     const refreshedToken = await recoverAccessToken(options.accessToken);
+    const refreshAbortError = resolveAbortError(undefined, options.signal);
+    if (refreshAbortError) {
+      throw refreshAbortError;
+    }
     if (!refreshedToken) {
       throw error;
     }
@@ -178,6 +193,10 @@ export async function authedFetch(
   try {
     response = await fetch(endpoint, buildAuthedFetchInit(options));
   } catch (error) {
+    const abortError = resolveAbortError(error, options.signal);
+    if (abortError) {
+      throw abortError;
+    }
     throw new ApiNetworkError(error);
   }
   if (response.ok) {
@@ -189,7 +208,16 @@ export async function authedFetch(
     throw await toApiError(response);
   }
 
+  const responseAbortError = resolveAbortError(undefined, options.signal);
+  if (responseAbortError) {
+    throw responseAbortError;
+  }
+
   const refreshedToken = await recoverAccessToken(options.accessToken);
+  const refreshAbortError = resolveAbortError(undefined, options.signal);
+  if (refreshAbortError) {
+    throw refreshAbortError;
+  }
   if (!refreshedToken) {
     throw await toApiError(response);
   }
@@ -204,6 +232,10 @@ export async function authedFetch(
       }),
     );
   } catch (error) {
+    const abortError = resolveAbortError(error, options.signal);
+    if (abortError) {
+      throw abortError;
+    }
     throw new ApiNetworkError(error);
   }
   if (!retryResponse.ok) {

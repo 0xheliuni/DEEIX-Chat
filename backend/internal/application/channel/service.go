@@ -12,6 +12,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"go.uber.org/zap"
+	"golang.org/x/sync/singleflight"
 )
 
 type billingModelPricingFilter interface {
@@ -109,7 +110,10 @@ type Service struct {
 
 	modelCatalogMu         sync.RWMutex
 	modelCatalog           []ModelView
+	modelCatalogMode       string
 	modelCatalogValidUntil time.Time
+	modelCatalogGeneration uint64
+	modelCatalogRequests   singleflight.Group
 
 	breakerDefaultsMu         sync.RWMutex
 	breakerDefaults           domainchannel.BreakerDefaults
@@ -263,6 +267,8 @@ func (s *Service) InvalidateModelCatalog() {
 	}
 	s.modelCatalogMu.Lock()
 	s.modelCatalog = nil
+	s.modelCatalogMode = ""
 	s.modelCatalogValidUntil = time.Time{}
+	s.modelCatalogGeneration++
 	s.modelCatalogMu.Unlock()
 }

@@ -12,6 +12,7 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
   useMessageScroller,
+  useMessageScrollerScrollable,
 } from "@/components/ui/message-scroller";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -35,23 +36,31 @@ import { MAX_SCREENSHOT_MESSAGES } from "@/features/chat/model/conversation-scre
 import type { ChatModelOption } from "@/features/chat/types/chat-runtime";
 import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
 import { cn } from "@/lib/utils";
-import type { FileContentResult } from "@/shared/api/file";
 import { AppLogo, DeeixLogo } from "@/shared/components/app-logo";
 import { ConversationShareExportIconDropdown } from "@/shared/components/conversation-share-export-menu";
 import { useCopyAction } from "@/shared/components/copy-action";
-import type { PreviewDialogFile } from "@/shared/components/file-preview/preview-dialog";
+import type { FileContentLoader } from "@/shared/components/file-preview/preview-dialog";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import { PoweredByDeeix } from "@/shared/components/powered-by-deeix";
 import { useBranding } from "@/shared/config/branding-provider";
 import type { BillingDisplayCurrency } from "@/shared/lib/billing-display";
 
-function ScrollToPendingUser({ scrollKey }: { scrollKey: string }) {
+function ScrollToLiveUser({
+  scrollKey,
+  viewportRef,
+}: {
+  scrollKey: string;
+  viewportRef: React.RefObject<HTMLDivElement | null>;
+}) {
   const handledScrollKeyRef = React.useRef("");
-  const { scrollToEnd } = useMessageScroller();
+  const followWhenOverflowingRef = React.useRef(false);
+  const { scrollToEnd, scrollToMessage } = useMessageScroller();
+  const scrollable = useMessageScrollerScrollable();
 
   React.useLayoutEffect(() => {
     if (!scrollKey) {
       handledScrollKeyRef.current = "";
+      followWhenOverflowingRef.current = false;
       return;
     }
     if (handledScrollKeyRef.current === scrollKey) {
@@ -63,7 +72,11 @@ function ScrollToPendingUser({ scrollKey }: { scrollKey: string }) {
     const firstFrameID = window.requestAnimationFrame(() => {
       secondFrameID = window.requestAnimationFrame(() => {
         const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-        scrollToEnd({ behavior: reducedMotion ? "auto" : "smooth" });
+        followWhenOverflowingRef.current = true;
+        scrollToMessage(scrollKey, {
+          align: "start",
+          behavior: reducedMotion ? "auto" : "smooth",
+        });
       });
     });
     return () => {
@@ -72,7 +85,38 @@ function ScrollToPendingUser({ scrollKey }: { scrollKey: string }) {
         window.cancelAnimationFrame(secondFrameID);
       }
     };
-  }, [scrollKey, scrollToEnd]);
+  }, [scrollKey, scrollToMessage]);
+
+  React.useLayoutEffect(() => {
+    if (!scrollKey || !scrollable.end || !followWhenOverflowingRef.current) {
+      return;
+    }
+    followWhenOverflowingRef.current = false;
+    scrollToEnd({ behavior: "auto" });
+  }, [scrollKey, scrollToEnd, scrollable.end]);
+
+  React.useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!scrollKey || !viewport) {
+      return;
+    }
+    const stopFollowing = () => {
+      followWhenOverflowingRef.current = false;
+    };
+    const stopFollowingFromKeyboard = (event: KeyboardEvent) => {
+      if (["ArrowDown", "ArrowUp", "End", "Home", "PageDown", "PageUp", " "].includes(event.key)) {
+        stopFollowing();
+      }
+    };
+    viewport.addEventListener("wheel", stopFollowing, { passive: true });
+    viewport.addEventListener("touchmove", stopFollowing, { passive: true });
+    viewport.addEventListener("keydown", stopFollowingFromKeyboard);
+    return () => {
+      viewport.removeEventListener("wheel", stopFollowing);
+      viewport.removeEventListener("touchmove", stopFollowing);
+      viewport.removeEventListener("keydown", stopFollowingFromKeyboard);
+    };
+  }, [scrollKey, viewportRef]);
 
   return null;
 }
@@ -121,7 +165,7 @@ type ChatAreaProps = {
   selectedPlatformModelName: string;
   onModelChange: (platformModelName: string) => void;
   onModelCatalogRefresh?: () => void | Promise<void>;
-  attachmentContentLoader?: (file: PreviewDialogFile) => Promise<FileContentResult>;
+  attachmentContentLoader?: FileContentLoader;
   onEditImageAttachment?: (attachment: MessageAttachment, sourceModelName?: string) => void;
   onExtendVideoAttachment?: (attachment: MessageAttachment, sourceModelName?: string) => void;
   onOpenCodeArtifact?: (message: ChatAreaMessage, artifact: OpenCodeArtifactInput) => void;
@@ -323,7 +367,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   selectedPlatformModelName: string;
   onModelChange: (platformModelName: string) => void;
   onModelCatalogRefresh?: () => void | Promise<void>;
-  attachmentContentLoader?: (file: PreviewDialogFile) => Promise<FileContentResult>;
+  attachmentContentLoader?: FileContentLoader;
   onEditImageAttachment?: (attachment: MessageAttachment, sourceModelName?: string) => void;
   onExtendVideoAttachment?: (attachment: MessageAttachment, sourceModelName?: string) => void;
   onCycleMessageBranch: (parentPublicID: string | null, direction: "previous" | "next") => void;
@@ -577,10 +621,21 @@ export function ChatArea({
     pruneScreenshotSelection?.(selectableMessagePublicIDs);
   }, [pruneScreenshotSelection, selectableMessagePublicIDs, selectionMode]);
   const messageViewportBoundaryRef = React.useRef<HTMLDivElement | null>(null);
-  const pendingUserScrollKey = React.useMemo(
-    () => [...messages].reverse().find((item) => item.role === "user" && item.isPending)?.key ?? "",
-    [messages],
-  );
+  const liveUserScrollKey = React.useMemo(() => {
+    let liveMessageIndex = -1;
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (messages[index]?.isPending || messages[index]?.isStreaming) {
+        liveMessageIndex = index;
+        break;
+      }
+    }
+    for (let index = liveMessageIndex; index >= 0; index -= 1) {
+      if (messages[index]?.role === "user") {
+        return messages[index]?.key ?? "";
+      }
+    }
+    return "";
+  }, [messages]);
 
   return (
     <>
@@ -641,7 +696,10 @@ export function ChatArea({
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <MessageScrollerProvider>
           <MessageScroller>
-            <ScrollToPendingUser scrollKey={pendingUserScrollKey} />
+            <ScrollToLiveUser
+              scrollKey={liveUserScrollKey}
+              viewportRef={messageViewportBoundaryRef}
+            />
             <MessageScrollerViewport
               ref={messageViewportBoundaryRef}
               className="px-3 pb-8 pt-2 md:px-6"

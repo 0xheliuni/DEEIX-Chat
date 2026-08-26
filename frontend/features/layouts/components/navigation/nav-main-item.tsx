@@ -67,7 +67,7 @@ export function NavMainItem({
   }, []);
 
   const itemClassName = cn(
-    "group/item h-8 gap-0 overflow-hidden rounded-md px-0 text-left text-sm font-normal text-sidebar-foreground transition-colors focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+    "group/item h-8 gap-0 overflow-hidden rounded-md px-0 text-left text-sm font-normal text-sidebar-foreground transition-colors",
     isCollapsed
       ? "w-8 justify-center hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
       : "w-full justify-start hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",

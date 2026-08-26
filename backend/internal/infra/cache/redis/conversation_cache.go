@@ -33,6 +33,7 @@ const (
 	fileProcessingDLQName    = "file_processing_v1_dlq"
 	fileProcessingGroupName  = "file_processing_workers"
 	fileProcessingMinIdle    = 45 * time.Second
+	fileProcessingDLQMaxLen  = 10_000
 
 	generationStreamKeyPrefix = "conversation:generation:"
 	generationStreamIndexTTL  = 2 * time.Hour
@@ -75,6 +76,59 @@ if has_text_delta and text_missing then
 end
 
 return {id, tostring(seq)}
+`)
+
+var renewFileProcessingLeaseScript = redis.NewScript(`
+local pending = redis.call("XPENDING", KEYS[1], ARGV[1], ARGV[3], ARGV[3], 1)
+if #pending == 0 or pending[1][2] ~= ARGV[2] then
+	return 0
+end
+redis.call("XCLAIM", KEYS[1], ARGV[1], ARGV[2], 0, ARGV[3], "JUSTID")
+return 1
+`)
+
+var settleFileProcessingMessageScript = redis.NewScript(`
+local pending = redis.call("XPENDING", KEYS[1], ARGV[1], ARGV[3], ARGV[3], 1)
+if #pending == 0 or pending[1][2] ~= ARGV[2] then
+	return 0
+end
+redis.call("XACK", KEYS[1], ARGV[1], ARGV[3])
+redis.call("XDEL", KEYS[1], ARGV[3])
+return 1
+`)
+
+var requeueFileProcessingMessageScript = redis.NewScript(`
+local pending = redis.call("XPENDING", KEYS[1], ARGV[1], ARGV[3], ARGV[3], 1)
+if #pending == 0 or pending[1][2] ~= ARGV[2] then
+	return 0
+end
+redis.call(
+	"XADD", KEYS[1], "*",
+	"user_id", ARGV[4],
+	"file_id", ARGV[5],
+	"retry", ARGV[6],
+	"last_error", ARGV[7]
+)
+redis.call("XACK", KEYS[1], ARGV[1], ARGV[3])
+redis.call("XDEL", KEYS[1], ARGV[3])
+return 1
+`)
+
+var deadLetterFileProcessingMessageScript = redis.NewScript(`
+local pending = redis.call("XPENDING", KEYS[1], ARGV[1], ARGV[3], ARGV[3], 1)
+if #pending == 0 or pending[1][2] ~= ARGV[2] then
+	return 0
+end
+redis.call(
+	"XADD", KEYS[2], "MAXLEN", ARGV[8], "*",
+	"user_id", ARGV[4],
+	"file_id", ARGV[5],
+	"retry", ARGV[6],
+	"last_error", ARGV[7]
+)
+redis.call("XACK", KEYS[1], ARGV[1], ARGV[3])
+redis.call("XDEL", KEYS[1], ARGV[3])
+return 1
 `)
 
 var touchGenerationStreamActiveScript = redis.NewScript(`
@@ -188,7 +242,9 @@ func (c *conversationCache) ClaimTimedOutFileProcessingMessages(ctx context.Cont
 	}
 	messages := make([]repository.FileProcessingMessage, 0, len(claimed))
 	for _, msg := range claimed {
-		messages = append(messages, parseFileProcessingMessage(msg))
+		parsed := parseFileProcessingMessage(msg)
+		parsed.Reclaimed = true
+		messages = append(messages, parsed)
 	}
 	return messages, nil
 }
@@ -230,39 +286,92 @@ func parseFileProcessingMessage(msg redis.XMessage) repository.FileProcessingMes
 	}
 }
 
-// AckFileProcessingMessage 确认消息已处理。
-func (c *conversationCache) AckFileProcessingMessage(ctx context.Context, messageID string) error {
-	if c.client == nil {
-		return nil
+// RenewFileProcessingMessageLease 刷新执行中消息的空闲时间，避免长任务被其他 worker 重复认领。
+func (c *conversationCache) RenewFileProcessingMessageLease(ctx context.Context, consumerName, messageID string) (bool, error) {
+	if c.client == nil || strings.TrimSpace(consumerName) == "" || strings.TrimSpace(messageID) == "" {
+		return true, nil
 	}
-	_, err := c.client.XAck(ctx, fileProcessingStreamName, fileProcessingGroupName, messageID).Result()
-	return err
+	return fileProcessingScriptResult(renewFileProcessingLeaseScript.Run(
+		ctx,
+		c.client,
+		[]string{fileProcessingStreamName},
+		fileProcessingGroupName,
+		consumerName,
+		messageID,
+	).Result())
 }
 
-// DeleteFileProcessingMessage 从 Stream 中删除消息。
-func (c *conversationCache) DeleteFileProcessingMessage(ctx context.Context, messageID string) error {
+func (c *conversationCache) SettleFileProcessingMessage(ctx context.Context, consumerName, messageID string) (bool, error) {
 	if c.client == nil {
-		return nil
+		return true, nil
 	}
-	_, err := c.client.XDel(ctx, fileProcessingStreamName, messageID).Result()
-	return err
+	return fileProcessingScriptResult(settleFileProcessingMessageScript.Run(
+		ctx,
+		c.client,
+		[]string{fileProcessingStreamName},
+		fileProcessingGroupName,
+		consumerName,
+		messageID,
+	).Result())
 }
 
-// SendFileProcessingToDLQ 将超过重试次数的消息写入死信队列。
-func (c *conversationCache) SendFileProcessingToDLQ(ctx context.Context, userID uint, fileID string, retry int, lastError string) error {
+func (c *conversationCache) RequeueFileProcessingMessage(
+	ctx context.Context,
+	consumerName string,
+	message repository.FileProcessingMessage,
+	retry int,
+	lastError string,
+) (bool, error) {
 	if c.client == nil {
-		return nil
+		return true, nil
 	}
-	_, err := c.client.XAdd(ctx, &redis.XAddArgs{
-		Stream: fileProcessingDLQName,
-		Values: map[string]interface{}{
-			"user_id":    userID,
-			"file_id":    fileID,
-			"retry":      retry,
-			"last_error": truncateStr(lastError, 255),
-		},
-	}).Result()
-	return err
+	return fileProcessingScriptResult(requeueFileProcessingMessageScript.Run(
+		ctx,
+		c.client,
+		[]string{fileProcessingStreamName},
+		fileProcessingGroupName,
+		consumerName,
+		message.ID,
+		message.UserID,
+		message.FileID,
+		retry,
+		truncateStr(lastError, 255),
+	).Result())
+}
+
+func (c *conversationCache) DeadLetterFileProcessingMessage(
+	ctx context.Context,
+	consumerName string,
+	message repository.FileProcessingMessage,
+	lastError string,
+) (bool, error) {
+	if c.client == nil {
+		return true, nil
+	}
+	return fileProcessingScriptResult(deadLetterFileProcessingMessageScript.Run(
+		ctx,
+		c.client,
+		[]string{fileProcessingStreamName, fileProcessingDLQName},
+		fileProcessingGroupName,
+		consumerName,
+		message.ID,
+		message.UserID,
+		message.FileID,
+		message.Retry,
+		truncateStr(lastError, 255),
+		fileProcessingDLQMaxLen,
+	).Result())
+}
+
+func fileProcessingScriptResult(result interface{}, err error) (bool, error) {
+	if errors.Is(err, redis.Nil) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	value, ok := result.(int64)
+	return ok && value == 1, nil
 }
 
 // ---------------------------------------------------------------------------

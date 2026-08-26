@@ -91,6 +91,16 @@ type UpdateFileRequest struct {
 	RagOptOut *bool   `json:"ragOptOut,omitempty"`
 }
 
+// GetFileProcessingStatusesRequest 批量文件处理状态查询请求。
+type GetFileProcessingStatusesRequest struct {
+	FileIDs []string `json:"fileIDs" binding:"required,min=1,max=100,dive,required,max=64"`
+}
+
+// GetConversationRunStatusesRequest 批量运行状态查询请求。
+type GetConversationRunStatusesRequest struct {
+	RunIDs []string `json:"runIDs" binding:"required,min=1,max=100,dive,required,max=64"`
+}
+
 // SendMessageRequest 发送消息请求。
 type SendMessageRequest struct {
 	ContentType             string                 `json:"contentType" binding:"required,oneof=text markdown image file mixed"`

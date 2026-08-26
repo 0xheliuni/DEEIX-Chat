@@ -38,6 +38,21 @@ export class ApiNetworkError extends Error {
   }
 }
 
+export function resolveAbortError(error: unknown, signal?: AbortSignal): Error | null {
+  if (error instanceof Error && error.name === "AbortError") {
+    return error;
+  }
+  if (!signal?.aborted) {
+    return null;
+  }
+  if (signal.reason instanceof Error) {
+    return signal.reason;
+  }
+  const abortError = new Error("The operation was aborted");
+  abortError.name = "AbortError";
+  return abortError;
+}
+
 function normalizeApiErrorMessage(message: string, status: number): string {
   const normalized = message.trim();
   if (/^errors\.[a-zA-Z0-9_.]+$/.test(normalized)) {
@@ -115,6 +130,10 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   try {
     response = await fetch(endpoint, buildRequestInit(options));
   } catch (error) {
+    const abortError = resolveAbortError(error, options.signal);
+    if (abortError) {
+      throw abortError;
+    }
     throw new ApiNetworkError(error);
   }
   const contentType = response.headers.get("content-type") || "";

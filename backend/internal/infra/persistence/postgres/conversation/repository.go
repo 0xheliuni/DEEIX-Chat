@@ -2104,6 +2104,26 @@ func (r *Repo) ListConversationRunsByRunIDs(
 	return toConversationRunDomains(items), nil
 }
 
+// ListConversationRunStatusesByRunIDs 按运行 ID 批量查询当前用户的最小运行状态快照。
+func (r *Repo) ListConversationRunStatusesByRunIDs(
+	ctx context.Context,
+	userID uint,
+	runIDs []string,
+) ([]domainconversation.RunStatus, error) {
+	if len(runIDs) == 0 {
+		return []domainconversation.RunStatus{}, nil
+	}
+	items := make([]domainconversation.RunStatus, 0, len(runIDs))
+	if err := r.db.WithContext(ctx).Model(&models.ConversationRun{}).
+		Select("run_id", "status").
+		Where("user_id = ? AND run_id IN ?", userID, runIDs).
+		Order("id ASC").
+		Scan(&items).Error; err != nil {
+		return nil, translateError(err)
+	}
+	return items, nil
+}
+
 // GetMessageByID 按内部 ID 查询消息。
 func (r *Repo) GetMessageByID(ctx context.Context, conversationID uint, messageID uint) (*domainconversation.Message, error) {
 	var item models.Message
@@ -2392,6 +2412,27 @@ func (r *Repo) GetActiveFileObjectsByIDs(ctx context.Context, userID uint, fileI
 		return []domainconversation.FileObject{}, nil
 	}
 	if err := r.db.WithContext(ctx).
+		Where("user_id = ? AND status = ? AND file_id IN ?", userID, "active", fileIDs).
+		Find(&items).Error; err != nil {
+		return nil, translateError(err)
+	}
+	return toFileObjectDomains(items), nil
+}
+
+// GetActiveFileProcessingStatusesByIDs 批量查询轮询所需的文件处理状态字段。
+func (r *Repo) GetActiveFileProcessingStatusesByIDs(ctx context.Context, userID uint, fileIDs []string) ([]domainconversation.FileObject, error) {
+	items := make([]models.FileObject, 0)
+	if len(fileIDs) == 0 {
+		return []domainconversation.FileObject{}, nil
+	}
+	if err := r.db.WithContext(ctx).
+		Select(
+			"file_id", "detected_mime", "file_category",
+			"processing_status", "processing_ready", "processing_error_code", "processing_error_message",
+			"extract_status", "extract_chars", "extract_pages", "preview_text", "ocr_used",
+			"rag_ready", "rag_reason", "embed_status", "embed_error", "chunk_count",
+			"processing_started_at", "processing_completed_at", "updated_at",
+		).
 		Where("user_id = ? AND status = ? AND file_id IN ?", userID, "active", fileIDs).
 		Find(&items).Error; err != nil {
 		return nil, translateError(err)
@@ -4437,11 +4478,13 @@ func toFileObjectProcessingStateDomain(item models.FileObject) domainconversatio
 		DetectedMIME:       item.DetectedMIME,
 		FileCategory:       item.FileCategory,
 		ProcessingStatus:   item.ProcessingStatus,
+		ProcessingReady:    item.ProcessingReady,
 		ExtractStatus:      item.ExtractStatus,
 		ExtractEngine:      item.ExtractEngine,
 		ExtractStoragePath: item.ExtractStoragePath,
 		ExtractChars:       item.ExtractChars,
 		ExtractPages:       item.ExtractPages,
+		PageCount:          item.PageCount,
 		PreviewText:        item.PreviewText,
 		OCRUsed:            item.OCRUsed,
 		RAGReady:           item.RAGReady,
@@ -4452,6 +4495,7 @@ func toFileObjectProcessingStateDomain(item models.FileObject) domainconversatio
 		PayloadJSON:        item.ProcessingPayloadJSON,
 		StartedAt:          item.ProcessingStartedAt,
 		CompletedAt:        item.ProcessingCompletedAt,
+		ExtractedAt:        item.ExtractedAt,
 		CreatedAt:          item.CreatedAt,
 		UpdatedAt:          item.UpdatedAt,
 	}
@@ -4465,11 +4509,13 @@ func fileObjectProcessingStateUpdates(item *domainconversation.FileObjectProcess
 		"detected_mime":            item.DetectedMIME,
 		"file_category":            item.FileCategory,
 		"processing_status":        item.ProcessingStatus,
+		"processing_ready":         item.ProcessingReady,
 		"extract_status":           item.ExtractStatus,
 		"extract_engine":           item.ExtractEngine,
 		"extract_storage_path":     item.ExtractStoragePath,
 		"extract_chars":            item.ExtractChars,
 		"extract_pages":            item.ExtractPages,
+		"page_count":               item.PageCount,
 		"preview_text":             item.PreviewText,
 		"ocr_used":                 item.OCRUsed,
 		"rag_ready":                item.RAGReady,
@@ -4480,6 +4526,7 @@ func fileObjectProcessingStateUpdates(item *domainconversation.FileObjectProcess
 		"processing_payload_json":  item.PayloadJSON,
 		"processing_started_at":    item.StartedAt,
 		"processing_completed_at":  item.CompletedAt,
+		"extracted_at":             item.ExtractedAt,
 		"updated_at":               time.Now(),
 	}
 }

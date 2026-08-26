@@ -1,7 +1,7 @@
 "use client";
 
 import { cjk } from "@streamdown/cjk";
-import { createMathPlugin } from "@streamdown/math";
+import { createMathPlugin, type MathPlugin } from "@streamdown/math";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import {
@@ -98,9 +98,26 @@ type StreamdownFeatureFlags = {
 const BASE_STREAMDOWN_PLUGINS: PluginConfig = {
   cjk,
 };
-const STREAMDOWN_MATH_PLUGIN = createMathPlugin({
-  singleDollarTextMath: true,
-});
+const STREAMDOWN_MATH_PLUGIN = (() => {
+  const plugin = createMathPlugin({
+    singleDollarTextMath: true,
+  });
+  if (!Array.isArray(plugin.rehypePlugin)) {
+    return plugin;
+  }
+
+  const [rehypePlugin, options] = plugin.rehypePlugin;
+  return {
+    ...plugin,
+    rehypePlugin: [
+      rehypePlugin,
+      {
+        ...(typeof options === "object" && options !== null ? options : {}),
+        strict: (errorCode: string) => (errorCode === "unicodeTextInMathMode" ? "ignore" : "warn"),
+      },
+    ] as MathPlugin["rehypePlugin"],
+  };
+})();
 const STREAMDOWN_MATH_BASE_PLUGINS: PluginConfig = {
   ...BASE_STREAMDOWN_PLUGINS,
   math: STREAMDOWN_MATH_PLUGIN,
@@ -168,16 +185,13 @@ const STREAMDOWN_REMEND = {
 const STREAMDOWN_CARET = "circle" as const;
 const STREAMDOWN_CODE_BLOCK_MAX_HEIGHT = "22rem";
 const STREAMDOWN_LINK_SAFETY = { enabled: false } as const;
-const STREAMDOWN_MARKDOWN_CONTAINER_TAGS = {
+const STREAMDOWN_SANITIZED_HTML_TAGS = {
   article: ["style"],
   aside: ["style"],
   details: ["open", "style"],
   div: ["style"],
   main: ["style"],
   section: ["style"],
-} satisfies AllowedTags;
-const STREAMDOWN_ALLOWED_HTML_TAGS = {
-  ...STREAMDOWN_MARKDOWN_CONTAINER_TAGS,
   a: ["href", "title", "style"],
   p: ["style"],
   span: ["style"],
@@ -231,23 +245,23 @@ function markdownSourcePositionRehypePlugin() {
 
 function buildStreamdownRehypePlugins(includeSourcePositions = false): StreamdownRehypePlugins {
   const [sanitizePlugin, sanitizeSchema] = defaultRehypePlugins.sanitize as RehypeSanitizePlugin;
-  const extraTagNames = Object.keys(STREAMDOWN_ALLOWED_HTML_TAGS);
+  const extraTagNames = Object.keys(STREAMDOWN_SANITIZED_HTML_TAGS);
   const tagNames = Array.from(new Set([...(sanitizeSchema.tagNames ?? []), ...extraTagNames]));
   const schema = {
     ...sanitizeSchema,
     tagNames,
     attributes: {
       ...sanitizeSchema.attributes,
-      ...STREAMDOWN_ALLOWED_HTML_TAGS,
+      ...STREAMDOWN_SANITIZED_HTML_TAGS,
     },
   };
 
-  const sanitizeWithAllowedTags = [sanitizePlugin, schema] as StreamdownRehypePlugin;
+  const sanitizeWithHTMLTags = [sanitizePlugin, schema] as StreamdownRehypePlugin;
 
   return [
     renderRawHTMLMathRehypePlugin,
     defaultRehypePlugins.raw,
-    sanitizeWithAllowedTags,
+    sanitizeWithHTMLTags,
     ...(includeSourcePositions ? [markdownSourcePositionRehypePlugin] : []),
     normalizeBareURLRehypePlugin,
   ];
@@ -563,7 +577,6 @@ function ThinkingSegmentBlock({
             plugins={plugins}
           >
             <Streamdown
-              allowedTags={STREAMDOWN_MARKDOWN_CONTAINER_TAGS}
               className={cn(THINKING_MARKDOWN_CLASSNAME, "text-[12px] leading-6 text-muted-foreground/84")}
               codeBlockMaxHeight={STREAMDOWN_CODE_BLOCK_MAX_HEIGHT}
               components={THINKING_STREAMDOWN_COMPONENTS}
@@ -573,6 +586,7 @@ function ThinkingSegmentBlock({
               rehypePlugins={STREAMDOWN_REHYPE_PLUGINS}
               remend={STREAMDOWN_REMEND}
               mode={active ? "streaming" : "static"}
+              normalizeHtmlIndentation
               parseIncompleteMarkdown={active}
               shikiTheme={["github-light", "github-dark"]}
               animated={false}
@@ -731,7 +745,6 @@ export const StreamdownRender = React.memo(function StreamdownRender({
               plugins={plugins}
             >
               <Streamdown
-                allowedTags={STREAMDOWN_MARKDOWN_CONTAINER_TAGS}
                 className={activeMarkdownClassName}
                 codeBlockMaxHeight={STREAMDOWN_CODE_BLOCK_MAX_HEIGHT}
                 components={components}
@@ -743,6 +756,7 @@ export const StreamdownRender = React.memo(function StreamdownRender({
                 linkSafety={STREAMDOWN_LINK_SAFETY}
                 caret={streaming ? STREAMDOWN_CARET : undefined}
                 mode={streaming ? "streaming" : "static"}
+                normalizeHtmlIndentation
                 parseIncompleteMarkdown={streaming}
                 shikiTheme={["github-light", "github-dark"]}
                 animated={false}

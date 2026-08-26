@@ -225,6 +225,7 @@ type FileObject struct {
 	ExtractorVersion       string     `gorm:"size:32;not null;default:'';comment:提取器版本"`
 	ExtractedAt            *time.Time `gorm:"comment:文本提取完成时间"`
 	ProcessingPayloadJSON  string     `gorm:"type:text;not null;default:'';comment:文件处理扩展负载JSON"`
+	ProcessingAttemptID    string     `gorm:"size:64;not null;default:'';comment:当前文件处理执行令牌"`
 	ProcessingStartedAt    *time.Time `gorm:"comment:处理开始时间"`
 	ProcessingCompletedAt  *time.Time `gorm:"comment:处理完成时间"`
 	RagOptOut              bool       `gorm:"not null;default:false;comment:用户是否关闭此文件的RAG检索"`

@@ -678,6 +678,7 @@ export function useChatMentionMenu({
             accessToken: token,
             query: mentionQuery,
             sessionRevision,
+            signal: controller.signal,
           });
           if (!controller.signal.aborted) {
             setFiles(results);
