@@ -1,27 +1,27 @@
 "use client";
 
-import * as React from "react";
 import { useTranslations } from "next-intl";
+import * as React from "react";
 import { toast } from "sonner";
-
-import { resolveUploadPolicyRejection } from "@/features/chat/utils/attachments";
-import { captureScreenshotFile } from "@/features/chat/utils/browser-media";
-import { resolveMaxFilesPerMessage } from "@/features/chat/utils/chat-runtime";
 import type {
   PendingAttachment,
   UploadingAttachment,
 } from "@/features/chat/types/chat-runtime";
+import { resolveUploadPolicyRejection } from "@/features/chat/utils/attachments";
+import { captureScreenshotFile } from "@/features/chat/utils/browser-media";
+import { resolveMaxFilesPerMessage } from "@/features/chat/utils/chat-runtime";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import {
   getChatFilePolicy,
   uploadFile,
 } from "@/shared/api/file";
 import type { ChatFilePolicyDTO, FileProcessingStatusDTO } from "@/shared/api/file.types";
+import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import {
-  useFileProcessingStatusPolling,
   type FileStatusPollingResult,
+  useFileProcessingStatusPolling,
 } from "@/shared/hooks/use-file-processing-status-polling";
+import { runSettledItemsWithConcurrency } from "@/shared/lib/bulk-action";
 import { isFileProcessing } from "@/shared/lib/file-processing";
 
 function revokeAttachmentPreview(item: PendingAttachment) {
@@ -260,14 +260,14 @@ export function useChatAttachments({
           return;
         }
 
-        const results = await Promise.allSettled(
-          policyAcceptedFiles.map((file) =>
-            uploadFile(token, file, {
-              purpose: "conversation_attachment",
-              signal: controller.signal,
-            }),
-          ),
-        );
+        const results = await runSettledItemsWithConcurrency({
+          items: policyAcceptedFiles,
+          signal: controller.signal,
+          runItem: (file) => uploadFile(token, file, {
+            purpose: "conversation_attachment",
+            signal: controller.signal,
+          }),
+        });
         if (controller.signal.aborted || !mountedRef.current) {
           return;
         }

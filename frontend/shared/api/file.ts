@@ -1,5 +1,4 @@
 import { authedFetch, authedRequest } from "@/shared/api/authed-client";
-import { pathParam, resolveApiBaseURL } from "@/shared/api/http-client";
 import type {
   ChatFilePolicyDTO,
   DeleteFileResult,
@@ -9,6 +8,12 @@ import type {
   FileProcessingStatusDTO,
   UploadFileResult,
 } from "@/shared/api/file.types";
+import {
+  ApiNetworkError,
+  pathParam,
+  resolveAbortError,
+  resolveApiBaseURL,
+} from "@/shared/api/http-client";
 
 type UploadFileOptions = {
   purpose?: string;
@@ -32,6 +37,33 @@ export type FileContentResult = {
 
 export type RenameFileResult = FileObjectDTO;
 
+function waitForUploadRetry(delayMs: number, signal?: AbortSignal): Promise<void> {
+  const abortError = resolveAbortError(undefined, signal);
+  if (abortError) {
+    return Promise.reject(abortError);
+  }
+
+  return new Promise((resolve, reject) => {
+    let timeoutID: ReturnType<typeof setTimeout>;
+    const handleAbort = () => {
+      clearTimeout(timeoutID);
+      signal?.removeEventListener("abort", handleAbort);
+      const error = resolveAbortError(undefined, signal) ?? new Error("The operation was aborted");
+      error.name = "AbortError";
+      reject(error);
+    };
+
+    timeoutID = setTimeout(() => {
+      signal?.removeEventListener("abort", handleAbort);
+      resolve();
+    }, delayMs);
+    signal?.addEventListener("abort", handleAbort, { once: true });
+    if (signal?.aborted) {
+      handleAbort();
+    }
+  });
+}
+
 export async function readFileContentResponse(response: Response): Promise<FileContentResult> {
   const blob = await response.blob();
   const rawContentLength = response.headers.get("content-length");
@@ -51,22 +83,38 @@ export async function uploadFile(
   file: File,
   options: UploadFileOptions = {},
 ): Promise<UploadFileResult> {
-  const formData = new FormData();
-  formData.append("file", file);
-  if (options.purpose) {
-    formData.append("purpose", options.purpose);
-  }
+  for (let attempt = 0; ; attempt += 1) {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (options.purpose) {
+      formData.append("purpose", options.purpose);
+    }
 
-  return authedRequest<UploadFileResult>(
-    "/api/v1/files",
-    {
-      method: "POST",
-      accessToken,
-      body: formData,
-      signal: options.signal,
-    },
-    true,
-  );
+    try {
+      return await authedRequest<UploadFileResult>(
+        "/api/v1/files",
+        {
+          method: "POST",
+          accessToken,
+          body: formData,
+          signal: options.signal,
+        },
+        true,
+      );
+    } catch (error) {
+      const abortError = resolveAbortError(error, options.signal);
+      if (abortError) {
+        throw abortError;
+      }
+      if (!(error instanceof ApiNetworkError) || attempt >= 2) {
+        throw error;
+      }
+      await waitForUploadRetry(
+        250 * (2 ** attempt) + Math.floor(Math.random() * 150),
+        options.signal,
+      );
+    }
+  }
 }
 
 // File catalog and content
