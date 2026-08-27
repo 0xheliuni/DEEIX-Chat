@@ -11,8 +11,8 @@ import (
 	systemeventapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/systemevent"
 	domainmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	inframcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/secretbox"
+	portmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
@@ -37,8 +37,13 @@ const mcpServerToolListTimeoutMS = 10000
 type Service struct {
 	cfg               *config.Runtime
 	repo              repository.MCPRepository
-	client            *inframcp.Client
+	client            toolLister
 	systemEventWriter systemEventWriter
+}
+
+// toolLister 列出远端 MCP 服务暴露的工具。
+type toolLister interface {
+	ListTools(ctx context.Context, cfg portmcp.CallConfig) ([]portmcp.Tool, error)
 }
 
 type ReorderServerInput struct {
@@ -76,7 +81,7 @@ type SyncServerToolsInput struct {
 }
 
 // NewServiceWithRuntime 创建 MCP 应用服务。
-func NewServiceWithRuntime(cfg *config.Runtime, repo repository.MCPRepository, client *inframcp.Client) *Service {
+func NewServiceWithRuntime(cfg *config.Runtime, repo repository.MCPRepository, client toolLister) *Service {
 	return &Service{cfg: cfg, repo: repo, client: client}
 }
 
@@ -164,7 +169,7 @@ func (s *Service) SyncServerTools(ctx context.Context, input SyncServerToolsInpu
 	if err != nil {
 		return fail(err)
 	}
-	tools, err := s.client.ListTools(ctx, inframcp.CallConfig{
+	tools, err := s.client.ListTools(ctx, portmcp.CallConfig{
 		BaseURL:   server.BaseURL,
 		AuthToken: token,
 		TimeoutMS: mcpServerToolListTimeoutMS,

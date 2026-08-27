@@ -12,7 +12,6 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/extraction"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	infraembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/embedding"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/embeddingutil"
@@ -28,7 +27,7 @@ type Service struct {
 	cfg         *config.Runtime
 	repo        repository.EmbeddingRepository
 	extractSvc  *extraction.Service
-	embedClient *infraembedding.Client
+	embedClient EmbeddingClient
 	logger      *zap.Logger
 	workSlots   chan struct{}
 	reindexJobs chan string
@@ -36,13 +35,18 @@ type Service struct {
 	reindexing  bool
 }
 
+// EmbeddingClient 调用外部服务将文本批量转换为向量。
+type EmbeddingClient interface {
+	CallAPI(ctx context.Context, apiBase, apiKey, model string, texts []string, dimensions int, timeoutSeconds int) ([][]float32, error)
+}
+
 // NewService 创建 embedding 服务。
-func NewService(cfg config.Config, repo repository.EmbeddingRepository, extractSvc *extraction.Service, embedClient *infraembedding.Client, logger *zap.Logger) *Service {
+func NewService(cfg config.Config, repo repository.EmbeddingRepository, extractSvc *extraction.Service, embedClient EmbeddingClient, logger *zap.Logger) *Service {
 	return NewServiceWithRuntime(config.NewRuntime(cfg), repo, extractSvc, embedClient, logger)
 }
 
 // NewServiceWithRuntime 创建使用运行时配置容器的 embedding 服务。
-func NewServiceWithRuntime(cfg *config.Runtime, repo repository.EmbeddingRepository, extractSvc *extraction.Service, embedClient *infraembedding.Client, logger *zap.Logger) *Service {
+func NewServiceWithRuntime(cfg *config.Runtime, repo repository.EmbeddingRepository, extractSvc *extraction.Service, embedClient EmbeddingClient, logger *zap.Logger) *Service {
 	if extractSvc == nil {
 		extractSvc = extraction.NewServiceWithRuntime(cfg)
 	}
@@ -201,7 +205,7 @@ func (s *Service) ProcessFile(ctx context.Context, fileObj domainconversation.Fi
 		return fmt.Errorf("no extractable text in file %s", fileObj.FileID)
 	}
 
-	chunks := infraembedding.ChunkText(text, cfg.EmbedChunkSizeTokens, cfg.EmbedChunkOverlapTokens)
+	chunks := embeddingutil.ChunkText(text, cfg.EmbedChunkSizeTokens, cfg.EmbedChunkOverlapTokens)
 	if len(chunks) == 0 {
 		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", "分片结果为空")
 		return nil

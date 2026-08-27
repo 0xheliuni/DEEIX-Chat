@@ -10,7 +10,6 @@ import (
 
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/channelconfig"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/nativetool"
@@ -388,7 +387,7 @@ func (s *Service) CreateModel(ctx context.Context, input CreateModelInput) (*Mod
 	if err := validateOptionalJSON(strings.TrimSpace(input.CapabilitiesJSON)); err != nil {
 		return nil, ErrInvalidJSONConfig
 	}
-	if err := llm.ValidateModelCapsOverrides(input.CapabilitiesJSON); err != nil {
+	if err := domainchannel.ValidateModelCapsOverrides(input.CapabilitiesJSON); err != nil {
 		return nil, ErrInvalidModelCapsConfig
 	}
 	systemPrompt := strings.TrimSpace(input.SystemPrompt)
@@ -508,7 +507,7 @@ func (s *Service) UpdateModel(ctx context.Context, modelID uint, input UpdateMod
 		if err := validateOptionalJSON(normalized); err != nil {
 			return nil, ErrInvalidJSONConfig
 		}
-		if err := llm.ValidateModelCapsOverrides(normalized); err != nil {
+		if err := domainchannel.ValidateModelCapsOverrides(normalized); err != nil {
 			return nil, ErrInvalidModelCapsConfig
 		}
 		update.CapabilitiesJSON = &normalized

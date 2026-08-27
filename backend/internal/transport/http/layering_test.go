@@ -97,21 +97,8 @@ func TestApplicationInfraAdapterRatchet(t *testing.T) {
 		"infra/config",
 		"infra/observability",
 	}
-	// 存量业务适配器依赖白名单（application 包名 -> infra 包路径）。
-	allowlist := map[string][]string{
-		"auth":          {"infra/geoip", "infra/identityprovider"},
-		"channel":       {"infra/llm", "infra/objectstore"},
-		"compact":       {"infra/llm"},
-		"conversation":  {"infra/embedding", "infra/llm", "infra/mcp", "infra/objectstore"},
-		"embedding":     {"infra/embedding"},
-		"extraction":    {"infra/extract/builtin", "infra/extract/docling", "infra/extract/mineru", "infra/extract/ocr", "infra/extract/tika", "infra/objectstore"},
-		"mcp":           {"infra/mcp"},
-		"objectstorage": {"infra/objectstore"},
-		"rag":           {"infra/embedding"},
-		"runtime":       {"infra/extract/docling", "infra/extract/mineru", "infra/extract/ocr", "infra/extract/tika"},
-		"settings":      {"infra/extract/mineru"},
-		"upload":        {"infra/objectstore"},
-	}
+	// 存量业务适配器依赖白名单已全部清偿；此表保留为空，新增依赖会直接失败。
+	allowlist := map[string][]string{}
 
 	applicationRoot := filepath.Clean("../../application")
 	actual := map[string]map[string]bool{}

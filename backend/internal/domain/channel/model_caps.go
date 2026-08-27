@@ -1,4 +1,4 @@
-package llm
+package channel
 
 import (
 	"encoding/json"

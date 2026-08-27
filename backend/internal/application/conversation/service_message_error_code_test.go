@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	appchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
 func TestClassifyRunErrorCode(t *testing.T) {

@@ -8,9 +8,11 @@ import (
 	"unicode/utf8"
 )
 
-const maxUpstreamDebugBodyBytes = 128 * 1024
+// MaxUpstreamDebugBodyBytes 是调试请求/响应体保留的最大字节数。
+const MaxUpstreamDebugBodyBytes = 128 * 1024
 
-type sanitizedUpstreamDebugBody struct {
+// SanitizedUpstreamDebugBody 是调试请求/响应体经过脱敏与限长后的结果。
+type SanitizedUpstreamDebugBody struct {
 	Body          string
 	OriginalBytes int
 	Truncated     bool
@@ -20,15 +22,16 @@ type sanitizedUpstreamDebugBody struct {
 // SanitizeUpstreamDebugBody removes inline binary data and bounds a debug body
 // before it crosses into application-level errors or trace payloads.
 func SanitizeUpstreamDebugBody(raw string) string {
-	return sanitizeUpstreamDebugBody([]byte(raw)).Body
+	return SanitizeUpstreamDebugPayload([]byte(raw)).Body
 }
 
-func sanitizeUpstreamDebugBody(raw []byte) sanitizedUpstreamDebugBody {
-	result := sanitizedUpstreamDebugBody{OriginalBytes: len(raw)}
+// SanitizeUpstreamDebugPayload 对原始调试体做脱敏与限长，返回含统计信息的结果。
+func SanitizeUpstreamDebugPayload(raw []byte) SanitizedUpstreamDebugBody {
+	result := SanitizedUpstreamDebugBody{OriginalBytes: len(raw)}
 	if len(raw) == 0 {
 		return result
 	}
-	if len(raw) > maxUpstreamDebugBodyBytes {
+	if len(raw) > MaxUpstreamDebugBodyBytes {
 		result.Body = upstreamDebugBodySummary(result.OriginalBytes, 0, "body_too_large")
 		result.Truncated = true
 		return result
@@ -40,7 +43,7 @@ func sanitizeUpstreamDebugBody(raw []byte) sanitizedUpstreamDebugBody {
 	if err := decoder.Decode(&payload); err == nil {
 		payload = sanitizeUpstreamDebugValue(payload, "", nil, &result.RedactedParts)
 		encoded, marshalErr := json.Marshal(payload)
-		if marshalErr == nil && len(encoded) <= maxUpstreamDebugBodyBytes {
+		if marshalErr == nil && len(encoded) <= MaxUpstreamDebugBodyBytes {
 			result.Body = string(encoded)
 			return result
 		}
@@ -58,7 +61,7 @@ func sanitizeUpstreamDebugBody(raw []byte) sanitizedUpstreamDebugBody {
 
 	if sanitized, redacted, ok := sanitizeUpstreamDebugSSE(string(raw)); ok {
 		result.RedactedParts = redacted
-		if len(sanitized) <= maxUpstreamDebugBodyBytes {
+		if len(sanitized) <= MaxUpstreamDebugBodyBytes {
 			result.Body = sanitized
 			return result
 		}
