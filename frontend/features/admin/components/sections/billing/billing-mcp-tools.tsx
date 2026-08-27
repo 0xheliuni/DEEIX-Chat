@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CircleHelp, Save } from "lucide-react";
+import { CircleDollarSign, CircleHelp, Save } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -54,6 +54,37 @@ function mcpToolPriceDraftsFrom(rows: MCPToolPricingRow[]): Record<number, strin
   return Object.fromEntries(rows.map((row) => [row.toolID, formatMCPToolPriceInput(row.priceNanousd)]));
 }
 
+// BulkActionControlRow 与用户/模型/上游管理的批量菜单保持同一行布局：应用按钮 + 控件。
+function BulkActionControlRow({
+  icon,
+  label,
+  disabled,
+  onApply,
+  children,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  disabled: boolean;
+  onApply: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex h-7 w-full items-center gap-1.5">
+      <Button
+        type="button"
+        variant="ghost"
+        className="h-7 w-16 shrink-0 justify-start gap-2 px-2 text-[11px] text-foreground/70 shadow-none hover:bg-muted hover:text-foreground"
+        onClick={onApply}
+        disabled={disabled}
+      >
+        {icon}
+        {label}
+      </Button>
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
+}
+
 export function BillingMCPToolsSection() {
   const t = useTranslations("adminBilling");
   const tActions = useTranslations("common.actions");
@@ -66,7 +97,7 @@ export function BillingMCPToolsSection() {
   const [query, setQuery] = React.useState("");
   const [serverFilter, setServerFilter] = React.useState("");
   const [selectedToolIDs, setSelectedToolIDs] = React.useState<Set<number>>(new Set());
-  const [bulkPriceDraft, setBulkPriceDraft] = React.useState("0");
+  const [bulkPriceDraft, setBulkPriceDraft] = React.useState("");
   const [page, setPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState<number>(MCP_PRICING_PAGE_SIZES[0]);
 
@@ -175,7 +206,7 @@ export function BillingMCPToolsSection() {
 
   // 批量设置只更新本地草稿，与单行编辑一致，统一由右上角保存按钮持久化。
   const applyBulkPrice = React.useCallback(() => {
-    if (bulkPriceNanousd === null || selectedToolIDs.size === 0) {
+    if (bulkPriceNanousd === null || bulkPriceDraft.trim() === "" || selectedToolIDs.size === 0) {
       return;
     }
     setRows((current) => current.map((row) => (
@@ -189,7 +220,7 @@ export function BillingMCPToolsSection() {
       return next;
     });
     setSelectedToolIDs(new Set());
-  }, [bulkPriceNanousd, selectedToolIDs]);
+  }, [bulkPriceDraft, bulkPriceNanousd, selectedToolIDs]);
 
   const changedRows = React.useMemo(
     () => rows.filter((row) => row.priceNanousd !== (savedPrices[row.toolID] ?? 0)),
@@ -294,29 +325,25 @@ export function BillingMCPToolsSection() {
           ]}
           selectedCount={selectedToolIDs.size}
           bulkContent={
-            <div className="space-y-1.5 px-2 pb-1">
-              <p className="text-[11px] text-muted-foreground">{t("toolPricing.mcpBulkPrice")}</p>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground">$</span>
+            <div className="space-y-1">
+              <BulkActionControlRow
+                icon={<CircleDollarSign className="size-3 stroke-1" />}
+                label={t("toolPricing.mcpBulkApply")}
+                onApply={applyBulkPrice}
+                disabled={loading || saving || bulkPriceNanousd === null || bulkPriceDraft.trim() === "" || selectedToolIDs.size === 0}
+              >
                 <Input
+                  type="number"
+                  min="0"
+                  step="0.000001"
                   value={bulkPriceDraft}
-                  inputMode="decimal"
-                  className="h-7 min-w-0 flex-1 text-right font-mono text-xs"
-                  disabled={loading || saving}
+                  placeholder={t("toolPricing.mcpBulkPrice")}
                   aria-label={t("toolPricing.mcpBulkPrice")}
-                  aria-invalid={bulkPriceNanousd === null}
                   onChange={(event) => setBulkPriceDraft(event.target.value)}
+                  disabled={loading || saving || selectedToolIDs.size === 0}
+                  className="h-7 px-2 text-[11px]"
                 />
-                <Button
-                  type="button"
-                  size="sm"
-                  className="h-7 shrink-0 text-xs"
-                  disabled={loading || saving || bulkPriceNanousd === null || selectedToolIDs.size === 0}
-                  onClick={applyBulkPrice}
-                >
-                  {t("toolPricing.mcpBulkApply")}
-                </Button>
-              </div>
+              </BulkActionControlRow>
             </div>
           }
           loading={loading || saving}
