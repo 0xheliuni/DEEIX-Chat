@@ -237,6 +237,7 @@ func (s *Service) sendMessageInternal(
 	var resolvedRoute *channel.ResolvedRoute
 	var filteredOptions map[string]interface{}
 	var totalServerSideToolUsage map[string]int64
+	var totalMCPToolUsage []MCPToolUsageItem
 	var responsesBackgroundRouteConfig llm.RouteConfig
 	var responsesBackgroundRecovery openAIResponsesBackgroundRecoveryState
 	responsesBackgroundUsageRecovered := false
@@ -275,6 +276,7 @@ func (s *Service) sendMessageInternal(
 				Route:                  resolvedRoute,
 				EffectiveOptions:       filteredOptions,
 				ServerSideToolUsage:    totalServerSideToolUsage,
+				MCPToolUsage:           totalMCPToolUsage,
 				StartedAt:              startedAt,
 				ReuseUserMessage:       reuseUserMessage,
 			}); retained != nil {
@@ -538,6 +540,7 @@ func (s *Service) sendMessageInternal(
 	})
 	toolCallRows = append(toolCallRows, imageProcessing.Rows...)
 	mergeToolCallPersistenceKeys(&persistedToolCallKeys, imageProcessing.PersistedToolCallKeys)
+	totalMCPToolUsage = mergeMCPToolUsage(totalMCPToolUsage, imageProcessing.MCPToolUsage)
 	if err != nil {
 		retErr = err
 		return nil, err
@@ -1400,7 +1403,7 @@ func (s *Service) sendMessageInternal(
 			ToolCallLimit:     remainingToolCalls,
 			TraceRecorder:     traceRecorder,
 			ToolNameMap:       toolRuntime.nameMap,
-			MCPConfigs:        toolRuntime.mcpConfigs,
+			MCPBindings:       toolRuntime.mcpBindings,
 			ToolSchemas:       toolRuntime.schemas,
 			Ledger:            toolLedger,
 			ResultTokenBudget: toolResultTokenBudget,
@@ -1415,6 +1418,7 @@ func (s *Service) sendMessageInternal(
 		toolSpan.End()
 		toolCallRows = append(toolCallRows, toolResult.Rows...)
 		mergeToolCallPersistenceKeys(&persistedToolCallKeys, toolResult.PersistedToolCallKeys)
+		totalMCPToolUsage = mergeMCPToolUsage(totalMCPToolUsage, toolResult.MCPToolUsage)
 		remainingToolCalls -= len(toolResult.Rows)
 		if toolResult.FatalErr != nil {
 			retErr = wrapUpstreamRequestError(toolResult.FatalErr)
@@ -1711,6 +1715,7 @@ func (s *Service) sendMessageInternal(
 		CacheWrite5mTokens:    totalUsage.CacheWrite5mTokens,
 		CacheWrite1hTokens:    totalUsage.CacheWrite1hTokens,
 		ServerSideToolUsage:   totalServerSideToolUsage,
+		MCPToolUsage:          totalMCPToolUsage,
 		LatencyMS:             time.Since(startedAt).Milliseconds(),
 		StartedAt:             startedAt,
 		postBillingCompaction: postBillingCompaction,

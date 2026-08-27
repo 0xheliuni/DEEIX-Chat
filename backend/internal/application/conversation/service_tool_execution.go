@@ -11,7 +11,6 @@ import (
 
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/mcp"
 )
 
 type executeAssistantToolCallsInput struct {
@@ -24,7 +23,7 @@ type executeAssistantToolCallsInput struct {
 	ToolCallLimit     int
 	TraceRecorder     *messageTraceRecorder
 	ToolNameMap       map[string]string
-	MCPConfigs        map[string]mcp.CallConfig
+	MCPBindings       map[string]mcpToolCallBinding
 	ToolSchemas       map[string]json.RawMessage
 	Ledger            *toolExecutionLedger
 	ResultTokenBudget int64
@@ -36,7 +35,9 @@ type executeAssistantToolCallsResult struct {
 	ToolResults           []llm.ToolResult
 	ExecutedToolCalls     []llm.ToolCall
 	PersistedToolCallKeys map[string]struct{}
-	FatalErr              error
+	// MCPToolUsage 聚合本批真正到达上游的成功 MCP 调用，供计费台账消费。
+	MCPToolUsage []MCPToolUsageItem
+	FatalErr     error
 }
 
 type toolExecutionRecord struct {
@@ -73,6 +74,7 @@ func (s *Service) executeAssistantToolCalls(ctx context.Context, input executeAs
 	}
 
 	slots := make([]toolExecutionSlot, len(toolCalls))
+	var mcpToolUsage []MCPToolUsageItem
 	var fatalErr error
 	for i, item := range toolCalls {
 		modelToolName := strings.TrimSpace(item.ToolName)
@@ -92,8 +94,8 @@ func (s *Service) executeAssistantToolCalls(ctx context.Context, input executeAs
 			ErrorJSON:      "",
 		}
 
-		mcpConfig := resolveMCPConfig(modelToolName, input.MCPConfigs)
-		if mcpConfig == nil {
+		binding := resolveMCPBinding(modelToolName, input.MCPBindings)
+		if binding == nil {
 			row.Status = "error"
 			row.ErrorJSON = toolNotEnabledForRunMessage(modelToolName)
 			slots[i] = toolExecutionSlot{
@@ -108,6 +110,9 @@ func (s *Service) executeAssistantToolCalls(ctx context.Context, input executeAs
 			}
 			continue
 		}
+		// 服务器归属快照跟随每一行落库，错误行也保留归属，便于按服务器排查与统计。
+		row.MCPServerID = binding.ServerID
+		row.MCPServerName = binding.ServerName
 
 		normalizedInput, validationErr := normalizeToolArguments(row.InputJSON, input.ToolSchemas[modelToolName])
 		if validationErr != nil {
@@ -145,7 +150,7 @@ func (s *Service) executeAssistantToolCalls(ctx context.Context, input executeAs
 			RequestID:      strings.TrimSpace(input.RequestID),
 			ToolName:       row.ToolName,
 			ArgumentsJSON:  row.InputJSON,
-			MCPConfig:      mcpConfig,
+			MCPConfig:      &binding.Config,
 		})
 		row.LatencyMS = time.Since(toolStartedAt).Milliseconds()
 		if row.LatencyMS < 0 {
@@ -160,6 +165,14 @@ func (s *Service) executeAssistantToolCalls(ctx context.Context, input executeAs
 			if row.OutputJSON == "" {
 				row.OutputJSON = "{}"
 			}
+			// 计费单位是一次逻辑调用：内部重试不重复计量，失败调用不计费。
+			mcpToolUsage = mergeMCPToolUsage(mcpToolUsage, []MCPToolUsageItem{{
+				ServerID:     binding.ServerID,
+				ServerName:   binding.ServerName,
+				ToolName:     binding.ToolName,
+				CallCount:    1,
+				PriceNanousd: binding.PriceNanousd,
+			}})
 		}
 		persisted := false
 		if !input.Ephemeral {
@@ -197,6 +210,7 @@ func (s *Service) executeAssistantToolCalls(ctx context.Context, input executeAs
 		ToolResults:           toolResults,
 		ExecutedToolCalls:     executedToolCalls,
 		PersistedToolCallKeys: persistedToolCallKeys,
+		MCPToolUsage:          mcpToolUsage,
 		FatalErr:              fatalErr,
 	}
 }
@@ -634,14 +648,14 @@ func resolveExecutionToolName(toolName string, toolNameMap map[string]string) st
 	return value
 }
 
-func resolveMCPConfig(toolName string, configs map[string]mcp.CallConfig) *mcp.CallConfig {
+func resolveMCPBinding(toolName string, bindings map[string]mcpToolCallBinding) *mcpToolCallBinding {
 	value := strings.TrimSpace(toolName)
-	if value == "" || len(configs) == 0 {
+	if value == "" || len(bindings) == 0 {
 		return nil
 	}
-	cfg, ok := configs[value]
+	binding, ok := bindings[value]
 	if !ok {
 		return nil
 	}
-	return &cfg
+	return &binding
 }

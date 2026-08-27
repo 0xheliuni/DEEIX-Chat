@@ -465,6 +465,8 @@
     "mcpToolLimitTitle": "工具数量已达上限",
     "mcpToolLimitDescription": "单次消息最多选择 {limit} 个 MCP 工具，请减少选择后再继续。",
     "mcpImageProcessor": "图片附件处理器",
+    "mcpPaidTool": "按次数计费，{price} / 次。",
+    "mcpPaidToolNote": "仅对成功执行的工具调用进行计费，失败不计费。",
     "mcpImageProcessorLimitTitle": "只能选择一个图片处理器",
     "mcpImageProcessorLimitDescription": "一条消息只能由一个 MCP 图片附件处理器接管图片，请先取消当前选择。",
     "skillLimitTitle": "Skills 数量已达上限",

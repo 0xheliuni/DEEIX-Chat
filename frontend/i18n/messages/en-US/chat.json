@@ -465,6 +465,8 @@
     "mcpToolLimitTitle": "Tool limit reached",
     "mcpToolLimitDescription": "A message can use up to {limit} MCP tools. Clear some tools before selecting more.",
     "mcpImageProcessor": "Image attachment processor",
+    "mcpPaidTool": "Billed per call at {price}.",
+    "mcpPaidToolNote": "Only successfully executed tool calls are billed; failed calls are not billed.",
     "mcpImageProcessorLimitTitle": "Only one image processor can be selected",
     "mcpImageProcessorLimitDescription": "One MCP image attachment processor can handle images for a message. Clear the current one first.",
     "skillLimitTitle": "Skill limit reached",

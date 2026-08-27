@@ -4288,6 +4288,8 @@ func toConversationToolCallModel(item *domainconversation.ToolCall) models.ChatR
 		EventType:      item.ToolType,
 		ToolCallID:     item.ToolCallID,
 		ToolName:       item.ToolName,
+		MCPServerID:    item.MCPServerID,
+		MCPServerName:  item.MCPServerName,
 		Status:         item.Status,
 		LatencyMS:      item.LatencyMS,
 		InputJSON:      item.InputJSON,

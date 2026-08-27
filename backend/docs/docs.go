@@ -25137,6 +25137,7 @@ const docTemplate = `{
                 "id",
                 "inputSchemaJSON",
                 "name",
+                "priceNanousd",
                 "serverID",
                 "serverName",
                 "sortOrder",
@@ -25182,6 +25183,9 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "priceNanousd": {
+                    "type": "integer"
                 },
                 "serverID": {
                     "type": "integer"
@@ -25656,6 +25660,11 @@ const docTemplate = `{
                 },
                 "displayName": {
                     "type": "string"
+                },
+                "priceNanousd": {
+                    "description": "PriceNanousd 单次调用价格（nano USD），0 表示不单独计费。",
+                    "type": "integer",
+                    "minimum": 0
                 },
                 "status": {
                     "type": "string"
