@@ -635,7 +635,7 @@ export function BillingRedemptionSection({ plans, billingMode, loading }: Billin
         code: redemptionForm.code.trim() || undefined,
         quantity,
         mode: redemptionForm.mode,
-        maxRedemptions,
+        maxRedemptions: maxRedemptions ?? undefined,
         perUserLimit,
         expiresAt,
         description: redemptionForm.description.trim() || undefined,

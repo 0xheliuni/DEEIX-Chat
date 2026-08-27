@@ -533,7 +533,7 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
     availableFilesRequestControllerRef.current = requestController;
     setAvailableFilesLoading(true);
     setAvailableFilesLoadingMore(false);
-    const timer = window.setTimeout(() => void (async () => {
+    const timer = window.setTimeout((): void => void (async () => {
       try {
         const token = await requireAccessToken();
         const result = mode === "admin"

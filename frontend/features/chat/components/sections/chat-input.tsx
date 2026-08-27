@@ -52,7 +52,7 @@ import {
   type SpeechInputErrorCode,
   useChatSpeechInput,
 } from "@/features/chat/hooks/use-chat-speech-input";
-import { useMarkdownPreviewSync } from "@/features/chat/hooks/use-markdown-preview-sync";
+import { useChatPreviewSync } from "@/features/chat/hooks/use-chat-preview-sync";
 import type { ChatSubmitDecision } from "@/features/chat/model/chat-task";
 import { isMediaSubmitTask, resolveChatSubmitDecision } from "@/features/chat/model/chat-task";
 import type {
@@ -64,7 +64,7 @@ import {
   formatClipboardMarkdownPaste,
   resolveClipboardMarkdownPaste,
 } from "@/features/chat/utils/markdown-paste";
-import type { SendShortcut } from "@/features/settings/types/settings";
+import type { SendShortcut } from "@/features/settings";
 import { cn } from "@/lib/utils";
 import type { ConversationOptions } from "@/shared/api/conversation.types";
 import type { FileObjectDTO } from "@/shared/api/file.types";
@@ -360,7 +360,7 @@ function ChatInputComponent({
   const showMarkdownPreview = markdownPreview && hasDraftText;
   const inputHeightClassName =
     inputHeight === "compact" ? "max-h-32" : inputHeight === "loose" ? "max-h-64" : "max-h-44";
-  const { onPreviewScroll, onSourceScroll } = useMarkdownPreviewSync({
+  const { onPreviewScroll, onSourceScroll } = useChatPreviewSync({
     enabled: showMarkdownPreview,
     previewRef: markdownPreviewRef,
     source: draft,

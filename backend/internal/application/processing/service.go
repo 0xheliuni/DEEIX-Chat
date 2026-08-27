@@ -12,6 +12,7 @@ import (
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -25,6 +26,11 @@ const (
 	fixedEmbeddingTimeout    = 5 * time.Minute
 	failurePersistTimeout    = 5 * time.Second
 	fileProcessingLeaseRenew = 15 * time.Second
+	// fallbackProcessingConcurrency 限制无队列缓存降级模式下的并发处理 goroutine 数。
+	fallbackProcessingConcurrency = 4
+	// fallbackProcessingTimeout 是降级模式单个任务的硬超时。
+	// 必须覆盖「提取（含 PDF OCR 回退）+ 向量化 5min」的上限，避免外层超时先于内层流水线触发。
+	fallbackProcessingTimeout = 30 * time.Minute
 )
 
 var (
@@ -77,6 +83,8 @@ type Service struct {
 	embeddingSvc     *appembedding.Service
 	logger           *zap.Logger
 	extractorVersion string
+	// fallbackSlots 是无队列缓存降级模式下的并发信号量，防止处理 goroutine 无界增长。
+	fallbackSlots chan struct{}
 }
 
 // NewService 创建文件处理服务。
@@ -113,6 +121,7 @@ func NewServiceWithRuntime(
 		embeddingSvc:     embeddingSvc,
 		logger:           logger,
 		extractorVersion: strings.TrimSpace(extractorVersion),
+		fallbackSlots:    make(chan struct{}, fallbackProcessingConcurrency),
 	}
 }
 
@@ -162,7 +171,21 @@ func (s *Service) InitializeUploadedFile(ctx context.Context, fileObj *domaincon
 	}); err != nil {
 		return err
 	}
-	return s.enqueueFileProcessing(ctx, fileObj.UserID, fileObj.FileID, 0, "")
+	if err := s.enqueueFileProcessing(ctx, fileObj.UserID, fileObj.FileID, 0, ""); err != nil {
+		code := "queue_unavailable"
+		if errors.Is(err, repository.ErrFileProcessingQueueFull) {
+			code = "queue_full"
+		}
+		if failErr := s.markFileProcessingFailed(ctx, fileObj, code, err.Error()); failErr != nil && s.logger != nil {
+			s.logger.Warn("mark_file_failed_after_enqueue_error",
+				zap.Uint("user_id", fileObj.UserID),
+				zap.String("file_id", fileObj.FileID),
+				zap.Error(failErr),
+			)
+		}
+		return err
+	}
+	return nil
 }
 
 // ProcessFile 执行单个文件处理任务。
@@ -761,17 +784,52 @@ func (s *Service) forceFinalizeFailed(userID uint, fileID string, attemptID stri
 	}
 
 	code, message := resolveProcessingFailure(fileObj, processingErr)
-	return s.markClaimedFileProcessingFailed(ctx, fileObj, attemptID, code, message)
+	err = s.markClaimedFileProcessingFailed(ctx, fileObj, attemptID, code, message)
+	if errors.Is(err, errFileProcessingClaimLost) {
+		return s.markFileProcessingFailed(ctx, fileObj, code, message)
+	}
+	return err
 }
 
+// enqueueFileProcessing 将文件处理任务放入队列；无队列缓存时退化为进程内受限并发的异步处理。
 func (s *Service) enqueueFileProcessing(ctx context.Context, userID uint, fileID string, retry int, lastError string) error {
 	if s.cache == nil {
-		go func() {
-			_ = s.ProcessFile(context.Background(), userID, fileID)
-		}()
-		return nil
+		return s.processInFallbackMode(userID, fileID)
 	}
 	return s.cache.EnqueueFileProcessing(ctx, userID, fileID, retry, lastError)
+}
+
+// processInFallbackMode 在无队列缓存的降级模式下异步处理文件：
+// 并发由 fallbackSlots 信号量限制，超出容量返回 ErrFileProcessingQueueFull，
+// 由 InitializeUploadedFile 将文件标为 failed，避免永远停在 queued。
+// 单个任务由硬超时兜底退出；超时后按同一 attemptID 落失败态。
+func (s *Service) processInFallbackMode(userID uint, fileID string) error {
+	select {
+	case s.fallbackSlots <- struct{}{}:
+	default:
+		return repository.ErrFileProcessingQueueFull
+	}
+	background.Go(s.logger, "fallback_file_processing", func() {
+		defer func() { <-s.fallbackSlots }()
+		attemptID := uuid.NewString()
+		taskCtx, cancel := context.WithTimeout(context.Background(), fallbackProcessingTimeout)
+		defer cancel()
+		claimed, err := s.processFile(taskCtx, userID, fileID, false, attemptID)
+		if err == nil {
+			return
+		}
+		if claimed || taskCtx.Err() != nil {
+			_ = s.forceFinalizeFailed(userID, fileID, attemptID, err)
+		}
+		if s.logger != nil {
+			s.logger.Warn("fallback_file_processing_failed",
+				zap.Uint("user_id", userID),
+				zap.String("file_id", fileID),
+				zap.Error(err),
+			)
+		}
+	})
+	return nil
 }
 
 func (s *Service) markFileProcessingFailed(ctx context.Context, fileObj *domainconversation.FileObject, code string, message string) error {
@@ -956,6 +1014,9 @@ func classifyProcessingErrorCode(err error) string {
 	if err == nil {
 		return ""
 	}
+	if errors.Is(err, repository.ErrFileProcessingQueueFull) {
+		return "queue_full"
+	}
 	msg := strings.ToLower(strings.TrimSpace(err.Error()))
 	switch {
 	case strings.Contains(msg, "tesseract_ocr_disabled"):
@@ -1070,6 +1131,10 @@ func HumanizeFileProcessingError(fileCategory string, code string, message strin
 	lower := strings.ToLower(raw)
 
 	switch normalizedCode {
+	case "queue_full":
+		return "文件处理队列繁忙，请稍后重试。"
+	case "queue_unavailable":
+		return "文件处理队列暂时不可用，请稍后重试。"
 	case "extract_timeout":
 		return "文件提取超时，请稍后重试，或缩小文件后重试。"
 	case "tesseract_ocr_disabled":

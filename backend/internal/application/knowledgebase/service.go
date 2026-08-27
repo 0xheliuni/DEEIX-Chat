@@ -720,8 +720,8 @@ func normalizePage(page int, pageSize int) (int, int) {
 	if pageSize <= 0 {
 		pageSize = 20
 	}
-	if pageSize > 100 {
-		pageSize = 100
+	if pageSize > 1000 {
+		pageSize = 1000
 	}
 	return (page - 1) * pageSize, pageSize
 }

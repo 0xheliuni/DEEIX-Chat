@@ -2447,7 +2447,7 @@ func (r *Repo) GetActiveFileObjectByID(ctx context.Context, userID uint, fileID 
 		Where("user_id = ? AND status = ? AND file_id = ?", userID, "active", fileID).
 		First(&item).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrFileNotFound
+			return nil, repository.ErrFileNotFound
 		}
 		return nil, translateError(err)
 	}
@@ -2462,7 +2462,7 @@ func (r *Repo) RenameFileObjectByID(ctx context.Context, userID uint, fileID str
 		Where("user_id = ? AND status = ? AND file_id = ?", userID, "active", fileID).
 		First(&item).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrFileNotFound
+			return nil, repository.ErrFileNotFound
 		}
 		return nil, translateError(err)
 	}
@@ -2482,7 +2482,7 @@ func (r *Repo) UpdateFileObjectRagOptOut(ctx context.Context, userID uint, fileI
 		Where("user_id = ? AND status = ? AND file_id = ?", userID, "active", fileID).
 		First(&item).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrFileNotFound
+			return nil, repository.ErrFileNotFound
 		}
 		return nil, translateError(err)
 	}
@@ -2700,7 +2700,7 @@ func (r *Repo) CreateFileObjectAndConsumeQuota(
 
 		nextUsed := quota.UsedBytes + entity.SizeBytes
 		if quota.QuotaBytes > 0 && nextUsed+quota.ReservedBytes > quota.QuotaBytes {
-			return ErrStorageQuotaExceeded
+			return repository.ErrStorageQuotaExceeded
 		}
 
 		if err = tx.Create(&entity).Error; err != nil {
@@ -2710,7 +2710,7 @@ func (r *Repo) CreateFileObjectAndConsumeQuota(
 
 		if err = tx.Model(&models.UserStorageQuota{}).
 			Where("id = ?", quota.ID).
-			Update("used_bytes", nextUsed).Error; err != nil {
+			Update("used_bytes", gorm.Expr("used_bytes + ?", entity.SizeBytes)).Error; err != nil {
 			return translateError(err)
 		}
 
@@ -2744,7 +2744,7 @@ func (r *Repo) DeleteFileObjectAndReleaseQuota(
 			Where("user_id = ? AND file_id = ? AND status = ?", userID, fileID, "active").
 			First(&deletedFile).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return ErrFileNotFound
+				return repository.ErrFileNotFound
 			}
 			return translateError(err)
 		}
@@ -2786,15 +2786,15 @@ func (r *Repo) DeleteFileObjectAndReleaseQuota(
 			return translateError(err)
 		}
 
-		nextUsed := quota.UsedBytes
 		if remainingUserRefs == 0 {
-			nextUsed = quota.UsedBytes - deletedFile.SizeBytes
-			if nextUsed < 0 {
-				nextUsed = 0
-			}
+			// 扣减使用表达式更新并以 0 为下限（CASE WHEN 兼容 Postgres 与 SQLite），
+			// 避免内存值写回覆盖并发变更。
 			if err = tx.Model(&models.UserStorageQuota{}).
 				Where("id = ?", quota.ID).
-				Update("used_bytes", nextUsed).Error; err != nil {
+				Update("used_bytes", gorm.Expr(
+					"CASE WHEN used_bytes >= ? THEN used_bytes - ? ELSE 0 END",
+					deletedFile.SizeBytes, deletedFile.SizeBytes,
+				)).Error; err != nil {
 				return translateError(err)
 			}
 		}

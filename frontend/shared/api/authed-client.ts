@@ -1,22 +1,23 @@
-import { clearSessionSnapshot, readAccessToken, readSessionRevision, writeSessionSnapshot } from "@/shared/auth/session";
+import type { LoginData } from "@/shared/api/auth.types";
 import {
-  apiRequest,
   ApiError,
   ApiNetworkError,
+  type ApiRequestOptions,
+  apiRequest,
   resolveAbortError,
   resolveApiBaseURL,
-  type ApiRequestOptions,
+  toApiError,
 } from "@/shared/api/http-client";
-import type { ApiEnvelope } from "@/shared/api/common.types";
-import type { LoginData } from "@/shared/api/auth.types";
+import { clearSessionSnapshot, readAccessToken, readSessionRevision, writeSessionSnapshot } from "@/shared/auth/session";
 
 type AuthedRequestOptions = Omit<ApiRequestOptions, "accessToken"> & {
   accessToken: string;
 };
 
-type AuthedFetchOptions = Omit<RequestInit, "headers"> & {
+type AuthedFetchOptions = Omit<RequestInit, "headers" | "signal"> & {
   accessToken: string;
   headers?: HeadersInit;
+  signal?: AbortSignal;
 };
 
 type NavigatorWithLocks = Navigator & {
@@ -155,32 +156,6 @@ function buildAuthedFetchInit(options: AuthedFetchOptions): RequestInit {
     headers,
     credentials: "include",
   };
-}
-
-async function toApiError(response: Response): Promise<ApiError> {
-  const contentType = response.headers.get("content-type") || "";
-  const requestId = response.headers.get("x-request-id") || undefined;
-  if (contentType.includes("application/json")) {
-    try {
-      const payload = (await response.json()) as Partial<ApiEnvelope<unknown>>;
-      return new ApiError(
-        payload?.errorMsg || `request failed: ${response.status}`,
-        response.status,
-        payload?.details,
-        payload?.errorCode,
-        payload?.requestId || requestId,
-      );
-    } catch {
-      return new ApiError(`request failed: ${response.status}`, response.status, undefined, undefined, requestId);
-    }
-  }
-
-  try {
-    const text = (await response.text()).trim();
-    return new ApiError(text || `request failed: ${response.status}`, response.status, undefined, undefined, requestId);
-  } catch {
-    return new ApiError(`request failed: ${response.status}`, response.status, undefined, undefined, requestId);
-  }
 }
 
 export async function authedFetch(

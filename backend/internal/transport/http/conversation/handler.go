@@ -69,7 +69,7 @@ func (h *Handler) recordAudit(c *gin.Context, action string, resource string, re
 
 const (
 	defaultHTTPPageSize = 20
-	maxHTTPPageSize     = 100
+	maxHTTPPageSize     = 1000
 	maxMessagePageSize  = 1000
 )
 

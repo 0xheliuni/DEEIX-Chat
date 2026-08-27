@@ -46,7 +46,7 @@ import { MediaActionBar, MediaActionButton } from "@/shared/components/media-act
 import { useBranding } from "@/shared/config/branding-provider";
 import type { BillingDisplayCurrency } from "@/shared/lib/billing-display";
 
-const EMPTY_TRACE_EVENTS: NonNullable<ChatAreaMessage["processTrace"]>["events"] = [];
+const EMPTY_TRACE_EVENTS: NonNullable<NonNullable<ChatAreaMessage["processTrace"]>["events"]> = [];
 const GrainientBackground = dynamic(
   () => import("@/components/reactbits/backgrounds/grainient").then((mod) => mod.GrainientBackground),
   { ssr: false, loading: () => null },

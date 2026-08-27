@@ -135,7 +135,7 @@ export function AdminPlatformFilesDialog({
     setLoading(true);
     setLoadingMore(false);
     const timer = window.setTimeout(
-      () => void loadFirstPage(requestVersion, query, requestController),
+      (): void => void loadFirstPage(requestVersion, query, requestController),
       SEARCH_DEBOUNCE_MS,
     );
     return () => {

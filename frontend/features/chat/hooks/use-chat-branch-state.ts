@@ -1,20 +1,18 @@
 "use client";
 
-import * as React from "react";
 import { useTranslations } from "next-intl";
-
-import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
-import type { PendingExchange, PendingExchangeMap } from "@/features/chat/types/chat-runtime";
+import * as React from "react";
 import {
   buildVisibleMessages,
   chatMessageKey,
   mapServerMessage,
   reconcileBranchSelections,
 } from "@/features/chat/model/chat-thread";
-import type { MessageDTO } from "@/shared/api/conversation.types";
-import type { UpstreamDebugInfo } from "@/shared/api/conversation.types";
-import { ApiError } from "@/shared/api/http-client";
+import type { PendingExchange, PendingExchangeMap } from "@/features/chat/types/chat-runtime";
+import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
+import type { MessageDTO, UpstreamDebugInfo } from "@/shared/api/conversation.types";
+import { ApiError } from "@/shared/api/http-client";
 
 function appendPendingExchangeMessages({
   conversationID,

@@ -35,6 +35,12 @@ type rateLimitState struct {
 	countExpires time.Time
 }
 
+// apiKeyCounter 记录 API Key 轮询计数与最近使用时间，供周期清扫回收闲置条目。
+type apiKeyCounter struct {
+	next     int64
+	lastUsed time.Time
+}
+
 type routeRateLimitKey struct {
 	upstreamID uint
 	routeID    uint
@@ -268,9 +274,11 @@ func (c *Cache) ClearRateLimitBackoff(ctx context.Context, upstreamID uint, rout
 func (c *Cache) IncrAPIKeyCounter(ctx context.Context, upstreamID uint) (int64, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	next := c.keyCounters[upstreamID]
-	c.keyCounters[upstreamID] = next + 1
-	c.maybeSweepLocked(time.Now())
+	now := time.Now()
+	counter := c.keyCounters[upstreamID]
+	next := counter.next
+	c.keyCounters[upstreamID] = apiKeyCounter{next: next + 1, lastUsed: now}
+	c.maybeSweepLocked(now)
 	return next, true
 }
 

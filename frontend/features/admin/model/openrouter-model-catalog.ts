@@ -98,7 +98,10 @@ export function resolveAutomaticModelContextWindow(
   vendor: string,
 ): number | null {
   const contextLength = matchOpenRouterModelCatalogItem(items, platformModelName, vendor)?.contextLength;
-  return Number.isSafeInteger(contextLength) && contextLength >= 4_096 && contextLength <= 16_000_000
+  return typeof contextLength === "number" &&
+    Number.isSafeInteger(contextLength) &&
+    contextLength >= 4_096 &&
+    contextLength <= 16_000_000
     ? contextLength
     : null;
 }

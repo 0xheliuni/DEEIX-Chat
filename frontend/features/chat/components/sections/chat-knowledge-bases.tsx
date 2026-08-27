@@ -116,7 +116,7 @@ export function ChatKnowledgeBases({
   React.useEffect(() => {
     if (!open) return;
     setLoading(true);
-    const timer = window.setTimeout(() => void loadCatalog(query.trim(), 1), 200);
+    const timer = window.setTimeout((): void => void loadCatalog(query.trim(), 1), 200);
     return () => {
       window.clearTimeout(timer);
       requestControllerRef.current?.abort();

@@ -2,8 +2,11 @@ package memory
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
+
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
 func TestFileProcessingLeaseTransfersOnlyAfterTimeout(t *testing.T) {
@@ -42,5 +45,32 @@ func TestFileProcessingLeaseTransfersOnlyAfterTimeout(t *testing.T) {
 	}
 	if settled, err := cache.SettleFileProcessingMessage(ctx, "worker_b", message.ID); err != nil || !settled {
 		t.Fatalf("new owner failed to settle message: settled=%v err=%v", settled, err)
+	}
+}
+
+func TestEnqueueFileProcessingRejectsWhenQueueFull(t *testing.T) {
+	cache := New()
+	ctx := context.Background()
+
+	// 先制造一条 inflight 消息，用于后续验证重入队路径不受上限约束。
+	if err := cache.EnqueueFileProcessing(ctx, 1, "file_inflight", 0, ""); err != nil {
+		t.Fatalf("enqueue inflight file: %v", err)
+	}
+	messages, err := cache.ReadFileProcessingMessages(ctx, "worker_a")
+	if err != nil || len(messages) != 1 {
+		t.Fatalf("read inflight message: messages=%#v err=%v", messages, err)
+	}
+
+	cache.mu.Lock()
+	cache.fileQueue = make([]repository.FileProcessingMessage, maxFileQueueLength)
+	cache.mu.Unlock()
+
+	if err := cache.EnqueueFileProcessing(ctx, 2, "file_overflow", 0, ""); !errors.Is(err, repository.ErrFileProcessingQueueFull) {
+		t.Fatalf("expected ErrFileProcessingQueueFull, got %v", err)
+	}
+
+	requeued, err := cache.RequeueFileProcessingMessage(ctx, "worker_a", messages[0], 1, "retry")
+	if err != nil || !requeued {
+		t.Fatalf("requeue must bypass queue length limit: requeued=%v err=%v", requeued, err)
 	}
 }

@@ -40,7 +40,7 @@ import { SidebarConversationItem } from "@/features/layouts/components/navigatio
 import { SidebarConversationSkeleton } from "@/features/layouts/components/navigation/sidebar-conversation-skeleton";
 import { useLayoutActiveConversation } from "@/features/layouts/hooks/use-layout-active-conversation";
 import { useLayoutSidebarListFlip } from "@/features/layouts/hooks/use-layout-sidebar-list-flip";
-import { useSidebarConversationNavigation } from "@/features/layouts/hooks/use-sidebar-conversation-navigation";
+import { useLayoutSidebarNavigation } from "@/features/layouts/hooks/use-layout-sidebar-navigation";
 import { filterConversationSearchResults } from "@/features/layouts/model/navigation-search";
 import { SIDEBAR_OVERFLOW_ROW_TRANSITION } from "@/features/layouts/model/sidebar-motion";
 import type {
@@ -63,7 +63,7 @@ export function NavStarred() {
   const isMobile = useSidebarIsMobile();
   const { setOpenMobile } = useSidebarActions();
   const router = useRouter();
-  const onNavigate = useSidebarConversationNavigation();
+  const onNavigate = useLayoutSidebarNavigation();
   const activeConversationID = useLayoutActiveConversation();
   const { deleteFilesByDefault } = useSettingsChatPreferences();
 

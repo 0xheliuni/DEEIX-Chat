@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
-import { useConversationSearchPreview } from "@/features/layouts/hooks/use-conversation-search-preview";
+import { useLayoutSearchPreview } from "@/features/layouts/hooks/use-layout-search-preview";
 import {
   NAVIGATION_SEARCH_PAGE_SIZE,
   toConversationSearchResult,
@@ -58,7 +58,7 @@ export function useLayoutNavigationSearch({
   const defaultSearchCacheRef = React.useRef<DefaultSearchCache | null>(null);
   const initialResultsRef = React.useRef(initialResults);
   initialResultsRef.current = initialResults;
-  const conversationPreview = useConversationSearchPreview(open);
+  const conversationPreview = useLayoutSearchPreview(open);
 
   React.useEffect(() => {
     if (!open) {

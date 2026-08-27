@@ -762,8 +762,18 @@ func listInput(c *gin.Context) appknowledgebase.ListInput {
 }
 
 func pageParams(c *gin.Context) (int, int) {
+	const maxPageSize = 1000
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > maxPageSize {
+		pageSize = maxPageSize
+	}
 	return page, pageSize
 }
 

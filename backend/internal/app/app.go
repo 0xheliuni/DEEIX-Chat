@@ -37,12 +37,15 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	moderationclient "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/contentmoderation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/embedding"
+	extractengines "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extract/engines"
+	extractprobe "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extract/probe"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/geoip"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/identityprovider"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/mediaartifact"
 	openrouterpricing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/modelpricing/openrouter"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/objectstore"
 	platformlogger "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/logger"
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/openwebui"
@@ -184,7 +187,7 @@ func NewApp() (*App, error) {
 	settingsRepo := settingsrepo.NewRepo(db)
 	settingsService := settings.NewService(settingsRepo, cfg.DataEncryptionKey)
 	settingsService.SetAuditWriter(auditService)
-	runtimeService := appruntime.NewService(runtimeCfg)
+	runtimeService := appruntime.NewService(runtimeCfg, extractprobe.Prober{})
 	runtimeService.SetDockerRunner(platformruntime.NewDockerRunner())
 	settingsCache := buildSettingsCache(cfg, redisClient, memoryCache)
 	runtimeSettings := settings.NewRuntimeSettings(settingsRepo, settingsCache, cfg.DataEncryptionKey)
@@ -221,13 +224,48 @@ func NewApp() (*App, error) {
 	paymentCheckoutService := billing.NewPaymentCheckoutService(stripepayment.New(cfg.StrictOutboundPolicy()), epaypayment.New())
 	billingHandler := billinghttp.NewHandler(billingService, settingsService, runtimeCfg, officialPricingService, paymentCheckoutService, log)
 	billingModule := billinghttp.NewModule(billingHandler)
-	objectStoreProvider := appstorage.NewRuntimeProvider(runtimeCfg, nil)
+	// 组合根绑定对象存储默认工厂；application 侧未显式注入工厂的 provider 均使用该实现。
+	appstorage.RegisterDefaultFactory(objectstore.New)
+	objectStoreProvider := appstorage.NewRuntimeProvider(runtimeCfg, objectstore.New)
+	// 组合根注册抽取引擎工厂；具体客户端构造为 nil 时必须返回 nil 接口，避免 typed-nil 绕过判空。
+	extraction.RegisterEngineFactories(extraction.EngineFactories{
+		NewTika: func(cfg config.Config) extraction.DocumentExtractor {
+			if client := extractengines.NewTika(cfg); client != nil {
+				return client
+			}
+			return nil
+		},
+		NewDocling: func(cfg config.Config) extraction.DocumentExtractor {
+			if client := extractengines.NewDocling(cfg); client != nil {
+				return client
+			}
+			return nil
+		},
+		NewMinerU: func(cfg config.Config) extraction.DocumentExtractor {
+			if client := extractengines.NewMinerU(cfg); client != nil {
+				return client
+			}
+			return nil
+		},
+		NewOCR: func(provider string, cfg config.Config) extraction.OCRExtractor {
+			if client := extractengines.NewOCR(provider, cfg); client != nil {
+				return client
+			}
+			return nil
+		},
+		Builtin: extractengines.Builtin{},
+	})
 	geoResolver := geoip.New(runtimeCfg.Snapshot())
+	// GeoIP 关闭时 geoip.New 返回 nil 指针，必须转成 nil 接口再注入，避免 typed-nil 绕过判空。
+	var authGeoResolver auth.GeoResolver
+	if geoResolver != nil {
+		authGeoResolver = geoResolver
+	}
 	identityProviderClient := identityprovider.New(cfg.StrictOutboundPolicy())
 	authService := auth.NewServiceWithRuntime(
 		runtimeCfg,
 		userRepo,
-		geoResolver,
+		authGeoResolver,
 		identityProviderClient,
 	)
 	authService.SetLogger(log)

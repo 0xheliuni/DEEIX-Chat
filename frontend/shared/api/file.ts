@@ -10,9 +10,9 @@ import type {
 } from "@/shared/api/file.types";
 import {
   ApiNetworkError,
+  apiFetch,
   pathParam,
   resolveAbortError,
-  resolveApiBaseURL,
 } from "@/shared/api/http-client";
 
 type UploadFileOptions = {
@@ -220,22 +220,10 @@ export async function fetchSharedFileContent(
   fileID: string,
   signal?: AbortSignal,
 ): Promise<FileContentResult> {
-  const response = await fetch(
-    `${resolveApiBaseURL()}/api/v1/shared-conversations/${pathParam(shareID)}/files/${pathParam(fileID)}/content`,
-    {
-      method: "GET",
-      cache: "no-store",
-      credentials: "include",
-      signal,
-    },
+  const response = await apiFetch(
+    `/api/v1/shared-conversations/${pathParam(shareID)}/files/${pathParam(fileID)}/content`,
+    { signal },
   );
-
-  if (!response.ok) {
-    const message = response.headers.get("content-type")?.includes("application/json")
-      ? ((await response.json()) as { errorMsg?: string }).errorMsg
-      : await response.text();
-    throw new Error(message?.trim() || "Failed to load file");
-  }
 
   return readFileContentResponse(response);
 }
