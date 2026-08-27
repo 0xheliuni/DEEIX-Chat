@@ -231,9 +231,11 @@ type SendMessageResult struct {
 	CacheWrite5mTokens  int64
 	CacheWrite1hTokens  int64
 	ServerSideToolUsage map[string]int64
-	LatencyMS           int64
-	DurationSeconds     int64
-	StartedAt           time.Time
+	// MCPToolUsage 聚合本次运行成功的 MCP 调用计量，供计费台账消费。
+	MCPToolUsage    []MCPToolUsageItem
+	LatencyMS       int64
+	DurationSeconds int64
+	StartedAt       time.Time
 	// Moderation is set when a soft-moderation barrier ran; Blocked means withdrawn.
 	Moderation            *MessageModerationOutcome
 	postBillingCompaction *postBillingCompactionTask

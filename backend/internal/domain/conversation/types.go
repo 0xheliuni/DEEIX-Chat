@@ -520,13 +520,17 @@ type ToolCall struct {
 	ToolCallID     string
 	ToolType       string
 	ToolName       string
-	Status         string
-	LatencyMS      int64
-	InputJSON      string
-	OutputJSON     string
-	ErrorJSON      string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	// MCPServerID / MCPServerName 记录 MCP 调用的服务器归属快照；
+	// 不同服务器可能暴露同名工具，缺少归属时用量统计无法区分。
+	MCPServerID   uint
+	MCPServerName string
+	Status        string
+	LatencyMS     int64
+	InputJSON     string
+	OutputJSON    string
+	ErrorJSON     string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 // ContextSnapshot 表示上下文压缩快照。

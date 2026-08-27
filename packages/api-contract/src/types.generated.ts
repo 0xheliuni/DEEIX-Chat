@@ -3412,6 +3412,7 @@ export interface ToolResponse {
   id: number;
   inputSchemaJSON: string;
   name: string;
+  priceNanousd: number;
   serverID: number;
   serverName: string;
   sortOrder: number;
@@ -3600,6 +3601,11 @@ export interface UpdateToolRequest {
   attachmentPromptArgument?: string;
   description?: string;
   displayName?: string;
+  /**
+   * PriceNanousd 单次调用价格（nano USD），0 表示不单独计费。
+   * @min 0
+   */
+  priceNanousd?: number;
   status?: string;
 }
 

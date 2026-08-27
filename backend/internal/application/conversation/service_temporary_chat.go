@@ -274,6 +274,7 @@ func (s *Service) StreamTemporaryChat(
 		CacheWrite5mTokens:  usage.CacheWrite5mTokens,
 		CacheWrite1hTokens:  usage.CacheWrite1hTokens,
 		ServerSideToolUsage: output.ServerSideToolUsage,
+		MCPToolUsage:        generation.MCPToolUsage,
 		LatencyMS:           time.Since(startedAt).Milliseconds(),
 		StartedAt:           startedAt,
 	}

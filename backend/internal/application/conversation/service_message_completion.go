@@ -57,8 +57,10 @@ type persistInterruptedMessageGenerationInput struct {
 	Route                  *channel.ResolvedRoute
 	EffectiveOptions       map[string]interface{}
 	ServerSideToolUsage    map[string]int64
-	StartedAt              time.Time
-	ReuseUserMessage       bool
+	// MCPToolUsage 聚合中断前成功的 MCP 调用；错误中断时也需带出已产生的上游费用。
+	MCPToolUsage     []MCPToolUsageItem
+	StartedAt        time.Time
+	ReuseUserMessage bool
 }
 
 type interruptedMessageGenerationMetrics struct {
@@ -407,7 +409,7 @@ func shouldPersistInterruptedMessageGeneration(input persistInterruptedMessageGe
 	if input.Error == nil || input.UserMessage == nil || input.AssistantMessage == nil {
 		return false
 	}
-	hasRetainedToolTrace := len(input.ToolCallRows) > 0 || len(input.ServerSideToolUsage) > 0
+	hasRetainedToolTrace := len(input.ToolCallRows) > 0 || len(input.ServerSideToolUsage) > 0 || len(input.MCPToolUsage) > 0
 	hasObservedUsage := input.Usage.InputTokens > 0 ||
 		input.Usage.OutputTokens > 0 ||
 		input.Usage.CacheReadTokens > 0 ||
@@ -563,6 +565,7 @@ func buildInterruptedSendMessageResult(input persistInterruptedMessageGeneration
 		CacheWrite5mTokens:  input.Usage.CacheWrite5mTokens,
 		CacheWrite1hTokens:  input.Usage.CacheWrite1hTokens,
 		ServerSideToolUsage: input.ServerSideToolUsage,
+		MCPToolUsage:        input.MCPToolUsage,
 		LatencyMS:           metrics.LatencyMS,
 		StartedAt:           input.StartedAt,
 	}

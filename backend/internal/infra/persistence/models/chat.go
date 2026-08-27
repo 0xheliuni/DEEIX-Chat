@@ -338,6 +338,8 @@ type ChatRunEvent struct {
 	Seq              int        `gorm:"not null;default:0;index:idx_chat_run_events_seq;comment:事件顺序"`
 	ToolCallID       string     `gorm:"size:255;not null;default:'';index:idx_chat_run_events_tool_call_id;comment:工具调用ID"`
 	ToolName         string     `gorm:"size:128;not null;default:'';index:idx_chat_run_events_tool_name;comment:工具名称"`
+	MCPServerID      uint       `gorm:"not null;default:0;comment:MCP服务器ID快照(非MCP调用为0)"`
+	MCPServerName    string     `gorm:"size:128;not null;default:'';comment:MCP服务器名称快照"`
 	LatencyMS        int64      `gorm:"not null;default:0;comment:调用时长毫秒"`
 	InputJSON        string     `gorm:"type:text;not null;default:'';comment:输入JSON"`
 	OutputJSON       string     `gorm:"type:text;not null;default:'';comment:输出JSON"`
