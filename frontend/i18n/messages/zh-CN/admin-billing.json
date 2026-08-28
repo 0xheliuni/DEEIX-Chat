@@ -84,6 +84,7 @@
     "title": "兑换码",
     "create": "创建",
     "edit": "编辑",
+    "viewRecords": "查看兑换记录",
     "enable": "启用",
     "disable": "停用",
     "copySelected": "复制",

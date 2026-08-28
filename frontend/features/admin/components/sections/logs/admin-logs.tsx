@@ -1,6 +1,7 @@
 "use client";
 
 import { Trash2 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 
@@ -50,6 +51,7 @@ import { AdminDateRangeFilter } from "@/features/admin/components/admin-date-ran
 import { AdminDateTimePicker } from "@/features/admin/components/admin-date-time-picker";
 import { LogDetailSheet } from "@/features/admin/components/sections/logs/admin-log-detail-sheet";
 import { ModerationEventTable } from "@/features/admin/components/sections/logs/admin-moderation-events";
+import { RedemptionRecordTable } from "@/features/admin/components/sections/logs/admin-redemption-records";
 import {
   UsageLogCostCell,
   UsageLogModelCell,
@@ -939,10 +941,22 @@ function LogCleanupDialog({
   );
 }
 
+const LOG_TAB_VALUES = new Set(["audit", "usage", "auth", "orders", "redemptions", "conversation"]);
+
 export function AdminLogsPage() {
   const t = useTranslations("adminLogs");
   const { user } = useAuthSession();
   const isSuperAdmin = user?.role === "superadmin";
+  const searchParams = useSearchParams();
+  // 支持从其他管理页深链跳转（如兑换码管理的“查看兑换记录”）预选 tab 与兑换码筛选。
+  const [initialTab] = React.useState(() => {
+    const tabParam = searchParams.get("tab") ?? "";
+    return LOG_TAB_VALUES.has(tabParam) ? tabParam : "audit";
+  });
+  const [initialRedemptionCodeID] = React.useState(() => {
+    const parsed = Number.parseInt(searchParams.get("code_id") ?? "", 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+  });
   const { detail, setDetail, conversationDetailLoading, openConversationDetail, closeDetail } = useAdminLogDetail();
   const [cleanupOpen, setCleanupOpen] = React.useState(false);
   const billingDisplay = useAdminBillingDisplayOptions();
@@ -980,12 +994,13 @@ export function AdminLogsPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="audit" className="space-y-3">
+      <Tabs defaultValue={initialTab} className="space-y-3">
         <TabsList variant="line">
           <TabsTrigger value="audit">{t("tabs.audit")}</TabsTrigger>
           <TabsTrigger value="usage">{t("tabs.usage")}</TabsTrigger>
           <TabsTrigger value="auth">{t("tabs.auth")}</TabsTrigger>
           <TabsTrigger value="orders">{t("tabs.orders")}</TabsTrigger>
+          <TabsTrigger value="redemptions">{t("tabs.redemptions")}</TabsTrigger>
           <TabsTrigger value="conversation">{t("tabs.conversation")}</TabsTrigger>
           {isSuperAdmin ? <TabsTrigger value="moderation">{t("tabs.moderation")}</TabsTrigger> : null}
         </TabsList>
@@ -1004,6 +1019,13 @@ export function AdminLogsPage() {
         </TabsContent>
         <TabsContent value="orders">
           <PaymentOrderTable key={cleanupRevisions.orders} onOpenDetail={(item) => setDetail({ kind: "order", item })} />
+        </TabsContent>
+        <TabsContent value="redemptions">
+          <RedemptionRecordTable
+            billingDisplay={billingDisplay}
+            initialCodeID={initialRedemptionCodeID}
+            onOpenDetail={(item) => setDetail({ kind: "redemption", item })}
+          />
         </TabsContent>
         <TabsContent value="conversation">
           <ConversationEventTable key={cleanupRevisions.conversation} onOpenDetail={(item) => void openConversationDetail(item)} />

@@ -6592,6 +6592,102 @@ definitions:
     - data
     - errorMsg
     type: object
+  RedemptionRecordListResponseDoc:
+    properties:
+      data:
+        properties:
+          results:
+            items:
+              $ref: '#/definitions/RedemptionRecordResponse'
+            type: array
+          total:
+            type: integer
+        required:
+        - results
+        - total
+        type: object
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  RedemptionRecordResponse:
+    properties:
+      balanceAfterNanousd:
+        type: integer
+        x-nullable: true
+        x-omitempty: false
+      balanceBeforeNanousd:
+        description: BalanceBeforeNanousd / BalanceAfterNanousd 来自余额流水；订阅类兑换无流水时为
+          null。
+        type: integer
+        x-nullable: true
+        x-omitempty: false
+      codeDescription:
+        type: string
+      codeHint:
+        type: string
+      codeID:
+        type: integer
+      codeStatus:
+        type: string
+      createdAt:
+        type: string
+      creditNanousd:
+        type: integer
+      creditUSD:
+        type: number
+      durationDays:
+        type: integer
+      id:
+        type: integer
+      mode:
+        type: string
+      planID:
+        type: integer
+      planName:
+        type: string
+      refNo:
+        type: string
+      rewardType:
+        type: string
+      snapshotJSON:
+        type: string
+      subscriptionID:
+        type: integer
+      userDisplayName:
+        type: string
+      userID:
+        type: integer
+      userLabel:
+        type: string
+      username:
+        type: string
+    required:
+    - balanceAfterNanousd
+    - balanceBeforeNanousd
+    - codeDescription
+    - codeHint
+    - codeID
+    - codeStatus
+    - createdAt
+    - creditNanousd
+    - creditUSD
+    - durationDays
+    - id
+    - mode
+    - planID
+    - planName
+    - refNo
+    - rewardType
+    - snapshotJSON
+    - subscriptionID
+    - userDisplayName
+    - userID
+    - userLabel
+    - username
+    type: object
   RedemptionResponse:
     properties:
       balanceTransactionID:
@@ -13798,6 +13894,68 @@ paths:
       summary: 管理员更新内置提示词
       tags:
       - admin-prompt-presets
+  /admin/redemptions:
+    get:
+      consumes:
+      - application/json
+      description: 管理员分页查看兑换码兑换明细，含奖励内容与余额变动，已删除兑换码的历史仍可查询
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 搜索兑换流水号、兑换码摘要、兑换码备注
+        in: query
+        name: query
+        type: string
+      - description: 兑换码ID
+        in: query
+        name: code_id
+        type: integer
+      - description: 用户ID
+        in: query
+        name: user_id
+        type: integer
+      - description: 奖励类型(balance/subscription)
+        in: query
+        name: reward_type
+        type: string
+      - description: 兑换时间起点(RFC3339)
+        in: query
+        name: created_from
+        type: string
+      - description: 兑换时间终点(RFC3339)
+        in: query
+        name: created_to
+        type: string
+      - description: 排序方式
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/RedemptionRecordListResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AdminErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/AdminErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员查询兑换记录
+      tags:
+      - admin
   /admin/settings:
     get:
       description: 按 namespace 分组返回全部动态配置项
