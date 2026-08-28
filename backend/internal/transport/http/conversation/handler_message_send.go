@@ -726,6 +726,9 @@ func (h *Handler) StreamActiveMessageGenerations(c *gin.Context) {
 		select {
 		case <-c.Request.Context().Done():
 			return
+		case <-h.shutdown.Done():
+			// 关停排空：订阅流立即退出，客户端按既有退避逻辑重连。
+			return
 		case <-snapshotTicker.C:
 			latest, listErr := h.service.ListActiveMessageGenerations(c.Request.Context(), userID)
 			if listErr != nil {
@@ -843,6 +846,9 @@ func (h *Handler) ResumeMessageGenerationStream(c *gin.Context) {
 	for {
 		select {
 		case <-c.Request.Context().Done():
+			return
+		case <-h.shutdown.Done():
+			// 关停排空：观看流立即退出，生成本体不受影响；客户端重连后经 Redis 重放续传。
 			return
 		case <-activeTicker.C:
 			if !isActive() {
