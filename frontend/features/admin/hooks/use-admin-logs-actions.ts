@@ -8,6 +8,7 @@ import type {
   AdminAuditLogDTO,
   AdminConversationEventDTO,
   AdminPaymentOrderDTO,
+  AdminRedemptionRecordDTO,
   AdminSystemEventDTO,
   AdminUsageLogDTO,
   AdminUserAuthEventDTO,
@@ -35,6 +36,7 @@ export type LogDetail =
   | { kind: "usage"; item: AdminUsageLogDTO }
   | { kind: "system"; item: AdminSystemEventDTO }
   | { kind: "order"; item: AdminPaymentOrderDTO }
+  | { kind: "redemption"; item: AdminRedemptionRecordDTO }
   | { kind: "conversation"; item: AdminConversationEventDTO };
 
 // cleanupDateToISOString 将日期输入转换为清理截止时间（当天 00:00 的 ISO 串），非法日期返回 null。

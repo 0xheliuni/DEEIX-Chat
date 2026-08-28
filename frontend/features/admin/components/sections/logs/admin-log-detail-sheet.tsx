@@ -85,6 +85,8 @@ export function LogDetailSheet({
         ? t("titles.usage")
         : detail?.kind === "order"
           ? t("titles.order")
+          : detail?.kind === "redemption"
+            ? t("titles.redemption")
           : detail?.kind === "conversation"
             ? t("titles.conversation")
         : detail?.kind === "system"
@@ -97,16 +99,21 @@ export function LogDetailSheet({
         ? `${detail.item.platformModelName || t("fallbacks.modelCall")} · ${formatDateTime(detail.item.createdAt, locale)}`
         : detail?.kind === "order"
           ? `${detail.item.orderNo || t("fallbacks.order")} · ${formatDateTime(detail.item.createdAt, locale)}`
+          : detail?.kind === "redemption"
+            ? `${detail.item.codeHint || t("fallbacks.redemption")} · ${formatDateTime(detail.item.createdAt, locale)}`
           : detail?.kind === "conversation"
             ? `${detail.item.eventType || detail.item.eventScope || t("fallbacks.conversationEvent")} · ${formatDateTime(detail.item.createdAt, locale)}`
       : detail?.kind === "system"
         ? `${detail.item.event || t("fallbacks.systemEvent")} · ${formatDateTime(detail.item.createdAt, locale)}`
         : `${detail?.item.action || t("fallbacks.auditEvent")} · ${formatDateTime(detail?.item.createdAt, locale)}`;
-  const requestID = detail && detail.kind !== "usage" && detail.kind !== "order" && detail.kind !== "conversation" ? detail.item.requestID : "";
+  const requestID =
+    detail && detail.kind !== "usage" && detail.kind !== "order" && detail.kind !== "redemption" && detail.kind !== "conversation"
+      ? detail.item.requestID
+      : "";
   const detailJSON =
     detail?.kind === "usage"
       ? detail.item.pricingSnapshotJSON
-      : detail?.kind === "order"
+      : detail?.kind === "order" || detail?.kind === "redemption"
         ? detail.item.snapshotJSON
         : detail?.kind === "conversation"
           ? detail.item.payloadJSON || detail.item.inputJSON || detail.item.outputJSON || detail.item.errorJSON
@@ -260,6 +267,73 @@ export function LogDetailSheet({
                 <DetailRow label={t("fields.interval")} value={`${detail.item.billingInterval || "-"} x ${detail.item.cycles || 0}`} />
                 <DetailRow label={t("fields.externalPaymentID")} value={detail.item.externalPaymentID || "-"} mono />
                 <DetailRow label={t("fields.externalCheckoutID")} value={detail.item.externalCheckoutID || "-"} mono />
+              </DetailBlock>
+            </>
+          ) : null}
+
+          {detail?.kind === "redemption" ? (
+            <>
+              <DetailBlock title={t("blocks.redemption")}>
+                <DetailRow label="ID" value={detail.item.id} mono />
+                <DetailRow label={t("fields.refNo")} value={detail.item.refNo || "-"} mono />
+                <DetailRow label={t("fields.redeemedAt")} value={formatDateTime(detail.item.createdAt, locale)} />
+              </DetailBlock>
+              <DetailBlock title={t("blocks.user")}>
+                <DetailRow label={t("fields.user")} value={resolveUserDisplayName(detail.item.userLabel, detail.item.username, detail.item.userID)} />
+                <DetailRow label={t("fields.userID")} value={detail.item.userID} mono />
+              </DetailBlock>
+              <DetailBlock title={t("blocks.redemptionCode")}>
+                <DetailRow label={t("fields.codeHint")} value={detail.item.codeHint || "-"} mono />
+                <DetailRow label={t("fields.codeID")} value={detail.item.codeID} mono />
+                <DetailRow label={t("fields.codeDescription")} value={detail.item.codeDescription || "-"} />
+                <DetailRow
+                  label={t("fields.codeStatus")}
+                  value={
+                    detail.item.codeStatus === "active" || detail.item.codeStatus === "inactive" || detail.item.codeStatus === "deleted"
+                      ? t(`codeStatus.${detail.item.codeStatus}`)
+                      : detail.item.codeStatus || "-"
+                  }
+                />
+              </DetailBlock>
+              <DetailBlock title={t("blocks.reward")}>
+                <DetailRow
+                  label={t("fields.rewardType")}
+                  value={detail.item.rewardType === "subscription" ? t("rewardTypes.subscription") : t("rewardTypes.balance")}
+                />
+                {detail.item.rewardType === "subscription" ? (
+                  <>
+                    <DetailRow label={t("fields.planName")} value={detail.item.planName || `#${detail.item.planID}`} />
+                    {detail.item.durationDays > 0 ? (
+                      <DetailRow
+                        label={t("fields.durationDays")}
+                        value={t("rewardDurationDays", { count: detail.item.durationDays })}
+                      />
+                    ) : null}
+                    <DetailRow label={t("fields.subscriptionID")} value={detail.item.subscriptionID || "-"} mono />
+                  </>
+                ) : (
+                  <>
+                    <DetailRow label={t("fields.credit")} value={formatTooltipUsageCost(detail.item.creditUSD, billingDisplay)} mono />
+                    <DetailRow
+                      label={t("fields.balanceBefore")}
+                      value={
+                        typeof detail.item.balanceBeforeNanousd === "number"
+                          ? formatUsageBalance(detail.item.balanceBeforeNanousd / 1_000_000_000, billingDisplay)
+                          : "-"
+                      }
+                      mono
+                    />
+                    <DetailRow
+                      label={t("fields.balanceAfterRedemption")}
+                      value={
+                        typeof detail.item.balanceAfterNanousd === "number"
+                          ? formatUsageBalance(detail.item.balanceAfterNanousd / 1_000_000_000, billingDisplay)
+                          : "-"
+                      }
+                      mono
+                    />
+                  </>
+                )}
               </DetailBlock>
             </>
           ) : null}
