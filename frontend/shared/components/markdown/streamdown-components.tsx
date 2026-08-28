@@ -109,7 +109,11 @@ function resolveLinkKind(href: string): ResolvedLinkKind {
 
   try {
     const targetURL = new URL(href, currentOrigin);
-    if (targetURL.protocol === "javascript:") {
+    if (
+      targetURL.protocol === "javascript:" ||
+      targetURL.protocol === "data:" ||
+      targetURL.protocol === "vbscript:"
+    ) {
       return "invalid";
     }
     if (targetURL.origin === currentOrigin) {

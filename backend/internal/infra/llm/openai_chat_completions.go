@@ -306,10 +306,7 @@ func mergeChatStreamToolCalls(parsed map[string]interface{}, result *GenerateOut
 	}
 	for fallbackIndex, raw := range items {
 		payload := asMap(raw)
-		index := int(toInt64(payload["index"]))
-		if index < 0 {
-			index = fallbackIndex
-		}
+		index := streamToolCallIndex(payload["index"], fallbackIndex)
 		for len(result.ToolCalls) <= index {
 			result.ToolCalls = append(result.ToolCalls, ToolCall{Status: "requested"})
 		}
