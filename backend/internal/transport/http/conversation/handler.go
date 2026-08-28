@@ -10,6 +10,7 @@ import (
 	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/lifecycle"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
@@ -17,8 +18,11 @@ import (
 
 // Handler 封装会话 HTTP 处理。
 type Handler struct {
-	service *appconversation.Service
-	cfg     *config.Runtime
+	service  *appconversation.Service
+	cfg      *config.Runtime
+	// shutdown 触发时订阅型长连接（run 对账流、run 观看流）立即退出，
+	// 让优雅关停不被常驻 SSE 拖到超时；客户端依靠既有重连逻辑恢复。
+	shutdown *lifecycle.Shutdown
 }
 
 func normalizeStreamEventPayload(eventType string, payload map[string]interface{}) map[string]interface{} {
@@ -47,10 +51,11 @@ func normalizeStreamEventPayload(eventType string, payload map[string]interface{
 }
 
 // NewHandler 创建处理器。
-func NewHandler(service *appconversation.Service, cfg *config.Runtime) *Handler {
+func NewHandler(service *appconversation.Service, cfg *config.Runtime, shutdown *lifecycle.Shutdown) *Handler {
 	return &Handler{
-		service: service,
-		cfg:     cfg,
+		service:  service,
+		cfg:      cfg,
+		shutdown: shutdown,
 	}
 }
 

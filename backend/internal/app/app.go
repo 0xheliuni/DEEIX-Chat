@@ -69,6 +69,7 @@ import (
 	userrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/user"
 	usersettingsrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/usersettings"
 	platformruntime "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/runtime"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/lifecycle"
 	platformhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http"
 	adminhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/admin"
 	announcementhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/announcement"
@@ -106,6 +107,8 @@ type App struct {
 	mediaArtifactClient    *mediaartifact.Client
 	moderationClient       *moderationclient.Client
 	backgroundCancel       context.CancelFunc
+	// shutdown 是进程关停排空信号：翻转就绪探针并断开订阅型长连接。
+	shutdown 				*lifecycle.Shutdown
 }
 
 type subscriptionGroupAdapter struct {
@@ -355,7 +358,8 @@ func NewApp() (*App, error) {
 	userService.SetAvatarFileValidator(conversationService)
 	authService.SetAvatarFileValidator(conversationService)
 	memoryService.SetCacheInvalidator(conversationService.InvalidateMemoryCache)
-	conversationHandler := conversationhttp.NewHandler(conversationService, runtimeCfg)
+	shutdownSignal := lifecycle.NewShutdown()
+	conversationHandler := conversationhttp.NewHandler(conversationService, runtimeCfg, shutdownSignal)
 	conversationModule := conversationhttp.NewModule(conversationHandler)
 	userHandler := userhttp.NewHandler(userService)
 	userModule := userhttp.NewModule(userHandler)
@@ -431,6 +435,7 @@ func NewApp() (*App, error) {
 		Settings:          settingsModule,
 		UserSettings:      userSettingsModule,
 		User:              userModule,
+		Shutdown:          shutdownSignal,
 		StartupLog: func(log *zap.Logger) {
 			if log == nil || bootstrapSuperAdmin == nil {
 				return
@@ -468,6 +473,7 @@ func NewApp() (*App, error) {
 		mediaArtifactClient:    mediaArtifactClient,
 		moderationClient:       moderationClient,
 		backgroundCancel:       backgroundCancel,
+		shutdown:               shutdownSignal,
 	}, nil
 }
 
@@ -502,14 +508,29 @@ func (a *App) Run() error {
 		a.logger.Info("server_shutting_down", zap.String("signal", sig.String()))
 	}
 
-	if a.backgroundCancel != nil {
-		a.backgroundCancel()
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// 阶段一：进入排空。就绪探针翻转为 503 引导负载均衡摘流，
+	// 订阅型 SSE（run 对账流、run 观看流）立即断开，客户端按既有逻辑重连。
+	a.shutdown.BeginDrain()
+
+	// 阶段二：排空 in-flight 请求。消息生成等有价值的流式请求在窗口内自然完成。
+	drainTimeout := httpTimeoutSeconds(a.cfg.HTTPShutdownTimeoutSeconds, 10)
+	ctx, cancel := context.WithTimeout(context.Background(), drainTimeout)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
-		a.logger.Error("server_shutdown_error", zap.Error(err))
-		return err
+		// 阶段三：排空超时，强断剩余连接。被打断的生成已有落盘与前端恢复兜底，
+		// 属预期内降级而非故障，进程仍以成功状态退出。
+		a.logger.Warn("server_drain_timeout_force_close",
+			zap.Duration("drain_timeout", drainTimeout),
+			zap.Error(err),
+		)
+		if closeErr := srv.Close(); closeErr != nil {
+			a.logger.Warn("server_force_close_error", zap.Error(closeErr))
+		}
+	}
+
+	// HTTP 排空完成后再停后台 worker；资源释放由 cli.Run 的 defer Close() 收尾。
+	if a.backgroundCancel != nil {
+		a.backgroundCancel()
 	}
 	a.logger.Info("server_stopped")
 	return nil
