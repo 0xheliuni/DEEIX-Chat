@@ -74,6 +74,7 @@ import {
 import { useChatSession } from "@/features/chat";
 import { ProjectDialog, type ProjectDraft } from "@/features/layouts/components/navigation/project-dialog";
 import { SidebarConversationItem } from "@/features/layouts/components/navigation/sidebar-conversation-item";
+import { SidebarConversationSkeleton } from "@/features/layouts/components/navigation/sidebar-conversation-skeleton";
 import { useLayoutActiveConversation } from "@/features/layouts/hooks/use-layout-active-conversation";
 import { useLayoutProjectConversations } from "@/features/layouts/hooks/use-layout-project-conversations";
 import { useLayoutSidebarNavigation } from "@/features/layouts/hooks/use-layout-sidebar-navigation";
@@ -86,6 +87,7 @@ import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { cn } from "@/lib/utils";
 import { CollapsibleMotionContent } from "@/shared/components/collapsible-motion-content";
 import { DeleteFilesOption } from "@/shared/components/delete-files-option";
+import { LoadingReveal } from "@/shared/components/loading-reveal";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { useStoredBoolean } from "@/shared/hooks/use-stored-boolean";
 
@@ -398,6 +400,7 @@ export function NavProjects() {
   const { requestNewConversation } = useChatSession();
   const items = useSidebarConversationField("items");
   const projects = useSidebarConversationField("projects");
+  const loadingInitial = useSidebarConversationField("loadingInitial");
   const lastChange = useSidebarConversationField("lastChange");
   const createProject = useSidebarConversationField("createProject");
   const updateProject = useSidebarConversationField("updateProject");
@@ -684,38 +687,7 @@ export function NavProjects() {
     }
   }, [conversationDeleteTarget]);
 
-  if (projects.length === 0) {
-    return (
-      <>
-        <div className="relative z-10 group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:opacity-0">
-          <Collapsible open={projectsOpen} onOpenChange={setProjectsOpen}>
-            <SidebarGroup className="px-2 py-2">
-              <ProjectGroupHeader
-                title={t("title")}
-                createLabel={t("create")}
-                contentID={projectsContentID}
-                open={projectsOpen}
-                onCreate={() => setDraft({
-                  name: "",
-                  systemPrompt: "",
-                  mcpDefaultMode: "inherit",
-                  defaultMCPToolIDs: [],
-                  defaultSkillIDs: [],
-                  defaultKnowledgeBaseIDs: [],
-                })}
-                onOpenChange={setProjectsOpen}
-                toggleLabel={projectsOpen ? t("collapseSection") : t("expandSection")}
-              />
-              <CollapsibleMotionContent id={projectsContentID} open={projectsOpen}>
-                <div className="px-2 py-1 text-xs text-sidebar-foreground/55">{t("empty")}</div>
-              </CollapsibleMotionContent>
-            </SidebarGroup>
-          </Collapsible>
-        </div>
-        <ProjectDialog draft={draft} setDraft={setDraft} onOpenChange={(open) => !open && closeDraft()} onSubmit={commitDraft} />
-      </>
-    );
-  }
+  const showInitialSkeleton = loadingInitial && projects.length === 0;
 
   return (
     <>
@@ -739,242 +711,258 @@ export function NavProjects() {
               toggleLabel={projectsOpen ? t("collapseSection") : t("expandSection")}
             />
             <CollapsibleMotionContent id={projectsContentID} open={projectsOpen}>
-              <DndContext
-                sensors={projectSortSensors}
-                collisionDetection={closestCenter}
-                onDragStart={onProjectDragStart}
-                onDragEnd={(event) => void onProjectDragEnd(event)}
-                onDragCancel={onProjectDragCancel}
+              <LoadingReveal
+                loading={showInitialSkeleton}
+                skeleton={
+                  <SidebarConversationSkeleton
+                    count={2}
+                    widths={["66%", "52%"]}
+                    prefix="sidebar-projects"
+                  />
+                }
+                className="min-h-0"
               >
-                <SortableContext items={projectIDs} strategy={verticalListSortingStrategy}>
-                  <SidebarMenu className="gap-0.5">
-                    {projects.map((project) => {
-                      const expanded = expandedProjectIDs.has(project.publicID);
-                      const conversationState = projectConversationState[project.publicID];
-                      const conversationLoading = expanded && (!conversationState || conversationState.loading);
-                      const hasActiveChild = Boolean(conversationState?.items.some((item) => item.publicID === activeConversationID));
-                      const active =
-                        ((pathname === "/recent" || pathname === "/chat") && activeProjectID === project.publicID) ||
-                        activeConversationProjectID === project.publicID ||
-                        hasActiveChild;
-                      const rowHovered = hoveredProjectRowID === project.publicID;
-                      const rowFocused = focusedProjectRowID === project.publicID;
-                      const createHovered = hoveredProjectCreateID === project.publicID;
-                      const menuHovered = hoveredProjectMenuID === project.publicID;
-                      const menuOpen = openProjectMenuID === project.publicID;
-                      const rowDragging = draggingProjectID === project.publicID;
-                      const canSortProjects = projects.length >= 2;
-                      const projectActionPaddingClassName = canSortProjects ? "pr-24" : "pr-16";
-                      const projectCreateActionClassName = canSortProjects ? "right-16" : "right-8";
-                      const projectMenuActionClassName = canSortProjects ? "right-8" : "right-0";
-                      const showProjectActions = isMobile || (!rowDragging && (rowHovered || rowFocused || menuHovered || menuOpen));
-                      const projectConversationContentID = `sidebar-project-${project.publicID}-conversations`;
-                      return (
-                        <ProjectSortableItem
-                          key={project.publicID}
-                          projectID={project.publicID}
-                          disabled={!canSortProjects || savingProjectOrder}
-                        >
-                          {({ attributes, isDragging, listeners }) => (
-                            <>
-                              <div
-                                className="group/project-row relative"
-                                onFocus={(event) => {
-                                  setFocusedProjectRowID(
-                                    event.target instanceof HTMLElement && event.target.matches(":focus-visible")
-                                      ? project.publicID
-                                      : null,
-                                  );
-                                }}
-                                onBlur={(event) => {
-                                  const nextTarget = event.relatedTarget;
-                                  if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
-                                    setFocusedProjectRowID(null);
-                                  }
-                                }}
-                              >
-                                <ProjectDragHandle
-                                  attributes={attributes}
-                                  disabled={savingProjectOrder}
-                                  hidden={!canSortProjects}
-                                  label={t("dragToReorder", { name: project.name || t("untitled") })}
-                                  listeners={listeners}
-                                  visible={isMobile || rowHovered || rowFocused || isDragging}
-                                />
-                                <ProjectTreeButton
-                                  active={active}
-                                  actionPaddingClassName={projectActionPaddingClassName}
-                                  contentID={projectConversationContentID}
-                                  expanded={expanded}
-                                  name={project.name}
-                                  onHoverChange={(hovered) => setHoveredProjectRowID(hovered ? project.publicID : null)}
-                                  onToggleExpanded={() => toggleProjectExpanded(project.publicID)}
-                                />
-                                <ProjectInlineAction
-                                  label={t("newChatInProject")}
-                                  visible={showProjectActions}
-                                  className={projectCreateActionClassName}
-                                  onHoverChange={(hovered) => setHoveredProjectCreateID(hovered ? project.publicID : null)}
-                                  onClick={() => startProjectConversation(project.publicID)}
-                                >
-                                  <PlusIcon aria-hidden size={16} strokeWidth={1.6} animate={createHovered ? "default" : undefined} />
-                                </ProjectInlineAction>
-                                <DropdownMenu
-                                  modal={false}
-                                  open={menuOpen}
-                                  onOpenChange={(open) => setOpenProjectMenuID(open ? project.publicID : null)}
-                                >
-                                  <DropdownMenuTrigger asChild>
-                                    <ProjectInlineAction
-                                      label={t("menu")}
-                                      visible={showProjectActions}
-                                      className={projectMenuActionClassName}
-                                      onHoverChange={(hovered) => setHoveredProjectMenuID(hovered ? project.publicID : null)}
-                                    >
-                                      <Ellipsis aria-hidden size={16} strokeWidth={1.4} animate={menuHovered ? "pulse" : undefined} />
-                                    </ProjectInlineAction>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="w-max min-w-36 max-w-[calc(100vw-2rem)]">
-                                    <DropdownMenuItem
-                                      onSelect={(event) => {
-                                        event.preventDefault();
-                                        setDraft({
-                                          publicID: project.publicID,
-                                          name: project.name,
-                                          systemPrompt: project.systemPrompt ?? "",
-                                          mcpDefaultMode: project.mcpDefaultMode ?? "inherit",
-                                          defaultMCPToolIDs: project.defaultMCPToolIDs ?? [],
-                                          defaultSkillIDs: project.defaultSkillIDs ?? [],
-                                          defaultKnowledgeBaseIDs: project.defaultKnowledgeBaseIDs ?? [],
-                                        });
-                                      }}
-                                    >
-                                      <DropdownMenuItemIcon icon={PencilLine} className="text-current" />
-                                      {t("edit")}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                      variant="destructive"
-                                      onSelect={(event) => {
-                                        event.preventDefault();
-                                        setDeleteTarget({ publicID: project.publicID, name: project.name });
-                                      }}
-                                    >
-                                      <DropdownMenuItemIcon icon={Trash} className="text-current" />
-                                      {t("delete")}
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
-                              <AnimatePresence initial={false}>
-                                {expanded ? (
-                                  <motion.div
-                                    key={`${project.publicID}-conversations`}
-                                    id={projectConversationContentID}
-                                    initial={{ height: 0, opacity: 0, "--mask-stop": "0%", y: 6 }}
-                                    animate={{ height: "auto", opacity: 1, "--mask-stop": "100%", y: 0 }}
-                                    exit={{ height: 0, opacity: 0, "--mask-stop": "0%", y: 6 }}
-                                    transition={PROJECT_TREE_ACCORDION_TRANSITION}
-                                    style={PROJECT_TREE_ACCORDION_MASK_STYLE}
+                {projects.length === 0 ? (
+                  <div className="px-2 py-1 text-xs text-sidebar-foreground/55">{t("empty")}</div>
+                ) : (
+                  <DndContext
+                    sensors={projectSortSensors}
+                    collisionDetection={closestCenter}
+                    onDragStart={onProjectDragStart}
+                    onDragEnd={(event) => void onProjectDragEnd(event)}
+                    onDragCancel={onProjectDragCancel}
+                  >
+                    <SortableContext items={projectIDs} strategy={verticalListSortingStrategy}>
+                      <SidebarMenu className="gap-0.5">
+                        {projects.map((project) => {
+                          const expanded = expandedProjectIDs.has(project.publicID);
+                          const conversationState = projectConversationState[project.publicID];
+                          const conversationLoading = expanded && (!conversationState || conversationState.loading);
+                          const hasActiveChild = Boolean(conversationState?.items.some((item) => item.publicID === activeConversationID));
+                          const active =
+                            ((pathname === "/recent" || pathname === "/chat") && activeProjectID === project.publicID) ||
+                            activeConversationProjectID === project.publicID ||
+                            hasActiveChild;
+                          const rowHovered = hoveredProjectRowID === project.publicID;
+                          const rowFocused = focusedProjectRowID === project.publicID;
+                          const createHovered = hoveredProjectCreateID === project.publicID;
+                          const menuHovered = hoveredProjectMenuID === project.publicID;
+                          const menuOpen = openProjectMenuID === project.publicID;
+                          const rowDragging = draggingProjectID === project.publicID;
+                          const canSortProjects = projects.length >= 2;
+                          const projectActionPaddingClassName = canSortProjects ? "pr-24" : "pr-16";
+                          const projectCreateActionClassName = canSortProjects ? "right-16" : "right-8";
+                          const projectMenuActionClassName = canSortProjects ? "right-8" : "right-0";
+                          const showProjectActions = isMobile || (!rowDragging && (rowHovered || rowFocused || menuHovered || menuOpen));
+                          const projectConversationContentID = `sidebar-project-${project.publicID}-conversations`;
+                          return (
+                            <ProjectSortableItem
+                              key={project.publicID}
+                              projectID={project.publicID}
+                              disabled={!canSortProjects || savingProjectOrder}
+                            >
+                              {({ attributes, isDragging, listeners }) => (
+                                <>
+                                  <div
+                                    className="group/project-row relative"
+                                    onFocus={(event) => {
+                                      setFocusedProjectRowID(
+                                        event.target instanceof HTMLElement && event.target.matches(":focus-visible")
+                                          ? project.publicID
+                                          : null,
+                                      );
+                                    }}
+                                    onBlur={(event) => {
+                                      const nextTarget = event.relatedTarget;
+                                      if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
+                                        setFocusedProjectRowID(null);
+                                      }
+                                    }}
                                   >
-                                    <SidebarMenuSub className="mx-0 w-full translate-x-0 gap-0.5 border-l-0 px-0 py-0.5">
-                                      {conversationLoading ? (
-                                        <SidebarMenuSubItem>
-                                          <div className="flex h-7 w-full items-center gap-2 rounded-md pl-8 pr-2 text-xs text-muted-foreground">
-                                            <Spinner className="size-3.5" />
-                                            <span>{tRecent("loadingMore")}</span>
-                                          </div>
-                                        </SidebarMenuSubItem>
-                                      ) : null}
+                                    <ProjectDragHandle
+                                      attributes={attributes}
+                                      disabled={savingProjectOrder}
+                                      hidden={!canSortProjects}
+                                      label={t("dragToReorder", { name: project.name || t("untitled") })}
+                                      listeners={listeners}
+                                      visible={isMobile || rowHovered || rowFocused || isDragging}
+                                    />
+                                    <ProjectTreeButton
+                                      active={active}
+                                      actionPaddingClassName={projectActionPaddingClassName}
+                                      contentID={projectConversationContentID}
+                                      expanded={expanded}
+                                      name={project.name}
+                                      onHoverChange={(hovered) => setHoveredProjectRowID(hovered ? project.publicID : null)}
+                                      onToggleExpanded={() => toggleProjectExpanded(project.publicID)}
+                                    />
+                                    <ProjectInlineAction
+                                      label={t("newChatInProject")}
+                                      visible={showProjectActions}
+                                      className={projectCreateActionClassName}
+                                      onHoverChange={(hovered) => setHoveredProjectCreateID(hovered ? project.publicID : null)}
+                                      onClick={() => startProjectConversation(project.publicID)}
+                                    >
+                                      <PlusIcon aria-hidden size={16} strokeWidth={1.6} animate={createHovered ? "default" : undefined} />
+                                    </ProjectInlineAction>
+                                    <DropdownMenu
+                                      modal={false}
+                                      open={menuOpen}
+                                      onOpenChange={(open) => setOpenProjectMenuID(open ? project.publicID : null)}
+                                    >
+                                      <DropdownMenuTrigger asChild>
+                                        <ProjectInlineAction
+                                          label={t("menu")}
+                                          visible={showProjectActions}
+                                          className={projectMenuActionClassName}
+                                          onHoverChange={(hovered) => setHoveredProjectMenuID(hovered ? project.publicID : null)}
+                                        >
+                                          <Ellipsis aria-hidden size={16} strokeWidth={1.4} animate={menuHovered ? "pulse" : undefined} />
+                                        </ProjectInlineAction>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end" className="w-max min-w-36 max-w-[calc(100vw-2rem)]">
+                                        <DropdownMenuItem
+                                          onSelect={(event) => {
+                                            event.preventDefault();
+                                            setDraft({
+                                              publicID: project.publicID,
+                                              name: project.name,
+                                              systemPrompt: project.systemPrompt ?? "",
+                                              mcpDefaultMode: project.mcpDefaultMode ?? "inherit",
+                                              defaultMCPToolIDs: project.defaultMCPToolIDs ?? [],
+                                              defaultSkillIDs: project.defaultSkillIDs ?? [],
+                                              defaultKnowledgeBaseIDs: project.defaultKnowledgeBaseIDs ?? [],
+                                            });
+                                          }}
+                                        >
+                                          <DropdownMenuItemIcon icon={PencilLine} className="text-current" />
+                                          {t("edit")}
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                          variant="destructive"
+                                          onSelect={(event) => {
+                                            event.preventDefault();
+                                            setDeleteTarget({ publicID: project.publicID, name: project.name });
+                                          }}
+                                        >
+                                          <DropdownMenuItemIcon icon={Trash} className="text-current" />
+                                          {t("delete")}
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </div>
+                                  <AnimatePresence initial={false}>
+                                    {expanded ? (
+                                      <motion.div
+                                        key={`${project.publicID}-conversations`}
+                                        id={projectConversationContentID}
+                                        initial={{ height: 0, opacity: 0, "--mask-stop": "0%", y: 6 }}
+                                        animate={{ height: "auto", opacity: 1, "--mask-stop": "100%", y: 0 }}
+                                        exit={{ height: 0, opacity: 0, "--mask-stop": "0%", y: 6 }}
+                                        transition={PROJECT_TREE_ACCORDION_TRANSITION}
+                                        style={PROJECT_TREE_ACCORDION_MASK_STYLE}
+                                      >
+                                        <SidebarMenuSub className="mx-0 w-full translate-x-0 gap-0.5 border-l-0 px-0 py-0.5">
+                                          {conversationLoading ? (
+                                            <SidebarMenuSubItem>
+                                              <div className="flex h-7 w-full items-center gap-2 rounded-md pl-8 pr-2 text-xs text-muted-foreground">
+                                                <Spinner className="size-3.5" />
+                                                <span>{tRecent("loadingMore")}</span>
+                                              </div>
+                                            </SidebarMenuSubItem>
+                                          ) : null}
 
-                                      {conversationState?.error ? (
-                                        <SidebarMenuSubItem>
-                                          <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            className="w-full min-w-0 justify-start pl-8 pr-2 text-left text-xs font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                                            onClick={() => void loadProjectConversations(project.publicID, true)}
-                                          >
-                                            <span className="truncate">{tRecent("loadMoreFailed")}</span>
-                                            <span className="ml-auto shrink-0 underline underline-offset-4">{tRecent("retry")}</span>
-                                          </Button>
-                                        </SidebarMenuSubItem>
-                                      ) : null}
+                                          {conversationState?.error ? (
+                                            <SidebarMenuSubItem>
+                                              <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                className="w-full min-w-0 justify-start pl-8 pr-2 text-left text-xs font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                                                onClick={() => void loadProjectConversations(project.publicID, true)}
+                                              >
+                                                <span className="truncate">{tRecent("loadMoreFailed")}</span>
+                                                <span className="ml-auto shrink-0 underline underline-offset-4">{tRecent("retry")}</span>
+                                              </Button>
+                                            </SidebarMenuSubItem>
+                                          ) : null}
 
-                                      {conversationState?.loaded && conversationState.items.length === 0 ? (
-                                        <SidebarMenuSubItem>
-                                          <div className="w-full rounded-md py-1 pl-8 pr-2 text-xs text-sidebar-foreground/55">
-                                            {tRecent("empty")}
-                                          </div>
-                                        </SidebarMenuSubItem>
-                                      ) : null}
+                                          {conversationState?.loaded && conversationState.items.length === 0 ? (
+                                            <SidebarMenuSubItem>
+                                              <div className="w-full rounded-md py-1 pl-8 pr-2 text-xs text-sidebar-foreground/55">
+                                                {tRecent("empty")}
+                                              </div>
+                                            </SidebarMenuSubItem>
+                                          ) : null}
 
-                                      {conversationState?.items.map((conversation) => {
-                                        const title = conversation.title || tRecent("untitled");
-                                        return (
-                                          <SidebarConversationItem
-                                            key={conversation.publicID}
-                                            active={activeConversationID === conversation.publicID}
-                                            item={{
-                                              publicID: conversation.publicID,
-                                              title,
-                                              url: `/chat?conversation_id=${conversation.publicID}`,
-                                              shareActive:
-                                                conversation.shareStatus === "active" && Boolean(conversation.shareID?.trim()),
-                                              labelsJSON: conversation.labelsJSON,
-                                            }}
-                                            starAction={{
-                                              label: conversation.isStarred ? tRecent("row.unstar") : tRecent("row.star"),
-                                              icon: conversation.isStarred ? StarOff : Star,
-                                              onSelect: (targetPublicID) => {
-                                                void setStarByPublicID(targetPublicID, !conversation.isStarred);
-                                              },
-                                            }}
-                                            projectMenu={{
-                                              label: tRecent("row.moveToProject"),
-                                              unassignedLabel: tRecent("projects.unassigned"),
-                                              currentProjectID: conversation.projectID,
-                                              projects,
-                                              onSelect: (targetPublicID, targetProjectID) => {
-                                                void setProjectByPublicID(targetPublicID, targetProjectID);
-                                              },
-                                            }}
-                                            isTransferring={false}
-                                            isRenaming={conversationRenameTarget?.publicID === conversation.publicID}
-                                            renameValue={
-                                              conversationRenameTarget?.publicID === conversation.publicID ? renameValue : title
-                                            }
-                                            rowClassName="w-full"
-                                            linkClassName="pl-8"
-                                            onRenameValueChange={setRenameValue}
-                                            onRenameCommit={onRenameConversationCommit}
-                                            onRenameCancel={onRenameConversationCancel}
-                                            onAutoRename={onAutoRenameConversation}
-                                            isAutoRenaming={autoRenamingConversationID === conversation.publicID}
-                                            onManageLabels={() => setLabelsTarget(conversation)}
-                                            onRename={onRenameConversation}
-                                            onArchive={onArchiveConversation}
-                                            onShare={(publicID, shareTitle) => setShareTarget({ publicID, title: shareTitle })}
-                                            onExport={onExportConversation}
-                                            onDelete={onDeleteConversation}
-                                            onNavigate={onNavigate}
-                                            menuTriggerID={`project-conversation-menu-trigger-${conversation.publicID}`}
-                                          />
-                                        );
-                                      })}
-                                    </SidebarMenuSub>
-                                  </motion.div>
-                                ) : null}
-                              </AnimatePresence>
-                            </>
-                          )}
-                        </ProjectSortableItem>
-                      );
-                    })}
-                  </SidebarMenu>
-                </SortableContext>
-              </DndContext>
+                                          {conversationState?.items.map((conversation) => {
+                                            const title = conversation.title || tRecent("untitled");
+                                            return (
+                                              <SidebarConversationItem
+                                                key={conversation.publicID}
+                                                active={activeConversationID === conversation.publicID}
+                                                item={{
+                                                  publicID: conversation.publicID,
+                                                  title,
+                                                  url: `/chat?conversation_id=${conversation.publicID}`,
+                                                  shareActive:
+                                                    conversation.shareStatus === "active" && Boolean(conversation.shareID?.trim()),
+                                                  labelsJSON: conversation.labelsJSON,
+                                                }}
+                                                starAction={{
+                                                  label: conversation.isStarred ? tRecent("row.unstar") : tRecent("row.star"),
+                                                  icon: conversation.isStarred ? StarOff : Star,
+                                                  onSelect: (targetPublicID) => {
+                                                    void setStarByPublicID(targetPublicID, !conversation.isStarred);
+                                                  },
+                                                }}
+                                                projectMenu={{
+                                                  label: tRecent("row.moveToProject"),
+                                                  unassignedLabel: tRecent("projects.unassigned"),
+                                                  currentProjectID: conversation.projectID,
+                                                  projects,
+                                                  onSelect: (targetPublicID, targetProjectID) => {
+                                                    void setProjectByPublicID(targetPublicID, targetProjectID);
+                                                  },
+                                                }}
+                                                isTransferring={false}
+                                                isRenaming={conversationRenameTarget?.publicID === conversation.publicID}
+                                                renameValue={
+                                                  conversationRenameTarget?.publicID === conversation.publicID ? renameValue : title
+                                                }
+                                                rowClassName="w-full"
+                                                linkClassName="pl-8"
+                                                onRenameValueChange={setRenameValue}
+                                                onRenameCommit={onRenameConversationCommit}
+                                                onRenameCancel={onRenameConversationCancel}
+                                                onAutoRename={onAutoRenameConversation}
+                                                isAutoRenaming={autoRenamingConversationID === conversation.publicID}
+                                                onManageLabels={() => setLabelsTarget(conversation)}
+                                                onRename={onRenameConversation}
+                                                onArchive={onArchiveConversation}
+                                                onShare={(publicID, shareTitle) => setShareTarget({ publicID, title: shareTitle })}
+                                                onExport={onExportConversation}
+                                                onDelete={onDeleteConversation}
+                                                onNavigate={onNavigate}
+                                                menuTriggerID={`project-conversation-menu-trigger-${conversation.publicID}`}
+                                              />
+                                            );
+                                          })}
+                                        </SidebarMenuSub>
+                                      </motion.div>
+                                    ) : null}
+                                  </AnimatePresence>
+                                </>
+                              )}
+                            </ProjectSortableItem>
+                          );
+                        })}
+                      </SidebarMenu>
+                    </SortableContext>
+                  </DndContext>
+                )}
+              </LoadingReveal>
             </CollapsibleMotionContent>
           </SidebarGroup>
         </Collapsible>
