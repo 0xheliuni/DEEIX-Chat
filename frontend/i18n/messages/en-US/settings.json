@@ -503,6 +503,25 @@
       "title": "Billing mode",
       "value": "Self-use mode"
     },
+    "activity": {
+      "title": "Past year activity",
+      "tokens": "Tokens",
+      "messages": "Messages",
+      "activeDays": "{count} active days",
+      "peakDayTokens": "Peak daily tokens",
+      "currentStreak": "Current streak",
+      "longestStreak": "Longest streak",
+      "totalActiveDays": "Active days",
+      "totalMessages": "Sent {count} messages in the past year",
+      "less": "Less",
+      "more": "More",
+      "empty": "No activity in the past year",
+      "loadFailed": "Failed to load activity",
+      "tooltip": {
+        "messages": "Messages",
+        "tokens": "Tokens"
+      }
+    },
     "usageTrend": {
       "dailyTitle": "Daily usage trend",
       "monthlyTitle": "Monthly usage trend",

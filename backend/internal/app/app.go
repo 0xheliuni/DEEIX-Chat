@@ -356,6 +356,7 @@ func NewApp() (*App, error) {
 	contentModerationModule := contentmoderationhttp.NewModule(contentModerationHandler)
 	userService.SetAvatarContentOpener(avatarContentOpener{conversationService: conversationService})
 	userService.SetAvatarFileValidator(conversationService)
+	userService.SetActivityStatsRepository(conversationRepo)
 	authService.SetAvatarFileValidator(conversationService)
 	memoryService.SetCacheInvalidator(conversationService.InvalidateMemoryCache)
 	shutdownSignal := lifecycle.NewShutdown()

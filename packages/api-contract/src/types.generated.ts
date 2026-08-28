@@ -4190,8 +4190,23 @@ export interface UserAuthEventListResponseDoc {
   errorMsg: string;
 }
 
+export interface UserDailyActivityItem {
+  date: string;
+  messageCount: number;
+  tokenUsage: number;
+}
+
+export interface UserDailyActivityListResponseDoc {
+  data: UserDailyActivityItem[];
+  errorMsg: string;
+}
+
 export interface UserDataResponse {
   user: AdminUserResponse;
+}
+
+export interface UserErrorDoc {
+  errorMsg: string;
 }
 
 export interface UserListResponseDoc {
@@ -9666,5 +9681,24 @@ export namespace User {
     export type RequestBody = UserSettingsPatchSettingsRequest;
     export type RequestHeaders = {};
     export type ResponseBody = UserSettingsResponseDoc;
+  }
+
+  /**
+   * @description 查询当前用户按日聚合的消息数与 token 消耗，逐日补零
+   * @tags user
+   * @name StatsActivityList
+   * @summary 查询每日活跃度
+   * @request GET:/user/stats/activity
+   * @secure
+   */
+  export namespace StatsActivityList {
+    export type RequestParams = {};
+    export type RequestQuery = {
+      /** 统计天数(默认365，最大366) */
+      days?: number;
+    };
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = UserDailyActivityListResponseDoc;
   }
 }

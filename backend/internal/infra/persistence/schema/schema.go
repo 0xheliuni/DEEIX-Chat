@@ -129,6 +129,9 @@ func Migrate(db *gorm.DB) error {
 	if err := db.AutoMigrate(Models()...); err != nil {
 		return err
 	}
+	if err := createUserActivityIndex(db); err != nil {
+		return err
+	}
 	if err := invalidateUnsignedFileEmbeddings(db); err != nil {
 		return err
 	}
@@ -136,6 +139,15 @@ func Migrate(db *gorm.DB) error {
 		return err
 	}
 	return backfillUsageLedgerBillingAt(db)
+}
+
+// createUserActivityIndex 为用户活跃度按日聚合补 (user_id, created_at) 复合索引。
+// created_at 属于嵌入的 BaseModel，无法通过 Message 模型标签声明索引，改用幂等 DDL。
+func createUserActivityIndex(db *gorm.DB) error {
+	return db.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_chat_messages_user_created_at
+		ON chat_messages (user_id, created_at)
+	`).Error
 }
 
 // invalidateUnsignedFileEmbeddings makes legacy vectors enter the existing reindex flow.
