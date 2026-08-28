@@ -662,7 +662,7 @@ func (h *Handler) CancelMessageGeneration(c *gin.Context) {
 
 // StreamActiveMessageGenerations godoc
 // @Summary Stream active conversation generations
-// @Description Sends an authoritative snapshot followed by live user-scoped run state events
+// @Description Sends an authoritative snapshot followed by live user-scoped run state events; the snapshot is re-sent periodically for client-side reconciliation
 // @Tags chat
 // @Produce text/event-stream
 // @Security BearerAuth
@@ -670,9 +670,10 @@ func (h *Handler) CancelMessageGeneration(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /conversation-runs/stream [get]
 func (h *Handler) StreamActiveMessageGenerations(c *gin.Context) {
+	userID := middleware.MustUserID(c)
 	snapshot, events, unsubscribe, err := h.service.SubscribeActiveMessageGenerations(
 		c.Request.Context(),
-		middleware.MustUserID(c),
+		userID,
 	)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "failed to subscribe to active conversation generations")
@@ -703,29 +704,41 @@ func (h *Handler) StreamActiveMessageGenerations(c *gin.Context) {
 		c.Writer.Flush()
 		return true
 	}
-
-	runs := make([]ActiveMessageGenerationResponse, 0, len(snapshot))
-	for _, item := range snapshot {
-		runs = append(runs, ActiveMessageGenerationResponse{
-			RunID:                item.RunID,
-			ConversationPublicID: item.ConversationPublicID,
-		})
+	writeSnapshot := func(items []appconversation.ActiveMessageGeneration) bool {
+		runs := make([]ActiveMessageGenerationResponse, 0, len(items))
+		for _, item := range items {
+			runs = append(runs, ActiveMessageGenerationResponse{
+				RunID:                item.RunID,
+				ConversationPublicID: item.ConversationPublicID,
+			})
+		}
+		return writeEvent(ActiveMessageGenerationEventResponse{Type: "snapshot", Runs: runs})
 	}
-	if !writeEvent(ActiveMessageGenerationEventResponse{Type: "snapshot", Runs: runs}) {
+
+	if !writeSnapshot(snapshot) {
 		return
 	}
 
-	keepalive := time.NewTicker(20 * time.Second)
-	defer keepalive.Stop()
+	// 周期重发权威快照兼作心跳：增量事件在断线间隙丢失时，客户端可在一个周期内对账清除失效运行。
+	snapshotTicker := time.NewTicker(20 * time.Second)
+	defer snapshotTicker.Stop()
 	for {
 		select {
 		case <-c.Request.Context().Done():
 			return
-		case <-keepalive.C:
-			if _, writeErr := c.Writer.Write([]byte(": keepalive\n\n")); writeErr != nil {
+		case <-snapshotTicker.C:
+			latest, listErr := h.service.ListActiveMessageGenerations(c.Request.Context(), userID)
+			if listErr != nil {
+				// 快照查询失败时退回注释帧，仅维持连接心跳。
+				if _, writeErr := c.Writer.Write([]byte(": keepalive\n\n")); writeErr != nil {
+					return
+				}
+				c.Writer.Flush()
+				continue
+			}
+			if !writeSnapshot(latest) {
 				return
 			}
-			c.Writer.Flush()
 		case event, ok := <-events:
 			if !ok {
 				return
