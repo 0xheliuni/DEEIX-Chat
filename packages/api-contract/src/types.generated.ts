@@ -8015,7 +8015,7 @@ export namespace ConversationRuns {
   }
 
   /**
-   * @description Sends an authoritative snapshot followed by live user-scoped run state events
+   * @description Sends an authoritative snapshot followed by live user-scoped run state events; the snapshot is re-sent periodically for client-side reconciliation
    * @tags chat
    * @name StreamList
    * @summary Stream active conversation generations
