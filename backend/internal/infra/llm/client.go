@@ -27,6 +27,8 @@ const (
 	defaultReadTimeoutMS       = 120000 // 非流式/首字节超时 120s（含 LLM 推理）
 	defaultStreamIdleTimeoutMS = 60000  // 流式 chunk 间隔超时 60s
 	maxUpstreamBodyBytes       = 64 * 1024 * 1024
+	// maxStreamToolCallIndex 防止异常稀疏的上游索引触发无界切片扩容。
+	maxStreamToolCallIndex = 1024
 )
 
 const upstreamRequestIDHeaderTemplate = "${DEEIX_UPSTREAM_REQUEST_ID}"
@@ -1432,6 +1434,17 @@ func toInt64(raw interface{}) int64 {
 	default:
 		return 0
 	}
+}
+
+func streamToolCallIndex(raw interface{}, fallback int) int {
+	if fallback < 0 || fallback > maxStreamToolCallIndex {
+		fallback = 0
+	}
+	index, err := strconv.Atoi(strings.TrimSpace(getString(raw)))
+	if err != nil || index < 0 || index > maxStreamToolCallIndex {
+		return fallback
+	}
+	return index
 }
 
 func normalizeJSONString(raw interface{}) string {

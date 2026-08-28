@@ -240,13 +240,7 @@ func (c *conversationCache) ClaimTimedOutFileProcessingMessages(ctx context.Cont
 		}
 		return nil, err
 	}
-	messages := make([]repository.FileProcessingMessage, 0, len(claimed))
-	for _, msg := range claimed {
-		parsed := parseFileProcessingMessage(msg)
-		parsed.Reclaimed = true
-		messages = append(messages, parsed)
-	}
-	return messages, nil
+	return c.decodeFileProcessingMessages(ctx, consumerName, claimed, true)
 }
 
 // ReadFileProcessingMessages 阻塞读取未处理消息（最多 1 条，5s 超时）。
@@ -269,21 +263,97 @@ func (c *conversationCache) ReadFileProcessingMessages(ctx context.Context, cons
 	}
 	messages := make([]repository.FileProcessingMessage, 0)
 	for _, stream := range streams {
-		for _, msg := range stream.Messages {
-			messages = append(messages, parseFileProcessingMessage(msg))
+		parsed, parseErr := c.decodeFileProcessingMessages(ctx, consumerName, stream.Messages, false)
+		if parseErr != nil {
+			return nil, parseErr
 		}
+		messages = append(messages, parsed...)
 	}
 	return messages, nil
 }
 
-func parseFileProcessingMessage(msg redis.XMessage) repository.FileProcessingMessage {
+func (c *conversationCache) decodeFileProcessingMessages(
+	ctx context.Context,
+	consumerName string,
+	messages []redis.XMessage,
+	reclaimed bool,
+) ([]repository.FileProcessingMessage, error) {
+	parsedMessages := make([]repository.FileProcessingMessage, 0, len(messages))
+	for _, msg := range messages {
+		parsed, err := parseFileProcessingMessage(msg)
+		if err != nil {
+			quarantined, quarantineErr := c.deadLetterInvalidFileProcessingMessage(ctx, consumerName, msg, err)
+			if quarantineErr != nil {
+				return nil, fmt.Errorf("dead-letter invalid file processing message %q: %w", msg.ID, quarantineErr)
+			}
+			if !quarantined {
+				return nil, fmt.Errorf("dead-letter invalid file processing message %q: message ownership lost", msg.ID)
+			}
+			continue
+		}
+		parsed.Reclaimed = reclaimed
+		parsedMessages = append(parsedMessages, parsed)
+	}
+	return parsedMessages, nil
+}
+
+func parseFileProcessingMessage(msg redis.XMessage) (repository.FileProcessingMessage, error) {
+	userID, err := strconv.ParseUint(strings.TrimSpace(getStringVal(msg.Values["user_id"])), 10, strconv.IntSize)
+	if err != nil || userID == 0 {
+		if err == nil {
+			err = errors.New("must be greater than zero")
+		}
+		return repository.FileProcessingMessage{}, fmt.Errorf("invalid user_id: %w", err)
+	}
+
+	retry, err := strconv.Atoi(strings.TrimSpace(getStringVal(msg.Values["retry"])))
+	if err != nil || retry < 0 {
+		if err == nil {
+			err = errors.New("must not be negative")
+		}
+		return repository.FileProcessingMessage{}, fmt.Errorf("invalid retry: %w", err)
+	}
+
+	lastError := ""
+	if rawLastError, ok := msg.Values["last_error"]; ok {
+		lastError = getStringVal(rawLastError)
+	}
+
 	return repository.FileProcessingMessage{
 		ID:        msg.ID,
-		UserID:    uint(getInt64Val(msg.Values["user_id"])),
+		UserID:    uint(userID),
 		FileID:    strings.TrimSpace(getStringVal(msg.Values["file_id"])),
-		Retry:     int(getInt64Val(msg.Values["retry"])),
-		LastError: getStringVal(msg.Values["last_error"]),
+		Retry:     retry,
+		LastError: lastError,
+	}, nil
+}
+
+func (c *conversationCache) deadLetterInvalidFileProcessingMessage(
+	ctx context.Context,
+	consumerName string,
+	message redis.XMessage,
+	parseErr error,
+) (bool, error) {
+	lastError := "invalid queue message: " + parseErr.Error()
+	if rawLastError, ok := message.Values["last_error"]; ok {
+		if previousError := strings.TrimSpace(getStringVal(rawLastError)); previousError != "" {
+			lastError += "; previous error: " + previousError
+		}
 	}
+
+	return fileProcessingScriptResult(deadLetterFileProcessingMessageScript.Run(
+		ctx,
+		c.client,
+		[]string{fileProcessingStreamName, fileProcessingDLQName},
+		fileProcessingGroupName,
+		consumerName,
+		message.ID,
+		getStringVal(message.Values["user_id"]),
+		getStringVal(message.Values["file_id"]),
+		getStringVal(message.Values["retry"]),
+		truncateStr(lastError, 255),
+		fileProcessingDLQMaxLen,
+	).Result())
 }
 
 // RenewFileProcessingMessageLease 刷新执行中消息的空闲时间，避免长任务被其他 worker 重复认领。

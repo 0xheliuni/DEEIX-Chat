@@ -1354,11 +1354,7 @@ func applyAnthropicStreamEvent(
 }
 
 func anthropicContentBlockIndex(parsed map[string]interface{}) int {
-	index := int(toInt64(parsed["index"]))
-	if index < 0 {
-		return 0
-	}
-	return index
+	return streamToolCallIndex(parsed["index"], 0)
 }
 
 func upsertAnthropicStreamToolCall(result *GenerateOutput, index int, item ToolCall) ToolCall {
