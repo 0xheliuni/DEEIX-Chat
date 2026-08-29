@@ -106,8 +106,6 @@ import {
 } from "@/features/admin/model/upstreams-models";
 import { PermissionGroupSelector } from "@/features/admin/components/sections/groups/permission-group-selector";
 
-const MODEL_TABLE_STICKY_VIEWPORT_CLASSNAME = "[&_thead]:sticky [&_thead]:top-0 [&_thead]:z-20";
-
 function KindsDropdown({
   value,
   onChange,
@@ -710,10 +708,7 @@ function RemoteModelsDialog({
         <div className="min-h-0 flex-1 overflow-hidden px-4 py-2">
           <Table
             className="min-w-0 table-auto"
-            viewportClassName={cn(
-              "max-h-[min(480px,calc(86vh-260px))] overflow-auto",
-              MODEL_TABLE_STICKY_VIEWPORT_CLASSNAME,
-            )}
+            viewportClassName="max-h-[min(480px,calc(86vh-260px))] [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-20"
           >
             <TableHeader>
               <TableRow className="hover:bg-transparent">
