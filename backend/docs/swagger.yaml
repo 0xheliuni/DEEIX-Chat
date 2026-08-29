@@ -2264,6 +2264,8 @@ definitions:
         items:
           type: integer
         type: array
+      defaultModel:
+        type: string
       defaultSkillIDs:
         items:
           type: integer
@@ -2291,6 +2293,7 @@ definitions:
     - createdAt
     - defaultKnowledgeBaseIDs
     - defaultMCPToolIDs
+    - defaultModel
     - defaultSkillIDs
     - description
     - icon
@@ -2612,6 +2615,9 @@ definitions:
           type: integer
         maxItems: 128
         type: array
+      defaultModel:
+        maxLength: 128
+        type: string
       defaultSkillIDs:
         items:
           type: integer
@@ -8039,6 +8045,9 @@ definitions:
           type: integer
         maxItems: 128
         type: array
+      defaultModel:
+        maxLength: 128
+        type: string
       defaultSkillIDs:
         items:
           type: integer

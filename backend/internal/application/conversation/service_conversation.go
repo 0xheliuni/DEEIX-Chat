@@ -59,6 +59,18 @@ func (s *Service) CreateConversation(ctx context.Context, userID uint, title str
 		}
 		project = resolvedProject
 		projectID = &project.ID
+		if normalizedModel == "" {
+			projectDefaultModel := strings.TrimSpace(project.DefaultModel)
+			if projectDefaultModel != "" {
+				available, availabilityErr := s.isAvailableConversationProjectDefaultModel(ctx, userID, projectDefaultModel)
+				if availabilityErr != nil {
+					return nil, availabilityErr
+				}
+				if available {
+					normalizedModel = projectDefaultModel
+				}
+			}
+		}
 	}
 
 	item := &model.Conversation{

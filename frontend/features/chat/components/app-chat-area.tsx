@@ -143,6 +143,7 @@ export function AppChatArea() {
   } = useSettingsChatPreferences();
   const items = useSidebarConversationField("items");
   const projects = useSidebarConversationField("projects");
+  const projectsLoading = useSidebarConversationField("projectsLoading");
   const prependNewConversation = useSidebarConversationField("prependNewConversation");
   const touchByPublicID = useSidebarConversationField("touchByPublicID");
   const renameByPublicID = useSidebarConversationField("renameByPublicID");
@@ -215,6 +216,7 @@ export function AppChatArea() {
     () => projects.find((item) => item.publicID === newConversationProjectID) ?? null,
     [newConversationProjectID, projects],
   );
+  const newConversationDefaultsPending = Boolean(newConversationProjectID && projectsLoading);
   const prependNewConversationInContext = React.useCallback(
     (platformModelName?: string) => prependNewConversation(platformModelName, newConversationProjectID || undefined),
     [newConversationProjectID, prependNewConversation],
@@ -268,6 +270,8 @@ export function AppChatArea() {
   } = useChatModelOptions({
     conversationPublicID: conversationID,
     conversationModel: currentConversation?.model ?? null,
+    newConversationDefaultModel: newConversationProject?.defaultModel ?? "",
+    newConversationDefaultsPending,
     resetToken: newConversationRevision,
   });
   const {
@@ -322,6 +326,7 @@ export function AppChatArea() {
     availableTools,
     toolsLoading,
     defaultToolIDs,
+    defaultToolsReady,
     onDefaultToolIDsChange,
   } = useChatMCPTools({
     mcpMaxSelectedTools,
@@ -329,6 +334,35 @@ export function AppChatArea() {
     setSelectedToolIDs,
   });
   const newConversationSelectionKey = `${newConversationRevision}:${newConversationProjectID || "unassigned"}`;
+  const warnedUnavailableProjectModelRef = React.useRef("");
+  React.useEffect(() => {
+    const configuredModel = newConversationProject?.defaultModel.trim() ?? "";
+    if (
+      conversationID ||
+      !configuredModel ||
+      modelsLoading ||
+      modelOptions.length === 0 ||
+      modelsErrorMsg.trim() ||
+      modelOptions.some((model) => model.platformModelName === configuredModel)
+    ) {
+      return;
+    }
+
+    const warningKey = `${newConversationSelectionKey}:${configuredModel}`;
+    if (warnedUnavailableProjectModelRef.current === warningKey) {
+      return;
+    }
+    warnedUnavailableProjectModelRef.current = warningKey;
+    toast.warning(t("projectDefaultModelUnavailable", { model: configuredModel }));
+  }, [
+    conversationID,
+    modelOptions,
+    modelsErrorMsg,
+    modelsLoading,
+    newConversationProject?.defaultModel,
+    newConversationSelectionKey,
+    t,
+  ]);
   const newConversationDefaultMCPToolIDs = React.useMemo(
     () => normalizeImageAttachmentProcessorSelection(
       filterAvailableMCPToolIDs(
@@ -353,11 +387,11 @@ export function AppChatArea() {
   const { onSelectedKnowledgeBasesChange, onSelectedSkillsChange, onSelectedToolsChange: applySelectedToolsChange } = useChatConversationDefaults({
     conversationID,
     contextKey: newConversationSelectionKey,
-    defaultsPending: Boolean(newConversationProjectID && !newConversationProject),
+    defaultsPending: newConversationDefaultsPending,
     defaultMCPToolIDs: newConversationDefaultMCPToolIDs,
     defaultSkillIDs: newConversationDefaultSkillIDs,
     defaultKnowledgeBaseIDs: newConversationDefaultKnowledgeBaseIDs,
-    toolsLoading,
+    mcpDefaultsPending: toolsLoading || !defaultToolsReady,
     setSelectedToolIDs,
     setSelectedSkills,
     setSelectedKnowledgeBaseIDs,

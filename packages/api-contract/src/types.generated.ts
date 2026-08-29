@@ -929,6 +929,7 @@ export interface ConversationProjectResponse {
   createdAt: string;
   defaultKnowledgeBaseIDs: string[];
   defaultMCPToolIDs: number[];
+  defaultModel: string;
   defaultSkillIDs: number[];
   description: string;
   icon: string;
@@ -1074,6 +1075,8 @@ export interface CreateConversationProjectRequest {
   defaultKnowledgeBaseIDs: string[];
   /** @maxItems 128 */
   defaultMCPToolIDs?: number[];
+  /** @maxLength 128 */
+  defaultModel?: string;
   /** @maxItems 128 */
   defaultSkillIDs?: number[];
   /** @maxLength 255 */
@@ -3564,6 +3567,8 @@ export interface UpdateConversationProjectRequest {
   defaultKnowledgeBaseIDs: string[];
   /** @maxItems 128 */
   defaultMCPToolIDs?: number[];
+  /** @maxLength 128 */
+  defaultModel?: string;
   /** @maxItems 128 */
   defaultSkillIDs?: number[];
   /** @maxLength 255 */

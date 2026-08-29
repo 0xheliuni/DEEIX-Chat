@@ -111,6 +111,9 @@ func (r *Repo) UpdateConversationProjectMetadataByPublicID(
 	if patch.SystemPrompt != nil {
 		updates["system_prompt"] = *patch.SystemPrompt
 	}
+	if patch.DefaultModel != nil {
+		updates["default_model"] = *patch.DefaultModel
+	}
 	if patch.MCPDefaultMode != nil {
 		updates["mcp_default_mode"] = *patch.MCPDefaultMode
 	}
@@ -295,6 +298,7 @@ func toConversationProjectDomain(item models.ConversationProject) domainconversa
 		Name:           item.Name,
 		Description:    item.Description,
 		SystemPrompt:   item.SystemPrompt,
+		DefaultModel:   item.DefaultModel,
 		MCPDefaultMode: mcpDefaultMode,
 		Color:          item.Color,
 		Icon:           item.Icon,
@@ -323,6 +327,7 @@ func toConversationProjectModel(item *domainconversation.ConversationProject) mo
 		Name:           item.Name,
 		Description:    item.Description,
 		SystemPrompt:   item.SystemPrompt,
+		DefaultModel:   item.DefaultModel,
 		MCPDefaultMode: item.MCPDefaultMode,
 		Color:          item.Color,
 		Icon:           item.Icon,

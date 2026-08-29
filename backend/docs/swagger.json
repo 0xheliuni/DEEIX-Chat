@@ -17702,6 +17702,7 @@
                 "createdAt",
                 "defaultKnowledgeBaseIDs",
                 "defaultMCPToolIDs",
+                "defaultModel",
                 "defaultSkillIDs",
                 "description",
                 "icon",
@@ -17731,6 +17732,9 @@
                     "items": {
                         "type": "integer"
                     }
+                },
+                "defaultModel": {
+                    "type": "string"
                 },
                 "defaultSkillIDs": {
                     "type": "array",
@@ -18201,6 +18205,10 @@
                     "items": {
                         "type": "integer"
                     }
+                },
+                "defaultModel": {
+                    "type": "string",
+                    "maxLength": 128
                 },
                 "defaultSkillIDs": {
                     "type": "array",
@@ -25927,6 +25935,10 @@
                     "items": {
                         "type": "integer"
                     }
+                },
+                "defaultModel": {
+                    "type": "string",
+                    "maxLength": 128
                 },
                 "defaultSkillIDs": {
                     "type": "array",

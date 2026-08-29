@@ -37,6 +37,7 @@ type ConversationProject struct {
 	Name           string `gorm:"size:80;not null;default:'';comment:项目名称"`
 	Description    string `gorm:"size:255;not null;default:'';comment:项目描述"`
 	SystemPrompt   string `gorm:"type:text;not null;default:'';comment:项目级系统提示词"`
+	DefaultModel   string `gorm:"size:128;not null;default:'';comment:项目新会话默认平台模型；空值表示继承全局默认"`
 	MCPDefaultMode string `gorm:"size:16;not null;default:'inherit';comment:MCP默认模式(inherit/custom)"`
 	Color          string `gorm:"size:32;not null;default:'';comment:项目颜色"`
 	Icon           string `gorm:"size:32;not null;default:'';comment:项目图标"`
