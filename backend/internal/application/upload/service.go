@@ -1,7 +1,6 @@
 package upload
 
 import (
-	"bufio"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -989,28 +988,11 @@ func saveUploadedFile(
 		maxUploadBytes = 20 * 1024 * 1024
 	}
 
-	tmpFile, err := os.CreateTemp("", fileID+"_*.upload")
+	staged, err := stageUploadedFile(reader, fileID, fileName, maxUploadBytes, declaredMIME)
 	if err != nil {
 		return "", "", "", 0, err
 	}
-	tmpName := tmpFile.Name()
-	defer func() {
-		_ = tmpFile.Close()
-		_ = os.Remove(tmpName)
-	}()
-
-	bufferedReader := bufio.NewReader(reader)
-	header, _ := bufferedReader.Peek(512)
-	detectedMIME := detectContentMIME(header, declaredMIME, fileName)
-
-	hasher := sha256.New()
-	written, err := io.Copy(io.MultiWriter(tmpFile, hasher), io.LimitReader(bufferedReader, maxUploadBytes+1))
-	if err != nil {
-		return "", "", "", 0, err
-	}
-	if written > maxUploadBytes {
-		return "", "", "", 0, errLocalFileTooLarge
-	}
+	defer os.Remove(staged.absolutePath) //nolint:errcheck
 
 	now := time.Now()
 	relativePath := filepath.Join(
@@ -1020,15 +1002,17 @@ func saveUploadedFile(
 		fileID+"_"+sanitizeFileName(fileName),
 	)
 	relativePath = filepath.ToSlash(relativePath)
-	if _, err = tmpFile.Seek(0, io.SeekStart); err != nil {
+	tmpFile, err := os.Open(staged.absolutePath)
+	if err != nil {
 		return "", "", "", 0, err
 	}
+	defer tmpFile.Close() //nolint:errcheck
 	if _, err = store.Put(ctx, relativePath, tmpFile, objectstore.PutOptions{
-		SizeBytes:   written,
-		ContentType: detectedMIME,
+		SizeBytes:   staged.sizeBytes,
+		ContentType: staged.detectedMIME,
 	}); err != nil {
 		return "", "", "", 0, err
 	}
 
-	return relativePath, detectedMIME, hex.EncodeToString(hasher.Sum(nil)), written, nil
+	return relativePath, staged.detectedMIME, staged.sha256, staged.sizeBytes, nil
 }

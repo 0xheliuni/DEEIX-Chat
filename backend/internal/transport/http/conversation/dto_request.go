@@ -119,7 +119,7 @@ type SendMessageRequest struct {
 }
 
 // TemporaryChatMessageRequest 是仅在当前页面内维护的临时对话请求。
-// 历史正文由浏览器逐轮提交，服务端不创建会话或消息记录。
+// 历史正文和请求级附件由浏览器逐轮提交，服务端不创建会话、消息或文件记录。
 type TemporaryChatMessageRequest struct {
 	SessionID        string                        `json:"sessionID" binding:"required,max=64"`
 	ClientRunID      string                        `json:"clientRunID" binding:"required,max=64"`
@@ -132,10 +132,10 @@ type TemporaryChatMessageRequest struct {
 	Messages         []TemporaryChatHistoryMessage `json:"messages" binding:"required,min=1,max=100,dive"`
 }
 
-// TemporaryChatHistoryMessage 是临时对话可提交的纯文本消息。
+// TemporaryChatHistoryMessage 是临时对话可提交的消息。
 type TemporaryChatHistoryMessage struct {
 	Role    string `json:"role" binding:"required,oneof=user assistant"`
-	Content string `json:"content" binding:"required,max=200000"`
+	Content string `json:"content" binding:"max=200000"`
 }
 
 // MediaImageRequest 图片生成/编辑请求。

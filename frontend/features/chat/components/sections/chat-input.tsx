@@ -828,6 +828,19 @@ function ChatInputComponent({
                   file={stablePreviewAttachment}
                   open={previewAttachment !== null}
                   onOpenChange={closePreviewDialog}
+                  loadContent={stablePreviewAttachment.localFile
+                    ? async (_file, signal) => {
+                        if (signal.aborted) {
+                          throw new DOMException("The operation was aborted", "AbortError");
+                        }
+                        return {
+                          blob: stablePreviewAttachment.localFile as File,
+                          contentType: stablePreviewAttachment.localFile?.type || "application/octet-stream",
+                          disposition: null,
+                          contentLength: stablePreviewAttachment.localFile?.size ?? null,
+                        };
+                      }
+                    : undefined}
                 />
               ) : null}
             </div>
@@ -887,7 +900,7 @@ function ChatInputComponent({
                 });
               }
 
-              if (!temporaryMode && files.length > 0) {
+              if (files.length > 0) {
                 if (!event.clipboardData.getData("text/plain")) {
                   event.preventDefault();
                 }
@@ -921,8 +934,7 @@ function ChatInputComponent({
 
           <InputGroupAddon align="block-end" className="items-center justify-between pt-2">
             <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
-              {!temporaryMode ? (
-                <DropdownMenu
+              <DropdownMenu
                   modal={false}
                   open={toolsMenuOpen}
                   onOpenChange={(open) => {
@@ -982,8 +994,7 @@ function ChatInputComponent({
                       {tComposer("screenshot")}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
-                </DropdownMenu>
-              ) : null}
+              </DropdownMenu>
 
               {!modelOptionPolicyDisabled ? (
                 <ChatModelConfig

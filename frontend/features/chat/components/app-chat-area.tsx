@@ -390,7 +390,14 @@ export function AppChatArea() {
     attachments,
     setAttachments,
     appendAttachmentsForKey,
+    temporary: temporaryMode,
   });
+
+  const onTemporaryAttachmentsConsumed = React.useCallback((items: typeof attachments) => {
+    transferAttachments(items);
+    const consumedIDs = new Set(items.map((item) => item.fileID));
+    setAttachments((current) => current.filter((item) => !consumedIDs.has(item.fileID)));
+  }, [setAttachments, transferAttachments]);
 
   const {
     currentLeafMessage,
@@ -458,7 +465,7 @@ export function AppChatArea() {
     return () => detachConversationRun(normalizedRunID);
   }, [detachConversationRun, registerConversationRun, resumingConversationID, resumingRunID]);
   const generating = sending;
-  const uploadDropDisabled = temporaryMode || loading || uploading;
+  const uploadDropDisabled = loading || uploading;
   const onStopActiveMessage = React.useCallback(() => {
     const visibleRunID = currentLeafMessage?.runID?.trim() || "";
     if (resumingRunID && visibleRunID === resumingRunID) {
@@ -635,7 +642,10 @@ export function AppChatArea() {
     selectedSkillIDs: temporarySelectedSkillIDs,
     selectedKnowledgeBaseIDs,
     htmlVisualPromptEnabled: htmlVisualPrompt.enabled,
+    attachments,
     onDraftChange: setDraft,
+    onAttachmentsConsumed: onTemporaryAttachmentsConsumed,
+    releaseAttachments,
   });
   const displayMessages = temporaryMode ? temporaryRuntime.messages : messagesWithInlineError;
   const artifactWorkspace = useChatArtifacts({
@@ -676,8 +686,8 @@ export function AppChatArea() {
     ragAvailabilityReason,
     sendShortcut,
     inputHeight,
-    attachments: temporaryMode ? EMPTY_LIST : attachments,
-    uploadingAttachments: temporaryMode ? EMPTY_LIST : uploadingAttachments,
+    attachments,
+    uploadingAttachments,
     modelOptions,
     billingDisplayCurrency,
     billingDisplayUsdToCnyRate,
@@ -695,7 +705,7 @@ export function AppChatArea() {
     defaultOptions: selectedModelDefaultOptions,
     modelOptionPolicy,
     modelLoading: modelsLoading,
-    dropActive: temporaryMode ? false : fileDragActive,
+    dropActive: fileDragActive,
     temporaryMode,
     onDraftChange: setDraft,
     onModelChange: setSelectedPlatformModelName,
@@ -781,15 +791,16 @@ export function AppChatArea() {
                   starred={activeConversationStarred}
                   canOperateConversation={temporaryMode ? false : canOperateConversation}
                   messages={displayMessages}
-                  messagesReadOnly={temporaryMode}
+                  attachmentContentLoader={temporaryMode ? temporaryRuntime.loadAttachmentContent : undefined}
+                  persistMessageFeedback={!temporaryMode}
                   busy={composerSending}
                   messageContentRef={messageContentRef}
                   onScroll={onScroll}
-                  onRetryUserMessage={onRetryUserMessage}
-                  onRetryAssistantMessage={onRetryAssistantMessage}
-                  onContinueAssistantMessage={onContinueAssistantMessage}
-                  onEditAssistantMessage={onEditAssistantMessage}
-                  onEditUserMessage={onEditUserMessage}
+                  onRetryUserMessage={temporaryMode ? temporaryRuntime.onRetryUserMessage : onRetryUserMessage}
+                  onRetryAssistantMessage={temporaryMode ? temporaryRuntime.onRetryAssistantMessage : onRetryAssistantMessage}
+                  onContinueAssistantMessage={temporaryMode ? undefined : onContinueAssistantMessage}
+                  onEditAssistantMessage={temporaryMode ? temporaryRuntime.onEditAssistantMessage : onEditAssistantMessage}
+                  onEditUserMessage={temporaryMode ? temporaryRuntime.onEditUserMessage : onEditUserMessage}
                   onForkMessage={temporaryMode ? undefined : onForkMessage}
                   modelOptions={modelOptions}
                   selectedPlatformModelName={selectedPlatformModelName}

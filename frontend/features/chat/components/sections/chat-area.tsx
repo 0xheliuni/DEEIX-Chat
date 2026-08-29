@@ -152,6 +152,7 @@ type ChatAreaProps = {
   canOperateConversation: boolean;
   messages: ChatAreaMessage[];
   messagesReadOnly?: boolean;
+  persistMessageFeedback?: boolean;
   busy: boolean;
   messageContentRef: React.RefObject<HTMLDivElement | null>;
   onScroll: (event: React.UIEvent<HTMLDivElement>) => void;
@@ -535,6 +536,7 @@ export function ChatArea({
   canOperateConversation,
   messages,
   messagesReadOnly = false,
+  persistMessageFeedback = true,
   busy,
   messageContentRef,
   onScroll,
@@ -579,7 +581,9 @@ export function ChatArea({
   screenshot,
 }: ChatAreaProps) {
   const t = useTranslations("chat");
-  const { getReaction, onReactAssistantMessage } = useChatMessageFeedback(messages);
+  const { getReaction, onReactAssistantMessage } = useChatMessageFeedback(messages, {
+    persist: persistMessageFeedback,
+  });
   const stableOnRetryUserMessage = useStableEvent(onRetryUserMessage);
   const stableOnRetryAssistantMessage = useStableEvent(onRetryAssistantMessage);
   const stableOnContinueAssistantMessage = useStableEvent(onContinueAssistantMessage ?? ((): undefined => undefined));

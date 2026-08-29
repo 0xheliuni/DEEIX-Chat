@@ -14225,9 +14225,10 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "由浏览器提交完整纯文本上下文；服务端不创建会话、消息、运行或断线续传记录",
+                "description": "由浏览器提交完整上下文和可选请求级附件；服务端不创建会话、消息、运行、文件或断线续传记录",
                 "consumes": [
-                    "application/json"
+                    "application/json",
+                    "multipart/form-data"
                 ],
                 "produces": [
                     "application/x-ndjson"

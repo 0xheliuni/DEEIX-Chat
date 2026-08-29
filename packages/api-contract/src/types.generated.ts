@@ -9658,7 +9658,7 @@ export namespace Skills {
 
 export namespace TemporaryChat {
   /**
-   * @description 由浏览器提交完整纯文本上下文；服务端不创建会话、消息、运行或断线续传记录
+   * @description 由浏览器提交完整上下文和可选请求级附件；服务端不创建会话、消息、运行、文件或断线续传记录
    * @tags chat
    * @name MessagesStreamCreate
    * @summary 流式发送临时对话消息

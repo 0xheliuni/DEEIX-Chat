@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -15,6 +16,32 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/objectstore"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
+
+func TestPrepareTemporaryFileUsesUploadPolicyWithoutPersistence(t *testing.T) {
+	service := NewService(config.Config{
+		MaxUploadFileBytes:   1024,
+		FileAllowedMIMETypes: "text/plain",
+	}, nil, nil, Hooks{}, ErrorSet{}, "")
+	prepared, err := service.PrepareTemporaryFile(t.Context(), TemporaryFileInput{
+		FileName:     "notes.txt",
+		MimeType:     "text/plain",
+		DeclaredSize: int64(len("temporary content")),
+		Reader:       strings.NewReader("temporary content"),
+	})
+	if err != nil {
+		t.Fatalf("prepare temporary file: %v", err)
+	}
+	if prepared.FileCategory != "text" || prepared.DetectedMIME != "text/plain" {
+		t.Fatalf("unexpected prepared metadata: %#v", prepared)
+	}
+	if _, err = os.Stat(prepared.AbsolutePath); err != nil {
+		t.Fatalf("temporary file missing before cleanup: %v", err)
+	}
+	prepared.Cleanup()
+	if _, err = os.Stat(prepared.AbsolutePath); !os.IsNotExist(err) {
+		t.Fatalf("temporary file still exists after cleanup: %v", err)
+	}
+}
 
 func TestUploadFileReturnsExistingActiveDuplicate(t *testing.T) {
 	ctx := context.Background()
