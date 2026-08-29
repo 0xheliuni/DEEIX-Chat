@@ -176,19 +176,19 @@ function ModelSelectIcon({
   fallbackValue: string;
 }) {
   if (!option) {
-    return <ModelOptionIcon iconUrl={null} label="" />;
+    return <ModelOptionIcon iconUrl={null} label="" size={14} />;
   }
 
   if (!option.iconUrl && option.value === fallbackValue) {
     return (
-      <span className="inline-flex size-4 shrink-0 items-center justify-center self-center text-foreground">
-        <Sparkles className="size-4" strokeWidth={1.8} />
+      <span className="inline-flex size-3.5 shrink-0 items-center justify-center self-center text-muted-foreground">
+        <Sparkles className="size-3.5 stroke-1" />
         <span className="sr-only">{option.label}</span>
       </span>
     );
   }
 
-  return <ModelOptionIcon iconUrl={option.iconUrl} label={option.label} />;
+  return <ModelOptionIcon iconUrl={option.iconUrl} label={option.label} size={14} />;
 }
 
 export function ModelSelect({

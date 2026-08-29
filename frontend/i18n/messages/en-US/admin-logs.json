@@ -272,13 +272,17 @@
     }
   },
   "redemptions": {
-    "searchPlaceholder": "Search user ID, redemption ref no., code hint, or note",
+    "searchPlaceholder": "Search redemption ref no., code hint, or note",
     "empty": "No redemption records",
     "filters": {
       "all": "All",
       "rewardType": "Reward type",
-      "code": "Code",
-      "clearCode": "Clear code filter"
+      "codeID": "Code ID",
+      "codeIDPlaceholder": "Enter code ID",
+      "userID": "User ID",
+      "userIDPlaceholder": "Enter user ID",
+      "clearCodeID": "Clear code ID",
+      "clearUserID": "Clear user ID"
     },
     "rewards": {
       "balance": "Balance",
