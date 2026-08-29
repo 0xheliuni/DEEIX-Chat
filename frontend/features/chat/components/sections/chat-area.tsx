@@ -53,14 +53,34 @@ function ScrollToLiveUser({
   viewportRef: React.RefObject<HTMLDivElement | null>;
 }): null {
   const handledScrollKeyRef = React.useRef("");
-  const followWhenOverflowingRef = React.useRef(false);
+  const waitingForOverflowRef = React.useRef(false);
+  const userTookOverRef = React.useRef(false);
   const { scrollToEnd, scrollToMessage } = useMessageScroller();
   const scrollable = useMessageScrollerScrollable();
 
   React.useLayoutEffect(() => {
     if (!scrollKey) {
+      const previousScrollKey = handledScrollKeyRef.current;
+      const preserveScrollPosition = userTookOverRef.current;
       handledScrollKeyRef.current = "";
-      followWhenOverflowingRef.current = false;
+      waitingForOverflowRef.current = false;
+      userTookOverRef.current = false;
+      if (!previousScrollKey) {
+        return;
+      }
+
+      const viewport = viewportRef.current;
+      const previousScrollTop = viewport?.scrollTop ?? 0;
+      // scrollToMessage may add an internal spacer while keeping the live user
+      // message at the top. Releasing the live anchor through the public API
+      // clears that spacer when the run reaches a terminal state.
+      scrollToEnd({ behavior: "auto" });
+      if (viewport && preserveScrollPosition) {
+        viewport.scrollTop = Math.min(
+          previousScrollTop,
+          Math.max(0, viewport.scrollHeight - viewport.clientHeight),
+        );
+      }
       return;
     }
     if (handledScrollKeyRef.current === scrollKey) {
@@ -68,11 +88,15 @@ function ScrollToLiveUser({
     }
 
     handledScrollKeyRef.current = scrollKey;
+    waitingForOverflowRef.current = true;
+    userTookOverRef.current = false;
     let secondFrameID: number | null = null;
     const firstFrameID = window.requestAnimationFrame(() => {
       secondFrameID = window.requestAnimationFrame(() => {
+        if (userTookOverRef.current) {
+          return;
+        }
         const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-        followWhenOverflowingRef.current = true;
         scrollToMessage(scrollKey, {
           align: "start",
           behavior: reducedMotion ? "auto" : "smooth",
@@ -85,13 +109,18 @@ function ScrollToLiveUser({
         window.cancelAnimationFrame(secondFrameID);
       }
     };
-  }, [scrollKey, scrollToMessage]);
+  }, [scrollKey, scrollToEnd, scrollToMessage, viewportRef]);
 
   React.useLayoutEffect(() => {
-    if (!scrollKey || !scrollable.end || !followWhenOverflowingRef.current) {
+    if (
+      !scrollKey ||
+      !scrollable.end ||
+      !waitingForOverflowRef.current ||
+      userTookOverRef.current
+    ) {
       return;
     }
-    followWhenOverflowingRef.current = false;
+    waitingForOverflowRef.current = false;
     scrollToEnd({ behavior: "auto" });
   }, [scrollKey, scrollToEnd, scrollable.end]);
 
@@ -101,7 +130,8 @@ function ScrollToLiveUser({
       return;
     }
     const stopFollowing = () => {
-      followWhenOverflowingRef.current = false;
+      waitingForOverflowRef.current = false;
+      userTookOverRef.current = true;
     };
     const stopFollowingFromKeyboard = (event: KeyboardEvent) => {
       if (["ArrowDown", "ArrowUp", "End", "Home", "PageDown", "PageUp", " "].includes(event.key)) {
@@ -698,7 +728,7 @@ export function ChatArea({
       ) : null}
 
       <div className="relative min-h-0 flex-1 overflow-hidden">
-        <MessageScrollerProvider>
+        <MessageScrollerProvider autoScroll={Boolean(liveUserScrollKey)}>
           <MessageScroller>
             <ScrollToLiveUser
               scrollKey={liveUserScrollKey}
