@@ -3,7 +3,7 @@ import type { UserActivityDailyDTO } from "@/shared/api/stats.types";
 
 export async function getUserActivity(
   accessToken: string,
-  options: { days?: number } = {},
+  options: { days?: number; signal?: AbortSignal } = {},
 ): Promise<UserActivityDailyDTO[]> {
   const params = new URLSearchParams();
   if (options.days && options.days > 0) {
@@ -12,7 +12,7 @@ export async function getUserActivity(
   const query = params.toString();
   return authedRequest<UserActivityDailyDTO[]>(
     `/api/v1/user/stats/activity${query ? `?${query}` : ""}`,
-    { accessToken },
+    { accessToken, signal: options.signal },
     true,
   );
 }

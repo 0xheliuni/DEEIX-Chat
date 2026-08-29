@@ -921,6 +921,9 @@ func TestBuildUsageLedgerAppliesAnthropicFastModeAndCacheRatesToServiceItems(t *
 	if err := json.Unmarshal([]byte(ledger.PricingSnapshotJSON), &snapshot); err != nil {
 		t.Fatalf("unmarshal pricing snapshot: %v", err)
 	}
+	if snapshot["service_only"] != true {
+		t.Fatalf("expected service-only marker, got %#v", snapshot["service_only"])
+	}
 	serviceItems, ok := snapshot["service_items"].([]interface{})
 	if !ok || len(serviceItems) != 1 {
 		t.Fatalf("expected one service item snapshot, got %#v", snapshot["service_items"])

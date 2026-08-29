@@ -14338,7 +14338,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "查询当前用户按日聚合的消息数与 token 消耗，逐日补零",
+                "description": "查询当前用户按计费归属日聚合的模型请求数与 token 消耗，逐日补零",
                 "consumes": [
                     "application/json"
                 ],
@@ -27755,14 +27755,14 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "date",
-                "messageCount",
+                "requestCount",
                 "tokenUsage"
             ],
             "properties": {
                 "date": {
                     "type": "string"
                 },
-                "messageCount": {
+                "requestCount": {
                     "type": "integer"
                 },
                 "tokenUsage": {

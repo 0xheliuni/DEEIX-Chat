@@ -9,8 +9,8 @@ import (
 	"time"
 
 	appuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/user"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
 )
 
@@ -68,7 +68,7 @@ func (h *Handler) GetAvatar(c *gin.Context) {
 
 // GetDailyActivity godoc
 // @Summary 查询每日活跃度
-// @Description 查询当前用户按日聚合的消息数与 token 消耗，逐日补零
+// @Description 查询当前用户按计费归属日聚合的模型请求数与 token 消耗，逐日补零
 // @Tags user
 // @Accept json
 // @Produce json
@@ -97,7 +97,7 @@ func (h *Handler) GetDailyActivity(c *gin.Context) {
 	for _, item := range items {
 		results = append(results, UserDailyActivityItem{
 			Date:         item.Date,
-			MessageCount: item.MessageCount,
+			RequestCount: item.RequestCount,
 			TokenUsage:   item.TokenUsage,
 		})
 	}

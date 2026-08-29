@@ -504,21 +504,21 @@
       "value": "Self-use mode"
     },
     "activity": {
-      "title": "Past year activity",
+      "title": "Activity over the past year",
       "tokens": "Tokens",
-      "messages": "Messages",
-      "activeDays": "{count} active days",
-      "peakDayTokens": "Peak daily tokens",
+      "requests": "Requests",
+      "peakDayTokens": "Highest daily tokens",
       "currentStreak": "Current streak",
       "longestStreak": "Longest streak",
       "totalActiveDays": "Active days",
-      "totalMessages": "Sent {count} messages in the past year",
+      "dayCount": "{count, plural, one {# day} other {# days}}",
+      "totalRequests": "Made {count} model requests in the past year",
       "less": "Less",
       "more": "More",
       "empty": "No activity in the past year",
       "loadFailed": "Failed to load activity",
       "tooltip": {
-        "messages": "Messages",
+        "requests": "Requests",
         "tokens": "Tokens"
       }
     },

@@ -504,21 +504,21 @@
       "value": "自用模式"
     },
     "activity": {
-      "title": "过去一年活跃度",
+      "title": "过去一年活跃概览",
       "tokens": "Tokens",
-      "messages": "消息数",
-      "activeDays": "活跃 {count} 天",
-      "peakDayTokens": "峰值单日 Token",
-      "currentStreak": "当前连续天数",
-      "longestStreak": "最长连续天数",
+      "requests": "请求",
+      "peakDayTokens": "单日最高 Tokens",
+      "currentStreak": "当前连续活跃",
+      "longestStreak": "最长连续活跃",
       "totalActiveDays": "活跃天数",
-      "totalMessages": "过去一年共发送 {count} 条消息",
+      "dayCount": "{count} 天",
+      "totalRequests": "过去一年共发起 {count} 次模型请求",
       "less": "较少",
       "more": "较多",
       "empty": "过去一年还没有活跃记录",
       "loadFailed": "活跃度加载失败",
       "tooltip": {
-        "messages": "消息数",
+        "requests": "请求",
         "tokens": "Tokens"
       }
     },

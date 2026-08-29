@@ -72,17 +72,6 @@ func (r *Repo) trimFunctionName() string {
 	return "btrim"
 }
 
-// activityDayKeyExpression 返回按天聚合 created_at 的方言表达式。
-// created_at 是带时区的时间戳：SQLite 的 strftime 遇到 +08:00 这类后缀会先转 UTC 再取日期，
-// 必须追加 'localtime' 修正回进程本地时区（SQLite 为嵌入式，进程时区即应用时区）；
-// Postgres 的 TO_CHAR 按会话时区渲染，依赖 DSN 的 TimeZone 与应用本地时区一致（与 billing 聚合的既有约定相同）。
-func (r *Repo) activityDayKeyExpression() string {
-	if r.sqliteDialect() {
-		return "strftime('%Y-%m-%d', created_at, 'localtime')"
-	}
-	return "TO_CHAR(created_at, 'YYYY-MM-DD')"
-}
-
 // CreateConversation 创建会话。
 func (r *Repo) CreateConversation(ctx context.Context, item *domainconversation.Conversation) error {
 	entity := toConversationModel(item)
@@ -2318,38 +2307,6 @@ func (r *Repo) ListRecentMessages(ctx context.Context, conversationID uint, limi
 		return nil, 0, err
 	}
 	return toMessageDomains(items), total, nil
-}
-
-// GetDailyActivityByUser 按日聚合用户消息活跃度（不含 system/tool 消息）。
-// 聚合在数据库内完成，仅返回有消息的日期（稀疏结果），由服务层逐日补零。
-func (r *Repo) GetDailyActivityByUser(ctx context.Context, userID uint, startDate time.Time, endDate time.Time) ([]domainconversation.MessageDailyActivity, error) {
-	type dailyActivityRow struct {
-		DateKey      string `gorm:"column:date_key"`
-		MessageCount int64  `gorm:"column:message_count"`
-		TokenUsage   int64  `gorm:"column:token_usage"`
-	}
-
-	rows := make([]dailyActivityRow, 0)
-	dayKeyExpression := r.activityDayKeyExpression()
-	if err := r.db.WithContext(ctx).
-		Model(&models.Message{}).
-		Select(dayKeyExpression+" AS date_key, COUNT(*) AS message_count, COALESCE(SUM(token_usage), 0) AS token_usage").
-		Where("user_id = ? AND created_at >= ? AND created_at < ? AND role IN ('user','assistant')", userID, startDate, endDate).
-		Group(dayKeyExpression).
-		Order("date_key ASC").
-		Scan(&rows).Error; err != nil {
-		return nil, translateError(err)
-	}
-
-	results := make([]domainconversation.MessageDailyActivity, 0, len(rows))
-	for _, row := range rows {
-		results = append(results, domainconversation.MessageDailyActivity{
-			Date:         row.DateKey,
-			MessageCount: row.MessageCount,
-			TokenUsage:   row.TokenUsage,
-		})
-	}
-	return results, nil
 }
 
 // CreateContextSnapshot 写入上下文压缩快照。

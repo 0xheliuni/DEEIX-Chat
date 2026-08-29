@@ -4192,7 +4192,7 @@ export interface UserAuthEventListResponseDoc {
 
 export interface UserDailyActivityItem {
   date: string;
-  messageCount: number;
+  requestCount: number;
   tokenUsage: number;
 }
 
@@ -9684,7 +9684,7 @@ export namespace User {
   }
 
   /**
-   * @description 查询当前用户按日聚合的消息数与 token 消耗，逐日补零
+   * @description 查询当前用户按计费归属日聚合的模型请求数与 token 消耗，逐日补零
    * @tags user
    * @name StatsActivityList
    * @summary 查询每日活跃度
