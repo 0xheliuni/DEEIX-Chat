@@ -75,7 +75,7 @@ import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { useScrollFadeFallbackRef } from "@/shared/hooks/use-scroll-fade-fallback-ref";
 import type { BillingDisplayCurrency } from "@/shared/lib/billing-display";
 import { formatBytes, resolveFileExtension, resolveFileIcon } from "@/shared/lib/file-display";
-import { resolveFileProcessingBadge } from "@/shared/lib/file-processing";
+import { isFileProcessing, resolveFileProcessingBadge } from "@/shared/lib/file-processing";
 import type { ModelOptionPolicy } from "@/shared/lib/model-option-policy";
 import { isSendShortcutEvent } from "@/shared/lib/platform-shortcuts";
 
@@ -750,29 +750,32 @@ function ChatInputComponent({
                   const badge = resolveFileProcessingBadge(item, (key, values) => tFileStatus(key, values));
                   const FileIcon = resolveFileIcon(item);
                   const failed = badge.tone === "danger" || badge.tone === "warning";
-                  const processing = !failed && badge.tone !== "success";
+                  const backgroundProcessing = !failed && isFileProcessing(item);
                   const meta = formatAttachmentMeta(item.fileName, item.sizeBytes);
                   return (
                     <Attachment
                       key={item.fileID}
-                      state={failed ? "error" : processing ? "processing" : "done"}
+                      state={failed ? "error" : "done"}
+                      aria-busy={backgroundProcessing}
                       size="sm"
                       className="h-12 w-full border-0 bg-muted/35 px-2 text-left hover:bg-muted/50 dark:bg-white/[0.06] dark:hover:bg-white/[0.09] sm:w-[228px] sm:px-2.5"
                     >
                       <AttachmentMedia className="size-6 bg-transparent text-muted-foreground">
-                        {processing ? (
-                          <LoaderCircle className="size-5 animate-spin" strokeWidth={1.8} />
-                        ) : (
-                          <FileIcon className="size-5" strokeWidth={1.6} />
-                        )}
+                        <FileIcon className="size-5" strokeWidth={1.6} />
                       </AttachmentMedia>
                       <AttachmentContent className="flex min-w-0 flex-1 flex-col justify-center px-0 py-0">
                         <AttachmentTitle className="text-[12px] leading-4 text-foreground/90" title={item.fileName}>
                           {item.fileName}
                         </AttachmentTitle>
                         <AttachmentDescription className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] leading-none">
-                          <span className="min-w-0 shrink truncate" title={failed ? badge.detail : undefined}>
-                            {failed ? `${badge.label} · ${meta}` : meta}
+                          {backgroundProcessing ? (
+                            <LoaderCircle className="size-3 shrink-0 animate-spin" strokeWidth={1.8} />
+                          ) : null}
+                          <span
+                            className="min-w-0 shrink truncate"
+                            title={failed || backgroundProcessing ? badge.detail : undefined}
+                          >
+                            {failed || backgroundProcessing ? `${badge.label} · ${meta}` : meta}
                           </span>
                           {item.ragOptOut && item.fileCategory !== "image" ? (
                             <span
@@ -817,7 +820,7 @@ function ChatInputComponent({
                         {item.fileName}
                       </AttachmentTitle>
                       <AttachmentDescription className="mt-1 text-[11px] leading-none">
-                        Uploading · {formatBytes(item.sizeBytes)}
+                        {tComposer("uploading")} · {formatBytes(item.sizeBytes)}
                       </AttachmentDescription>
                     </AttachmentContent>
                   </Attachment>
