@@ -4847,7 +4847,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "调用上游 models 接口，仅返回可导入预览，不直接落库",
+                "description": "调用上游 models 接口，返回可导入模型与目录变更预览，不直接落库",
                 "consumes": [
                     "application/json"
                 ],
@@ -4908,7 +4908,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "调用上游 models 接口写入上游真实模型清单，不自动绑定平台模型",
+                "description": "调用上游 models 接口获取完整目录，原子更新远端管理模型可用状态，不删除平台模型或路由配置",
                 "consumes": [
                     "application/json"
                 ],
@@ -4926,6 +4926,18 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "确认允许空模型目录对账",
+                        "name": "allow_empty",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "用户确认的远端目录快照标识",
+                        "name": "expected_snapshot",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -4943,6 +4955,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ChannelErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/ChannelErrorDoc"
                         }
@@ -25162,9 +25180,14 @@ const docTemplate = `{
                 "createdUpstreamModels",
                 "existingUpstreamModels",
                 "inactivatedModels",
+                "protectedUpstreamModels",
+                "reactivatedModels",
                 "skippedUpstreamModels",
+                "snapshotID",
                 "syncedModels",
-                "totalUpstream"
+                "totalUpstream",
+                "unchangedUpstreamModels",
+                "updatedUpstreamModels"
             ],
             "properties": {
                 "createdUpstreamModels": {
@@ -25176,8 +25199,17 @@ const docTemplate = `{
                 "inactivatedModels": {
                     "type": "integer"
                 },
+                "protectedUpstreamModels": {
+                    "type": "integer"
+                },
+                "reactivatedModels": {
+                    "type": "integer"
+                },
                 "skippedUpstreamModels": {
                     "type": "integer"
+                },
+                "snapshotID": {
+                    "type": "string"
                 },
                 "syncedModels": {
                     "type": "array",
@@ -25186,6 +25218,12 @@ const docTemplate = `{
                     }
                 },
                 "totalUpstream": {
+                    "type": "integer"
+                },
+                "unchangedUpstreamModels": {
+                    "type": "integer"
+                },
+                "updatedUpstreamModels": {
                     "type": "integer"
                 }
             }
@@ -26623,6 +26661,55 @@ const docTemplate = `{
                 }
             }
         },
+        "UpstreamModelSyncPlanResponse": {
+            "type": "object",
+            "required": [
+                "addedModels",
+                "inactivatedModels",
+                "protectedModels",
+                "reactivatedModels",
+                "unchangedModels",
+                "updatedModels"
+            ],
+            "properties": {
+                "addedModels": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "inactivatedModels": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "protectedModels": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "reactivatedModels": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "unchangedModels": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "updatedModels": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "UpstreamRemoteModelResponse": {
             "type": "object",
             "required": [
@@ -26680,6 +26767,8 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "items",
+                "snapshotID",
+                "syncPlan",
                 "total"
             ],
             "properties": {
@@ -26688,6 +26777,12 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/UpstreamRemoteModelResponse"
                     }
+                },
+                "snapshotID": {
+                    "type": "string"
+                },
+                "syncPlan": {
+                    "$ref": "#/definitions/UpstreamModelSyncPlanResponse"
                 },
                 "total": {
                     "type": "integer"
@@ -26817,8 +26912,11 @@ const docTemplate = `{
                 "bindingCode",
                 "created",
                 "kindsJSON",
+                "protected",
+                "reactivated",
                 "status",
                 "suggestedProtocol",
+                "updated",
                 "upstreamModelName"
             ],
             "properties": {
@@ -26831,11 +26929,20 @@ const docTemplate = `{
                 "kindsJSON": {
                     "type": "string"
                 },
+                "protected": {
+                    "type": "boolean"
+                },
+                "reactivated": {
+                    "type": "boolean"
+                },
                 "status": {
                     "type": "string"
                 },
                 "suggestedProtocol": {
                     "type": "string"
+                },
+                "updated": {
+                    "type": "boolean"
                 },
                 "upstreamModelName": {
                     "type": "string"
