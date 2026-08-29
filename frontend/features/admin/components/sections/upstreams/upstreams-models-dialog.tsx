@@ -107,8 +107,6 @@ import {
   useUpstreamModelSync,
 } from "@/features/admin/hooks/use-upstream-model-sync";
 
-const MODEL_TABLE_STICKY_VIEWPORT_CLASSNAME = "[&_thead]:sticky [&_thead]:top-0 [&_thead]:z-20";
-
 function KindsDropdown({
   value,
   onChange,
@@ -825,10 +823,7 @@ function RemoteModelsDialog({
               <Table
                 className="min-w-full table-fixed"
                 shellClassName="w-full"
-                viewportClassName={cn(
-                  "overflow-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-                  MODEL_TABLE_STICKY_VIEWPORT_CLASSNAME,
-                )}
+                viewportClassName="[&_thead]:sticky [&_thead]:top-0 [&_thead]:z-20"
                 viewportStyle={{ maxHeight: "min(27rem, calc(92svh - 15rem))" }}
               >
                 <TableHeader>

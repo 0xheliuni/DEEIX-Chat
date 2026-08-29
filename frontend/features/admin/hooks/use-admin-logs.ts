@@ -314,6 +314,8 @@ type UseAdminRedemptionsState = {
   setRewardTypeFilter: (value: string) => void;
   codeIDFilter: number;
   setCodeIDFilter: (value: number) => void;
+  userIDFilter: number;
+  setUserIDFilter: (value: number) => void;
   createdFromFilter: string;
   setCreatedFromFilter: (value: string) => void;
   createdToFilter: string;
@@ -1061,6 +1063,7 @@ export function useAdminRedemptions(initialCodeID?: number): UseAdminRedemptions
   const [codeIDFilter, setCodeIDFilterState] = React.useState(
     initialCodeID && initialCodeID > 0 ? initialCodeID : 0,
   );
+  const [userIDFilter, setUserIDFilterState] = React.useState(0);
   const [createdFromFilter, setCreatedFromFilterState] = React.useState("");
   const [createdToFilter, setCreatedToFilterState] = React.useState("");
   const [sortValue, setSortValueState] = React.useState<RedemptionSortValue>("created_desc");
@@ -1084,8 +1087,8 @@ export function useAdminRedemptions(initialCodeID?: number): UseAdminRedemptions
       const data = await listAdminRedemptions(token, {
         page: nextPage,
         pageSize: nextPageSize,
-        query: /^\d+$/.test(debouncedQuery) ? undefined : debouncedQuery,
-        userID: parsePositiveInt(debouncedQuery),
+        query: debouncedQuery,
+        userID: userIDFilter > 0 ? userIDFilter : undefined,
         codeID: codeIDFilter > 0 ? codeIDFilter : undefined,
         rewardType: rewardTypeFilter,
         createdFrom: toRFC3339DateRangeBound(createdFromFilter, "start"),
@@ -1104,7 +1107,7 @@ export function useAdminRedemptions(initialCodeID?: number): UseAdminRedemptions
         setLoading(false);
       }
     }
-  }, [codeIDFilter, createdFromFilter, createdToFilter, debouncedQuery, pageSize, rewardTypeFilter, sortValue, t]);
+  }, [codeIDFilter, createdFromFilter, createdToFilter, debouncedQuery, pageSize, rewardTypeFilter, sortValue, t, userIDFilter]);
 
   React.useEffect(() => {
     void loadRedemptions(1);
@@ -1120,6 +1123,10 @@ export function useAdminRedemptions(initialCodeID?: number): UseAdminRedemptions
   }, []);
   const setCodeIDFilter = React.useCallback((value: number) => {
     setCodeIDFilterState(value > 0 ? value : 0);
+    setPage(1);
+  }, []);
+  const setUserIDFilter = React.useCallback((value: number) => {
+    setUserIDFilterState(value > 0 ? value : 0);
     setPage(1);
   }, []);
   const setCreatedFromFilter = React.useCallback((value: string) => {
@@ -1148,6 +1155,8 @@ export function useAdminRedemptions(initialCodeID?: number): UseAdminRedemptions
     setRewardTypeFilter,
     codeIDFilter,
     setCodeIDFilter,
+    userIDFilter,
+    setUserIDFilter,
     createdFromFilter,
     setCreatedFromFilter,
     createdToFilter,

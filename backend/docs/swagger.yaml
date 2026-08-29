@@ -9506,12 +9506,44 @@ definitions:
     - data
     - errorMsg
     type: object
+  UserDailyActivityItem:
+    properties:
+      date:
+        type: string
+      requestCount:
+        type: integer
+      tokenUsage:
+        type: integer
+    required:
+    - date
+    - requestCount
+    - tokenUsage
+    type: object
+  UserDailyActivityListResponseDoc:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/UserDailyActivityItem'
+        type: array
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
   UserDataResponse:
     properties:
       user:
         $ref: '#/definitions/AdminUserResponse'
     required:
     - user
+    type: object
+  UserErrorDoc:
+    properties:
+      errorMsg:
+        type: string
+    required:
+    - errorMsg
     type: object
   UserListResponseDoc:
     properties:
@@ -18775,6 +18807,36 @@ paths:
       summary: 更新当前用户的配置
       tags:
       - user/settings
+  /user/stats/activity:
+    get:
+      consumes:
+      - application/json
+      description: 查询当前用户按计费归属日聚合的模型请求数与 token 消耗，逐日补零
+      parameters:
+      - description: 统计天数(默认365，最大366)
+        in: query
+        name: days
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/UserDailyActivityListResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/UserErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/UserErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 查询每日活跃度
+      tags:
+      - user
 securityDefinitions:
   BearerAuth:
     in: header

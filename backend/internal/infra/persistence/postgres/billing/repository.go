@@ -11,6 +11,7 @@ import (
 	"time"
 
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
+	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
@@ -72,6 +73,24 @@ func (r *Repo) usageWeekKeyExpression() string {
 		return "date(usage_date, '-' || ((CAST(strftime('%w', usage_date) AS INTEGER) + 6) % 7) || ' days')"
 	}
 	return "TO_CHAR(date_trunc('week', usage_date), 'YYYY-MM-DD')"
+}
+
+// serviceOnlyUsageExpression 识别标题、标签与上下文压缩等内部模型调用。
+// 新账本写入显式 service_only 快照；旧账本按既有服务编码兼容，避免全表回填审计流水。
+func (r *Repo) serviceOnlyUsageExpression() string {
+	if r.sqliteDialect() {
+		return `COALESCE(
+			CAST(json_extract(NULLIF(pricing_snapshot_json, ''), '$.service_only') AS INTEGER),
+			CASE WHEN json_extract(NULLIF(pricing_snapshot_json, ''), '$.service_items[0].service_code')
+				IN ('title', 'labels', 'compact') THEN 1 ELSE 0 END
+		)`
+	}
+	return `COALESCE(
+		(NULLIF(pricing_snapshot_json, '')::jsonb ->> 'service_only')::boolean,
+		(NULLIF(pricing_snapshot_json, '')::jsonb #>> '{service_items,0,service_code}')
+			IN ('title', 'labels', 'compact'),
+		FALSE
+	)`
 }
 
 // ListActivePlans 查询启用套餐。
@@ -2020,6 +2039,41 @@ func (r *Repo) GetUserCreatedAt(ctx context.Context, userID uint) (time.Time, er
 		return time.Time{}, translateError(err)
 	}
 	return item.CreatedAt, nil
+}
+
+// GetDailyActivityByUser 基于不可变用量流水聚合用户主动发起的模型请求。
+// 现有 (user_id, usage_date) 索引先限定用户与日期范围，再判断内部调用；
+// 查询成本随单个用户窗口内的实际用量增长，不扫描全局消息表。
+func (r *Repo) GetDailyActivityByUser(ctx context.Context, userID uint, startDate time.Time, endDate time.Time) ([]domainuser.DailyActivity, error) {
+	type dailyActivityRow struct {
+		UsageDate    time.Time `gorm:"column:usage_date"`
+		RequestCount int64     `gorm:"column:request_count"`
+		TokenUsage   int64     `gorm:"column:token_usage"`
+	}
+
+	rows := make([]dailyActivityRow, 0)
+	if err := r.db.WithContext(ctx).
+		Model(&model.UsageLedger{}).
+		Select(`usage_date,
+			COUNT(*) AS request_count,
+			COALESCE(SUM(input_tokens + cache_read_tokens + cache_write_tokens + output_tokens + reasoning_tokens), 0) AS token_usage`).
+		Where("user_id = ? AND usage_date >= ? AND usage_date < ?", userID, startDate, endDate).
+		Where("NOT (" + r.serviceOnlyUsageExpression() + ")").
+		Group("usage_date").
+		Order("usage_date ASC").
+		Scan(&rows).Error; err != nil {
+		return nil, translateError(err)
+	}
+
+	results := make([]domainuser.DailyActivity, 0, len(rows))
+	for _, row := range rows {
+		results = append(results, domainuser.DailyActivity{
+			Date:         row.UsageDate.Format("2006-01-02"),
+			RequestCount: row.RequestCount,
+			TokenUsage:   row.TokenUsage,
+		})
+	}
+	return results, nil
 }
 
 // ListDailyUsageByUser 按日期聚合用户用量。

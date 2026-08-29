@@ -1755,6 +1755,7 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 		"billing_mode":                             mode,
 		"pricing_mode":                             pricingMode,
 		"duration_billable":                        input.DurationBillable,
+		"service_only":                             input.ServiceOnly,
 		"is_free_model":                            ledgerIsFreeModel,
 		"currency":                                 currency,
 		"input_nanousd_per_m_tokens":               inputNanousdPerMTokens,
