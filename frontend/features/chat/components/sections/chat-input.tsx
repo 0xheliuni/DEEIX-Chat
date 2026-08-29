@@ -72,6 +72,7 @@ import type { MCPToolDTO } from "@/shared/api/mcp.types";
 import type { SkillSummaryDTO } from "@/shared/api/skills.types";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
+import { useScrollFadeFallbackRef } from "@/shared/hooks/use-scroll-fade-fallback-ref";
 import type { BillingDisplayCurrency } from "@/shared/lib/billing-display";
 import { formatBytes, resolveFileExtension, resolveFileIcon } from "@/shared/lib/file-display";
 import { resolveFileProcessingBadge } from "@/shared/lib/file-processing";
@@ -341,6 +342,7 @@ function ChatInputComponent({
   const inputGroupMeasureRef = React.useRef<HTMLDivElement | null>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
   const markdownPreviewRef = React.useRef<HTMLDivElement | null>(null);
+  const attachmentScrollFadeRef = useScrollFadeFallbackRef<HTMLDivElement>();
   const composingRef = React.useRef(false);
   const [inputGroupHeight, setInputGroupHeight] = React.useState<number | null>(null);
   const hasDraftText = draft.trim().length > 0;
@@ -677,7 +679,7 @@ function ChatInputComponent({
             key="markdown-preview"
             role="region"
             aria-label={tComposer("markdownPreview")}
-            className="absolute inset-x-0 z-[60] max-h-[40dvh] min-h-16 overflow-y-auto rounded-xl border-[0.5px] border-border/70 bg-pure/85 px-5 py-4 text-[15px] text-foreground shadow-xs backdrop-blur-xl scroll-fade-12"
+            className="absolute inset-x-0 z-[60] max-h-[40dvh] min-h-16 overflow-y-auto rounded-xl border-[0.5px] border-border/70 bg-pure/85 px-5 py-4 text-[15px] text-foreground shadow-xs backdrop-blur-xl"
             style={{ bottom: inputGroupHeight + 8 }}
             initial={{ opacity: 0, scale: 0.99, y: 4 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -740,7 +742,10 @@ function ChatInputComponent({
                   </button>
                 </div>
               ) : null}
-              <AttachmentGroup className="max-h-[196px] w-full flex-col gap-2 overflow-y-auto scroll-fade-12 px-1.5 pb-1 pt-1 [-ms-overflow-style:none] [scrollbar-width:none] max-sm:scroll-fade-none sm:max-h-none sm:flex-row sm:scroll-fade-x sm:overflow-x-auto sm:overflow-y-visible sm:pr-1.5 [&::-webkit-scrollbar]:hidden">
+              <AttachmentGroup
+                ref={attachmentScrollFadeRef}
+                className="max-h-[196px] w-full flex-col gap-2 overflow-y-auto scroll-fade-12 px-1.5 pb-1 pt-1 [-ms-overflow-style:none] [scrollbar-width:none] max-sm:scroll-fade-none sm:max-h-none sm:flex-row sm:scroll-fade-x sm:overflow-x-auto sm:overflow-y-visible sm:pr-1.5 [&::-webkit-scrollbar]:hidden"
+              >
                 {attachments.map((item) => {
                   const badge = resolveFileProcessingBadge(item, (key, values) => tFileStatus(key, values));
                   const FileIcon = resolveFileIcon(item);
