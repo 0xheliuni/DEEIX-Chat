@@ -46,6 +46,12 @@ type defaultRouteResolver interface {
 	ResolveDefaultRoute(ctx context.Context, input channel.ResolveRouteInput) (*channel.ResolvedRoute, error)
 }
 
+// activeModelCatalogResolver 提供用户可见的静态模型目录。
+// 项目默认模型校验不应依赖瞬时路由健康或熔断状态。
+type activeModelCatalogResolver interface {
+	ListActiveModels(ctx context.Context, userID uint) ([]channel.ModelView, error)
+}
+
 type memoryRecorder interface {
 	UpsertUserMemory(ctx context.Context, userID uint, memoryKey string, value string, scope string, updatedBy string) error
 	ListUserMemories(ctx context.Context, userID uint) ([]domainmemory.UserMemory, error)

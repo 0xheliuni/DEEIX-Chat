@@ -12,6 +12,7 @@ type CreateConversationProjectRequest struct {
 	Name                    string   `json:"name" binding:"required,max=80"`
 	Description             string   `json:"description,omitempty" binding:"max=255"`
 	SystemPrompt            string   `json:"systemPrompt,omitempty" binding:"max=12000"`
+	DefaultModel            string   `json:"defaultModel,omitempty" binding:"max=128"`
 	MCPDefaultMode          string   `json:"mcpDefaultMode,omitempty" binding:"omitempty,oneof=inherit custom"`
 	DefaultMCPToolIDs       []uint   `json:"defaultMCPToolIDs,omitempty" binding:"max=128"`
 	DefaultSkillIDs         []uint   `json:"defaultSkillIDs,omitempty" binding:"max=128"`
@@ -25,6 +26,7 @@ type UpdateConversationProjectRequest struct {
 	Name                    *string   `json:"name,omitempty" binding:"omitempty,max=80"`
 	Description             *string   `json:"description,omitempty" binding:"omitempty,max=255"`
 	SystemPrompt            *string   `json:"systemPrompt,omitempty" binding:"omitempty,max=12000"`
+	DefaultModel            *string   `json:"defaultModel,omitempty" binding:"omitempty,max=128"`
 	MCPDefaultMode          *string   `json:"mcpDefaultMode,omitempty" binding:"omitempty,oneof=inherit custom"`
 	DefaultMCPToolIDs       *[]uint   `json:"defaultMCPToolIDs,omitempty" binding:"omitempty,max=128"`
 	DefaultSkillIDs         *[]uint   `json:"defaultSkillIDs,omitempty" binding:"omitempty,max=128"`

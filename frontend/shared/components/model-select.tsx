@@ -114,6 +114,8 @@ export function OptionSelect<TOption extends OptionSelectOption>({
       value={selectedItem}
       onValueChange={(item) => onChange(item?.value ?? fallbackValue ?? "")}
       itemToStringLabel={(item) => item?.label ?? ""}
+      itemToStringValue={(item) => item?.value ?? ""}
+      isItemEqualToValue={(item, selected) => item.value === selected.value}
       disabled={disabled}
     >
       <ComboboxTrigger
@@ -203,6 +205,7 @@ export function ModelSelect({
   contentClassName = "min-w-[320px]",
   triggerClassName,
   valueClassName,
+  portalContainer,
   onChange,
 }: {
   id?: string;
@@ -216,6 +219,7 @@ export function ModelSelect({
   contentClassName?: string;
   triggerClassName?: string;
   valueClassName?: string;
+  portalContainer?: HTMLElement | ShadowRoot | null | React.RefObject<HTMLElement | ShadowRoot | null>;
   onChange: (value: string) => void;
 }) {
   const t = useTranslations("common.modelSelect");
@@ -242,6 +246,7 @@ export function ModelSelect({
       contentClassName={contentClassName}
       triggerClassName={triggerClassName}
       valueClassName={valueClassName}
+      portalContainer={portalContainer}
       renderIcon={(option) => <ModelSelectIcon option={option} fallbackValue={fallbackValue} />}
       renderOption={(item) => (
         <>

@@ -17709,6 +17709,7 @@ const docTemplate = `{
                 "createdAt",
                 "defaultKnowledgeBaseIDs",
                 "defaultMCPToolIDs",
+                "defaultModel",
                 "defaultSkillIDs",
                 "description",
                 "icon",
@@ -17738,6 +17739,9 @@ const docTemplate = `{
                     "items": {
                         "type": "integer"
                     }
+                },
+                "defaultModel": {
+                    "type": "string"
                 },
                 "defaultSkillIDs": {
                     "type": "array",
@@ -18208,6 +18212,10 @@ const docTemplate = `{
                     "items": {
                         "type": "integer"
                     }
+                },
+                "defaultModel": {
+                    "type": "string",
+                    "maxLength": 128
                 },
                 "defaultSkillIDs": {
                     "type": "array",
@@ -25934,6 +25942,10 @@ const docTemplate = `{
                     "items": {
                         "type": "integer"
                     }
+                },
+                "defaultModel": {
+                    "type": "string",
+                    "maxLength": 128
                 },
                 "defaultSkillIDs": {
                     "type": "array",

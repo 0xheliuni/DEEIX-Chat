@@ -58,6 +58,7 @@ func (h *Handler) CreateConversationProject(c *gin.Context) {
 		Name:                    req.Name,
 		Description:             req.Description,
 		SystemPrompt:            req.SystemPrompt,
+		DefaultModel:            req.DefaultModel,
 		MCPDefaultMode:          req.MCPDefaultMode,
 		DefaultMCPToolIDs:       req.DefaultMCPToolIDs,
 		DefaultSkillIDs:         req.DefaultSkillIDs,
@@ -79,6 +80,7 @@ func (h *Handler) CreateConversationProject(c *gin.Context) {
 	}
 	h.recordAudit(c, "create_conversation_project", "conversation_project", item.PublicID, map[string]interface{}{
 		"name":                         item.Name,
+		"default_model":                item.DefaultModel,
 		"mcp_default_mode":             item.MCPDefaultMode,
 		"default_mcp_tool_count":       len(item.DefaultMCPToolIDs),
 		"default_skill_count":          len(item.DefaultSkillIDs),
@@ -117,6 +119,7 @@ func (h *Handler) UpdateConversationProject(c *gin.Context) {
 		Name:                    req.Name,
 		Description:             req.Description,
 		SystemPrompt:            req.SystemPrompt,
+		DefaultModel:            req.DefaultModel,
 		MCPDefaultMode:          req.MCPDefaultMode,
 		DefaultMCPToolIDs:       req.DefaultMCPToolIDs,
 		DefaultSkillIDs:         req.DefaultSkillIDs,
@@ -140,6 +143,7 @@ func (h *Handler) UpdateConversationProject(c *gin.Context) {
 	}
 	h.recordAudit(c, "update_conversation_project", "conversation_project", item.PublicID, map[string]interface{}{
 		"name":                         item.Name,
+		"default_model":                item.DefaultModel,
 		"mcp_default_mode":             item.MCPDefaultMode,
 		"default_mcp_tool_count":       len(item.DefaultMCPToolIDs),
 		"default_skill_count":          len(item.DefaultSkillIDs),

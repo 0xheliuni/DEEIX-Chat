@@ -230,6 +230,7 @@ type ConversationProjectResponse struct {
 	Name                    string    `json:"name"`
 	Description             string    `json:"description"`
 	SystemPrompt            string    `json:"systemPrompt"`
+	DefaultModel            string    `json:"defaultModel"`
 	MCPDefaultMode          string    `json:"mcpDefaultMode"`
 	DefaultMCPToolIDs       []uint    `json:"defaultMCPToolIDs"`
 	DefaultSkillIDs         []uint    `json:"defaultSkillIDs"`
@@ -251,6 +252,7 @@ func toConversationProjectResponse(item *model.ConversationProject) Conversation
 		Name:                    item.Name,
 		Description:             item.Description,
 		SystemPrompt:            item.SystemPrompt,
+		DefaultModel:            item.DefaultModel,
 		MCPDefaultMode:          item.MCPDefaultMode,
 		DefaultMCPToolIDs:       append([]uint{}, item.DefaultMCPToolIDs...),
 		DefaultSkillIDs:         append([]uint{}, item.DefaultSkillIDs...),
