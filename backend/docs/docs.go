@@ -14330,6 +14330,54 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/user/stats/activity": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "查询当前用户按计费归属日聚合的模型请求数与 token 消耗，逐日补零",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "查询每日活跃度",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "统计天数(默认365，最大366)",
+                        "name": "days",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/UserDailyActivityListResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/UserErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/UserErrorDoc"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -27703,6 +27751,43 @@ const docTemplate = `{
                 }
             }
         },
+        "UserDailyActivityItem": {
+            "type": "object",
+            "required": [
+                "date",
+                "requestCount",
+                "tokenUsage"
+            ],
+            "properties": {
+                "date": {
+                    "type": "string"
+                },
+                "requestCount": {
+                    "type": "integer"
+                },
+                "tokenUsage": {
+                    "type": "integer"
+                }
+            }
+        },
+        "UserDailyActivityListResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/UserDailyActivityItem"
+                    }
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
         "UserDataResponse": {
             "type": "object",
             "required": [
@@ -27711,6 +27796,17 @@ const docTemplate = `{
             "properties": {
                 "user": {
                     "$ref": "#/definitions/AdminUserResponse"
+                }
+            }
+        },
+        "UserErrorDoc": {
+            "type": "object",
+            "required": [
+                "errorMsg"
+            ],
+            "properties": {
+                "errorMsg": {
+                    "type": "string"
                 }
             }
         },
