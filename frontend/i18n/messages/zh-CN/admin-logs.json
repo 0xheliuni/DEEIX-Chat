@@ -272,13 +272,17 @@
     }
   },
   "redemptions": {
-    "searchPlaceholder": "搜索用户 ID、兑换流水号、兑换码摘要、备注",
+    "searchPlaceholder": "搜索兑换流水号、兑换码摘要或备注",
     "empty": "暂无兑换记录",
     "filters": {
       "all": "全部",
       "rewardType": "奖励类型",
-      "code": "兑换码",
-      "clearCode": "清除兑换码筛选"
+      "codeID": "兑换码 ID",
+      "codeIDPlaceholder": "输入兑换码 ID",
+      "userID": "用户 ID",
+      "userIDPlaceholder": "输入用户 ID",
+      "clearCodeID": "清除兑换码 ID",
+      "clearUserID": "清除用户 ID"
     },
     "rewards": {
       "balance": "余额",
@@ -450,7 +454,7 @@
     "detailImageAlt": "审核图片 {index}",
     "imageLoadFailed": "部分隔离图片加载失败",
     "filters": {
-      "all": "所有"
+      "all": "全部"
     },
     "results": {
       "passed": "通过",
