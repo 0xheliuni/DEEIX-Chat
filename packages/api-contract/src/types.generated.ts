@@ -3365,9 +3365,14 @@ export interface SyncUpstreamModelsResponse {
   createdUpstreamModels: number;
   existingUpstreamModels: number;
   inactivatedModels: number;
+  protectedUpstreamModels: number;
+  reactivatedModels: number;
   skippedUpstreamModels: number;
+  snapshotID: string;
   syncedModels: UpstreamSyncModelResponse[];
   totalUpstream: number;
+  unchangedUpstreamModels: number;
+  updatedUpstreamModels: number;
 }
 
 export interface SyncUpstreamModelsResponseDoc {
@@ -3895,6 +3900,15 @@ export interface UpstreamModelResponse {
   weight: number;
 }
 
+export interface UpstreamModelSyncPlanResponse {
+  addedModels: string[];
+  inactivatedModels: string[];
+  protectedModels: string[];
+  reactivatedModels: string[];
+  unchangedModels: string[];
+  updatedModels: string[];
+}
+
 export interface UpstreamRemoteModelResponse {
   alreadyBound: boolean;
   alreadySynced: boolean;
@@ -3910,6 +3924,8 @@ export interface UpstreamRemoteModelResponse {
 
 export interface UpstreamRemoteModelsResponse {
   items: UpstreamRemoteModelResponse[];
+  snapshotID: string;
+  syncPlan: UpstreamModelSyncPlanResponse;
   total: number;
 }
 
@@ -3948,8 +3964,11 @@ export interface UpstreamSyncModelResponse {
   bindingCode: string;
   created: boolean;
   kindsJSON: string;
+  protected: boolean;
+  reactivated: boolean;
   status: string;
   suggestedProtocol: string;
+  updated: boolean;
   upstreamModelName: string;
 }
 
@@ -6085,7 +6104,7 @@ export namespace Admin {
   }
 
   /**
-   * @description 调用上游 models 接口，仅返回可导入预览，不直接落库
+   * @description 调用上游 models 接口，返回可导入模型与目录变更预览，不直接落库
    * @tags llm
    * @name LlmUpstreamsModelsRemoteList
    * @summary 管理员预览上游远程模型
@@ -6104,7 +6123,7 @@ export namespace Admin {
   }
 
   /**
-   * @description 调用上游 models 接口写入上游真实模型清单，不自动绑定平台模型
+   * @description 调用上游 models 接口获取完整目录，原子更新远端管理模型可用状态，不删除平台模型或路由配置
    * @tags llm
    * @name LlmUpstreamsModelsSyncCreate
    * @summary 管理员同步上游模型目录
@@ -6116,7 +6135,12 @@ export namespace Admin {
       /** 上游ID */
       id: number;
     };
-    export type RequestQuery = {};
+    export type RequestQuery = {
+      /** 确认允许空模型目录对账 */
+      allow_empty?: boolean;
+      /** 用户确认的远端目录快照标识 */
+      expected_snapshot?: string;
+    };
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = SyncUpstreamModelsResponseDoc;

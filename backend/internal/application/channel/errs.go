@@ -96,6 +96,10 @@ var (
 	ErrUpstreamSourceUnavailable = errors.New("upstream source unavailable")
 	// ErrRemoteModelsUnavailable 上游远程模型目录不可用。
 	ErrRemoteModelsUnavailable = errors.New("remote models unavailable")
+	// ErrEmptyRemoteModels 上游返回空模型目录，必须显式确认后才允许对账。
+	ErrEmptyRemoteModels = errors.New("remote models snapshot is empty")
+	// ErrRemoteModelsSnapshotChanged 表示确认后远端目录已变化，必须重新预览。
+	ErrRemoteModelsSnapshotChanged = errors.New("remote models snapshot changed")
 	// ErrNoActiveKey 无可用密钥。
 	ErrNoActiveKey = errors.New("no active api key")
 	// ErrLLMSettingNotFound LLM 全局设置不存在。

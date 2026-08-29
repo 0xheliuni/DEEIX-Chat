@@ -214,6 +214,8 @@
     "platformModelNameExists": "Platform model name already exists.",
     "platformModelNameRequired": "Platform model name is required.",
     "protocolRequired": "Protocol is required.",
+    "remoteModelsEmptyConfirmationRequired": "The upstream returned an empty model catalog. Refresh and confirm before syncing it.",
+    "remoteModelsSnapshotChanged": "The upstream model catalog changed after the preview. The latest changes have been reloaded for confirmation.",
     "remoteModelsUnavailable": "Remote models are unavailable.",
     "routeConflict": "This upstream model already has a binding for the same platform model and protocol. Remove the duplicate binding before saving.",
     "routesUnavailable": "All model routes are unavailable."

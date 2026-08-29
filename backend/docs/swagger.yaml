@@ -7591,21 +7591,36 @@ definitions:
         type: integer
       inactivatedModels:
         type: integer
+      protectedUpstreamModels:
+        type: integer
+      reactivatedModels:
+        type: integer
       skippedUpstreamModels:
         type: integer
+      snapshotID:
+        type: string
       syncedModels:
         items:
           $ref: '#/definitions/UpstreamSyncModelResponse'
         type: array
       totalUpstream:
         type: integer
+      unchangedUpstreamModels:
+        type: integer
+      updatedUpstreamModels:
+        type: integer
     required:
     - createdUpstreamModels
     - existingUpstreamModels
     - inactivatedModels
+    - protectedUpstreamModels
+    - reactivatedModels
     - skippedUpstreamModels
+    - snapshotID
     - syncedModels
     - totalUpstream
+    - unchangedUpstreamModels
+    - updatedUpstreamModels
     type: object
   SyncUpstreamModelsResponseDoc:
     properties:
@@ -8628,6 +8643,40 @@ definitions:
     - upstreamModelVendor
     - weight
     type: object
+  UpstreamModelSyncPlanResponse:
+    properties:
+      addedModels:
+        items:
+          type: string
+        type: array
+      inactivatedModels:
+        items:
+          type: string
+        type: array
+      protectedModels:
+        items:
+          type: string
+        type: array
+      reactivatedModels:
+        items:
+          type: string
+        type: array
+      unchangedModels:
+        items:
+          type: string
+        type: array
+      updatedModels:
+        items:
+          type: string
+        type: array
+    required:
+    - addedModels
+    - inactivatedModels
+    - protectedModels
+    - reactivatedModels
+    - unchangedModels
+    - updatedModels
+    type: object
   UpstreamRemoteModelResponse:
     properties:
       alreadyBound:
@@ -8672,10 +8721,16 @@ definitions:
         items:
           $ref: '#/definitions/UpstreamRemoteModelResponse'
         type: array
+      snapshotID:
+        type: string
+      syncPlan:
+        $ref: '#/definitions/UpstreamModelSyncPlanResponse'
       total:
         type: integer
     required:
     - items
+    - snapshotID
+    - syncPlan
     - total
     type: object
   UpstreamRemoteModelsResponseDoc:
@@ -8771,18 +8826,27 @@ definitions:
         type: boolean
       kindsJSON:
         type: string
+      protected:
+        type: boolean
+      reactivated:
+        type: boolean
       status:
         type: string
       suggestedProtocol:
         type: string
+      updated:
+        type: boolean
       upstreamModelName:
         type: string
     required:
     - bindingCode
     - created
     - kindsJSON
+    - protected
+    - reactivated
     - status
     - suggestedProtocol
+    - updated
     - upstreamModelName
     type: object
   UsageDailyListResponseDoc:
@@ -12899,7 +12963,7 @@ paths:
     get:
       consumes:
       - application/json
-      description: 调用上游 models 接口，仅返回可导入预览，不直接落库
+      description: 调用上游 models 接口，返回可导入模型与目录变更预览，不直接落库
       parameters:
       - description: 上游ID
         in: path
@@ -12938,13 +13002,21 @@ paths:
     post:
       consumes:
       - application/json
-      description: 调用上游 models 接口写入上游真实模型清单，不自动绑定平台模型
+      description: 调用上游 models 接口获取完整目录，原子更新远端管理模型可用状态，不删除平台模型或路由配置
       parameters:
       - description: 上游ID
         in: path
         name: id
         required: true
         type: integer
+      - description: 确认允许空模型目录对账
+        in: query
+        name: allow_empty
+        type: boolean
+      - description: 用户确认的远端目录快照标识
+        in: query
+        name: expected_snapshot
+        type: string
       produces:
       - application/json
       responses:
@@ -12958,6 +13030,10 @@ paths:
             $ref: '#/definitions/ChannelErrorDoc'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/ChannelErrorDoc'
+        "409":
+          description: Conflict
           schema:
             $ref: '#/definitions/ChannelErrorDoc'
         "500":
