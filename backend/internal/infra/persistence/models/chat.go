@@ -217,7 +217,7 @@ type FileObject struct {
 	OCRUsed                bool       `gorm:"not null;default:false;comment:是否使用OCR"`
 	RAGReady               bool       `gorm:"not null;default:false;comment:RAG是否就绪"`
 	RAGReason              string     `gorm:"size:255;not null;default:'';comment:RAG处理说明"`
-	EmbedStatus            string     `gorm:"size:16;not null;default:'none';index:idx_file_objects_embed_status;comment:向量嵌入状态(none/processing/ready/stale/failed)"`
+	EmbedStatus            string     `gorm:"size:16;not null;default:'none';index:idx_file_objects_embed_status;comment:向量嵌入状态(none/queued/processing/ready/stale/failed)"`
 	EmbedSignature         string     `gorm:"size:64;not null;default:'';index:idx_file_objects_embed_signature;comment:当前向量任务所属空间签名"`
 	EmbedError             string     `gorm:"type:text;not null;default:'';comment:嵌入失败原因"`
 	PageCount              int        `gorm:"not null;default:0;comment:PDF页数"`

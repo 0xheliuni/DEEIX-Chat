@@ -7,14 +7,6 @@ import * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Spinner } from "@/components/ui/spinner";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -22,6 +14,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
   TableBody,
@@ -235,12 +235,19 @@ export function AdminKnowledgeBases({ page }: { page: KnowledgeBasesPageModel })
             loadingMore={detail.filesLoadingMore}
             removingFileID={detail.removingFileID}
             toggling={detail.toggling}
+            selectedFileIDs={detail.selectedFileIDs}
+            vectorizingFileIDs={detail.vectorizingFileIDs}
             onBack={() => setDetailOpen(false)}
             onAddFiles={detail.addFiles}
             onLoadMore={detail.loadMoreFiles}
             onRemoveFile={detail.removeFile}
             onToggleEnabled={detail.toggleBuiltinEnabled}
             onPreviewFile={detail.previewFile}
+            onToggleFileSelection={detail.toggleFileSelection}
+            onSelectVectorizableFiles={detail.selectVectorizableFiles}
+            onClearFileSelection={detail.clearFileSelection}
+            onVectorizeFile={detail.vectorizeFile}
+            onVectorizeSelectedFiles={detail.vectorizeSelectedFiles}
           />
         </DialogContent>
       </Dialog>

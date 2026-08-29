@@ -26,6 +26,7 @@ func (m *Module) RegisterAdminRoutes(adminGroup *gin.RouterGroup) {
 	adminGroup.GET("/knowledge-bases/:id", m.Handler.GetAdmin)
 	adminGroup.GET("/knowledge-bases/files", m.Handler.ListPlatformFiles)
 	adminGroup.POST("/knowledge-bases/files", m.Handler.UploadAdminFile)
+	adminGroup.POST("/knowledge-bases/files/embeddings", m.Handler.SubmitAdminFileEmbeddings)
 	adminGroup.GET("/knowledge-bases/files/:file_id/content", m.Handler.GetPlatformFileContent)
 	adminGroup.DELETE("/knowledge-bases/files/:file_id", m.Handler.DeleteAdminFile)
 	adminGroup.PATCH("/knowledge-bases/:id", m.Handler.PatchAdmin)

@@ -149,7 +149,9 @@
   },
   "embedding": {
     "serviceNotConfigured": "请先启用并配置 Embedding 服务。",
-    "serviceUnavailable": "向量服务不可用。"
+    "serviceUnavailable": "向量服务不可用。",
+    "submitFailed": "向量化任务提交失败，请稍后重试。",
+    "tooManyFiles": "单次最多提交 100 个文件进行向量化。"
   },
   "file": {
     "embeddingUnavailable": "当前文件暂不支持向量处理。",

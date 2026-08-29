@@ -1390,6 +1390,21 @@ export interface Envelope {
   requestId?: string;
 }
 
+export interface FileEmbeddingSkipResponse {
+  fileID: string;
+  reason: string;
+}
+
+export interface FileEmbeddingSubmissionResponse {
+  skipped: FileEmbeddingSkipResponse[];
+  submittedFileIDs: string[];
+}
+
+export interface FileEmbeddingSubmissionResponseDoc {
+  data: FileEmbeddingSubmissionResponse;
+  errorMsg: string;
+}
+
 export interface FileListResponse {
   quota: StorageQuotaResponse;
   results: FileObjectResponse[];
@@ -1403,6 +1418,7 @@ export interface FileListResponseDoc {
 
 export interface FileObjectResponse {
   sha256: string;
+  canVectorize: boolean;
   chunkCount: number;
   createdAt: string;
   detectedMIME: string;
@@ -1424,9 +1440,11 @@ export interface FileObjectResponse {
   sizeBytes: number;
   status: string;
   updatedAt: string;
+  vectorizationReason: string;
 }
 
 export interface FileProcessingStatusResponse {
+  canVectorize: boolean;
   chunkCount: number;
   completedAt: string | null;
   detectedMIME: string;
@@ -1447,6 +1465,7 @@ export interface FileProcessingStatusResponse {
   ragReason: string;
   startedAt: string | null;
   updatedAt: string;
+  vectorizationReason: string;
 }
 
 export interface FileUpdateResponseDoc {
@@ -1663,6 +1682,21 @@ export interface KnowledgeBaseFileDataResponse {
   file: KnowledgeBaseFileResponse;
 }
 
+export interface KnowledgeBaseFileEmbeddingSkipResponse {
+  fileID: string;
+  reason: string;
+}
+
+export interface KnowledgeBaseFileEmbeddingSubmissionResponse {
+  skipped: KnowledgeBaseFileEmbeddingSkipResponse[];
+  submittedFileIDs: string[];
+}
+
+export interface KnowledgeBaseFileEmbeddingSubmissionResponseDoc {
+  data: KnowledgeBaseFileEmbeddingSubmissionResponse;
+  errorMsg: string;
+}
+
 export interface KnowledgeBaseFileMutationDataResponse {
   updated: boolean;
 }
@@ -1686,9 +1720,12 @@ export interface KnowledgeBaseFileProcessingSnapshotResponse {
 }
 
 export interface KnowledgeBaseFileProcessingStatusResponse {
+  canVectorize: boolean;
   chunkCount: number;
   detectedMIME: string;
+  embedError: string;
   embedStatus: string;
+  extractStatus: string;
   fileCategory: string;
   fileID: string;
   processing: boolean;
@@ -1696,13 +1733,17 @@ export interface KnowledgeBaseFileProcessingStatusResponse {
   processingStatus: string;
   ragOptOut: boolean;
   updatedAt: string;
+  vectorizationReason: string;
 }
 
 export interface KnowledgeBaseFileResponse {
+  canVectorize: boolean;
   chunkCount: number;
   createdAt: string;
   detectedMIME: string;
+  embedError: string;
   embedStatus: string;
+  extractStatus: string;
   fileCategory: string;
   fileID: string;
   fileName: string;
@@ -1713,6 +1754,7 @@ export interface KnowledgeBaseFileResponse {
   ragOptOut: boolean;
   sizeBytes: number;
   updatedAt: string;
+  vectorizationReason: string;
 }
 
 export interface KnowledgeBaseFileResponseDoc {
@@ -3301,6 +3343,22 @@ export interface StorageQuotaResponse {
   updatedAt: string;
   usedBytes: number;
   userID: number;
+}
+
+export interface SubmitFileEmbeddingsRequest {
+  /**
+   * @maxItems 100
+   * @minItems 1
+   */
+  fileIDs: string[];
+}
+
+export interface SubmitPlatformFileEmbeddingsRequest {
+  /**
+   * @maxItems 100
+   * @minItems 1
+   */
+  fileIDs: string[];
 }
 
 export interface SubscribeRequest {
@@ -5122,6 +5180,22 @@ export namespace Admin {
     };
     export type RequestHeaders = {};
     export type ResponseBody = KnowledgeBaseFileResponseDoc;
+  }
+
+  /**
+   * @description 为管理员选中的平台资料提交向量化任务，最多100个；重复提交会幂等跳过
+   * @tags admin-knowledge-bases
+   * @name KnowledgeBasesFilesEmbeddingsCreate
+   * @summary 批量提交平台资料向量化
+   * @request POST:/admin/knowledge-bases/files/embeddings
+   * @secure
+   */
+  export namespace KnowledgeBasesFilesEmbeddingsCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = SubmitPlatformFileEmbeddingsRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = KnowledgeBaseFileEmbeddingSubmissionResponseDoc;
   }
 
   /**
@@ -8697,6 +8771,22 @@ export namespace Files {
     };
     export type RequestHeaders = {};
     export type ResponseBody = UploadFileResponseDoc;
+  }
+
+  /**
+   * @description 为当前用户已完成文本提取的文件提交向量化任务，最多100个；重复提交会幂等跳过
+   * @tags chat
+   * @name EmbeddingsCreate
+   * @summary 批量提交指定文件向量化
+   * @request POST:/files/embeddings
+   * @secure
+   */
+  export namespace EmbeddingsCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = SubmitFileEmbeddingsRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = FileEmbeddingSubmissionResponseDoc;
   }
 
   /**

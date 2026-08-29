@@ -7,6 +7,15 @@ import (
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 )
 
+const FileProcessingKindEmbedding = "embedding"
+
+type FileProcessingQueue string
+
+const (
+	FileProcessingQueueDefault   FileProcessingQueue = "file_processing"
+	FileProcessingQueueEmbedding FileProcessingQueue = "file_embedding"
+)
+
 // FileProcessingMessage 文件处理队列消息。
 type FileProcessingMessage struct {
 	// ID 是 Redis Stream 消息 ID。
@@ -16,6 +25,12 @@ type FileProcessingMessage struct {
 	Retry     int
 	LastError string
 	Reclaimed bool
+	Kind      string
+	// Queue 标记消息实际所属队列；旧消息即使携带 embedding kind，也能在原队列完成续租和确认。
+	Queue FileProcessingQueue
+	// EmbeddingSignature 与 EmbeddingHost 将显式向量化任务固定到接收任务时的运行时配置。
+	EmbeddingSignature string
+	EmbeddingHost      string
 }
 
 // GenerationStreamMessage 是生成流中的一条可恢复事件。
@@ -42,10 +57,13 @@ type GenerationStreamTextSnapshot struct {
 type FileProcessingQueueRepository interface {
 	InitFileProcessingStream(ctx context.Context) error
 	EnqueueFileProcessing(ctx context.Context, userID uint, fileID string, retry int, lastError string) error
+	EnqueueFileEmbedding(ctx context.Context, userID uint, fileID string, embeddingSignature string, embeddingHost string) error
 	ClaimTimedOutFileProcessingMessages(ctx context.Context, consumerName string) ([]FileProcessingMessage, error)
+	ClaimTimedOutFileEmbeddingMessages(ctx context.Context, consumerName string) ([]FileProcessingMessage, error)
 	ReadFileProcessingMessages(ctx context.Context, consumerName string) ([]FileProcessingMessage, error)
-	RenewFileProcessingMessageLease(ctx context.Context, consumerName, messageID string) (bool, error)
-	SettleFileProcessingMessage(ctx context.Context, consumerName, messageID string) (bool, error)
+	ReadFileEmbeddingMessages(ctx context.Context, consumerName string) ([]FileProcessingMessage, error)
+	RenewFileProcessingMessageLease(ctx context.Context, consumerName string, message FileProcessingMessage) (bool, error)
+	SettleFileProcessingMessage(ctx context.Context, consumerName string, message FileProcessingMessage) (bool, error)
 	RequeueFileProcessingMessage(ctx context.Context, consumerName string, message FileProcessingMessage, retry int, lastError string) (bool, error)
 	DeadLetterFileProcessingMessage(ctx context.Context, consumerName string, message FileProcessingMessage, lastError string) (bool, error)
 }

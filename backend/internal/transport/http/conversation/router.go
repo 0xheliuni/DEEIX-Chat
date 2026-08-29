@@ -51,6 +51,7 @@ func (m *Module) RegisterRoutes(authRequired *gin.RouterGroup) {
 	authRequired.POST("/files", m.Handler.UploadFile)
 	authRequired.GET("/files", m.Handler.ListFiles)
 	authRequired.POST("/files/processing/statuses", m.Handler.GetFileProcessingStatuses)
+	authRequired.POST("/files/embeddings", m.Handler.SubmitFileEmbeddings)
 	authRequired.GET("/files/:file_id/processing", m.Handler.GetFileProcessingStatus)
 	authRequired.GET("/files/:file_id/extract", m.Handler.GetFileExtract)
 	authRequired.PATCH("/files/:file_id", m.Handler.UpdateFile)

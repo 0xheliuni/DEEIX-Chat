@@ -20,8 +20,8 @@ type Repo struct {
 
 const knowledgeBaseFileSelectColumns = `
 	fo.id, fo.file_id, fo.user_id, fo.purpose, fo.file_name, fo.mime_type, fo.detected_mime,
-	fo.file_category, fo.size_bytes, fo.sha256, fo.status, fo.processing_status,
-	fo.processing_ready, fo.extract_status, fo.embed_status, fo.rag_opt_out,
+	fo.file_category, fo.size_bytes, fo.sha256, fo.storage_path, fo.status, fo.processing_status,
+	fo.processing_ready, fo.extract_status, fo.embed_status, fo.embed_signature, fo.embed_error, fo.rag_opt_out,
 	fo.chunk_count, fo.page_count, fo.created_at, fo.updated_at`
 
 // NewRepo 创建知识库仓储。
@@ -247,8 +247,9 @@ func (r *Repo) listKnowledgeBaseFileProcessingStatuses(ctx context.Context, know
 	if len(fileIDs) > 0 {
 		if err := r.db.WithContext(ctx).Table("knowledge_base_files AS kbf").
 			Select(`
-				fo.file_id, fo.detected_mime, fo.file_category, fo.processing_status,
-				fo.processing_ready, fo.extract_status, fo.embed_status, fo.rag_opt_out, fo.chunk_count, fo.updated_at`).
+				fo.file_id, fo.file_name, fo.mime_type, fo.detected_mime, fo.file_category, fo.storage_path, fo.status,
+				fo.processing_status, fo.processing_ready, fo.extract_status, fo.embed_status, fo.embed_signature,
+				fo.embed_error, fo.rag_opt_out, fo.chunk_count, fo.updated_at`).
 			Joins("JOIN file_objects AS fo ON fo.id = kbf.file_object_id AND fo.status = ? AND fo.deleted_at IS NULL", "active").
 			Where("kbf.knowledge_base_id = ? AND fo.file_id IN ?", knowledgeBaseID, fileIDs).
 			Scan(&items).Error; err != nil {
@@ -622,7 +623,8 @@ func toFileDomain(item model.FileObject) domainconversation.FileObject {
 		SizeBytes: item.SizeBytes, SHA256: item.SHA256, StoragePath: item.StoragePath, Status: item.Status,
 		ProcessingStatus: item.ProcessingStatus, ProcessingReady: item.ProcessingReady,
 		ProcessingErrorCode: item.ProcessingErrorCode, ProcessingErrorMessage: item.ProcessingErrorMessage,
-		ExtractStatus: item.ExtractStatus, EmbedStatus: item.EmbedStatus, RagOptOut: item.RagOptOut,
+		ExtractStatus: item.ExtractStatus, EmbedStatus: item.EmbedStatus, EmbedSignature: item.EmbedSignature,
+		EmbedError: item.EmbedError, RagOptOut: item.RagOptOut,
 		ChunkCount: item.ChunkCount, PageCount: item.PageCount, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt,
 	}
 }
