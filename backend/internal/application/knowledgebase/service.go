@@ -6,6 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	appembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/embedding"
 	appupload "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/upload"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainknowledgebase "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/knowledgebase"
@@ -29,6 +30,7 @@ type Service struct {
 	fileCleaner  fileCleaner
 	fileOpener   fileContentOpener
 	fileUploader fileUploader
+	fileEmbedder fileEmbeddingSubmitter
 	logger       *zap.Logger
 }
 
@@ -46,6 +48,11 @@ type fileContentOpener interface {
 
 type fileUploader interface {
 	UploadFile(ctx context.Context, input appupload.UploadFileInput) (*appupload.UploadFileResult, error)
+}
+
+type fileEmbeddingSubmitter interface {
+	SubmitFileEmbeddings(ctx context.Context, userID uint, fileIDs []string) (appembedding.TargetedSubmissionResult, error)
+	ResolveFileVectorizationCapabilities(ctx context.Context, files []domainconversation.FileObject) map[string]appembedding.FileVectorizationCapability
 }
 
 // DeleteResult 描述知识库删除及其可选文件清理结果。
@@ -78,9 +85,37 @@ func (s *Service) SetFileUploader(uploader fileUploader) {
 	s.fileUploader = uploader
 }
 
+// SetFileEmbeddingSubmitter 注入平台资料使用的统一向量化队列。
+func (s *Service) SetFileEmbeddingSubmitter(submitter fileEmbeddingSubmitter) {
+	s.fileEmbedder = submitter
+}
+
 // SetLogger 注入结构化日志记录器。
 func (s *Service) SetLogger(logger *zap.Logger) {
 	s.logger = logger
+}
+
+// SubmitPlatformFileEmbeddings 提交指定平台资料的向量化任务。
+// 管理员路由负责角色校验，owner 固定为 0，避免触碰个人文件。
+func (s *Service) SubmitPlatformFileEmbeddings(ctx context.Context, actorUserID uint, fileIDs []string) (appembedding.TargetedSubmissionResult, error) {
+	if actorUserID == 0 {
+		return appembedding.TargetedSubmissionResult{}, ErrInvalidKnowledgeBase
+	}
+	if s.fileEmbedder == nil {
+		return appembedding.TargetedSubmissionResult{}, appembedding.ErrEmbeddingServiceNotConfigured
+	}
+	return s.fileEmbedder.SubmitFileEmbeddings(ctx, 0, fileIDs)
+}
+
+// ResolveFileVectorizationCapabilities 返回知识库文件显式向量化能力的后端事实状态。
+func (s *Service) ResolveFileVectorizationCapabilities(
+	ctx context.Context,
+	files []domainconversation.FileObject,
+) map[string]appembedding.FileVectorizationCapability {
+	if s.fileEmbedder == nil {
+		return map[string]appembedding.FileVectorizationCapability{}
+	}
+	return s.fileEmbedder.ResolveFileVectorizationCapabilities(ctx, files)
 }
 
 // AuditInput 描述知识库审计写入。

@@ -41,26 +41,28 @@ var (
 
 // FileProcessingStatusDTO 文件处理状态响应数据。
 type FileProcessingStatusDTO struct {
-	FileID           string
-	DetectedMIME     string
-	FileCategory     string
-	ProcessingStatus string
-	ProcessingReady  bool
-	ExtractStatus    string
-	EmbedStatus      string
-	PreviewText      string
-	OCRUsed          bool
-	RAGReady         bool
-	RAGReason        string
-	ErrorCode        string
-	ErrorMessage     string
-	ExtractChars     int
-	ExtractPages     int
-	ChunkCount       int
-	EmbedError       string
-	StartedAt        *time.Time
-	CompletedAt      *time.Time
-	UpdatedAt        time.Time
+	FileID              string
+	DetectedMIME        string
+	FileCategory        string
+	ProcessingStatus    string
+	ProcessingReady     bool
+	ExtractStatus       string
+	EmbedStatus         string
+	PreviewText         string
+	OCRUsed             bool
+	RAGReady            bool
+	RAGReason           string
+	ErrorCode           string
+	ErrorMessage        string
+	ExtractChars        int
+	ExtractPages        int
+	ChunkCount          int
+	EmbedError          string
+	CanVectorize        bool
+	VectorizationReason string
+	StartedAt           *time.Time
+	CompletedAt         *time.Time
+	UpdatedAt           time.Time
 }
 
 // ReadyFileResult 表示等待文件处理完成后的可消费结果。
@@ -135,6 +137,86 @@ func (s *Service) StartBackgroundWorkers(ctx context.Context) {
 		s.logger.Warn("create_file_processing_group_failed", zap.Error(err))
 	}
 	go s.runFileProcessingWorker(ctx, consumerName)
+	if s.embeddingSvc != nil {
+		for workerIndex := range appembedding.WorkerConcurrency {
+			go s.runFileEmbeddingWorker(ctx, fmt.Sprintf("%s-embedding-%d", consumerName, workerIndex))
+		}
+	}
+}
+
+// SubmitFileEmbeddings 将显式向量化任务提交到独立的可恢复队列。
+// 自动向量化开关仅控制上传后的自动触发，不影响此显式操作。
+func (s *Service) SubmitFileEmbeddings(
+	ctx context.Context,
+	userID uint,
+	fileIDs []string,
+) (appembedding.TargetedSubmissionResult, error) {
+	result := appembedding.TargetedSubmissionResult{
+		SubmittedFileIDs: []string{},
+		Skipped:          []appembedding.TargetedFileSkip{},
+	}
+	if s == nil || s.embeddingSvc == nil || s.cache == nil {
+		return result, appembedding.ErrEmbeddingServiceNotConfigured
+	}
+	plan, err := s.embeddingSvc.PlanFiles(ctx, userID, fileIDs)
+	if err != nil {
+		return result, err
+	}
+	result.Skipped = append(result.Skipped, plan.Skipped...)
+	for _, job := range plan.Jobs {
+		queued, queueErr := s.embeddingSvc.QueueTargetedJob(ctx, job)
+		if queueErr != nil {
+			result.Skipped = append(result.Skipped, appembedding.TargetedFileSkip{
+				FileID: job.FileID,
+				Reason: appembedding.SkipReasonSubmitFailed,
+			})
+			if s.logger != nil {
+				s.logger.Warn("queue_embedding_state_failed", zap.Uint("user_id", job.UserID), zap.String("file_id", job.FileID), zap.Error(queueErr))
+			}
+			continue
+		}
+		if !queued {
+			result.Skipped = append(result.Skipped, appembedding.TargetedFileSkip{
+				FileID: job.FileID,
+				Reason: appembedding.SkipReasonProcessing,
+			})
+			continue
+		}
+		err = s.cache.EnqueueFileEmbedding(
+			ctx,
+			job.UserID,
+			job.FileID,
+			job.EmbeddingSignature,
+			job.EmbeddingHost,
+		)
+		if err == nil {
+			result.SubmittedFileIDs = append(result.SubmittedFileIDs, job.FileID)
+			continue
+		}
+		if releaseErr := s.embeddingSvc.FailTargetedJob(ctx, job, "embedding queue is unavailable"); releaseErr != nil && s.logger != nil {
+			s.logger.Warn("release_unqueued_embedding_failed", zap.Uint("user_id", job.UserID), zap.String("file_id", job.FileID), zap.Error(errors.Join(err, releaseErr)))
+		}
+		result.Skipped = append(result.Skipped, appembedding.TargetedFileSkip{
+			FileID: job.FileID,
+			Reason: appembedding.SkipReasonQueueBusy,
+		})
+	}
+	return result, nil
+}
+
+// ResolveFileVectorizationCapabilities 批量解析文件是否允许显式向量化。
+func (s *Service) ResolveFileVectorizationCapabilities(
+	ctx context.Context,
+	files []domainconversation.FileObject,
+) map[string]appembedding.FileVectorizationCapability {
+	if s == nil || s.embeddingSvc == nil {
+		capabilities := make(map[string]appembedding.FileVectorizationCapability, len(files))
+		for i := range files {
+			capabilities[files[i].FileID] = appembedding.FileVectorizationCapability{Reason: "embedding_service_unavailable"}
+		}
+		return capabilities
+	}
+	return s.embeddingSvc.ResolveFileVectorizationCapabilities(ctx, files)
 }
 
 // InitializeUploadedFile 初始化新上传文件的处理状态。
@@ -403,6 +485,10 @@ func (s *Service) GetFileProcessingStatus(ctx context.Context, userID uint, file
 		return nil, err
 	}
 	result := fileProcessingStatusFromFileObject(fileObj)
+	if capability, ok := s.ResolveFileVectorizationCapabilities(ctx, []domainconversation.FileObject{*fileObj})[fileObj.FileID]; ok {
+		result.CanVectorize = capability.CanVectorize
+		result.VectorizationReason = capability.Reason
+	}
 	return &result, nil
 }
 
@@ -433,10 +519,16 @@ func (s *Service) GetFileProcessingStatuses(ctx context.Context, userID uint, fi
 	for i := range fileObjects {
 		filesByID[fileObjects[i].FileID] = &fileObjects[i]
 	}
+	capabilities := s.ResolveFileVectorizationCapabilities(ctx, fileObjects)
 	results := make([]FileProcessingStatusDTO, 0, len(fileObjects))
 	for _, fileID := range normalizedIDs {
 		if fileObj := filesByID[fileID]; fileObj != nil {
-			results = append(results, fileProcessingStatusFromFileObject(fileObj))
+			dto := fileProcessingStatusFromFileObject(fileObj)
+			if capability, ok := capabilities[fileID]; ok {
+				dto.CanVectorize = capability.CanVectorize
+				dto.VectorizationReason = capability.Reason
+			}
+			results = append(results, dto)
 		}
 	}
 	return results, nil
@@ -518,7 +610,36 @@ func (s *Service) WaitUntilReady(
 	}
 }
 
+type fileMessageReader func(context.Context, string) ([]repository.FileProcessingMessage, error)
+type fileMessageHandler func(context.Context, string, repository.FileProcessingMessage)
+
 func (s *Service) runFileProcessingWorker(ctx context.Context, consumerName string) {
+	s.runFileQueueWorker(
+		ctx,
+		consumerName,
+		s.cache.ClaimTimedOutFileProcessingMessages,
+		s.cache.ReadFileProcessingMessages,
+		s.handleProcessingMessage,
+	)
+}
+
+func (s *Service) runFileEmbeddingWorker(ctx context.Context, consumerName string) {
+	s.runFileQueueWorker(
+		ctx,
+		consumerName,
+		s.cache.ClaimTimedOutFileEmbeddingMessages,
+		s.cache.ReadFileEmbeddingMessages,
+		s.handleEmbeddingMessage,
+	)
+}
+
+func (s *Service) runFileQueueWorker(
+	ctx context.Context,
+	consumerName string,
+	claim fileMessageReader,
+	read fileMessageReader,
+	handle fileMessageHandler,
+) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -526,7 +647,7 @@ func (s *Service) runFileProcessingWorker(ctx context.Context, consumerName stri
 		default:
 		}
 
-		claimed, claimErr := s.cache.ClaimTimedOutFileProcessingMessages(ctx, consumerName)
+		claimed, claimErr := claim(ctx, consumerName)
 		if claimErr != nil {
 			if ctx.Err() != nil {
 				return
@@ -536,12 +657,12 @@ func (s *Service) runFileProcessingWorker(ctx context.Context, consumerName stri
 			}
 		} else if len(claimed) > 0 {
 			for _, msg := range claimed {
-				s.handleProcessingMessage(ctx, consumerName, msg)
+				handle(ctx, consumerName, msg)
 			}
 			continue
 		}
 
-		messages, err := s.cache.ReadFileProcessingMessages(ctx, consumerName)
+		messages, err := read(ctx, consumerName)
 		if err != nil {
 			if ctx.Err() != nil {
 				return
@@ -557,7 +678,7 @@ func (s *Service) runFileProcessingWorker(ctx context.Context, consumerName stri
 			continue
 		}
 		for _, msg := range messages {
-			s.handleProcessingMessage(ctx, consumerName, msg)
+			handle(ctx, consumerName, msg)
 		}
 	}
 }
@@ -565,6 +686,10 @@ func (s *Service) runFileProcessingWorker(ctx context.Context, consumerName stri
 func (s *Service) handleProcessingMessage(ctx context.Context, consumerName string, msg repository.FileProcessingMessage) {
 	if msg.FileID == "" {
 		s.settleProcessingMessage(ctx, consumerName, msg)
+		return
+	}
+	if msg.Kind == repository.FileProcessingKindEmbedding {
+		s.handleEmbeddingMessage(ctx, consumerName, msg)
 		return
 	}
 
@@ -593,7 +718,7 @@ func (s *Service) handleProcessingMessage(ctx context.Context, consumerName stri
 		return
 	default:
 	}
-	owned, ownershipErr := s.cache.RenewFileProcessingMessageLease(ctx, consumerName, msg.ID)
+	owned, ownershipErr := s.cache.RenewFileProcessingMessageLease(ctx, consumerName, msg)
 	if ownershipErr != nil || !owned {
 		if ownershipErr != nil && s.logger != nil {
 			s.logger.Warn("verify_file_processing_lease_failed",
@@ -691,6 +816,113 @@ func (s *Service) handleProcessingMessage(ctx context.Context, consumerName stri
 	s.settleProcessingMessage(ctx, consumerName, msg)
 }
 
+func (s *Service) handleEmbeddingMessage(ctx context.Context, consumerName string, msg repository.FileProcessingMessage) {
+	if s.embeddingSvc == nil {
+		return
+	}
+	job := appembedding.TargetedJob{
+		FileID:             msg.FileID,
+		UserID:             msg.UserID,
+		EmbeddingSignature: msg.EmbeddingSignature,
+		EmbeddingHost:      msg.EmbeddingHost,
+	}
+
+	processingCtx, cancelProcessing := context.WithCancel(ctx)
+	leaseCtx, stopLease := context.WithCancel(ctx)
+	leaseDone := make(chan struct{})
+	ownershipLost := make(chan struct{})
+	go s.renewProcessingMessageLease(
+		leaseCtx,
+		leaseDone,
+		ownershipLost,
+		cancelProcessing,
+		consumerName,
+		msg,
+	)
+	err := s.embeddingSvc.ProcessTargetedJob(processingCtx, job)
+	stopLease()
+	<-leaseDone
+	cancelProcessing()
+	if ctx.Err() != nil {
+		return
+	}
+	select {
+	case <-ownershipLost:
+		return
+	default:
+	}
+	owned, ownershipErr := s.cache.RenewFileProcessingMessageLease(ctx, consumerName, msg)
+	if ownershipErr != nil || !owned {
+		if ownershipErr != nil && s.logger != nil {
+			s.logger.Warn("verify_embedding_message_lease_failed",
+				zap.Uint("user_id", msg.UserID),
+				zap.String("file_id", msg.FileID),
+				zap.String("message_id", msg.ID),
+				zap.Error(ownershipErr),
+			)
+		}
+		return
+	}
+	if err == nil {
+		s.settleProcessingMessage(ctx, consumerName, msg)
+		return
+	}
+	if msg.Retry < fileProcessingMaxRetries {
+		if retryStateErr := s.embeddingSvc.RequeueTargetedJob(ctx, job, err.Error()); retryStateErr != nil {
+			if s.logger != nil {
+				s.logger.Warn("mark_requeued_embedding_failed",
+					zap.Uint("user_id", msg.UserID),
+					zap.String("file_id", msg.FileID),
+					zap.Int("retry", msg.Retry+1),
+					zap.Error(retryStateErr),
+				)
+			}
+			return
+		}
+		settled, requeueErr := s.cache.RequeueFileProcessingMessage(
+			ctx,
+			consumerName,
+			msg,
+			msg.Retry+1,
+			err.Error(),
+		)
+		if requeueErr != nil || !settled {
+			if s.logger != nil {
+				s.logger.Warn("requeue_embedding_message_failed",
+					zap.Uint("user_id", msg.UserID),
+					zap.String("file_id", msg.FileID),
+					zap.Int("retry", msg.Retry),
+					zap.Error(requeueErr),
+				)
+			}
+			return
+		}
+	} else {
+		if failErr := s.embeddingSvc.FailTargetedJob(ctx, job, err.Error()); failErr != nil {
+			if s.logger != nil {
+				s.logger.Warn("finalize_queued_embedding_failed",
+					zap.Uint("user_id", msg.UserID),
+					zap.String("file_id", msg.FileID),
+					zap.Int("retry", msg.Retry),
+					zap.Error(failErr),
+				)
+			}
+			return
+		}
+		if !s.deadLetterProcessingMessage(ctx, consumerName, msg, err.Error()) {
+			return
+		}
+	}
+	if s.logger != nil {
+		s.logger.Warn("process_queued_embedding_failed",
+			zap.Uint("user_id", msg.UserID),
+			zap.String("file_id", msg.FileID),
+			zap.Int("retry", msg.Retry),
+			zap.Error(err),
+		)
+	}
+}
+
 func (s *Service) renewProcessingMessageLease(
 	ctx context.Context,
 	done chan<- struct{},
@@ -707,7 +939,7 @@ func (s *Service) renewProcessingMessageLease(
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			owned, err := s.cache.RenewFileProcessingMessageLease(ctx, consumerName, msg.ID)
+			owned, err := s.cache.RenewFileProcessingMessageLease(ctx, consumerName, msg)
 			if err != nil && ctx.Err() == nil && s.logger != nil {
 				s.logger.Warn("renew_file_processing_lease_failed",
 					zap.Uint("user_id", msg.UserID),
@@ -730,7 +962,7 @@ func (s *Service) settleProcessingMessage(
 	consumerName string,
 	msg repository.FileProcessingMessage,
 ) {
-	settled, err := s.cache.SettleFileProcessingMessage(ctx, consumerName, msg.ID)
+	settled, err := s.cache.SettleFileProcessingMessage(ctx, consumerName, msg)
 	if err != nil || !settled {
 		if s.logger != nil {
 			s.logger.Warn("settle_file_processing_message_failed",

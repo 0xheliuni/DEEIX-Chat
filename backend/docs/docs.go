@@ -2092,6 +2092,63 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/knowledge-bases/files/embeddings": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "为管理员选中的平台资料提交向量化任务，最多100个；重复提交会幂等跳过",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-knowledge-bases"
+                ],
+                "summary": "批量提交平台资料向量化",
+                "parameters": [
+                    {
+                        "description": "平台资料ID，最多100个",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/SubmitPlatformFileEmbeddingsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/KnowledgeBaseFileEmbeddingSubmissionResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/KnowledgebaseErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/KnowledgebaseErrorDoc"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/KnowledgebaseErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/knowledge-bases/files/{file_id}": {
             "delete": {
                 "security": [
@@ -11788,6 +11845,63 @@ const docTemplate = `{
                 }
             }
         },
+        "/files/embeddings": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "为当前用户已完成文本提取的文件提交向量化任务，最多100个；重复提交会幂等跳过",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "批量提交指定文件向量化",
+                "parameters": [
+                    {
+                        "description": "文件ID，最多100个",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/SubmitFileEmbeddingsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/FileEmbeddingSubmissionResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/files/processing/statuses": {
             "post": {
                 "security": [
@@ -18842,6 +18956,57 @@ const docTemplate = `{
                 }
             }
         },
+        "FileEmbeddingSkipResponse": {
+            "type": "object",
+            "required": [
+                "fileID",
+                "reason"
+            ],
+            "properties": {
+                "fileID": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "FileEmbeddingSubmissionResponse": {
+            "type": "object",
+            "required": [
+                "skipped",
+                "submittedFileIDs"
+            ],
+            "properties": {
+                "skipped": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/FileEmbeddingSkipResponse"
+                    }
+                },
+                "submittedFileIDs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "FileEmbeddingSubmissionResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/FileEmbeddingSubmissionResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
         "FileListResponse": {
             "type": "object",
             "required": [
@@ -18882,6 +19047,7 @@ const docTemplate = `{
         "FileObjectResponse": {
             "type": "object",
             "required": [
+                "canVectorize",
                 "chunkCount",
                 "createdAt",
                 "detectedMIME",
@@ -18903,9 +19069,13 @@ const docTemplate = `{
                 "sha256",
                 "sizeBytes",
                 "status",
-                "updatedAt"
+                "updatedAt",
+                "vectorizationReason"
             ],
             "properties": {
+                "canVectorize": {
+                    "type": "boolean"
+                },
                 "chunkCount": {
                     "type": "integer"
                 },
@@ -18975,12 +19145,16 @@ const docTemplate = `{
                 },
                 "updatedAt": {
                     "type": "string"
+                },
+                "vectorizationReason": {
+                    "type": "string"
                 }
             }
         },
         "FileProcessingStatusResponse": {
             "type": "object",
             "required": [
+                "canVectorize",
                 "chunkCount",
                 "completedAt",
                 "detectedMIME",
@@ -19000,9 +19174,13 @@ const docTemplate = `{
                 "ragReady",
                 "ragReason",
                 "startedAt",
-                "updatedAt"
+                "updatedAt",
+                "vectorizationReason"
             ],
             "properties": {
+                "canVectorize": {
+                    "type": "boolean"
+                },
                 "chunkCount": {
                     "type": "integer"
                 },
@@ -19065,6 +19243,9 @@ const docTemplate = `{
                     "x-omitempty": false
                 },
                 "updatedAt": {
+                    "type": "string"
+                },
+                "vectorizationReason": {
                     "type": "string"
                 }
             }
@@ -19726,6 +19907,57 @@ const docTemplate = `{
                 }
             }
         },
+        "KnowledgeBaseFileEmbeddingSkipResponse": {
+            "type": "object",
+            "required": [
+                "fileID",
+                "reason"
+            ],
+            "properties": {
+                "fileID": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "KnowledgeBaseFileEmbeddingSubmissionResponse": {
+            "type": "object",
+            "required": [
+                "skipped",
+                "submittedFileIDs"
+            ],
+            "properties": {
+                "skipped": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/KnowledgeBaseFileEmbeddingSkipResponse"
+                    }
+                },
+                "submittedFileIDs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "KnowledgeBaseFileEmbeddingSubmissionResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/KnowledgeBaseFileEmbeddingSubmissionResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
         "KnowledgeBaseFileMutationDataResponse": {
             "type": "object",
             "required": [
@@ -19803,25 +20035,38 @@ const docTemplate = `{
         "KnowledgeBaseFileProcessingStatusResponse": {
             "type": "object",
             "required": [
+                "canVectorize",
                 "chunkCount",
                 "detectedMIME",
+                "embedError",
                 "embedStatus",
+                "extractStatus",
                 "fileCategory",
                 "fileID",
                 "processing",
                 "processingReady",
                 "processingStatus",
                 "ragOptOut",
-                "updatedAt"
+                "updatedAt",
+                "vectorizationReason"
             ],
             "properties": {
+                "canVectorize": {
+                    "type": "boolean"
+                },
                 "chunkCount": {
                     "type": "integer"
                 },
                 "detectedMIME": {
                     "type": "string"
                 },
+                "embedError": {
+                    "type": "string"
+                },
                 "embedStatus": {
+                    "type": "string"
+                },
+                "extractStatus": {
                     "type": "string"
                 },
                 "fileCategory": {
@@ -19844,16 +20089,22 @@ const docTemplate = `{
                 },
                 "updatedAt": {
                     "type": "string"
+                },
+                "vectorizationReason": {
+                    "type": "string"
                 }
             }
         },
         "KnowledgeBaseFileResponse": {
             "type": "object",
             "required": [
+                "canVectorize",
                 "chunkCount",
                 "createdAt",
                 "detectedMIME",
+                "embedError",
                 "embedStatus",
+                "extractStatus",
                 "fileCategory",
                 "fileID",
                 "fileName",
@@ -19863,9 +20114,13 @@ const docTemplate = `{
                 "processingStatus",
                 "ragOptOut",
                 "sizeBytes",
-                "updatedAt"
+                "updatedAt",
+                "vectorizationReason"
             ],
             "properties": {
+                "canVectorize": {
+                    "type": "boolean"
+                },
                 "chunkCount": {
                     "type": "integer"
                 },
@@ -19875,7 +20130,13 @@ const docTemplate = `{
                 "detectedMIME": {
                     "type": "string"
                 },
+                "embedError": {
+                    "type": "string"
+                },
                 "embedStatus": {
+                    "type": "string"
+                },
+                "extractStatus": {
                     "type": "string"
                 },
                 "fileCategory": {
@@ -19906,6 +20167,9 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "updatedAt": {
+                    "type": "string"
+                },
+                "vectorizationReason": {
                     "type": "string"
                 }
             }
@@ -25000,6 +25264,38 @@ const docTemplate = `{
                 },
                 "userID": {
                     "type": "integer"
+                }
+            }
+        },
+        "SubmitFileEmbeddingsRequest": {
+            "type": "object",
+            "required": [
+                "fileIDs"
+            ],
+            "properties": {
+                "fileIDs": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "SubmitPlatformFileEmbeddingsRequest": {
+            "type": "object",
+            "required": [
+                "fileIDs"
+            ],
+            "properties": {
+                "fileIDs": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },

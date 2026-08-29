@@ -298,6 +298,7 @@ const (
 	FileProcessingStatusQueued     = "queued"
 	FileProcessingStatusExtracting = "extracting"
 	FileProcessingStatusEmbedding  = "embedding"
+	FileSubprocessStatusQueued     = "queued"
 	FileSubprocessStatusProcessing = "processing"
 )
 
@@ -311,6 +312,7 @@ func IsFileProcessing(file FileObject) bool {
 		return true
 	default:
 		return file.ExtractStatus == FileSubprocessStatusProcessing ||
+			file.EmbedStatus == FileSubprocessStatusQueued ||
 			file.EmbedStatus == FileSubprocessStatusProcessing
 	}
 }

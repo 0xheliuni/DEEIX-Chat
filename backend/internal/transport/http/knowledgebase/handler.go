@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
+	appembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/embedding"
 	appknowledgebase "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/knowledgebase"
 	appupload "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/upload"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
@@ -146,7 +147,7 @@ func (h *Handler) DeleteMine(c *gin.Context) {
 func (h *Handler) ListVisibleFiles(c *gin.Context) {
 	page, pageSize := pageParams(c)
 	items, total, err := h.service.ListVisibleFiles(c.Request.Context(), middleware.MustUserID(c), c.Param("id"), page, pageSize)
-	writeFileList(c, items, total, err)
+	h.writeFileList(c, items, total, err)
 }
 
 // GetVisibleFileProcessingStatuses godoc
@@ -203,7 +204,7 @@ func (h *Handler) ListAvailableMineFiles(c *gin.Context) {
 		c.Param("id"),
 		listInput(c),
 	)
-	writeFileList(c, items, total, err)
+	h.writeFileList(c, items, total, err)
 }
 
 // GetVisibleFileContent godoc
@@ -294,7 +295,7 @@ func (h *Handler) ListPlatformFiles(c *gin.Context) {
 		middleware.MustUserID(c),
 		listInput(c),
 	)
-	writeFileList(c, items, total, err)
+	h.writeFileList(c, items, total, err)
 }
 
 // UploadAdminFile godoc
@@ -335,7 +336,52 @@ func (h *Handler) UploadAdminFile(c *gin.Context) {
 	h.audit(c, "knowledge_base.upload_builtin_file", result.File.FileID, map[string]interface{}{
 		"file_name": result.File.FileName, "size_bytes": result.File.SizeBytes,
 	})
-	response.Success(c, KnowledgeBaseFileDataResponse{File: toKnowledgeBaseFileResponse(result.File)})
+	capability := h.service.ResolveFileVectorizationCapabilities(
+		c.Request.Context(),
+		[]domainconversation.FileObject{result.File},
+	)[result.File.FileID]
+	response.Success(c, KnowledgeBaseFileDataResponse{File: toKnowledgeBaseFileResponse(result.File, capability)})
+}
+
+// SubmitAdminFileEmbeddings godoc
+// @Summary 批量提交平台资料向量化
+// @Description 为管理员选中的平台资料提交向量化任务，最多100个；重复提交会幂等跳过
+// @Tags admin-knowledge-bases
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body SubmitPlatformFileEmbeddingsRequest true "平台资料ID，最多100个"
+// @Success 200 {object} KnowledgeBaseFileEmbeddingSubmissionResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Failure 503 {object} ErrorDoc
+// @Router /admin/knowledge-bases/files/embeddings [post]
+func (h *Handler) SubmitAdminFileEmbeddings(c *gin.Context) {
+	var req SubmitPlatformFileEmbeddingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.InvalidRequestBody(c, err)
+		return
+	}
+	result, err := h.service.SubmitPlatformFileEmbeddings(c.Request.Context(), middleware.MustUserID(c), req.FileIDs)
+	if err != nil {
+		switch {
+		case errors.Is(err, appembedding.ErrTooManyTargetedFiles):
+			response.ErrorWithCode(c, http.StatusBadRequest, "embedding.too_many_files", "too many files")
+		case errors.Is(err, appembedding.ErrEmbeddingServiceNotConfigured):
+			response.ErrorWithCode(c, http.StatusServiceUnavailable, "embedding.service_not_configured", "embedding service not configured")
+		case errors.Is(err, appembedding.ErrEmbeddingServiceUnavailable):
+			response.ErrorWithCode(c, http.StatusServiceUnavailable, "embedding.service_unavailable", "embedding service unavailable")
+		default:
+			writeError(c, err)
+		}
+		return
+	}
+	h.audit(c, "knowledge_base.submit_platform_file_embeddings", "", map[string]interface{}{
+		"requested_file_ids": req.FileIDs,
+		"submitted_file_ids": result.SubmittedFileIDs,
+		"skipped_count":      len(result.Skipped),
+	})
+	response.Success(c, toKnowledgeBaseFileEmbeddingSubmissionResponse(result))
 }
 
 // DeleteAdminFile godoc
@@ -494,7 +540,7 @@ func (h *Handler) DeleteAdmin(c *gin.Context) { h.delete(c, true) }
 func (h *Handler) ListAdminFiles(c *gin.Context) {
 	page, pageSize := pageParams(c)
 	items, total, err := h.service.ListAdminFiles(c.Request.Context(), c.Param("id"), page, pageSize)
-	writeFileList(c, items, total, err)
+	h.writeFileList(c, items, total, err)
 }
 
 // GetAdminFileProcessingStatuses godoc
@@ -551,7 +597,7 @@ func (h *Handler) ListAvailableAdminFiles(c *gin.Context) {
 		c.Param("id"),
 		listInput(c),
 	)
-	writeFileList(c, items, total, err)
+	h.writeFileList(c, items, total, err)
 }
 
 // GetAdminFileContent godoc
@@ -699,7 +745,8 @@ func (h *Handler) getFileProcessingStatuses(c *gin.Context, admin bool) {
 		writeError(c, err)
 		return
 	}
-	response.Success(c, toKnowledgeBaseFileProcessingStatusResponses(files))
+	capabilities := h.service.ResolveFileVectorizationCapabilities(c.Request.Context(), files)
+	response.Success(c, toKnowledgeBaseFileProcessingStatusResponses(files, capabilities))
 }
 
 func (h *Handler) getFileProcessingSnapshot(c *gin.Context, admin bool) {
@@ -728,7 +775,10 @@ func (h *Handler) getFileProcessingSnapshot(c *gin.Context, admin bool) {
 	}
 	response.Success(c, KnowledgeBaseFileProcessingSnapshotResponse{
 		KnowledgeBase: toKnowledgeBaseResponse(*item),
-		Statuses:      toKnowledgeBaseFileProcessingStatusResponses(files),
+		Statuses: toKnowledgeBaseFileProcessingStatusResponses(
+			files,
+			h.service.ResolveFileVectorizationCapabilities(c.Request.Context(), files),
+		),
 	})
 }
 
@@ -740,12 +790,13 @@ func writeList(c *gin.Context, items []domainknowledgebase.KnowledgeBase, total 
 	response.SuccessPage(c, total, toKnowledgeBaseResponses(items))
 }
 
-func writeFileList(c *gin.Context, items []domainconversation.FileObject, total int64, err error) {
+func (h *Handler) writeFileList(c *gin.Context, items []domainconversation.FileObject, total int64, err error) {
 	if err != nil {
 		writeError(c, err)
 		return
 	}
-	response.SuccessPage(c, total, toKnowledgeBaseFileResponses(items))
+	capabilities := h.service.ResolveFileVectorizationCapabilities(c.Request.Context(), items)
+	response.SuccessPage(c, total, toKnowledgeBaseFileResponses(items, capabilities))
 }
 
 func writeInput(req WriteKnowledgeBaseRequest) appknowledgebase.WriteInput {

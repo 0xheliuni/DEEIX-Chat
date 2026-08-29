@@ -23,12 +23,59 @@ type fileProcessingLease struct {
 	message      repository.FileProcessingMessage
 }
 
+type fileQueueState struct {
+	queue    []repository.FileProcessingMessage
+	inflight map[string]fileProcessingLease
+	dlq      []repository.FileProcessingMessage
+	notify   chan struct{}
+}
+
+func newFileQueueState() fileQueueState {
+	return fileQueueState{
+		inflight: map[string]fileProcessingLease{},
+		notify:   make(chan struct{}),
+	}
+}
+
 func (c *Cache) InitFileProcessingStream(ctx context.Context) error {
 	return ctx.Err()
 }
 
 func (c *Cache) EnqueueFileProcessing(ctx context.Context, userID uint, fileID string, retry int, lastError string) error {
-	if c == nil || strings.TrimSpace(fileID) == "" {
+	return c.enqueueFileMessage(ctx, repository.FileProcessingMessage{
+		UserID:    userID,
+		FileID:    fileID,
+		Retry:     retry,
+		LastError: lastError,
+		Queue:     repository.FileProcessingQueueDefault,
+	})
+}
+
+func (c *Cache) EnqueueFileEmbedding(
+	ctx context.Context,
+	userID uint,
+	fileID string,
+	embeddingSignature string,
+	embeddingHost string,
+) error {
+	fileID = strings.TrimSpace(fileID)
+	embeddingSignature = strings.TrimSpace(embeddingSignature)
+	embeddingHost = strings.TrimRight(strings.TrimSpace(embeddingHost), "/")
+	if fileID == "" || embeddingSignature == "" || embeddingHost == "" {
+		return repository.ErrInvalidInput
+	}
+	return c.enqueueFileMessage(ctx, repository.FileProcessingMessage{
+		UserID:             userID,
+		FileID:             fileID,
+		Kind:               repository.FileProcessingKindEmbedding,
+		Queue:              repository.FileProcessingQueueEmbedding,
+		EmbeddingSignature: embeddingSignature,
+		EmbeddingHost:      embeddingHost,
+	})
+}
+
+func (c *Cache) enqueueFileMessage(ctx context.Context, message repository.FileProcessingMessage) error {
+	if c == nil || strings.TrimSpace(message.FileID) == "" {
 		return nil
 	}
 	if err := ctx.Err(); err != nil {
@@ -36,27 +83,33 @@ func (c *Cache) EnqueueFileProcessing(ctx context.Context, userID uint, fileID s
 	}
 	c.mu.Lock()
 	now := time.Now()
-	if len(c.fileQueue) >= maxFileQueueLength {
+	state := c.fileQueueState(message.Queue)
+	if len(state.queue) >= maxFileQueueLength {
 		c.maybeSweepLocked(now)
 		c.mu.Unlock()
 		return repository.ErrFileProcessingQueueFull
 	}
 	c.fileSeq++
-	msg := repository.FileProcessingMessage{
-		ID:        strconv.FormatInt(c.fileSeq, 10),
-		UserID:    userID,
-		FileID:    strings.TrimSpace(fileID),
-		Retry:     retry,
-		LastError: strings.TrimSpace(lastError),
-	}
-	c.fileQueue = append(c.fileQueue, msg)
-	c.notifyFileQueueLocked()
+	message.ID = strconv.FormatInt(c.fileSeq, 10)
+	message.FileID = strings.TrimSpace(message.FileID)
+	message.LastError = strings.TrimSpace(message.LastError)
+	msg := message
+	state.queue = append(state.queue, msg)
+	notifyFileQueueLocked(state)
 	c.maybeSweepLocked(now)
 	c.mu.Unlock()
 	return nil
 }
 
 func (c *Cache) ClaimTimedOutFileProcessingMessages(ctx context.Context, consumerName string) ([]repository.FileProcessingMessage, error) {
+	return c.claimTimedOutFileMessages(ctx, consumerName, repository.FileProcessingQueueDefault)
+}
+
+func (c *Cache) ClaimTimedOutFileEmbeddingMessages(ctx context.Context, consumerName string) ([]repository.FileProcessingMessage, error) {
+	return c.claimTimedOutFileMessages(ctx, consumerName, repository.FileProcessingQueueEmbedding)
+}
+
+func (c *Cache) claimTimedOutFileMessages(ctx context.Context, consumerName string, queue repository.FileProcessingQueue) ([]repository.FileProcessingMessage, error) {
 	if c == nil || strings.TrimSpace(consumerName) == "" {
 		return nil, nil
 	}
@@ -65,10 +118,11 @@ func (c *Cache) ClaimTimedOutFileProcessingMessages(ctx context.Context, consume
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	state := c.fileQueueState(queue)
 	now := time.Now()
 	var candidateID string
 	var candidate fileProcessingLease
-	for messageID, lease := range c.fileInflight {
+	for messageID, lease := range state.inflight {
 		if now.Sub(lease.leasedAt) < fileProcessingMinIdle {
 			continue
 		}
@@ -83,11 +137,19 @@ func (c *Cache) ClaimTimedOutFileProcessingMessages(ctx context.Context, consume
 	candidate.consumerName = strings.TrimSpace(consumerName)
 	candidate.leasedAt = now
 	candidate.message.Reclaimed = true
-	c.fileInflight[candidateID] = candidate
+	state.inflight[candidateID] = candidate
 	return []repository.FileProcessingMessage{candidate.message}, nil
 }
 
 func (c *Cache) ReadFileProcessingMessages(ctx context.Context, consumerName string) ([]repository.FileProcessingMessage, error) {
+	return c.readFileMessages(ctx, consumerName, repository.FileProcessingQueueDefault)
+}
+
+func (c *Cache) ReadFileEmbeddingMessages(ctx context.Context, consumerName string) ([]repository.FileProcessingMessage, error) {
+	return c.readFileMessages(ctx, consumerName, repository.FileProcessingQueueEmbedding)
+}
+
+func (c *Cache) readFileMessages(ctx context.Context, consumerName string, queue repository.FileProcessingQueue) ([]repository.FileProcessingMessage, error) {
 	if c == nil || strings.TrimSpace(consumerName) == "" {
 		return nil, nil
 	}
@@ -101,10 +163,11 @@ func (c *Cache) ReadFileProcessingMessages(ctx context.Context, consumerName str
 			return nil, err
 		}
 		c.mu.Lock()
-		if len(c.fileQueue) > 0 {
-			msg := c.fileQueue[0]
-			c.fileQueue = c.fileQueue[1:]
-			c.fileInflight[msg.ID] = fileProcessingLease{
+		state := c.fileQueueState(queue)
+		if len(state.queue) > 0 {
+			msg := state.queue[0]
+			state.queue = state.queue[1:]
+			state.inflight[msg.ID] = fileProcessingLease{
 				consumerName: strings.TrimSpace(consumerName),
 				leasedAt:     time.Now(),
 				message:      msg,
@@ -112,7 +175,7 @@ func (c *Cache) ReadFileProcessingMessages(ctx context.Context, consumerName str
 			c.mu.Unlock()
 			return []repository.FileProcessingMessage{msg}, nil
 		}
-		notify := c.fileNotify
+		notify := state.notify
 		c.mu.Unlock()
 		select {
 		case <-ctx.Done():
@@ -124,7 +187,7 @@ func (c *Cache) ReadFileProcessingMessages(ctx context.Context, consumerName str
 	}
 }
 
-func (c *Cache) RenewFileProcessingMessageLease(ctx context.Context, consumerName, messageID string) (bool, error) {
+func (c *Cache) RenewFileProcessingMessageLease(ctx context.Context, consumerName string, message repository.FileProcessingMessage) (bool, error) {
 	if c == nil {
 		return false, nil
 	}
@@ -133,17 +196,18 @@ func (c *Cache) RenewFileProcessingMessageLease(ctx context.Context, consumerNam
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	messageID = strings.TrimSpace(messageID)
-	lease, exists := c.fileInflight[messageID]
+	state := c.fileQueueState(queueForMessage(message))
+	messageID := strings.TrimSpace(message.ID)
+	lease, exists := state.inflight[messageID]
 	if !exists || lease.consumerName != strings.TrimSpace(consumerName) {
 		return false, nil
 	}
 	lease.leasedAt = time.Now()
-	c.fileInflight[messageID] = lease
+	state.inflight[messageID] = lease
 	return true, nil
 }
 
-func (c *Cache) SettleFileProcessingMessage(ctx context.Context, consumerName, messageID string) (bool, error) {
+func (c *Cache) SettleFileProcessingMessage(ctx context.Context, consumerName string, message repository.FileProcessingMessage) (bool, error) {
 	if c == nil {
 		return false, nil
 	}
@@ -152,12 +216,13 @@ func (c *Cache) SettleFileProcessingMessage(ctx context.Context, consumerName, m
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	messageID = strings.TrimSpace(messageID)
-	lease, exists := c.fileInflight[messageID]
+	state := c.fileQueueState(queueForMessage(message))
+	messageID := strings.TrimSpace(message.ID)
+	lease, exists := state.inflight[messageID]
 	if !exists || lease.consumerName != strings.TrimSpace(consumerName) {
 		return false, nil
 	}
-	delete(c.fileInflight, messageID)
+	delete(state.inflight, messageID)
 	c.maybeSweepLocked(time.Now())
 	return true, nil
 }
@@ -177,22 +242,27 @@ func (c *Cache) RequeueFileProcessingMessage(
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	state := c.fileQueueState(queueForMessage(message))
 	messageID := strings.TrimSpace(message.ID)
-	lease, exists := c.fileInflight[messageID]
+	lease, exists := state.inflight[messageID]
 	if !exists || lease.consumerName != strings.TrimSpace(consumerName) {
 		return false, nil
 	}
 	// 重入队不受 maxFileQueueLength 限制：消息只是从 inflight 移回队列，总量无净增长。
 	c.fileSeq++
-	c.fileQueue = append(c.fileQueue, repository.FileProcessingMessage{
-		ID:        strconv.FormatInt(c.fileSeq, 10),
-		UserID:    message.UserID,
-		FileID:    strings.TrimSpace(message.FileID),
-		Retry:     retry,
-		LastError: strings.TrimSpace(lastError),
+	state.queue = append(state.queue, repository.FileProcessingMessage{
+		ID:                 strconv.FormatInt(c.fileSeq, 10),
+		UserID:             message.UserID,
+		FileID:             strings.TrimSpace(message.FileID),
+		Retry:              retry,
+		LastError:          strings.TrimSpace(lastError),
+		Kind:               message.Kind,
+		Queue:              queueForMessage(message),
+		EmbeddingSignature: message.EmbeddingSignature,
+		EmbeddingHost:      message.EmbeddingHost,
 	})
-	delete(c.fileInflight, messageID)
-	c.notifyFileQueueLocked()
+	delete(state.inflight, messageID)
+	notifyFileQueueLocked(state)
 	c.maybeSweepLocked(time.Now())
 	return true, nil
 }
@@ -211,28 +281,50 @@ func (c *Cache) DeadLetterFileProcessingMessage(
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	state := c.fileQueueState(queueForMessage(message))
 	messageID := strings.TrimSpace(message.ID)
-	lease, exists := c.fileInflight[messageID]
+	lease, exists := state.inflight[messageID]
 	if !exists || lease.consumerName != strings.TrimSpace(consumerName) {
 		return false, nil
 	}
 	c.fileSeq++
-	c.fileDLQ = append(c.fileDLQ, repository.FileProcessingMessage{
-		ID:        "dlq-" + strconv.FormatInt(c.fileSeq, 10),
-		UserID:    message.UserID,
-		FileID:    strings.TrimSpace(message.FileID),
-		Retry:     message.Retry,
-		LastError: strings.TrimSpace(lastError),
+	state.dlq = append(state.dlq, repository.FileProcessingMessage{
+		ID:                 "dlq-" + strconv.FormatInt(c.fileSeq, 10),
+		UserID:             message.UserID,
+		FileID:             strings.TrimSpace(message.FileID),
+		Retry:              message.Retry,
+		LastError:          strings.TrimSpace(lastError),
+		Kind:               message.Kind,
+		Queue:              queueForMessage(message),
+		EmbeddingSignature: message.EmbeddingSignature,
+		EmbeddingHost:      message.EmbeddingHost,
 	})
-	if len(c.fileDLQ) > 10_000 {
-		c.fileDLQ = append([]repository.FileProcessingMessage(nil), c.fileDLQ[len(c.fileDLQ)-10_000:]...)
+	if len(state.dlq) > 10_000 {
+		state.dlq = append([]repository.FileProcessingMessage(nil), state.dlq[len(state.dlq)-10_000:]...)
 	}
-	delete(c.fileInflight, messageID)
+	delete(state.inflight, messageID)
 	c.maybeSweepLocked(time.Now())
 	return true, nil
 }
 
-func (c *Cache) notifyFileQueueLocked() {
-	close(c.fileNotify)
-	c.fileNotify = make(chan struct{})
+func (c *Cache) fileQueueState(queue repository.FileProcessingQueue) *fileQueueState {
+	if queue == repository.FileProcessingQueueEmbedding {
+		return &c.fileEmbeddingQueue
+	}
+	return &c.fileProcessingQueue
+}
+
+func queueForMessage(message repository.FileProcessingMessage) repository.FileProcessingQueue {
+	if message.Queue != "" {
+		return message.Queue
+	}
+	if message.Kind == repository.FileProcessingKindEmbedding {
+		return repository.FileProcessingQueueEmbedding
+	}
+	return repository.FileProcessingQueueDefault
+}
+
+func notifyFileQueueLocked(state *fileQueueState) {
+	close(state.notify)
+	state.notify = make(chan struct{})
 }

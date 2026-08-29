@@ -2427,10 +2427,10 @@ func (r *Repo) GetActiveFileProcessingStatusesByIDs(ctx context.Context, userID 
 	}
 	if err := r.db.WithContext(ctx).
 		Select(
-			"file_id", "detected_mime", "file_category",
+			"file_id", "file_name", "mime_type", "detected_mime", "file_category", "storage_path", "status",
 			"processing_status", "processing_ready", "processing_error_code", "processing_error_message",
 			"extract_status", "extract_chars", "extract_pages", "preview_text", "ocr_used",
-			"rag_ready", "rag_reason", "embed_status", "embed_error", "chunk_count",
+			"rag_ready", "rag_reason", "embed_status", "embed_signature", "embed_error", "chunk_count",
 			"processing_started_at", "processing_completed_at", "updated_at",
 		).
 		Where("user_id = ? AND status = ? AND file_id IN ?", userID, "active", fileIDs).
@@ -2879,6 +2879,26 @@ func getOrInitQuotaForUpdate(tx *gorm.DB, userID uint, defaultQuotaBytes int64) 
 		}
 	}
 	return &quota, nil
+}
+
+// QueueFileEmbedding 原子登记指定向量空间的待执行任务。
+// 同一签名已经排队、执行或完成时不会重复登记；失败和失效任务允许重新排队。
+func (r *Repo) QueueFileEmbedding(ctx context.Context, userID uint, fileID string, embeddingSignature string) (bool, error) {
+	fileID = strings.TrimSpace(fileID)
+	embeddingSignature = strings.TrimSpace(embeddingSignature)
+	if fileID == "" || embeddingSignature == "" {
+		return false, repository.ErrInvalidInput
+	}
+	result := r.db.WithContext(ctx).
+		Model(&models.FileObject{}).
+		Where("user_id = ? AND file_id = ? AND status = ?", userID, fileID, "active").
+		Where("NOT (embed_signature = ? AND embed_status IN ?)", embeddingSignature, []string{"queued", "processing", "ready"}).
+		Updates(map[string]interface{}{
+			"embed_status":    "queued",
+			"embed_signature": embeddingSignature,
+			"embed_error":     "",
+		})
+	return result.RowsAffected > 0, translateError(result.Error)
 }
 
 // ClaimFileEmbedding 原子领取指定向量空间的文件任务。
@@ -4839,7 +4859,7 @@ func (r *Repo) SearchMessageChunks(ctx context.Context, input repository.Message
 	return results, nil
 }
 
-// MarkEmbeddedFilesStale 将缺少当前向量空间签名分片的 ready/processing 文件标记为 stale。
+// MarkEmbeddedFilesStale 将缺少当前向量空间签名分片的 queued/processing/ready 文件标记为 stale。
 func (r *Repo) MarkEmbeddedFilesStale(ctx context.Context, activeSignature string) (int64, error) {
 	activeSignature = strings.TrimSpace(activeSignature)
 	if activeSignature == "" {
@@ -4847,7 +4867,7 @@ func (r *Repo) MarkEmbeddedFilesStale(ctx context.Context, activeSignature strin
 	}
 	result := r.db.WithContext(ctx).
 		Model(&models.FileObject{}).
-		Where("embed_status IN ? AND status = ?", []string{"ready", "processing"}, "active").
+		Where("embed_status IN ? AND status = ?", []string{"queued", "processing", "ready"}, "active").
 		Where(`NOT EXISTS (
 			SELECT 1
 			FROM file_chunks

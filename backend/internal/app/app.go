@@ -412,6 +412,7 @@ func NewApp() (*App, error) {
 	knowledgeBaseService.SetFileCleaner(conversationService)
 	knowledgeBaseService.SetFileContentOpener(conversationService)
 	knowledgeBaseService.SetFileUploader(conversationService)
+	knowledgeBaseService.SetFileEmbeddingSubmitter(processingService)
 	knowledgeBaseService.SetLogger(log)
 	conversationService.SetKnowledgeBaseResolver(knowledgeBaseService)
 	knowledgeBaseHandler := knowledgebasehttp.NewHandler(knowledgeBaseService, runtimeCfg)

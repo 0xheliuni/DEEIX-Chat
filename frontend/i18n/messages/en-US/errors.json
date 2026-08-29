@@ -149,7 +149,9 @@
   },
   "embedding": {
     "serviceNotConfigured": "Enable and configure the embedding service first.",
-    "serviceUnavailable": "Embedding service is unavailable."
+    "serviceUnavailable": "Embedding service is unavailable.",
+    "submitFailed": "Failed to submit vectorization jobs. Please try again later.",
+    "tooManyFiles": "You can submit up to 100 files for vectorization at a time."
   },
   "file": {
     "embeddingUnavailable": "Embedding is unavailable for this file.",

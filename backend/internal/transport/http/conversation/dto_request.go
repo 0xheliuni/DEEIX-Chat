@@ -96,6 +96,11 @@ type GetFileProcessingStatusesRequest struct {
 	FileIDs []string `json:"fileIDs" binding:"required,min=1,max=100,dive,required,max=64"`
 }
 
+// SubmitFileEmbeddingsRequest 批量提交文件向量化请求。
+type SubmitFileEmbeddingsRequest struct {
+	FileIDs []string `json:"fileIDs" binding:"required,min=1,max=100,dive,required,max=64"`
+}
+
 // GetConversationRunStatusesRequest 批量运行状态查询请求。
 type GetConversationRunStatusesRequest struct {
 	RunIDs []string `json:"runIDs" binding:"required,min=1,max=100,dive,required,max=64"`

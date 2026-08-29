@@ -65,12 +65,14 @@ type FileEmbeddingArtifactsRepository interface {
 type EmbeddingRepository interface {
 	VectorStoreAvailable(ctx context.Context) (bool, error)
 	GetActiveFileObjectByID(ctx context.Context, userID uint, fileID string) (*domainconversation.FileObject, error)
+	GetActiveFileObjectsByIDs(ctx context.Context, userID uint, fileIDs []string) ([]domainconversation.FileObject, error)
 	GetFileObjectProcessingByObjectID(ctx context.Context, fileObjID uint) (*domainconversation.FileObjectProcessing, error)
+	QueueFileEmbedding(ctx context.Context, userID uint, fileID string, embeddingSignature string) (bool, error)
 	ClaimFileEmbedding(ctx context.Context, userID uint, fileID string, embeddingSignature string) (bool, error)
 	UpdateFileObjectEmbedStatus(ctx context.Context, userID uint, fileID string, embeddingSignature string, status string, embedErr string) (bool, error)
 	UpdateFileObjectChunkCount(ctx context.Context, fileObjID uint, embeddingSignature string, chunkCount int) (bool, error)
 	ReplaceFileChunks(ctx context.Context, fileObjID uint, embeddingSignature string, chunks []domainconversation.FileChunk, embeddings [][]float32) (bool, error)
-	// MarkEmbeddedFilesStale 将缺少当前向量空间签名分片的 ready/processing 文件标记为 stale。
+	// MarkEmbeddedFilesStale 将缺少当前向量空间签名分片的 queued/processing/ready 文件标记为 stale。
 	// 在 Embedding 配置变更及服务启动时调用，使旧向量失效并等待重建。
 	// 返回被标记的文件数量。
 	MarkEmbeddedFilesStale(ctx context.Context, activeSignature string) (int64, error)

@@ -635,6 +635,8 @@ var fallbackMessages = map[string]string{
 	"settings.extract_invalid":                          "invalid file extraction settings",
 	"embedding.service_unavailable":                     "embedding service is not available",
 	"embedding.service_not_configured":                  "embedding service is not configured",
+	"embedding.submit_failed":                           "failed to submit embedding jobs",
+	"embedding.too_many_files":                          "too many files for embedding",
 	"user_settings.unknown_key":                         "unknown setting key",
 	"user_settings.invalid_value":                       "invalid user setting value",
 	"memory.key_required":                               "memory_key is required",

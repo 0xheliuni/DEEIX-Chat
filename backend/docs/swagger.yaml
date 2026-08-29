@@ -3139,6 +3139,40 @@ definitions:
     - data
     - errorMsg
     type: object
+  FileEmbeddingSkipResponse:
+    properties:
+      fileID:
+        type: string
+      reason:
+        type: string
+    required:
+    - fileID
+    - reason
+    type: object
+  FileEmbeddingSubmissionResponse:
+    properties:
+      skipped:
+        items:
+          $ref: '#/definitions/FileEmbeddingSkipResponse'
+        type: array
+      submittedFileIDs:
+        items:
+          type: string
+        type: array
+    required:
+    - skipped
+    - submittedFileIDs
+    type: object
+  FileEmbeddingSubmissionResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/FileEmbeddingSubmissionResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
   FileListResponse:
     properties:
       quota:
@@ -3166,6 +3200,8 @@ definitions:
     type: object
   FileObjectResponse:
     properties:
+      canVectorize:
+        type: boolean
       chunkCount:
         type: integer
       createdAt:
@@ -3214,7 +3250,10 @@ definitions:
         type: string
       updatedAt:
         type: string
+      vectorizationReason:
+        type: string
     required:
+    - canVectorize
     - chunkCount
     - createdAt
     - detectedMIME
@@ -3237,9 +3276,12 @@ definitions:
     - sizeBytes
     - status
     - updatedAt
+    - vectorizationReason
     type: object
   FileProcessingStatusResponse:
     properties:
+      canVectorize:
+        type: boolean
       chunkCount:
         type: integer
       completedAt:
@@ -3284,7 +3326,10 @@ definitions:
         x-omitempty: false
       updatedAt:
         type: string
+      vectorizationReason:
+        type: string
     required:
+    - canVectorize
     - chunkCount
     - completedAt
     - detectedMIME
@@ -3305,6 +3350,7 @@ definitions:
     - ragReason
     - startedAt
     - updatedAt
+    - vectorizationReason
     type: object
   FileUpdateResponseDoc:
     properties:
@@ -3758,6 +3804,40 @@ definitions:
     required:
     - file
     type: object
+  KnowledgeBaseFileEmbeddingSkipResponse:
+    properties:
+      fileID:
+        type: string
+      reason:
+        type: string
+    required:
+    - fileID
+    - reason
+    type: object
+  KnowledgeBaseFileEmbeddingSubmissionResponse:
+    properties:
+      skipped:
+        items:
+          $ref: '#/definitions/KnowledgeBaseFileEmbeddingSkipResponse'
+        type: array
+      submittedFileIDs:
+        items:
+          type: string
+        type: array
+    required:
+    - skipped
+    - submittedFileIDs
+    type: object
+  KnowledgeBaseFileEmbeddingSubmissionResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/KnowledgeBaseFileEmbeddingSubmissionResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
   KnowledgeBaseFileMutationDataResponse:
     properties:
       updated:
@@ -3809,11 +3889,17 @@ definitions:
     type: object
   KnowledgeBaseFileProcessingStatusResponse:
     properties:
+      canVectorize:
+        type: boolean
       chunkCount:
         type: integer
       detectedMIME:
         type: string
+      embedError:
+        type: string
       embedStatus:
+        type: string
+      extractStatus:
         type: string
       fileCategory:
         type: string
@@ -3829,10 +3915,15 @@ definitions:
         type: boolean
       updatedAt:
         type: string
+      vectorizationReason:
+        type: string
     required:
+    - canVectorize
     - chunkCount
     - detectedMIME
+    - embedError
     - embedStatus
+    - extractStatus
     - fileCategory
     - fileID
     - processing
@@ -3840,16 +3931,23 @@ definitions:
     - processingStatus
     - ragOptOut
     - updatedAt
+    - vectorizationReason
     type: object
   KnowledgeBaseFileResponse:
     properties:
+      canVectorize:
+        type: boolean
       chunkCount:
         type: integer
       createdAt:
         type: string
       detectedMIME:
         type: string
+      embedError:
+        type: string
       embedStatus:
+        type: string
+      extractStatus:
         type: string
       fileCategory:
         type: string
@@ -3871,11 +3969,16 @@ definitions:
         type: integer
       updatedAt:
         type: string
+      vectorizationReason:
+        type: string
     required:
+    - canVectorize
     - chunkCount
     - createdAt
     - detectedMIME
+    - embedError
     - embedStatus
+    - extractStatus
     - fileCategory
     - fileID
     - fileName
@@ -3886,6 +3989,7 @@ definitions:
     - ragOptOut
     - sizeBytes
     - updatedAt
+    - vectorizationReason
     type: object
   KnowledgeBaseFileResponseDoc:
     properties:
@@ -7458,6 +7562,28 @@ definitions:
     - updatedAt
     - usedBytes
     - userID
+    type: object
+  SubmitFileEmbeddingsRequest:
+    properties:
+      fileIDs:
+        items:
+          type: string
+        maxItems: 100
+        minItems: 1
+        type: array
+    required:
+    - fileIDs
+    type: object
+  SubmitPlatformFileEmbeddingsRequest:
+    properties:
+      fileIDs:
+        items:
+          type: string
+        maxItems: 100
+        minItems: 1
+        type: array
+    required:
+    - fileIDs
     type: object
   SubscribeRequest:
     properties:
@@ -11385,6 +11511,42 @@ paths:
       security:
       - BearerAuth: []
       summary: 获取平台资料内容
+      tags:
+      - admin-knowledge-bases
+  /admin/knowledge-bases/files/embeddings:
+    post:
+      consumes:
+      - application/json
+      description: 为管理员选中的平台资料提交向量化任务，最多100个；重复提交会幂等跳过
+      parameters:
+      - description: 平台资料ID，最多100个
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/SubmitPlatformFileEmbeddingsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/KnowledgeBaseFileEmbeddingSubmissionResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/KnowledgebaseErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/KnowledgebaseErrorDoc'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/KnowledgebaseErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 批量提交平台资料向量化
       tags:
       - admin-knowledge-bases
   /admin/llm/icon-assets:
@@ -17294,6 +17456,42 @@ paths:
       security:
       - BearerAuth: []
       summary: 获取文件内容
+      tags:
+      - chat
+  /files/embeddings:
+    post:
+      consumes:
+      - application/json
+      description: 为当前用户已完成文本提取的文件提交向量化任务，最多100个；重复提交会幂等跳过
+      parameters:
+      - description: 文件ID，最多100个
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/SubmitFileEmbeddingsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/FileEmbeddingSubmissionResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 批量提交指定文件向量化
       tags:
       - chat
   /files/processing/statuses:
