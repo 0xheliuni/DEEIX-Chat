@@ -44,7 +44,7 @@ type PreparedImage struct {
 // ImageLoader loads and prepares an image for moderation.
 type ImageLoader func(ctx context.Context, userID uint, fileID string) (PreparedImage, error)
 
-// OutputImageSource provides final generated image bytes for isolation.
+// OutputImageSource provides request-scoped image bytes and optional source metadata for moderation.
 type OutputImageSource struct {
 	FileID   string
 	Data     []byte

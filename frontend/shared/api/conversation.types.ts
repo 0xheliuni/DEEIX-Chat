@@ -245,8 +245,9 @@ export type SendMessageResult = Omit<SendMessageResponse, "assistantMessage" | "
   metadataRefreshHint?: "pending" | "not_needed" | "skipped_no_titleable_content" | string;
 };
 
-export type TemporaryChatHistoryMessage = Omit<ContractTemporaryChatHistoryMessage, "role"> & {
+export type TemporaryChatHistoryMessage = Omit<ContractTemporaryChatHistoryMessage, "content" | "role"> & {
   role: "user" | "assistant";
+  content: string;
 };
 
 export type TemporaryChatMessageRequest = Omit<ContractTemporaryChatMessageRequest, "messages" | "options"> & {

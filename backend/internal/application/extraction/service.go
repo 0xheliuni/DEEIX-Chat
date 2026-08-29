@@ -148,6 +148,29 @@ func (s *Service) ExtractStoredFile(ctx context.Context, input ExtractInput) (Re
 		return Result{}, err
 	}
 	defer cleanup()
+	return s.extractLocalFile(ctx, input, absPath)
+}
+
+// ExtractTemporaryFile 从系统临时目录内、由调用方管理生命周期的普通文件中提取文本。
+// 该入口不读取或写入对象存储，也不接受任意本地文件路径。
+func (s *Service) ExtractTemporaryFile(ctx context.Context, input ExtractInput) (Result, error) {
+	absPath := filepath.Clean(strings.TrimSpace(input.File.StoragePath))
+	if absPath == "" || !filepath.IsAbs(absPath) {
+		return Result{}, ErrInvalidStoredFilePath
+	}
+	temporaryRoot := filepath.Clean(os.TempDir())
+	relativePath, err := filepath.Rel(temporaryRoot, absPath)
+	if err != nil || relativePath == "." || relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(os.PathSeparator)) {
+		return Result{}, ErrInvalidStoredFilePath
+	}
+	info, err := os.Stat(absPath)
+	if err != nil || !info.Mode().IsRegular() {
+		return Result{}, ErrInvalidStoredFilePath
+	}
+	return s.extractLocalFile(ctx, input, absPath)
+}
+
+func (s *Service) extractLocalFile(ctx context.Context, input ExtractInput, absPath string) (Result, error) {
 	file := input.File
 	file.StoragePath = absPath
 	input.File = file
