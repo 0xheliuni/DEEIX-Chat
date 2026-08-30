@@ -1023,6 +1023,7 @@ function ChatInputComponent({
                   selectedToolIDs={selectedToolIDs}
                   defaultToolIDs={defaultToolIDs}
                   maxSelectedTools={maxSelectedTools}
+                  placementPreference={isConversationMode ? "top" : "bottom"}
                   disabled={loading || uploading || toolsLoading}
                   onSelectedToolsChange={onSelectedToolsChange}
                   onDefaultToolsChange={onDefaultToolsChange}
@@ -1032,6 +1033,7 @@ function ChatInputComponent({
               {!isMediaMode ? (
                 <ChatKnowledgeBases
                   selectedIDs={selectedKnowledgeBaseIDs}
+                  placementPreference={isConversationMode ? "top" : "bottom"}
                   disabled={loading || uploading}
                   available={ragAvailable}
                   unavailableReason={ragAvailabilityReason}
