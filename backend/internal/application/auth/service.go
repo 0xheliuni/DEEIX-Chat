@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/netip"
 	"net/url"
 	"sort"
 	"strings"
@@ -642,9 +643,36 @@ func (s *Service) resolveSessionAuditContext(
 
 	enriched, err := s.geoResolver.Lookup(ctx, normalized.ClientIP)
 	if err != nil {
+		s.warnGeoLookupFailure("audit_context", normalized.ClientIP, err)
 		return normalized
 	}
 	return mergeSessionAuditContext(normalized, enriched)
+}
+
+func (s *Service) warnGeoLookupFailure(stage string, rawIP string, err error) {
+	if err == nil {
+		return
+	}
+	clientIP, parseErr := netip.ParseAddr(strings.TrimSpace(rawIP))
+	if parseErr != nil ||
+		!clientIP.IsGlobalUnicast() ||
+		clientIP.IsPrivate() ||
+		clientIP.IsLoopback() ||
+		clientIP.IsLinkLocalUnicast() {
+		return
+	}
+	reason := "lookup_failed"
+	if errors.Is(err, context.Canceled) {
+		reason = "request_canceled"
+	} else if errors.Is(err, context.DeadlineExceeded) {
+		reason = "timeout"
+	}
+	s.warn(
+		"session_geo_lookup_failed",
+		zap.String("stage", stage),
+		zap.String("reason", reason),
+		zap.String("error_type", fmt.Sprintf("%T", err)),
+	)
 }
 
 // mergeSessionAuditContext 将 enriched 中的地理信息补填到 base 中，仅覆盖 base 的空字段。
@@ -681,24 +709,31 @@ func mergeSessionAuditContext(
 	return result
 }
 
-func sessionActivityInputFromSnapshot(snapshot sessionAuditSnapshot, lastSeenAt time.Time) repository.UpdateSessionActivityInput {
-	return repository.UpdateSessionActivityInput{
-		LastSeenAt:   &lastSeenAt,
-		ClientIP:     &snapshot.ClientIP,
-		UserAgent:    &snapshot.UserAgent,
-		DeviceName:   &snapshot.DeviceName,
-		BrowserName:  &snapshot.BrowserName,
-		OSName:       &snapshot.OSName,
-		DeviceType:   &snapshot.DeviceType,
-		GeoSource:    &snapshot.GeoSource,
-		GeoAccuracy:  &snapshot.GeoAccuracy,
-		CountryCode:  &snapshot.CountryCode,
-		RegionName:   &snapshot.RegionName,
-		CityName:     &snapshot.CityName,
-		TimezoneName: &snapshot.TimezoneName,
-		IPLatitude:   &snapshot.IPLatitude,
-		IPLongitude:  &snapshot.IPLongitude,
+func sessionActivityInputFromSnapshot(
+	snapshot sessionAuditSnapshot,
+	lastSeenAt time.Time,
+	includeGeo bool,
+) repository.UpdateSessionActivityInput {
+	input := repository.UpdateSessionActivityInput{
+		LastSeenAt:  &lastSeenAt,
+		ClientIP:    &snapshot.ClientIP,
+		UserAgent:   &snapshot.UserAgent,
+		DeviceName:  &snapshot.DeviceName,
+		BrowserName: &snapshot.BrowserName,
+		OSName:      &snapshot.OSName,
+		DeviceType:  &snapshot.DeviceType,
 	}
+	if includeGeo {
+		input.GeoSource = &snapshot.GeoSource
+		input.GeoAccuracy = &snapshot.GeoAccuracy
+		input.CountryCode = &snapshot.CountryCode
+		input.RegionName = &snapshot.RegionName
+		input.CityName = &snapshot.CityName
+		input.TimezoneName = &snapshot.TimezoneName
+		input.IPLatitude = &snapshot.IPLatitude
+		input.IPLongitude = &snapshot.IPLongitude
+	}
+	return input
 }
 
 // UpdateProfile 更新当前用户资料。
@@ -1116,8 +1151,9 @@ func (s *Service) Refresh(
 		return nil, err
 	}
 
-	sessionSnapshot := buildSessionAuditSnapshot(normalizedAuditCtx)
-	if err = s.repo.TouchSessionActivity(ctx, userItem.ID, claims.SessionID, sessionActivityInputFromSnapshot(sessionSnapshot, now)); err != nil {
+	sessionSnapshot := buildSessionAuditSnapshotForSession(session, normalizedAuditCtx)
+	includeGeo := sessionClientIPChanged(session, normalizedAuditCtx) || sessionAuditContextHasGeo(normalizedAuditCtx)
+	if err = s.repo.TouchSessionActivity(ctx, userItem.ID, claims.SessionID, sessionActivityInputFromSnapshot(sessionSnapshot, now, includeGeo)); err != nil {
 		return nil, err
 	}
 
@@ -1237,9 +1273,11 @@ func (s *Service) ValidateAccessSession(
 	}
 
 	now := time.Now()
-	sessionSnapshot := buildSessionAuditSnapshot(auditCtx)
+	normalizedAuditCtx := auditCtx.Normalize()
+	sessionSnapshot := buildSessionAuditSnapshotForSession(session, normalizedAuditCtx)
 	if shouldTouchSessionActivity(session, sessionSnapshot, now) {
-		if err = s.repo.TouchSessionActivity(ctx, userID, strings.TrimSpace(sessionID), sessionActivityInputFromSnapshot(sessionSnapshot, now)); err != nil {
+		includeGeo := sessionClientIPChanged(session, normalizedAuditCtx) || sessionAuditContextHasGeo(normalizedAuditCtx)
+		if err = s.repo.TouchSessionActivity(ctx, userID, strings.TrimSpace(sessionID), sessionActivityInputFromSnapshot(sessionSnapshot, now, includeGeo)); err != nil {
 			return err
 		}
 	}
@@ -1318,6 +1356,7 @@ func (s *Service) ensureSessionGeoResolved(
 
 	enriched, err := s.geoResolver.Lookup(ctx, session.ClientIP)
 	if err != nil {
+		s.warnGeoLookupFailure("active_session_enrichment", session.ClientIP, err)
 		return session, err
 	}
 	merged := mergeSessionAuditContext(
