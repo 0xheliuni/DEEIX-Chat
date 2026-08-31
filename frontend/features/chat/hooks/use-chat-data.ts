@@ -436,7 +436,7 @@ export function useChatData(
               ...prev,
               messages: prev.messages.map((message) =>
                 message.runID === pendingRunID && message.role === "assistant" && message.status === "pending"
-                  ? { ...message, processTrace: event.trace }
+                  ? { ...message, processTrace: event.trace ?? message.processTrace }
                   : message,
               ),
             }));
