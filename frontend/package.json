@@ -14,6 +14,7 @@
     "dev": "next dev --turbopack",
     "prebuild": "node ../scripts/sync-version.mjs --check frontend && node scripts/sync-assets.mjs",
     "build": "next build --turbopack",
+    "test": "node --no-warnings --experimental-strip-types --test shared/components/markdown/streamdown-content.test.mjs",
     "analyze": "next experimental-analyze",
     "analyze:output": "next experimental-analyze --output",
     "start": "next start",
