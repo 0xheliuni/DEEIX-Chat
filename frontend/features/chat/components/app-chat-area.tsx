@@ -150,6 +150,7 @@ export function AppChatArea() {
   const upsertConversation = useSidebarConversationField("upsertConversation");
   const {
     cancelResumedGeneration,
+    conversationPublicID: messageDataConversationID,
     loading,
     loadingOlder,
     errorMsg,
@@ -709,9 +710,13 @@ export function AppChatArea() {
 
   const composerSending = temporaryMode ? temporaryRuntime.sending : generating;
   const composerConversationMode = temporaryMode ? temporaryRuntime.messages.length > 0 : isConversationMode;
+  const composerLoading =
+    !temporaryMode &&
+    Boolean(conversationID) &&
+    (loading || messageDataConversationID !== conversationID);
   const chatInputProps = {
     draft,
-    loading: temporaryMode ? false : loading,
+    loading: composerLoading,
     sending: composerSending,
     uploading: temporaryMode ? false : uploading,
     isConversationMode: composerConversationMode,
@@ -741,6 +746,7 @@ export function AppChatArea() {
     modelLoading: modelsLoading,
     dropActive: fileDragActive,
     temporaryMode,
+    autoFocusKey: conversationID ?? `${conversationKey}:${newConversationRevision}`,
     onDraftChange: setDraft,
     onModelChange: setSelectedPlatformModelName,
     onModelCatalogRefresh: refreshModelCatalogForComposer,
