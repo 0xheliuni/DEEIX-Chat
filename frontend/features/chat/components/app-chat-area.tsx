@@ -160,7 +160,6 @@ export function AppChatArea() {
     reload,
     replaceMessage,
     resumingActivityLabel,
-    resumingConversationID,
     resumingRunID,
   } = useChatData(conversationID, {
     activeGenerationRunsRef,
@@ -490,15 +489,6 @@ export function AppChatArea() {
     resumingActivityLabel,
     resumingRunID,
   });
-  React.useEffect(() => {
-    const normalizedConversationID = resumingConversationID.trim();
-    const normalizedRunID = resumingRunID.trim();
-    if (!normalizedConversationID || !normalizedRunID) {
-      return;
-    }
-    registerConversationRun(normalizedRunID, normalizedConversationID);
-    return () => detachConversationRun(normalizedRunID);
-  }, [detachConversationRun, registerConversationRun, resumingConversationID, resumingRunID]);
   const generating = sending;
   const uploadDropDisabled = loading || uploading;
   const onStopActiveMessage = React.useCallback(() => {
