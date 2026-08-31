@@ -53,57 +53,8 @@ const HTML_VISUAL_MARKDOWN_FENCE_RE = /(^|\n)([ \t]{0,3})(```|~~~)[ \t]*(?:(?:ma
 const HTML_VISUAL_FRAGMENT_RE = /^\s*<(?:div|section|article|aside|main|details|table)\b[\s\S]*<\/(?:div|section|article|aside|main|details|table)>\s*$/i;
 const HTML_VISUAL_STYLE_RE = /\sstyle\s*=\s*["'][^"']{8,}["']/i;
 const HTML_TAG_RE = /<\/?[A-Za-z][^>\n]*>/g;
-const SAFE_HTML_BLOCK_ROOT_RE = /(^|\n)([ \t]{0,3})<(article|aside|details|div|main|section|table)\b/gi;
-const SAFE_HTML_BLOCK_TAGS = new Set([
-  "a",
-  "article",
-  "aside",
-  "b",
-  "blockquote",
-  "br",
-  "caption",
-  "code",
-  "col",
-  "colgroup",
-  "dd",
-  "del",
-  "details",
-  "div",
-  "dl",
-  "dt",
-  "em",
-  "h1",
-  "h2",
-  "h3",
-  "h4",
-  "h5",
-  "h6",
-  "hr",
-  "i",
-  "img",
-  "li",
-  "main",
-  "mark",
-  "ol",
-  "p",
-  "section",
-  "small",
-  "span",
-  "strong",
-  "sub",
-  "summary",
-  "sup",
-  "table",
-  "tbody",
-  "td",
-  "tfoot",
-  "th",
-  "thead",
-  "tr",
-  "u",
-  "ul",
-]);
-const SAFE_HTML_VOID_TAGS = new Set(["br", "col", "hr", "img"]);
+const HTML_BLOCK_ROOT_RE = /(^|\n)([ \t]{0,3})<(article|aside|details|div|main|section|table)\b/gi;
+const HTML_STRUCTURE_TAG_RE = /<!--[\s\S]*?-->|<\/?([A-Za-z][A-Za-z0-9-]*)\b(?:[^>"']|"[^"]*"|'[^']*')*>/g;
 const HTML_BLANK_LINE_RE = /(\r?\n)[ \t]*(?=\r?\n)/g;
 const INLINE_DOLLAR_MATH_RE = /(^|[^\\$])\$([^$\n]{1,800})\$/g;
 const ESCAPED_INLINE_DOLLAR_MATH_RE = /\\\$([^$\n]{1,400})\\\$/g;
@@ -370,125 +321,45 @@ export function normalizeHTMLVisualMarkdownFences(source: string): string {
   );
 }
 
-type ParsedHTMLTag = {
-  closing: boolean;
-  end: number;
-  name: string | null;
-  selfClosing: boolean;
-};
-
-function parseHTMLTagAt(source: string, start: number): ParsedHTMLTag | null {
-  if (source.startsWith("<!--", start)) {
-    const commentEnd = source.indexOf("-->", start + 4);
-    return commentEnd < 0
-      ? null
-      : { closing: false, end: commentEnd + 3, name: null, selfClosing: true };
-  }
-
-  if (source[start] !== "<") {
-    return null;
-  }
-
-  let cursor = start + 1;
-  const closing = source[cursor] === "/";
-  if (closing) {
-    cursor += 1;
-  }
-
-  const nameMatch = /^[A-Za-z][A-Za-z0-9-]*/.exec(source.slice(cursor));
-  if (!nameMatch) {
-    return null;
-  }
-  const name = nameMatch[0].toLowerCase();
-  cursor += nameMatch[0].length;
-
-  let quote: "\"" | "'" | null = null;
-  for (; cursor < source.length; cursor += 1) {
-    const character = source[cursor];
-    if (quote) {
-      if (character === quote) {
-        quote = null;
-      }
-      continue;
-    }
-    if (character === "\"" || character === "'") {
-      quote = character;
-      continue;
-    }
-    if (character === ">") {
-      const rawTag = source.slice(start, cursor + 1);
-      return {
-        closing,
-        end: cursor + 1,
-        name,
-        selfClosing: !closing && /\/\s*>$/.test(rawTag),
-      };
-    }
-  }
-
-  return null;
-}
-
-function findBalancedSafeHTMLBlockEnd(
+function findHTMLBlockEnd(
   source: string,
   start: number,
-  allowIncomplete: boolean,
+  rootTagName: string,
+  streaming: boolean,
 ): number | null {
-  const stack: string[] = [];
-  let cursor = start;
-  let firstTag = true;
+  const tagPattern = new RegExp(HTML_STRUCTURE_TAG_RE.source, HTML_STRUCTURE_TAG_RE.flags);
+  tagPattern.lastIndex = start;
+  const openingTag = tagPattern.exec(source);
+  if (
+    !openingTag ||
+    openingTag.index !== start ||
+    openingTag[0].startsWith("</") ||
+    openingTag[1]?.toLowerCase() !== rootTagName
+  ) {
+    return null;
+  }
 
-  while (cursor < source.length) {
-    const tagStart = source.indexOf("<", cursor);
-    if (tagStart < 0) {
-      return allowIncomplete && stack.length > 0 ? source.length : null;
-    }
+  let depth = /\/\s*>$/.test(openingTag[0]) ? 0 : 1;
+  if (depth === 0) {
+    return tagPattern.lastIndex;
+  }
 
-    const tag = parseHTMLTagAt(source, tagStart);
-    if (!tag) {
-      const incompleteTagName = /^<\/?([A-Za-z][A-Za-z0-9-]*)/.exec(source.slice(tagStart))?.[1]?.toLowerCase();
-      if (
-        incompleteTagName &&
-        !Array.from(SAFE_HTML_BLOCK_TAGS).some((safeTag) => safeTag.startsWith(incompleteTagName))
-      ) {
-        return null;
-      }
-      if (allowIncomplete && incompleteTagName && !source.slice(tagStart).includes(">")) {
-        return stack.length > 0 ? source.length : null;
-      }
-      cursor = tagStart + 1;
-      continue;
-    }
-    cursor = tag.end;
-
-    if (tag.name == null) {
-      continue;
-    }
-    if (!SAFE_HTML_BLOCK_TAGS.has(tag.name)) {
-      return null;
-    }
-    if (firstTag && tag.closing) {
-      return null;
-    }
-    firstTag = false;
-
-    if (tag.closing) {
-      if (stack.at(-1) !== tag.name) {
-        return null;
-      }
-      stack.pop();
-      if (stack.length === 0) {
-        return tag.end;
-      }
+  for (let match = tagPattern.exec(source); match; match = tagPattern.exec(source)) {
+    if (!match[1] || match[1].toLowerCase() !== rootTagName) {
       continue;
     }
 
-    if (!tag.selfClosing && !SAFE_HTML_VOID_TAGS.has(tag.name)) {
-      stack.push(tag.name);
+    if (match[0].startsWith("</")) {
+      depth -= 1;
+      if (depth === 0) {
+        return tagPattern.lastIndex;
+      }
+    } else if (!/\/\s*>$/.test(match[0])) {
+      depth += 1;
     }
   }
 
-  return allowIncomplete && stack.length > 0 ? source.length : null;
+  return streaming && depth > 0 ? source.length : null;
 }
 
 function isInsideOpenMarkdownFence(source: string, index: number): boolean {
@@ -513,16 +384,7 @@ function isInsideOpenMarkdownFence(source: string, index: number): boolean {
   return opening != null;
 }
 
-/**
- * Keeps balanced allowlisted HTML cards, plus their safe in-flight prefix,
- * inside one CommonMark raw-HTML block. A blank line normally terminates type-6
- * HTML blocks, which makes later nested elements render as literal source.
- * Fixed comments are invisible after parsing and preserve the source line count.
- */
-export function normalizeSafeHTMLBlockBlankLines(
-  source: string,
-  { allowIncomplete = false }: { allowIncomplete?: boolean } = {},
-): string {
+export function normalizeHTMLBlockBlankLines(source: string, streaming = false): string {
   if (!source || !HTML_BLANK_LINE_RE.test(source)) {
     HTML_BLANK_LINE_RE.lastIndex = 0;
     return source;
@@ -530,20 +392,17 @@ export function normalizeSafeHTMLBlockBlankLines(
   HTML_BLANK_LINE_RE.lastIndex = 0;
 
   return mapMarkdownTextFragments(source, (fragment) => {
-    const rootPattern = new RegExp(SAFE_HTML_BLOCK_ROOT_RE.source, SAFE_HTML_BLOCK_ROOT_RE.flags);
+    const rootPattern = new RegExp(HTML_BLOCK_ROOT_RE.source, HTML_BLOCK_ROOT_RE.flags);
     const output: string[] = [];
     let cursor = 0;
 
-    for (const match of fragment.matchAll(rootPattern)) {
-      if (match.index == null) {
-        continue;
-      }
+    for (let match = rootPattern.exec(fragment); match; match = rootPattern.exec(fragment)) {
       const blockStart = match.index + match[1].length + match[2].length;
       if (blockStart < cursor || isInsideOpenMarkdownFence(fragment, blockStart)) {
         continue;
       }
 
-      const blockEnd = findBalancedSafeHTMLBlockEnd(fragment, blockStart, allowIncomplete);
+      const blockEnd = findHTMLBlockEnd(fragment, blockStart, match[3].toLowerCase(), streaming);
       if (blockEnd == null) {
         continue;
       }
@@ -552,7 +411,7 @@ export function normalizeSafeHTMLBlockBlankLines(
       output.push(
         fragment
           .slice(blockStart, blockEnd)
-          .replace(HTML_BLANK_LINE_RE, "$1<!-- deeix-html-gap -->"),
+          .replace(HTML_BLANK_LINE_RE, "$1<!-- -->"),
       );
       cursor = blockEnd;
       rootPattern.lastIndex = blockEnd;

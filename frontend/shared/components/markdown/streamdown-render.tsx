@@ -48,11 +48,11 @@ import {
   normalizeContent,
   normalizeCurrencyDollars,
   normalizeEscapedHTMLAttributeQuotes,
+  normalizeHTMLBlockBlankLines,
   normalizeHTMLVisualMarkdownFences,
   normalizeLatexUnicodeSymbols,
   normalizeMathDelimiters,
   normalizeMermaidBlocks,
-  normalizeSafeHTMLBlockBlankLines,
   parseStreamdownSegments,
   type RenderSegment,
 } from "./streamdown-content";
@@ -392,7 +392,7 @@ const THINKING_STREAMDOWN_COMPONENTS = {
 function normalizeStreamdownContent(
   content: unknown,
   preserveSourceLines = false,
-  allowIncompleteSafeHTML = false,
+  streaming = false,
 ): string {
   const escapedContent = normalizeCurrencyDollars(
     normalizeEscapedHTMLAttributeQuotes(normalizeContent(content)),
@@ -404,9 +404,7 @@ function normalizeStreamdownContent(
   );
   return preserveSourceLines
     ? normalizedContent
-    : normalizeSafeHTMLBlockBlankLines(normalizeHTMLVisualMarkdownFences(normalizedContent), {
-        allowIncomplete: allowIncompleteSafeHTML,
-      });
+    : normalizeHTMLBlockBlankLines(normalizeHTMLVisualMarkdownFences(normalizedContent), streaming);
 }
 
 function detectStreamdownFeatures(content: string): StreamdownFeatureFlags {
