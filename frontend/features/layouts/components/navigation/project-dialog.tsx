@@ -32,6 +32,7 @@ import type { SkillSummaryDTO } from "@/shared/api/skills.types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { ModelSelect, type ModelSelectOption } from "@/shared/components/model-select";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
+import { useFeaturePolicy } from "@/shared/hooks/use-feature-policy";
 import { resolveModelOptionIconUrl, resolveModelOptionLabel } from "@/shared/lib/model-option-display";
 import {
   hasMultipleImageAttachmentProcessors,
@@ -244,6 +245,7 @@ export function ProjectDialog({
   onSubmit: () => void | Promise<void>;
 }) {
   const t = useTranslations("recent.projects");
+  const { knowledgeBaseEnabled } = useFeaturePolicy();
   const [submitting, setSubmitting] = React.useState(false);
   const [catalogLoading, setCatalogLoading] = React.useState(false);
   const [modelCatalogLoading, setModelCatalogLoading] = React.useState(false);
@@ -394,7 +396,7 @@ export function ProjectDialog({
     onError: handleCatalogLoadError,
   });
   const knowledgeBaseCatalog = usePaginatedProjectCatalog({
-    open,
+    open: open && knowledgeBaseEnabled,
     selectedIDs: draft?.defaultKnowledgeBaseIDs.slice(0, 8) ?? [],
     loadPage: listVisibleKnowledgeBases,
     getID: getKnowledgeBaseID,
@@ -600,31 +602,33 @@ export function ProjectDialog({
                   }}
                 />
 
-                <ProjectDefaultSelector
-                  icon={BookOpen}
-                  label={t("selectKnowledgeBases")}
-                  description={t("knowledgeBaseDefaultsDescription")}
-                  emptyLabel={t("knowledgeBaseDefaultsEmpty")}
-                  searchPlaceholder={t("searchKnowledgeBases")}
-                  options={knowledgeBaseCatalog.items.map((item) => ({
-                    id: item.publicID,
-                    label: item.name,
-                    detail: `${item.scope === "builtin" ? t("builtinKnowledgeBase") : t("personalKnowledgeBase")} · ${t("knowledgeBaseFileCount", { count: item.readyFileCount })}`,
-                    disabled: item.readyFileCount === 0,
-                  }))}
-                  selectedIDs={stableDraft?.defaultKnowledgeBaseIDs ?? []}
-                  selectionLimit={8}
-                  loading={knowledgeBaseCatalog.loading && knowledgeBaseCatalog.items.length === 0}
-                  searching={knowledgeBaseCatalog.loading}
-                  loadingMore={knowledgeBaseCatalog.loadingMore}
-                  hasMore={knowledgeBaseCatalog.hasMore}
-                  disabled={submitting}
-                  onQueryChange={knowledgeBaseCatalog.setQuery}
-                  onLoadMore={knowledgeBaseCatalog.loadMore}
-                  onChange={(defaultKnowledgeBaseIDs) => {
-                    setDraft((current) => current ? { ...current, defaultKnowledgeBaseIDs } : current);
-                  }}
-                />
+                {knowledgeBaseEnabled ? (
+                  <ProjectDefaultSelector
+                    icon={BookOpen}
+                    label={t("selectKnowledgeBases")}
+                    description={t("knowledgeBaseDefaultsDescription")}
+                    emptyLabel={t("knowledgeBaseDefaultsEmpty")}
+                    searchPlaceholder={t("searchKnowledgeBases")}
+                    options={knowledgeBaseCatalog.items.map((item) => ({
+                      id: item.publicID,
+                      label: item.name,
+                      detail: `${item.scope === "builtin" ? t("builtinKnowledgeBase") : t("personalKnowledgeBase")} · ${t("knowledgeBaseFileCount", { count: item.readyFileCount })}`,
+                      disabled: item.readyFileCount === 0,
+                    }))}
+                    selectedIDs={stableDraft?.defaultKnowledgeBaseIDs ?? []}
+                    selectionLimit={8}
+                    loading={knowledgeBaseCatalog.loading && knowledgeBaseCatalog.items.length === 0}
+                    searching={knowledgeBaseCatalog.loading}
+                    loadingMore={knowledgeBaseCatalog.loadingMore}
+                    hasMore={knowledgeBaseCatalog.hasMore}
+                    disabled={submitting}
+                    onQueryChange={knowledgeBaseCatalog.setQuery}
+                    onLoadMore={knowledgeBaseCatalog.loadMore}
+                    onChange={(defaultKnowledgeBaseIDs) => {
+                      setDraft((current) => current ? { ...current, defaultKnowledgeBaseIDs } : current);
+                    }}
+                  />
+                ) : null}
               </div>
             </div>
           </div>

@@ -9567,6 +9567,22 @@ export namespace Settings {
   /**
    * No description
    * @tags settings
+   * @name FeaturePolicyList
+   * @summary 查询用户侧功能开关策略
+   * @request GET:/settings/feature-policy
+   * @secure
+   */
+  export namespace FeaturePolicyList {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = Envelope;
+  }
+
+  /**
+   * No description
+   * @tags settings
    * @name LoginPageList
    * @summary 查询公开登录页配置
    * @request GET:/settings/login-page

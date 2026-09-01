@@ -77,6 +77,9 @@ func defaultSettings() []domainsettings.SystemSetting {
 		{Namespace: "chat", Key: "model_option_allowed_paths", Value: config.DefaultModelOptionAllowedPathsJSON(), ValueType: "json", Description: "模型 options 白名单路径 JSON，default 对所有协议生效"},
 		{Namespace: "chat", Key: "model_option_denied_paths", Value: config.DefaultModelOptionDeniedPathsJSON(), ValueType: "json", Description: "模型 options 黑名单路径 JSON，default 对所有协议生效"},
 
+		// 知识库配置
+		{Namespace: "knowledgebase", Key: "enabled", Value: "true", ValueType: "bool", Description: "是否启用知识库功能；关闭后隐藏用户侧入口并拒绝知识库请求"},
+
 		// 存储配置
 		{Namespace: "storage", Key: "user_storage_quota_bytes", Value: "104857600", ValueType: "int", Description: "用户总存储配额（管理页面按 MB 输入，内部以字节保存），0表示不限制"},
 		{Namespace: "storage", Key: "max_upload_file_bytes", Value: "20971520", ValueType: "int", Description: "默认附件大小上限（管理页面按 MB 输入，内部以字节保存）"},

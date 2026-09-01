@@ -273,6 +273,10 @@ func (s *Service) resolveKnowledgeBaseRAGFiles(
 	if len(publicIDs) == 0 {
 		return nil, nil
 	}
+	if !s.cfg.Snapshot().KnowledgeBaseEnabled {
+		// 知识库功能已被后台关闭：静默忽略引用，保证存量会话仍可正常发送。
+		return nil, nil
+	}
 	if !ragAvailable || s.knowledgeBaseResolver == nil || s.ragSvc == nil {
 		return nil, ErrKnowledgeBaseUnavailable
 	}

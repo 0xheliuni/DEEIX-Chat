@@ -18658,6 +18658,20 @@ paths:
       summary: 查询聊天上下文策略
       tags:
       - settings
+  /settings/feature-policy:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/Envelope'
+      security:
+      - BearerAuth: []
+      summary: 查询用户侧功能开关策略
+      tags:
+      - settings
   /settings/login-page:
     get:
       produces:

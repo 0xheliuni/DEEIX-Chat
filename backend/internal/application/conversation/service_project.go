@@ -487,6 +487,9 @@ func (s *Service) validateConversationProjectDefaults(
 			return ErrInvalidConversationProject
 		}
 	}
+	if knowledgeBaseSelectionChanged && len(knowledgeBaseIDs) > 0 && !s.cfg.Snapshot().KnowledgeBaseEnabled {
+		return ErrInvalidConversationProject
+	}
 	if knowledgeBaseSelectionChanged && len(knowledgeBaseIDs) > 8 {
 		return ErrInvalidConversationProject
 	}

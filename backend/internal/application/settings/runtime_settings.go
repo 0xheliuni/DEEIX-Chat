@@ -162,6 +162,10 @@ func (r *RuntimeSettings) applyItem(cfg *config.Config, item domainsettings.Syst
 	case "chat:model_option_denied_paths":
 		cfg.ModelOptionDeniedPaths = item.Value
 
+		// 知识库配置
+	case "knowledgebase:enabled":
+		cfg.KnowledgeBaseEnabled = toBool(item.Value, cfg.KnowledgeBaseEnabled)
+
 		// 存储配置
 	case "storage:user_storage_quota_bytes":
 		cfg.UserStorageQuotaBytes = toInt64(item.Value, cfg.UserStorageQuotaBytes)

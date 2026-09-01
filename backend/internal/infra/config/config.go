@@ -439,6 +439,8 @@ type Config struct {
 	ModelOptionPolicyMode        string
 	ModelOptionAllowedPaths      string
 	ModelOptionDeniedPaths       string
+	// 知识库配置
+	KnowledgeBaseEnabled bool
 	// 存储配置
 	UserStorageQuotaBytes int64
 	MaxUploadFileBytes    int64
@@ -677,6 +679,7 @@ func Load() Config {
 		ModelOptionPolicyMode:             "allowlist",
 		ModelOptionAllowedPaths:           DefaultModelOptionAllowedPathsJSON(),
 		ModelOptionDeniedPaths:            DefaultModelOptionDeniedPathsJSON(),
+		KnowledgeBaseEnabled:              true,
 		UserStorageQuotaBytes:             104857600,
 		MaxUploadFileBytes:                20971520,
 		MaxMessageFiles:                   10,

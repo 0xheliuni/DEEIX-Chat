@@ -556,6 +556,11 @@ func (s *Service) sendMessageInternal(
 	if imageProcessing.Routed {
 		fileContextPlan = withoutCurrentImageAttachments(fileContextPlan)
 	}
+	if !cfg.KnowledgeBaseEnabled {
+		// 知识库功能已被后台关闭：视同未选择知识库，检索与后续“知识库未命中/不可用”的
+		// 判定、提示一并跳过，避免存量引用阻塞发送或注入误导性提示。
+		input.KnowledgeBaseIDs = nil
+	}
 	knowledgeBaseFiles, err := s.resolveKnowledgeBaseRAGFiles(
 		ctx,
 		input.UserID,
