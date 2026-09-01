@@ -524,6 +524,28 @@
         "model": "Models",
         "skill": "Skills",
         "prompt": "Prompts"
+      },
+      "tabs": {
+        "all": "All",
+        "file": "Files",
+        "tool": "MCP",
+        "model": "Models",
+        "skill": "Skills",
+        "prompt": "Prompts"
+      },
+      "recent": "Recent",
+      "groups": {
+        "builtin": "Built-in",
+        "mine": "Mine"
+      },
+      "viewAll": "View all {count}",
+      "empty": {
+        "all": "No matching results",
+        "file": "No matching files",
+        "tool": "No matching tools",
+        "model": "No matching models",
+        "skill": "No matching skills",
+        "prompt": "No matching prompts"
       }
     },
     "mediaMode": {
