@@ -16066,7 +16066,9 @@
                 "periodUsedNanousd",
                 "periodUsedUSD",
                 "plan",
-                "subscriptionEntitlements"
+                "subscriptionEntitlements",
+                "totalSpentNanousd",
+                "totalSpentUSD"
             ],
             "properties": {
                 "account": {
@@ -16123,6 +16125,12 @@
                     "items": {
                         "$ref": "#/definitions/SubscriptionEntitlementResponse"
                     }
+                },
+                "totalSpentNanousd": {
+                    "type": "integer"
+                },
+                "totalSpentUSD": {
+                    "type": "number"
                 }
             }
         },

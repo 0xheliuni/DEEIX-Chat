@@ -1080,6 +1080,10 @@ definitions:
         items:
           $ref: '#/definitions/SubscriptionEntitlementResponse'
         type: array
+      totalSpentNanousd:
+        type: integer
+      totalSpentUSD:
+        type: number
     required:
     - account
     - mode
@@ -1093,6 +1097,8 @@ definitions:
     - periodUsedUSD
     - plan
     - subscriptionEntitlements
+    - totalSpentNanousd
+    - totalSpentUSD
     type: object
   BillingOverviewResponseDoc:
     properties:

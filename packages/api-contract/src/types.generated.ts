@@ -440,6 +440,8 @@ export interface BillingOverviewResponse {
   periodUsedUSD: number;
   plan: BillingPlanResponse | null;
   subscriptionEntitlements: SubscriptionEntitlementResponse[];
+  totalSpentNanousd: number;
+  totalSpentUSD: number;
 }
 
 export interface BillingOverviewResponseDoc {

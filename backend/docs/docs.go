@@ -16073,7 +16073,9 @@ const docTemplate = `{
                 "periodUsedNanousd",
                 "periodUsedUSD",
                 "plan",
-                "subscriptionEntitlements"
+                "subscriptionEntitlements",
+                "totalSpentNanousd",
+                "totalSpentUSD"
             ],
             "properties": {
                 "account": {
@@ -16130,6 +16132,12 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/SubscriptionEntitlementResponse"
                     }
+                },
+                "totalSpentNanousd": {
+                    "type": "integer"
+                },
+                "totalSpentUSD": {
+                    "type": "number"
                 }
             }
         },

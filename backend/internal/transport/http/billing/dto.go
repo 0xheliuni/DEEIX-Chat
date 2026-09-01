@@ -360,6 +360,8 @@ type BillingOverviewResponse struct {
 	PeriodRemainingUSD       float64                           `json:"periodRemainingUSD"`
 	PeriodRemainingNanousd   int64                             `json:"periodRemainingNanousd"`
 	Account                  *BillingAccountResponse           `json:"account" extensions:"x-nullable,!x-omitempty"`
+	TotalSpentUSD            float64                           `json:"totalSpentUSD"`
+	TotalSpentNanousd        int64                             `json:"totalSpentNanousd"`
 	SubscriptionEntitlements []SubscriptionEntitlementResponse `json:"subscriptionEntitlements"`
 }
 
@@ -867,6 +869,8 @@ func toBillingOverviewResponse(item *appbilling.BillingOverview) BillingOverview
 		PeriodRemainingUSD:       nanousdToUSD(item.PeriodRemainingNanousd),
 		PeriodRemainingNanousd:   item.PeriodRemainingNanousd,
 		Account:                  toBillingAccountViewResponse(item.Account),
+		TotalSpentUSD:            nanousdToUSD(item.TotalSpentNanousd),
+		TotalSpentNanousd:        item.TotalSpentNanousd,
 		SubscriptionEntitlements: toSubscriptionEntitlementResponses(item.SubscriptionEntitlements),
 	}
 }
