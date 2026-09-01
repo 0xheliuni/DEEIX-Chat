@@ -55,6 +55,7 @@ type BillingRepository interface {
 	ListMonthlyUsageByUser(ctx context.Context, userID uint, limit int) ([]domainbilling.UsageMonthlySummary, error)
 	ListDailyUsageByUser(ctx context.Context, userID uint, startDate time.Time, endDate time.Time) ([]domainbilling.UsageDailySummary, error)
 	SumBillableNanousd(ctx context.Context, userID uint, startAt time.Time, endAt time.Time) (int64, error)
+	SumTotalBilledNanousd(ctx context.Context, userID uint) (int64, error)
 }
 
 // RedemptionCodeListFilter 描述管理员兑换码列表筛选条件。

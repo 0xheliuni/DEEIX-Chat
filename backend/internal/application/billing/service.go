@@ -2662,6 +2662,12 @@ func (s *Service) GetBillingOverview(ctx context.Context, userID uint, now time.
 			return nil, accountErr
 		}
 		overview.Account = toBillingAccountView(account)
+		// 按量计费模式返回账户累计消费(不限时间的计费流水合计),供订阅页「累计花费」卡片展示。
+		totalSpentNanousd, totalErr := s.repo.SumTotalBilledNanousd(ctx, userID)
+		if totalErr != nil {
+			return nil, totalErr
+		}
+		overview.TotalSpentNanousd = totalSpentNanousd
 		return overview, nil
 	}
 	if mode != "period" {

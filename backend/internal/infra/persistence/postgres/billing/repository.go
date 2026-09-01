@@ -2195,6 +2195,20 @@ func (r *Repo) SumBillableNanousd(ctx context.Context, userID uint, startAt time
 	return total, nil
 }
 
+// SumTotalBilledNanousd 统计用户不限时间的累计计费金额(仅付费模型流水,不含充值与兑换入账)。
+func (r *Repo) SumTotalBilledNanousd(ctx context.Context, userID uint) (int64, error) {
+	var total int64
+	err := r.db.WithContext(ctx).
+		Model(&model.UsageLedger{}).
+		Select("COALESCE(SUM(billed_nanousd), 0)").
+		Where("user_id = ? AND is_free_model = ?", userID, false).
+		Scan(&total).Error
+	if err != nil {
+		return 0, translateError(err)
+	}
+	return total, nil
+}
+
 func toDomainModelPricing(item model.ModelPricing) domainbilling.ModelPricing {
 	return domainbilling.ModelPricing{
 		ID:                          item.ID,

@@ -442,6 +442,9 @@ func (r *billingRepositoryStub) ListDailyUsageByUser(context.Context, uint, time
 func (r *billingRepositoryStub) SumBillableNanousd(context.Context, uint, time.Time, time.Time) (int64, error) {
 	return 0, nil
 }
+func (r *billingRepositoryStub) SumTotalBilledNanousd(context.Context, uint) (int64, error) {
+	return 0, nil
+}
 
 func TestRecordUsageWithAuthorizationUsesBillingAtForPeriod(t *testing.T) {
 	billingAt := time.Date(2026, 6, 30, 23, 59, 58, 0, time.UTC)
