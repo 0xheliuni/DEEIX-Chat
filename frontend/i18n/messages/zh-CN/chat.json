@@ -659,7 +659,14 @@
         "generatedImageAlt": "生成图片 {index}",
         "sourceCount": "{count} 个来源",
         "groundingSupportCount": "{count} 条引用依据",
-        "exitCode": "退出码 {code}"
+        "exitCode": "退出码 {code}",
+        "viewFullResult": "查看完整结果",
+        "fullResultTitle": "工具调用完整结果",
+        "loadingFullResult": "正在加载完整结果",
+        "fullResultLoadFailed": "无法加载完整结果，请稍后重试。",
+        "fullResultOmitted": "该结果大小为 {size}，超过安全查看上限，未加载到页面。",
+        "fullResultEmpty": "该工具调用没有返回内容。",
+        "close": "关闭"
       }
     },
     "think": {

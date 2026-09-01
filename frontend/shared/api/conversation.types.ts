@@ -28,6 +28,7 @@ import type {
   ConversationSearchPageResponse,
   ConversationSearchResultResponse,
   ConversationShareResponse,
+  ConversationToolCallDetailResponse,
   MessageBillingCostResponse,
   MessageFeedbackResponse,
   MessageProcessTraceResponse,
@@ -123,6 +124,8 @@ export type PromptTraceBlockDTO = Omit<MessagePromptTraceBlockResponse, "sourceR
 export type PromptTraceSourceDTO = MessagePromptTraceSourceResponse;
 
 export type ContextArtifactDTO = ContextArtifactResponse;
+
+export type ConversationToolCallDetailDTO = ConversationToolCallDetailResponse;
 
 export type PromptTraceDTO = Omit<MessagePromptTraceResponse, "blocks"> & {
   blocks: PromptTraceBlockDTO[];

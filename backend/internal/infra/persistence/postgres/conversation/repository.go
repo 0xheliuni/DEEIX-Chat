@@ -1649,22 +1649,31 @@ const (
 	chatContextRecordArtifact   = "artifact"
 )
 
-const maxConversationEventDetailPayloadBytes = 1024 * 1024
+// maxConversationEventDetailJSONBytes 限制单个详情字段进入应用内存与 HTTP 响应的大小。
+const maxConversationEventDetailJSONBytes = 1024 * 1024
 
-func conversationEventPayloadSizeExpression(db *gorm.DB) string {
+// maxConversationToolCallDetailJSONBytes 限制用户按需查看单个工具调用原始结果的大小。
+const maxConversationToolCallDetailJSONBytes = 8 * 1024 * 1024
+
+func conversationEventJSONSizeExpression(db *gorm.DB, column string) string {
+	switch column {
+	case "payload_json", "input_json", "output_json", "error_json":
+	default:
+		panic("unsupported conversation event JSON column")
+	}
 	if db != nil && db.Dialector != nil {
 		switch db.Dialector.Name() {
 		case "postgres":
-			return "OCTET_LENGTH(payload_json)"
+			return fmt.Sprintf("OCTET_LENGTH(%s)", column)
 		case "sqlite":
-			return "LENGTH(CAST(payload_json AS BLOB))"
+			return fmt.Sprintf("LENGTH(CAST(%s AS BLOB))", column)
 		}
 	}
-	return "LENGTH(payload_json)"
+	return fmt.Sprintf("LENGTH(%s)", column)
 }
 
 func conversationEventSummarySelectColumns(db *gorm.DB) []string {
-	payloadSize := conversationEventPayloadSizeExpression(db)
+	payloadSize := conversationEventJSONSizeExpression(db, "payload_json")
 	return []string{
 		"id",
 		"message_id",
@@ -1690,20 +1699,47 @@ func conversationEventSummarySelectColumns(db *gorm.DB) []string {
 		"created_at",
 		"updated_at",
 		payloadSize + " AS payload_size_bytes",
-		fmt.Sprintf("CASE WHEN %s > %d THEN TRUE ELSE FALSE END AS payload_omitted", payloadSize, maxConversationEventDetailPayloadBytes),
+		fmt.Sprintf("CASE WHEN %s > %d THEN TRUE ELSE FALSE END AS payload_omitted", payloadSize, maxConversationEventDetailJSONBytes),
 	}
 }
 
 func conversationEventDetailSelectColumns(db *gorm.DB) []string {
-	payloadSize := conversationEventPayloadSizeExpression(db)
+	payloadSize := conversationEventJSONSizeExpression(db, "payload_json")
+	inputSize := conversationEventJSONSizeExpression(db, "input_json")
+	outputSize := conversationEventJSONSizeExpression(db, "output_json")
+	errorSize := conversationEventJSONSizeExpression(db, "error_json")
 	return append(
 		conversationEventSummarySelectColumns(db),
 		"content_markdown",
-		fmt.Sprintf("CASE WHEN %s <= %d THEN payload_json ELSE '' END AS payload_json", payloadSize, maxConversationEventDetailPayloadBytes),
-		"input_json",
-		"output_json",
-		"error_json",
+		fmt.Sprintf("CASE WHEN %s <= %d THEN payload_json ELSE '' END AS payload_json", payloadSize, maxConversationEventDetailJSONBytes),
+		inputSize+" AS input_size_bytes",
+		fmt.Sprintf("CASE WHEN %s > %d THEN TRUE ELSE FALSE END AS input_omitted", inputSize, maxConversationEventDetailJSONBytes),
+		fmt.Sprintf("CASE WHEN %s <= %d THEN input_json ELSE '' END AS input_json", inputSize, maxConversationEventDetailJSONBytes),
+		outputSize+" AS output_size_bytes",
+		fmt.Sprintf("CASE WHEN %s > %d THEN TRUE ELSE FALSE END AS output_omitted", outputSize, maxConversationEventDetailJSONBytes),
+		fmt.Sprintf("CASE WHEN %s <= %d THEN output_json ELSE '' END AS output_json", outputSize, maxConversationEventDetailJSONBytes),
+		errorSize+" AS error_size_bytes",
+		fmt.Sprintf("CASE WHEN %s > %d THEN TRUE ELSE FALSE END AS error_omitted", errorSize, maxConversationEventDetailJSONBytes),
+		fmt.Sprintf("CASE WHEN %s <= %d THEN error_json ELSE '' END AS error_json", errorSize, maxConversationEventDetailJSONBytes),
 	)
+}
+
+func conversationToolCallDetailSelectColumns(db *gorm.DB) []string {
+	outputSize := conversationEventJSONSizeExpression(db, "output_json")
+	errorSize := conversationEventJSONSizeExpression(db, "error_json")
+	totalSize := "(" + outputSize + " + " + errorSize + ")"
+	return []string{
+		"run_id",
+		"tool_call_id",
+		"tool_name",
+		"status",
+		outputSize + " AS output_size_bytes",
+		fmt.Sprintf("CASE WHEN %s > 0 AND %s > %d THEN TRUE ELSE FALSE END AS output_omitted", outputSize, totalSize, maxConversationToolCallDetailJSONBytes),
+		fmt.Sprintf("CASE WHEN %s <= %d THEN output_json ELSE '' END AS output_json", totalSize, maxConversationToolCallDetailJSONBytes),
+		errorSize + " AS error_size_bytes",
+		fmt.Sprintf("CASE WHEN %s > 0 AND %s > %d THEN TRUE ELSE FALSE END AS error_omitted", errorSize, totalSize, maxConversationToolCallDetailJSONBytes),
+		fmt.Sprintf("CASE WHEN %s <= %d THEN error_json ELSE '' END AS error_json", totalSize, maxConversationToolCallDetailJSONBytes),
+	}
 }
 
 // CreateConversationRun 写入会话运行日志。
@@ -2039,6 +2075,40 @@ func (r *Repo) GetConversationEventLog(ctx context.Context, eventID uint) (*doma
 		return nil, repository.ErrNotFound
 	}
 	return &results[0], nil
+}
+
+// GetConversationToolCallDetail 查询当前用户指定运行内的工具调用结果详情。
+func (r *Repo) GetConversationToolCallDetail(
+	ctx context.Context,
+	userID uint,
+	runID string,
+	toolCallID string,
+) (*domainconversation.ToolCallDetail, error) {
+	var item models.ChatRunEvent
+	if err := r.db.WithContext(ctx).
+		Select(conversationToolCallDetailSelectColumns(r.db)).
+		Where(
+			"user_id = ? AND run_id = ? AND event_scope = ? AND tool_call_id = ?",
+			userID,
+			runID,
+			chatRunEventScopeToolCall,
+			toolCallID,
+		).
+		Take(&item).Error; err != nil {
+		return nil, translateError(err)
+	}
+	return &domainconversation.ToolCallDetail{
+		RunID:           item.RunID,
+		ToolCallID:      item.ToolCallID,
+		ToolName:        item.ToolName,
+		Status:          item.Status,
+		OutputJSON:      item.OutputJSON,
+		OutputSizeBytes: item.OutputSizeBytes,
+		OutputOmitted:   item.OutputOmitted,
+		ErrorJSON:       item.ErrorJSON,
+		ErrorSizeBytes:  item.ErrorSizeBytes,
+		ErrorOmitted:    item.ErrorOmitted,
+	}, nil
 }
 
 func (r *Repo) hydrateConversationEventRunMetadata(ctx context.Context, results []domainconversation.EventLog) error {
@@ -4056,8 +4126,14 @@ func toConversationEventLogDomains(items []models.ChatRunEvent) []domainconversa
 			ToolName:         item.ToolName,
 			LatencyMS:        item.LatencyMS,
 			InputJSON:        item.InputJSON,
+			InputSizeBytes:   item.InputSizeBytes,
+			InputOmitted:     item.InputOmitted,
 			OutputJSON:       item.OutputJSON,
+			OutputSizeBytes:  item.OutputSizeBytes,
+			OutputOmitted:    item.OutputOmitted,
 			ErrorJSON:        item.ErrorJSON,
+			ErrorSizeBytes:   item.ErrorSizeBytes,
+			ErrorOmitted:     item.ErrorOmitted,
 			StartedAt:        item.StartedAt,
 			EndedAt:          item.EndedAt,
 			CreatedAt:        item.CreatedAt,

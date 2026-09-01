@@ -445,8 +445,14 @@ type ConversationEventResponse struct {
 	ToolName          string     `json:"toolName"`
 	LatencyMS         int64      `json:"latencyMS"`
 	InputJSON         string     `json:"inputJSON"`
+	InputSizeBytes    int64      `json:"inputSizeBytes"`
+	InputOmitted      bool       `json:"inputOmitted"`
 	OutputJSON        string     `json:"outputJSON"`
+	OutputSizeBytes   int64      `json:"outputSizeBytes"`
+	OutputOmitted     bool       `json:"outputOmitted"`
 	ErrorJSON         string     `json:"errorJSON"`
+	ErrorSizeBytes    int64      `json:"errorSizeBytes"`
+	ErrorOmitted      bool       `json:"errorOmitted"`
 	StartedAt         time.Time  `json:"startedAt"`
 	EndedAt           *time.Time `json:"endedAt" extensions:"x-nullable,!x-omitempty"`
 	CreatedAt         time.Time  `json:"createdAt"`
@@ -1037,8 +1043,14 @@ func toConversationEventResponse(item domainconversation.EventLog, label appadmi
 		ToolName:          item.ToolName,
 		LatencyMS:         item.LatencyMS,
 		InputJSON:         item.InputJSON,
+		InputSizeBytes:    item.InputSizeBytes,
+		InputOmitted:      item.InputOmitted,
 		OutputJSON:        item.OutputJSON,
+		OutputSizeBytes:   item.OutputSizeBytes,
+		OutputOmitted:     item.OutputOmitted,
 		ErrorJSON:         item.ErrorJSON,
+		ErrorSizeBytes:    item.ErrorSizeBytes,
+		ErrorOmitted:      item.ErrorOmitted,
 		StartedAt:         item.StartedAt,
 		EndedAt:           item.EndedAt,
 		CreatedAt:         item.CreatedAt,

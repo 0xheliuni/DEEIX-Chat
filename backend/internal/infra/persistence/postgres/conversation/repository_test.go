@@ -391,7 +391,7 @@ func TestConversationEventLogListAndDetailBoundPayloads(t *testing.T) {
 	repo := NewRepo(db)
 	ctx := context.Background()
 	now := time.Now()
-	largePayload := strings.Repeat("x", maxConversationEventDetailPayloadBytes+1)
+	largePayload := strings.Repeat("x", maxConversationEventDetailJSONBytes+1)
 	events := []model.ChatRunEvent{
 		{
 			ConversationID:  1,
@@ -476,12 +476,92 @@ func TestConversationEventLogListAndDetailBoundPayloads(t *testing.T) {
 	}
 }
 
+func TestConversationToolCallDetailReturnsRawResultUpToEightMegabytes(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	repo := NewRepo(db)
+	ctx := context.Background()
+	now := time.Now()
+	visibleOutput := strings.Repeat("x", maxConversationEventDetailJSONBytes+1)
+	omittedOutput := strings.Repeat("y", maxConversationToolCallDetailJSONBytes+1)
+	combinedOutput := strings.Repeat("o", maxConversationToolCallDetailJSONBytes/2)
+	combinedError := strings.Repeat("e", maxConversationToolCallDetailJSONBytes/2+1)
+	events := []model.ChatRunEvent{
+		{
+			UserID:     1,
+			RunID:      "run_visible_tool_result",
+			EventScope: chatRunEventScopeToolCall,
+			EventID:    "call_visible",
+			EventType:  "tool_call",
+			ToolCallID: "call_visible",
+			ToolName:   "visible_tool",
+			Status:     "completed",
+			OutputJSON: visibleOutput,
+			StartedAt:  now,
+		},
+		{
+			UserID:     1,
+			RunID:      "run_combined_tool_result",
+			EventScope: chatRunEventScopeToolCall,
+			EventID:    "call_combined",
+			EventType:  "tool_call",
+			ToolCallID: "call_combined",
+			ToolName:   "combined_tool",
+			Status:     "error",
+			OutputJSON: combinedOutput,
+			ErrorJSON:  combinedError,
+			StartedAt:  now,
+		},
+		{
+			UserID:     1,
+			RunID:      "run_omitted_tool_result",
+			EventScope: chatRunEventScopeToolCall,
+			EventID:    "call_omitted",
+			EventType:  "tool_call",
+			ToolCallID: "call_omitted",
+			ToolName:   "omitted_tool",
+			Status:     "completed",
+			OutputJSON: omittedOutput,
+			StartedAt:  now,
+		},
+	}
+	if err := db.Create(&events).Error; err != nil {
+		t.Fatalf("create tool-call events: %v", err)
+	}
+
+	visible, err := repo.GetConversationToolCallDetail(ctx, 1, events[0].RunID, events[0].ToolCallID)
+	if err != nil {
+		t.Fatalf("GetConversationToolCallDetail(visible) error = %v", err)
+	}
+	if visible.OutputJSON != visibleOutput || visible.OutputOmitted || visible.OutputSizeBytes != int64(len(visibleOutput)) {
+		t.Fatalf("visible tool result = %#v", visible)
+	}
+	if _, err := repo.GetConversationToolCallDetail(ctx, 2, events[0].RunID, events[0].ToolCallID); !errors.Is(err, repository.ErrNotFound) {
+		t.Fatalf("other user tool result error = %v, want not found", err)
+	}
+
+	omitted, err := repo.GetConversationToolCallDetail(ctx, 1, events[2].RunID, events[2].ToolCallID)
+	if err != nil {
+		t.Fatalf("GetConversationToolCallDetail(omitted) error = %v", err)
+	}
+	if omitted.OutputJSON != "" || !omitted.OutputOmitted || omitted.OutputSizeBytes != int64(len(omittedOutput)) {
+		t.Fatalf("omitted tool result = %#v", omitted)
+	}
+
+	combined, err := repo.GetConversationToolCallDetail(ctx, 1, events[1].RunID, events[1].ToolCallID)
+	if err != nil {
+		t.Fatalf("GetConversationToolCallDetail(combined) error = %v", err)
+	}
+	if combined.OutputJSON != "" || combined.ErrorJSON != "" || !combined.OutputOmitted || !combined.ErrorOmitted {
+		t.Fatalf("combined tool result exceeded the aggregate limit: %#v", combined)
+	}
+}
+
 func TestConversationMessageTraceReadsBoundPayloads(t *testing.T) {
 	db := openConversationRepositoryTestDB(t)
 	repo := NewRepo(db)
 	ctx := context.Background()
 	now := time.Now()
-	largePayload := strings.Repeat("x", maxConversationEventDetailPayloadBytes+1)
+	largePayload := strings.Repeat("x", maxConversationEventDetailJSONBytes+1)
 	items := []model.ChatRunEvent{
 		{
 			MessageID:       11,

@@ -2021,6 +2021,10 @@ definitions:
         x-omitempty: false
       errorJSON:
         type: string
+      errorOmitted:
+        type: boolean
+      errorSizeBytes:
+        type: integer
       eventID:
         type: string
       eventScope:
@@ -2031,12 +2035,20 @@ definitions:
         type: integer
       inputJSON:
         type: string
+      inputOmitted:
+        type: boolean
+      inputSizeBytes:
+        type: integer
       latencyMS:
         type: integer
       messageID:
         type: integer
       outputJSON:
         type: string
+      outputOmitted:
+        type: boolean
+      outputSizeBytes:
+        type: integer
       parentEventID:
         type: string
       payloadJSON:
@@ -2093,14 +2105,20 @@ definitions:
     - createdAt
     - endedAt
     - errorJSON
+    - errorOmitted
+    - errorSizeBytes
     - eventID
     - eventScope
     - eventType
     - id
     - inputJSON
+    - inputOmitted
+    - inputSizeBytes
     - latencyMS
     - messageID
     - outputJSON
+    - outputOmitted
+    - outputSizeBytes
     - parentEventID
     - payloadJSON
     - payloadOmitted
@@ -2515,6 +2533,50 @@ definitions:
     properties:
       data:
         $ref: '#/definitions/ConversationShareResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  ConversationToolCallDetailResponse:
+    properties:
+      errorJSON:
+        type: string
+      errorOmitted:
+        type: boolean
+      errorSizeBytes:
+        type: integer
+      outputJSON:
+        type: string
+      outputOmitted:
+        type: boolean
+      outputSizeBytes:
+        type: integer
+      runID:
+        type: string
+      status:
+        type: string
+      toolCallID:
+        type: string
+      toolName:
+        type: string
+    required:
+    - errorJSON
+    - errorOmitted
+    - errorSizeBytes
+    - outputJSON
+    - outputOmitted
+    - outputSizeBytes
+    - runID
+    - status
+    - toolCallID
+    - toolName
+    type: object
+  ConversationToolCallDetailResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/ConversationToolCallDetailResponse'
       errorMsg:
         type: string
     required:
@@ -16208,6 +16270,46 @@ paths:
       security:
       - BearerAuth: []
       summary: 恢复流式生成订阅
+      tags:
+      - chat
+  /conversation-runs/{run_id}/tool-calls/{tool_call_id}:
+    get:
+      consumes:
+      - application/json
+      description: 查询当前用户指定会话运行内的持久化工具调用结果；超限字段仅返回原始大小与省略标记
+      parameters:
+      - description: 运行 ID
+        in: path
+        name: run_id
+        required: true
+        type: string
+      - description: 工具调用 ID
+        in: path
+        name: tool_call_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ConversationToolCallDetailResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 查询工具调用结果详情
       tags:
       - chat
   /conversation-runs/statuses:

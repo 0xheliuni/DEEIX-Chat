@@ -841,14 +841,20 @@ export interface ConversationEventResponse {
   createdAt: string;
   endedAt: string | null;
   errorJSON: string;
+  errorOmitted: boolean;
+  errorSizeBytes: number;
   eventID: string;
   eventScope: string;
   eventType: string;
   id: number;
   inputJSON: string;
+  inputOmitted: boolean;
+  inputSizeBytes: number;
   latencyMS: number;
   messageID: number;
   outputJSON: string;
+  outputOmitted: boolean;
+  outputSizeBytes: number;
   parentEventID: string;
   payloadJSON: string;
   payloadOmitted: boolean;
@@ -1021,6 +1027,24 @@ export interface ConversationShareResponse {
 
 export interface ConversationShareResponseDoc {
   data: ConversationShareResponse;
+  errorMsg: string;
+}
+
+export interface ConversationToolCallDetailResponse {
+  errorJSON: string;
+  errorOmitted: boolean;
+  errorSizeBytes: number;
+  outputJSON: string;
+  outputOmitted: boolean;
+  outputSizeBytes: number;
+  runID: string;
+  status: string;
+  toolCallID: string;
+  toolName: string;
+}
+
+export interface ConversationToolCallDetailResponseDoc {
+  data: ConversationToolCallDetailResponse;
   errorMsg: string;
 }
 
@@ -8191,6 +8215,27 @@ export namespace ConversationRuns {
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = string;
+  }
+
+  /**
+   * @description 查询当前用户指定会话运行内的持久化工具调用结果；超限字段仅返回原始大小与省略标记
+   * @tags chat
+   * @name ToolCallsDetail
+   * @summary 查询工具调用结果详情
+   * @request GET:/conversation-runs/{run_id}/tool-calls/{tool_call_id}
+   * @secure
+   */
+  export namespace ToolCallsDetail {
+    export type RequestParams = {
+      /** 运行 ID */
+      runId: string;
+      /** 工具调用 ID */
+      toolCallId: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = ConversationToolCallDetailResponseDoc;
   }
 }
 

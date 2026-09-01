@@ -829,8 +829,12 @@ func deleteSharedTraceInternalFields(payload map[string]interface{}, parentKey s
 }
 
 func isSharedTraceInternalField(key string, parentKey string) bool {
-	normalized := strings.ToLower(strings.NewReplacer("_", "", "-", "").Replace(strings.TrimSpace(key)))
-	parent := strings.ToLower(strings.TrimSpace(parentKey))
+	normalizer := strings.NewReplacer("_", "", "-", "")
+	normalized := strings.ToLower(normalizer.Replace(strings.TrimSpace(key)))
+	parent := strings.ToLower(normalizer.Replace(strings.TrimSpace(parentKey)))
+	if parent == "toolcalls" && (normalized == "id" || normalized == "callid" || normalized == "toolcallid" || normalized == "detailrunid") {
+		return true
+	}
 	if normalized == "upstreamname" || normalized == "upstreamdebug" ||
 		normalized == "authorization" || normalized == "proxyauthorization" ||
 		normalized == "cookie" || normalized == "setcookie" {

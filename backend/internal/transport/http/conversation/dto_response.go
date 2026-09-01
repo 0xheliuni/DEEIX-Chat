@@ -732,6 +732,35 @@ func toContextArtifactResponse(item *model.ContextArtifact) ContextArtifactRespo
 	}
 }
 
+// ConversationToolCallDetailResponse 工具调用结果详情响应 DTO。
+type ConversationToolCallDetailResponse struct {
+	RunID           string `json:"runID"`
+	ToolCallID      string `json:"toolCallID"`
+	ToolName        string `json:"toolName"`
+	Status          string `json:"status"`
+	OutputJSON      string `json:"outputJSON"`
+	OutputSizeBytes int64  `json:"outputSizeBytes"`
+	OutputOmitted   bool   `json:"outputOmitted"`
+	ErrorJSON       string `json:"errorJSON"`
+	ErrorSizeBytes  int64  `json:"errorSizeBytes"`
+	ErrorOmitted    bool   `json:"errorOmitted"`
+}
+
+func toConversationToolCallDetailResponse(item *model.ToolCallDetail) ConversationToolCallDetailResponse {
+	return ConversationToolCallDetailResponse{
+		RunID:           item.RunID,
+		ToolCallID:      item.ToolCallID,
+		ToolName:        item.ToolName,
+		Status:          item.Status,
+		OutputJSON:      item.OutputJSON,
+		OutputSizeBytes: item.OutputSizeBytes,
+		OutputOmitted:   item.OutputOmitted,
+		ErrorJSON:       item.ErrorJSON,
+		ErrorSizeBytes:  item.ErrorSizeBytes,
+		ErrorOmitted:    item.ErrorOmitted,
+	}
+}
+
 func toTraceEventResponses(events []model.MessageTraceEvent) []MessageTraceEventResponse {
 	if len(events) == 0 {
 		return nil
@@ -1600,6 +1629,12 @@ type ConversationRunListResponseDoc struct {
 type ContextArtifactResponseDoc struct {
 	ErrorMsg string                  `json:"errorMsg"`
 	Data     ContextArtifactResponse `json:"data"`
+}
+
+// ConversationToolCallDetailResponseDoc 工具调用结果详情响应文档。
+type ConversationToolCallDetailResponseDoc struct {
+	ErrorMsg string                             `json:"errorMsg"`
+	Data     ConversationToolCallDetailResponse `json:"data"`
 }
 
 // ConversationUpdateResponseDoc 会话更新响应文档。

@@ -11,6 +11,8 @@ var (
 	ErrConversationNotFound = errors.New("conversation not found")
 	// ErrConversationEventNotFound 对话事件日志不存在。
 	ErrConversationEventNotFound = errors.New("conversation event not found")
+	// ErrToolCallNotFound 工具调用不存在或当前用户无权访问。
+	ErrToolCallNotFound = errors.New("tool call not found")
 	// ErrConversationShareNotFound 会话分享不存在、已关闭或原会话已删除。
 	ErrConversationShareNotFound = errors.New("conversation share not found")
 	// ErrInvalidConversationShare 会话分享请求不合法。

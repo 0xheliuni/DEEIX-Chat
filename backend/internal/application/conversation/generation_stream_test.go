@@ -583,6 +583,9 @@ func TestGenerationStreamSanitizesOversizedTracePayload(t *testing.T) {
 			"output_detail":  largeOutput,
 			"output_text":    largeOutput,
 			"output_preview": "short result",
+			"output_presentation": map[string]interface{}{
+				"text": "## Structured result\n\n- first item",
+			},
 		}},
 	})
 	if err != nil {
@@ -636,13 +639,16 @@ func TestGenerationStreamSanitizesOversizedTracePayload(t *testing.T) {
 		t.Fatalf("expected one sanitized tool call, got %#v", parsedTrace.ToolCalls)
 	}
 	call := parsedTrace.ToolCalls[0]
-	if traceInt64(call["output_size"]) != int64(len(largeOutput)) ||
-		traceInt64(call["output_detail_size"]) != int64(len(largeOutput)) ||
+	if traceInt64(call["output_detail_size"]) != int64(len(largeOutput)) ||
 		traceInt64(call["output_text_size"]) != int64(len(largeOutput)) {
 		t.Fatalf("expected output size metadata in sanitized payload, got %#v", call)
 	}
 	if _, ok := call["output_detail"]; ok {
 		t.Fatalf("expected oversized output detail to be removed, got %#v", call)
+	}
+	presentation, ok := call["output_presentation"].(map[string]interface{})
+	if !ok || getTraceString(presentation["text"]) != "## Structured result\n\n- first item" {
+		t.Fatalf("expected semantic output presentation to survive stream sanitization, got %#v", call)
 	}
 }
 
