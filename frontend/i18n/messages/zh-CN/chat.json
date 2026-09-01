@@ -524,6 +524,28 @@
         "model": "模型",
         "skill": "Skills",
         "prompt": "Prompts"
+      },
+      "tabs": {
+        "all": "全部",
+        "file": "文件",
+        "tool": "MCP",
+        "model": "模型",
+        "skill": "Skills",
+        "prompt": "Prompts"
+      },
+      "recent": "最近使用",
+      "groups": {
+        "builtin": "内置",
+        "mine": "我的"
+      },
+      "viewAll": "查看全部 {count} 项",
+      "empty": {
+        "all": "没有匹配的内容",
+        "file": "没有匹配的文件",
+        "tool": "没有匹配的工具",
+        "model": "没有匹配的模型",
+        "skill": "没有匹配的技能",
+        "prompt": "没有匹配的提示词"
       }
     },
     "mediaMode": {
