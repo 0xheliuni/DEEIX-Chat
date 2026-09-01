@@ -11,6 +11,7 @@ import (
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/toolresult"
 )
 
 func TestSummarizeToolTracePayloadCountsFailedCalls(t *testing.T) {
@@ -52,9 +53,10 @@ func TestBuildToolTraceMarksReusedCallsAsCompleted(t *testing.T) {
 	}
 }
 
-func TestBuildToolTraceStoresPreviewMetadataInsteadOfFullOutput(t *testing.T) {
+func TestBuildToolTraceStoresBoundedPreviewInsteadOfFullOutput(t *testing.T) {
 	largeOutput := `{"content":[{"type":"text","text":"` + strings.Repeat("x", 4096) + `"}]}`
 	_, _, payload := buildToolTrace([]model.ToolCall{{
+		RunID:      "run_1",
 		ToolCallID: "call_1",
 		ToolName:   "fetch",
 		Status:     "success",
@@ -67,6 +69,9 @@ func TestBuildToolTraceStoresPreviewMetadataInsteadOfFullOutput(t *testing.T) {
 		t.Fatalf("expected one tool call, got %#v", items)
 	}
 	item := items[0]
+	if item["detail_run_id"] != "run_1" {
+		t.Fatalf("expected detail run ID, got %#v", item["detail_run_id"])
+	}
 	if _, ok := item["output"]; ok {
 		t.Fatalf("tool trace must not store full output: %#v", item)
 	}
@@ -76,11 +81,10 @@ func TestBuildToolTraceStoresPreviewMetadataInsteadOfFullOutput(t *testing.T) {
 	if _, ok := item["input"]; ok {
 		t.Fatalf("tool trace must not store full input: %#v", item)
 	}
-	if got := traceInt64(item["output_size"]); got != int64(len(largeOutput)) {
-		t.Fatalf("expected output size metadata, got %d", got)
-	}
-	if item["output_truncated"] != true {
-		t.Fatalf("expected truncated output marker, got %#v", item["output_truncated"])
+	for _, key := range []string{"input_truncated", "output_size", "output_truncated", "error_size", "error_truncated"} {
+		if _, exists := item[key]; exists {
+			t.Fatalf("tool trace contains unused metadata %q: %#v", key, item)
+		}
 	}
 	if got := strings.TrimSpace(getTraceString(item["input_detail"])); got != `{"url":"https://example.com/large"}` {
 		t.Fatalf("expected full small input detail, got %q", got)
@@ -92,6 +96,67 @@ func TestBuildToolTraceStoresPreviewMetadataInsteadOfFullOutput(t *testing.T) {
 	preview := strings.TrimSpace(getTraceString(item["output_preview"]))
 	if preview == "" || strings.Contains(preview, strings.Repeat("x", 512)) {
 		t.Fatalf("expected compact output preview, got %q", preview)
+	}
+}
+
+func TestBuildToolTracePrioritizesSemanticContentBeforeTraversalLimit(t *testing.T) {
+	output := make(map[string]interface{}, 601)
+	for index := 0; index < 600; index++ {
+		output[fmt.Sprintf("metadata_%03d", index)] = map[string]interface{}{
+			"value": fmt.Sprintf("noise-%03d", index),
+		}
+	}
+	output["content"] = []interface{}{
+		map[string]interface{}{
+			"type": "text",
+			"text": "## 完整结果\n\n- 第一项\n- 第二项",
+		},
+	}
+	encoded, err := json.Marshal(output)
+	if err != nil {
+		t.Fatalf("marshal tool output: %v", err)
+	}
+
+	_, _, payload := buildToolTrace([]model.ToolCall{{
+		ToolCallID: "call_large",
+		ToolName:   "fetch",
+		Status:     "success",
+		OutputJSON: string(encoded),
+	}})
+	items := normalizeTraceToolCalls(payload["tool_calls"])
+	if len(items) != 1 {
+		t.Fatalf("expected one tool call, got %#v", items)
+	}
+	presentationJSON, err := json.Marshal(items[0]["output_presentation"])
+	if err != nil {
+		t.Fatalf("marshal output presentation: %v", err)
+	}
+	var presentation toolresult.Presentation
+	if err := json.Unmarshal(presentationJSON, &presentation); err != nil {
+		t.Fatalf("decode output presentation: %v", err)
+	}
+	if presentation.Text != "## 完整结果\n\n- 第一项\n- 第二项" {
+		t.Fatalf("presentation text = %q", presentation.Text)
+	}
+}
+
+func TestBuildToolTraceBoundsFailedResult(t *testing.T) {
+	largeError := `{"message":"` + strings.Repeat("x", toolTraceDetailMaxChars) + `"}`
+	_, _, payload := buildToolTrace([]model.ToolCall{{
+		ToolCallID: "call_failed",
+		ToolName:   "fetch",
+		Status:     "failed",
+		ErrorJSON:  largeError,
+	}})
+
+	items := normalizeTraceToolCalls(payload["tool_calls"])
+	if len(items) != 1 {
+		t.Fatalf("expected one tool call, got %#v", items)
+	}
+	item := items[0]
+	errorDetail := strings.TrimSpace(getTraceString(item["error"]))
+	if errorDetail == "" || errorDetail == largeError || len([]rune(errorDetail)) > toolTraceDetailMaxChars+3 {
+		t.Fatalf("expected bounded error detail, got len=%d", len([]rune(errorDetail)))
 	}
 }
 
@@ -117,7 +182,7 @@ func TestBuildToolTraceStoresBoundedSearchPresentation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal output presentation: %v", err)
 	}
-	var presentation toolTraceOutputPresentation
+	var presentation toolresult.Presentation
 	if err := json.Unmarshal(encoded, &presentation); err != nil {
 		t.Fatalf("decode output presentation: %v", err)
 	}
@@ -130,7 +195,7 @@ func TestBuildToolTraceStoresBoundedSearchPresentation(t *testing.T) {
 }
 
 func TestBuildToolTracePresentationExtractsStructuredSourcesWithoutVendorRules(t *testing.T) {
-	presentation := buildToolTraceOutputPresentation(`{
+	presentation := toolresult.BuildPresentation(`{
 		"results": [
 			{"title":"Documentation","url":"https://docs.example.com/guide","snippet":"Guide"},
 			{"name":"Reference","href":"https://docs.example.com/reference"}
@@ -145,21 +210,91 @@ func TestBuildToolTracePresentationExtractsStructuredSourcesWithoutVendorRules(t
 }
 
 func TestBuildToolTracePresentationExtractsReadableMCPText(t *testing.T) {
-	presentation := buildToolTraceOutputPresentation(`{
-		"content": [
-			{"type":"text","text":"## 可用优惠券\n\n- 满 100 减 20\n<img src=\"https://example.com/coupon.jpg\" />\n![优惠券](https://example.com/coupon-2.jpg)\n- 满 50 减 8"}
-		]
-	}`)
+	markdown := fmt.Sprintf(
+		"# 您的优惠券列表\n\n共 8 张可用优惠券 | 第 1/1 页 | 每页 200 条\n\n## 9.9元大薯条\n- **优惠**: ¥9.9 (用券价格)\n- **有效期**: 2026-08-24 10:30-2026-08-28 23:59\n\n<img src=\"https://example.com/coupon.jpg?sign=%s\" alt=\"9.9元大薯条\" width=\"300\">\n\n## 10.9元麦辣鸡翅\n- **优惠**: ¥10.9 (用券价格)",
+		strings.Repeat("a", 2048),
+	)
+	encodedMarkdown, err := json.Marshal(markdown)
+	if err != nil {
+		t.Fatalf("encode MCP text: %v", err)
+	}
+	output := `{"content":[{"type":"text","text":` + string(encodedMarkdown) + `}]}`
+	presentation := toolresult.BuildPresentation(output)
 	if presentation == nil {
 		t.Fatal("expected readable MCP presentation")
 	}
-	if presentation.Text != "## 可用优惠券\n\n- 满 100 减 20\n\n- 满 50 减 8" {
+	expectedText := "# 您的优惠券列表\n\n共 8 张可用优惠券 | 第 1/1 页 | 每页 200 条\n\n## 9.9元大薯条\n- **优惠**: ¥9.9 (用券价格)\n- **有效期**: 2026-08-24 10:30-2026-08-28 23:59\n\n## 10.9元麦辣鸡翅\n- **优惠**: ¥10.9 (用券价格)"
+	if presentation.Text != expectedText {
 		t.Fatalf("unexpected MCP presentation text: %q", presentation.Text)
+	}
+
+	_, _, payload := buildToolTrace([]model.ToolCall{{
+		ToolCallID: "call_coupon",
+		ToolName:   "query_coupons",
+		Status:     "success",
+		OutputJSON: output,
+	}})
+	items := normalizeTraceToolCalls(payload["tool_calls"])
+	if len(items) != 1 {
+		t.Fatalf("expected one tool call, got %#v", items)
+	}
+	preview := getTraceString(items[0]["output_preview"])
+	if !strings.Contains(preview, "# 您的优惠券列表\n\n共 8 张可用优惠券") ||
+		!strings.Contains(preview, "\n\n## 9.9元大薯条\n- **优惠**") {
+		t.Fatalf("expected compact preview to preserve markdown line breaks, got %q", preview)
+	}
+	if strings.Contains(preview, "<img") || strings.Contains(preview, "sign=") {
+		t.Fatalf("expected compact preview to use the sanitized presentation, got %q", preview)
+	}
+}
+
+func TestBuildToolTracePresentationSeparatesEmbeddedStructuredPayload(t *testing.T) {
+	structuredContent := `{"success":true,"code":200,"message":"请求成功","data":[{"storeName":"西湖餐厅"},{"storeName":"古荡餐厅"}]}`
+	markdown := "每个门店的基本信息按单行展示：\n" +
+		"- **门店名称**: data[].storeName\n" +
+		"- **门店地址**: data[].address\n" +
+		structuredContent +
+		"## 展示结果时，门店编号必须完整展示"
+	encodedMarkdown, err := json.Marshal(markdown)
+	if err != nil {
+		t.Fatalf("encode MCP text: %v", err)
+	}
+
+	presentation := toolresult.BuildPresentation(
+		`{"content":[{"type":"text","text":` + string(encodedMarkdown) + `}],"structuredContent":` + structuredContent + `}`,
+	)
+	if presentation == nil {
+		t.Fatal("expected readable MCP presentation")
+	}
+	expected := "每个门店的基本信息按单行展示：\n" +
+		"- **门店名称**: data[].storeName\n" +
+		"- **门店地址**: data[].address\n" +
+		"## 展示结果时，门店编号必须完整展示"
+	if presentation.Text != expected {
+		t.Fatalf("unexpected narrative text: %q", presentation.Text)
+	}
+	if strings.Contains(presentation.Text, `"success"`) || strings.Contains(presentation.Text, "西湖餐厅") || strings.Contains(presentation.Text, "古荡餐厅") {
+		t.Fatalf("expected raw structured payload to stay out of the compact presentation: %q", presentation.Text)
+	}
+}
+
+func TestBuildToolTracePresentationPreservesFencedJSONExamples(t *testing.T) {
+	markdown := "返回示例：\n\n```json\n{\"success\":true}\n```"
+	encodedMarkdown, err := json.Marshal(markdown)
+	if err != nil {
+		t.Fatalf("encode MCP text: %v", err)
+	}
+
+	presentation := toolresult.BuildPresentation(
+		`{"content":[{"type":"text","text":` + string(encodedMarkdown) + `}]}`,
+	)
+	if presentation == nil || presentation.Text != markdown {
+		t.Fatalf("expected fenced JSON example to remain visible, got %#v", presentation)
 	}
 }
 
 func TestBuildToolTracePresentationExtractsReadableGenericJSON(t *testing.T) {
-	presentation := buildToolTraceOutputPresentation(`{
+	presentation := toolresult.BuildPresentation(`{
 		"data": [
 			{"message":"第一条结果"},
 			{"message":"第二条结果"}
@@ -172,16 +307,16 @@ func TestBuildToolTracePresentationExtractsReadableGenericJSON(t *testing.T) {
 
 func TestBuildToolTracePresentationExtractsBoundedPlainText(t *testing.T) {
 	plainText := "领券结果\n" + strings.Repeat("优惠券详情与适用条件；", 80)
-	presentation := buildToolTraceOutputPresentation(plainText)
+	presentation := toolresult.BuildPresentation(plainText)
 	if presentation == nil {
 		t.Fatal("expected readable plain-text presentation")
 	}
-	textLength := len([]rune(presentation.Text))
-	if textLength <= toolTracePreviewMaxChars {
-		t.Fatalf("expected presentation to retain more than the compact preview, got %d characters", textLength)
+	textTokens := estimateTokens(presentation.Text)
+	if textTokens <= int64(toolTraceLegacyOutputPreviewMaxChars/4) {
+		t.Fatalf("expected presentation to retain more than the compact preview, got %d tokens", textTokens)
 	}
-	if textLength > toolTracePresentationTextChars+1 {
-		t.Fatalf("expected bounded plain-text presentation, got %d characters", textLength)
+	if textTokens > toolresult.MaxPresentationTextTokens {
+		t.Fatalf("expected bounded plain-text presentation, got %d tokens", textTokens)
 	}
 	if !strings.HasPrefix(presentation.Text, "领券结果\n") {
 		t.Fatalf("unexpected plain-text presentation: %q", presentation.Text)
@@ -189,8 +324,8 @@ func TestBuildToolTracePresentationExtractsBoundedPlainText(t *testing.T) {
 }
 
 func TestBuildToolTracePresentationSkipsOversizedStructuredOutput(t *testing.T) {
-	output := `{"data":"` + strings.Repeat("x", toolTracePresentationMaxInputBytes) + `"}`
-	if presentation := buildToolTraceOutputPresentation(output); presentation != nil {
+	output := `{"data":"` + strings.Repeat("x", toolresult.MaxPresentationInputBytes) + `"}`
+	if presentation := toolresult.BuildPresentation(output); presentation != nil {
 		t.Fatalf("expected oversized structured output to use the existing bounded fallback, got %#v", presentation)
 	}
 }
@@ -1162,28 +1297,28 @@ func TestSummarizeToolTraceDraftMatchesRenderedRows(t *testing.T) {
 
 func TestToolOutputPreviewUsesMCPTextContent(t *testing.T) {
 	raw := `{"content":[{"type":"text","text":"找到 3 条相关结果"}]}`
-	if got := toolOutputPreview(raw); got != "找到 3 条相关结果" {
+	if got := toolOutputPreview(raw, nil); got != "找到 3 条相关结果" {
 		t.Fatalf("expected MCP text content preview, got %q", got)
 	}
 }
 
 func TestToolOutputPreviewUsesMCPStructuredContent(t *testing.T) {
 	raw := `{"structuredContent":{"results":[{"title":"DEEIX Chat 文档","url":"https://example.com/docs"}]}}`
-	if got := toolOutputPreview(raw); got != "DEEIX Chat 文档 https://example.com/docs" {
+	if got := toolOutputPreview(raw, nil); got != "DEEIX Chat 文档 https://example.com/docs" {
 		t.Fatalf("expected MCP structured content preview, got %q", got)
 	}
 }
 
 func TestToolOutputPreviewParsesJSONTextBlock(t *testing.T) {
 	raw := `{"content":[{"type":"text","text":"{\"results\":[{\"title\":\"搜索结果\",\"url\":\"https://example.com\"}]}"}]}`
-	if got := toolOutputPreview(raw); got != "搜索结果 https://example.com" {
+	if got := toolOutputPreview(raw, nil); got != "搜索结果 https://example.com" {
 		t.Fatalf("expected JSON text block preview, got %q", got)
 	}
 }
 
 func TestToolOutputPreviewFallsBackForNonMCPJSON(t *testing.T) {
 	raw := `{"items":[{"message":"普通 JSON 结果"}]}`
-	if got := toolOutputPreview(raw); got != "普通 JSON 结果" {
+	if got := toolOutputPreview(raw, nil); got != "普通 JSON 结果" {
 		t.Fatalf("expected generic JSON preview fallback, got %q", got)
 	}
 }
@@ -1277,7 +1412,7 @@ func TestModelToolOutputForModelOmitsNestedOpaquePayload(t *testing.T) {
 
 func TestSanitizeOpaqueToolOutputOmitsSmallDataURL(t *testing.T) {
 	raw := `{"content":[{"type":"text","text":"ok"}],"structuredContent":{"image":"data:image/png;base64,QUJD"}}`
-	got := sanitizeOpaqueToolOutput(raw)
+	got := toolresult.SanitizeOpaque(raw)
 	if !strings.Contains(got, `"text":"ok"`) || !strings.Contains(got, "Opaque tool payload omitted") {
 		t.Fatalf("expected readable output with the data URL removed, got %q", got)
 	}

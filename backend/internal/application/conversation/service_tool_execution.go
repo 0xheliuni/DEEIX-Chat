@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"sort"
 	"strings"
 	"time"
 
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/toolresult"
 )
 
 type executeAssistantToolCallsInput struct {
@@ -386,36 +386,7 @@ func toolNotEnabledForRunMessage(toolName string) string {
 
 // modelToolOutputForModel 保留可读文本，并从 JSON 中移除不适合进入模型上下文的不透明载荷。
 func modelToolOutputForModel(raw string) string {
-	return sanitizeOpaqueToolOutput(raw)
-}
-
-// sanitizeOpaqueToolOutput 保留可读文本，并递归移除 data URI、base64 等不透明载荷。
-func sanitizeOpaqueToolOutput(raw string) string {
-	value := strings.TrimSpace(raw)
-	if value == "" {
-		return ""
-	}
-	if looksLikeOpaqueToolOutput(value) {
-		return opaqueToolOutputSummary(len([]rune(value)))
-	}
-	decoder := json.NewDecoder(strings.NewReader(value))
-	decoder.UseNumber()
-	var payload interface{}
-	if err := decoder.Decode(&payload); err != nil {
-		return value
-	}
-	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		return value
-	}
-	sanitized, changed := sanitizeOpaqueToolOutputJSON(payload)
-	if !changed {
-		return value
-	}
-	encoded, err := json.Marshal(sanitized)
-	if err != nil {
-		return value
-	}
-	return string(encoded)
+	return toolresult.SanitizeOpaque(raw)
 }
 
 // budgetToolOutputForModel 仅在文本超过本批 token 配额时保留头尾片段。
@@ -425,73 +396,6 @@ func budgetToolOutputForModel(value string, maxTokens int64) string {
 		return text
 	}
 	return headTailToolOutputByTokens(text, maxTokens)
-}
-
-// sanitizeOpaqueToolOutputJSON 递归替换 JSON 内的 base64 等大块不透明字符串。
-func sanitizeOpaqueToolOutputJSON(value interface{}) (interface{}, bool) {
-	switch item := value.(type) {
-	case string:
-		if looksLikeOpaqueToolOutput(item) {
-			return opaqueToolOutputSummary(len([]rune(item))), true
-		}
-		return item, false
-	case []interface{}:
-		changed := false
-		for index, child := range item {
-			sanitized, childChanged := sanitizeOpaqueToolOutputJSON(child)
-			if childChanged {
-				item[index] = sanitized
-			}
-			changed = changed || childChanged
-		}
-		return item, changed
-	case map[string]interface{}:
-		changed := false
-		for key, child := range item {
-			sanitized, childChanged := sanitizeOpaqueToolOutputJSON(child)
-			if childChanged {
-				item[key] = sanitized
-			}
-			changed = changed || childChanged
-		}
-		return item, changed
-	default:
-		return value, false
-	}
-}
-
-// looksLikeOpaqueToolOutput 识别 data URI 和高密度 base64 风格内容。
-func looksLikeOpaqueToolOutput(value string) bool {
-	text := strings.TrimSpace(value)
-	prefix := text
-	if len(prefix) > 128 {
-		prefix = prefix[:128]
-	}
-	if strings.HasPrefix(strings.ToLower(prefix), "data:") && strings.Contains(strings.ToLower(prefix), ";base64,") {
-		return true
-	}
-	runes := []rune(text)
-	if len(runes) < 1024 {
-		return false
-	}
-	if strings.ContainsAny(text, " \n\t{}[],:") {
-		return false
-	}
-	base64ish := 0
-	for _, r := range runes {
-		if (r >= 'A' && r <= 'Z') ||
-			(r >= 'a' && r <= 'z') ||
-			(r >= '0' && r <= '9') ||
-			r == '+' || r == '/' || r == '=' || r == '-' || r == '_' {
-			base64ish++
-		}
-	}
-	return float64(base64ish)/float64(len(runes)) > 0.95
-}
-
-// opaqueToolOutputSummary 为被移除的不透明载荷生成可读说明。
-func opaqueToolOutputSummary(originalChars int) string {
-	return fmt.Sprintf("[Opaque tool payload omitted from model context: %d characters]", originalChars)
 }
 
 // headTailToolOutputByTokens 按项目 token 估算保留文本头尾。

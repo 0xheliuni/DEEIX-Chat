@@ -659,7 +659,14 @@
         "generatedImageAlt": "Generated image {index}",
         "sourceCount": "{count} sources",
         "groundingSupportCount": "{count} grounding supports",
-        "exitCode": "Exit code {code}"
+        "exitCode": "Exit code {code}",
+        "viewFullResult": "View full result",
+        "fullResultTitle": "Full tool result",
+        "loadingFullResult": "Loading full result",
+        "fullResultLoadFailed": "Could not load the full result. Try again later.",
+        "fullResultOmitted": "This result is {size}, above the safe viewing limit, so it was not loaded.",
+        "fullResultEmpty": "This tool call returned no content.",
+        "close": "Close"
       }
     },
     "think": {

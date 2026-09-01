@@ -10131,6 +10131,68 @@ const docTemplate = `{
                 }
             }
         },
+        "/conversation-runs/{run_id}/tool-calls/{tool_call_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "查询当前用户指定会话运行内的持久化工具调用结果；超限字段仅返回原始大小与省略标记",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "查询工具调用结果详情",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "运行 ID",
+                        "name": "run_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "工具调用 ID",
+                        "name": "tool_call_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationToolCallDetailResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/conversations": {
             "get": {
                 "security": [
@@ -17370,14 +17432,20 @@ const docTemplate = `{
                 "createdAt",
                 "endedAt",
                 "errorJSON",
+                "errorOmitted",
+                "errorSizeBytes",
                 "eventID",
                 "eventScope",
                 "eventType",
                 "id",
                 "inputJSON",
+                "inputOmitted",
+                "inputSizeBytes",
                 "latencyMS",
                 "messageID",
                 "outputJSON",
+                "outputOmitted",
+                "outputSizeBytes",
                 "parentEventID",
                 "payloadJSON",
                 "payloadOmitted",
@@ -17422,6 +17490,12 @@ const docTemplate = `{
                 "errorJSON": {
                     "type": "string"
                 },
+                "errorOmitted": {
+                    "type": "boolean"
+                },
+                "errorSizeBytes": {
+                    "type": "integer"
+                },
                 "eventID": {
                     "type": "string"
                 },
@@ -17437,6 +17511,12 @@ const docTemplate = `{
                 "inputJSON": {
                     "type": "string"
                 },
+                "inputOmitted": {
+                    "type": "boolean"
+                },
+                "inputSizeBytes": {
+                    "type": "integer"
+                },
                 "latencyMS": {
                     "type": "integer"
                 },
@@ -17445,6 +17525,12 @@ const docTemplate = `{
                 },
                 "outputJSON": {
                     "type": "string"
+                },
+                "outputOmitted": {
+                    "type": "boolean"
+                },
+                "outputSizeBytes": {
+                    "type": "integer"
                 },
                 "parentEventID": {
                     "type": "string"
@@ -18073,6 +18159,68 @@ const docTemplate = `{
             "properties": {
                 "data": {
                     "$ref": "#/definitions/ConversationShareResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ConversationToolCallDetailResponse": {
+            "type": "object",
+            "required": [
+                "errorJSON",
+                "errorOmitted",
+                "errorSizeBytes",
+                "outputJSON",
+                "outputOmitted",
+                "outputSizeBytes",
+                "runID",
+                "status",
+                "toolCallID",
+                "toolName"
+            ],
+            "properties": {
+                "errorJSON": {
+                    "type": "string"
+                },
+                "errorOmitted": {
+                    "type": "boolean"
+                },
+                "errorSizeBytes": {
+                    "type": "integer"
+                },
+                "outputJSON": {
+                    "type": "string"
+                },
+                "outputOmitted": {
+                    "type": "boolean"
+                },
+                "outputSizeBytes": {
+                    "type": "integer"
+                },
+                "runID": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "toolCallID": {
+                    "type": "string"
+                },
+                "toolName": {
+                    "type": "string"
+                }
+            }
+        },
+        "ConversationToolCallDetailResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ConversationToolCallDetailResponse"
                 },
                 "errorMsg": {
                     "type": "string"

@@ -343,8 +343,14 @@ type ChatRunEvent struct {
 	MCPServerName    string     `gorm:"size:128;not null;default:'';comment:MCP服务器名称快照"`
 	LatencyMS        int64      `gorm:"not null;default:0;comment:调用时长毫秒"`
 	InputJSON        string     `gorm:"type:text;not null;default:'';comment:输入JSON"`
+	InputSizeBytes   int64      `gorm:"->;-:migration;column:input_size_bytes"`
+	InputOmitted     bool       `gorm:"->;-:migration;column:input_omitted"`
 	OutputJSON       string     `gorm:"type:text;not null;default:'';comment:输出JSON"`
+	OutputSizeBytes  int64      `gorm:"->;-:migration;column:output_size_bytes"`
+	OutputOmitted    bool       `gorm:"->;-:migration;column:output_omitted"`
 	ErrorJSON        string     `gorm:"type:text;not null;default:'';comment:错误JSON"`
+	ErrorSizeBytes   int64      `gorm:"->;-:migration;column:error_size_bytes"`
+	ErrorOmitted     bool       `gorm:"->;-:migration;column:error_omitted"`
 	StartedAt        time.Time  `gorm:"not null;comment:开始时间"`
 	EndedAt          *time.Time `gorm:"comment:结束时间"`
 }

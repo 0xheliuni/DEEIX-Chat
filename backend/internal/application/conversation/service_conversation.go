@@ -582,6 +582,28 @@ func (s *Service) GetConversationEventLog(ctx context.Context, eventID uint) (*m
 	return item, nil
 }
 
+// GetConversationToolCallDetail 查询当前用户指定运行内的工具调用结果详情。
+func (s *Service) GetConversationToolCallDetail(
+	ctx context.Context,
+	userID uint,
+	runID string,
+	toolCallID string,
+) (*model.ToolCallDetail, error) {
+	runID = strings.TrimSpace(runID)
+	toolCallID = strings.TrimSpace(toolCallID)
+	if userID == 0 || runID == "" || toolCallID == "" {
+		return nil, ErrToolCallNotFound
+	}
+	item, err := s.repo.GetConversationToolCallDetail(ctx, userID, runID, toolCallID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, ErrToolCallNotFound
+		}
+		return nil, err
+	}
+	return item, nil
+}
+
 // ListConversationRunsByRunIDs 批量查询消息对应的运行快照。
 func (s *Service) ListConversationRunsByRunIDs(
 	ctx context.Context,

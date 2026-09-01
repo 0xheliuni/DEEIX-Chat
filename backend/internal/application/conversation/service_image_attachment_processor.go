@@ -14,6 +14,7 @@ import (
 	domainmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/objectstore"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/toolresult"
 )
 
 const (
@@ -146,11 +147,11 @@ func (s *Service) processImageAttachments(
 		row.LatencyMS = max(time.Since(startedAt).Milliseconds(), 0)
 		if executeErr != nil {
 			row.Status = "error"
-			row.ErrorJSON = sanitizeOpaqueToolOutput(executeErr.Error())
+			row.ErrorJSON = toolresult.SanitizeOpaque(executeErr.Error())
 			s.persistImageAttachmentToolRow(ctx, &row, &result)
 			return result, fmt.Errorf("%w: %v", ErrImageAttachmentProcessingFailed, executeErr)
 		}
-		row.OutputJSON = sanitizeOpaqueToolOutput(output)
+		row.OutputJSON = toolresult.SanitizeOpaque(output)
 		if row.OutputJSON == "" {
 			row.OutputJSON = "{}"
 		}
