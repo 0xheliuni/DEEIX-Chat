@@ -13803,6 +13803,30 @@ const docTemplate = `{
                 }
             }
         },
+        "/settings/feature-policy": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "查询用户侧功能开关策略",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/settings/login-page": {
             "get": {
                 "produces": [

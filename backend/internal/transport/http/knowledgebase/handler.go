@@ -32,6 +32,16 @@ func NewHandler(service *appknowledgebase.Service, cfg *config.Runtime) *Handler
 
 const multipartUploadOverheadBytes = 1 << 20
 
+// requireKnowledgeBaseEnabled 在知识库功能被后台关闭时拒绝用户侧请求。
+func (h *Handler) requireKnowledgeBaseEnabled(c *gin.Context) {
+	if h.cfg.Snapshot().KnowledgeBaseEnabled {
+		c.Next()
+		return
+	}
+	response.ErrorWithCode(c, http.StatusForbidden, "knowledge_base.disabled", "knowledge base feature is disabled")
+	c.Abort()
+}
+
 // ListVisible godoc
 // @Summary 查询当前用户可用知识库
 // @Tags knowledge-bases

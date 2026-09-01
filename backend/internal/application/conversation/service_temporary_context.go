@@ -17,11 +17,15 @@ func (s *Service) prepareTemporaryKnowledgeContext(
 	if len(input.KnowledgeBaseIDs) == 0 {
 		return userContextInput{}, nil, nil
 	}
+	cfg := s.cfg.Snapshot()
+	if !cfg.KnowledgeBaseEnabled {
+		// 知识库功能已被后台关闭：静默忽略引用，临时聊天继续按无知识库处理。
+		return userContextInput{}, nil, nil
+	}
 	if s.embeddingSvc == nil || s.ragSvc == nil || s.knowledgeBaseResolver == nil {
 		return userContextInput{}, nil, ErrKnowledgeBaseUnavailable
 	}
 
-	cfg := s.cfg.Snapshot()
 	capability := s.resolveChatFileCapability(ctx)
 	files, err := s.resolveKnowledgeBaseRAGFiles(
 		ctx,
