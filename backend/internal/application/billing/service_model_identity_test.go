@@ -311,9 +311,6 @@ func (r *billingRepositoryStub) UpdatePlanWithDefaultPrice(_ context.Context, pl
 	r.updatedPrice = price
 	return nil
 }
-func (r *billingRepositoryStub) ListCurrentSubscriptionsByUserIDs(context.Context, []uint, time.Time) ([]domainbilling.Subscription, error) {
-	panic("not used")
-}
 func (r *billingRepositoryStub) ListSubscriptionEntitlementsByUserIDs(_ context.Context, userIDs []uint, now time.Time) ([]domainbilling.Subscription, error) {
 	allowed := make(map[uint]struct{}, len(userIDs))
 	for _, id := range userIDs {

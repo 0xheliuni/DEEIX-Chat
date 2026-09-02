@@ -43,7 +43,6 @@ type AuthRepository interface {
 	ResetLoginFailure(ctx context.Context, userID uint) error
 	UpdateUserStatus(ctx context.Context, userID uint, status string) error
 	UpdatePassword(ctx context.Context, userID uint, passwordHash string, passwordOrigin string, mustResetPassword bool) error
-	ResetPasswordByAdmin(ctx context.Context, userID uint, passwordHash string, mustResetPassword bool) error
 	MarkBootstrapSuperAdminPasswordResetRequired(ctx context.Context, username string) error
 	UpdateLastLogin(ctx context.Context, userID uint) error
 	DeleteAccountHard(ctx context.Context, userID uint) error

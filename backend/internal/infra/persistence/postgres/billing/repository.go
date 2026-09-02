@@ -268,50 +268,6 @@ func (r *Repo) CountPlansWithPermissionGroup(ctx context.Context, groupID uint) 
 	return count, nil
 }
 
-// ListCurrentSubscriptionsByUserIDs 查询一批用户当前有效的活跃订阅。
-func (r *Repo) ListCurrentSubscriptionsByUserIDs(
-	ctx context.Context,
-	userIDs []uint,
-	now time.Time,
-) ([]domainbilling.Subscription, error) {
-	items := make([]model.Subscription, 0)
-	if len(userIDs) == 0 {
-		return []domainbilling.Subscription{}, nil
-	}
-
-	if err := r.db.WithContext(ctx).
-		Where(
-			"user_id IN ? AND status = ? AND current_period_start_at <= ? AND (current_period_end_at IS NULL OR current_period_end_at > ?)",
-			userIDs,
-			"active",
-			now,
-			now,
-		).
-		Order("user_id ASC, current_period_start_at ASC, current_period_end_at ASC NULLS LAST, id ASC").
-		Find(&items).Error; err != nil {
-		return nil, translateError(err)
-	}
-	results := make([]domainbilling.Subscription, 0, len(items))
-	for _, item := range items {
-		results = append(results, domainbilling.Subscription{
-			ID:                   item.ID,
-			UserID:               item.UserID,
-			PlanID:               item.PlanID,
-			PriceID:              item.PriceID,
-			Status:               item.Status,
-			StartAt:              item.StartAt,
-			CurrentPeriodStartAt: item.CurrentPeriodStartAt,
-			CurrentPeriodEndAt:   item.CurrentPeriodEndAt,
-			CancelAtPeriodEnd:    item.CancelAtPeriodEnd,
-			CanceledAt:           item.CanceledAt,
-			AutoRenew:            item.AutoRenew,
-			CreatedAt:            item.CreatedAt,
-			UpdatedAt:            item.UpdatedAt,
-		})
-	}
-	return results, nil
-}
-
 // ListSubscriptionEntitlementsByUserIDs 查询一批用户从 now 起仍有效的当前与未来订阅权益。
 func (r *Repo) ListSubscriptionEntitlementsByUserIDs(
 	ctx context.Context,

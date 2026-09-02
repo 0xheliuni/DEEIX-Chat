@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
-	appcompact "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/compact"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
@@ -89,13 +88,11 @@ func TestPersistMessageUsageRejectionStoresStableFailedTurn(t *testing.T) {
 			Model:    "gpt-test",
 		},
 	}
-	logger := zap.NewNop()
 	service := &Service{
 		cfg:    runtimeCfg,
 		repo:   repo,
-		logger: logger,
+		logger: zap.NewNop(),
 	}
-	service.compactSvc = appcompact.NewServiceWithRuntime(runtimeCfg, repo, logger)
 
 	err := service.PersistMessageUsageRejection(
 		context.Background(),
