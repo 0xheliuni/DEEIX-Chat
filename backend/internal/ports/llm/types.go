@@ -138,6 +138,12 @@ func (u Usage) HasObservedInput() bool {
 	return u.InputTokens > 0 || u.CacheReadTokens > 0 || u.CacheWriteTokens > 0
 }
 
+// HasObservedOutput 表示上游是否上报了输出侧用量。部分上游把思考 token 与可见输出分开上报，
+// 因此任一侧大于 0 都算已观测；两者同时为 0 才需要按已产出文本预估。
+func (u Usage) HasObservedOutput() bool {
+	return u.OutputTokens > 0 || u.ReasoningTokens > 0
+}
+
 // MergeRawUsageJSON 合并两段上游原始 usage JSON，去重并保持数组语义。
 func MergeRawUsageJSON(left string, right string) string {
 	left = strings.TrimSpace(left)

@@ -1937,7 +1937,6 @@ func toDomainPlan(item model.BillingPlan) *domainbilling.Plan {
 		Description:         item.Description,
 		FeatureJSON:         item.FeatureJSON,
 		PeriodCreditNanousd: item.PeriodCreditNanousd,
-		DiscountPercent:     item.DiscountPercent,
 		SortOrder:           item.SortOrder,
 		IsActive:            item.IsActive,
 		CreatedAt:           item.CreatedAt,

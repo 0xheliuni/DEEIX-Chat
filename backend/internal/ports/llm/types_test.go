@@ -21,3 +21,22 @@ func TestUsageHasObservedInput(t *testing.T) {
 		})
 	}
 }
+
+func TestUsageHasObservedOutput(t *testing.T) {
+	tests := map[string]struct {
+		usage Usage
+		want  bool
+	}{
+		"empty":          {usage: Usage{}, want: false},
+		"input only":     {usage: Usage{InputTokens: 12, CacheReadTokens: 40}, want: false},
+		"visible output": {usage: Usage{OutputTokens: 12}, want: true},
+		"reasoning only": {usage: Usage{ReasoningTokens: 3}, want: true},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			if got := test.usage.HasObservedOutput(); got != test.want {
+				t.Fatalf("HasObservedOutput() = %v, want %v for %#v", got, test.want, test.usage)
+			}
+		})
+	}
+}

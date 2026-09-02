@@ -961,6 +961,9 @@ func parseGeminiInteractionPayload(parsed map[string]interface{}) *GenerateOutpu
 }
 
 // parseGeminiInteractionUsage 按 Interactions 官方 usage 字段拆分缓存输入、输出和思考 token。
+// 官方文档示例满足 total_tokens = total_input_tokens + total_output_tokens + total_thought_tokens，
+// 即 total_output_tokens 不含思考 token，与 generateContent 的 candidatesTokenCount/thoughtsTokenCount
+// 语义一致；输出与思考分别记账、相加计费，不会重复计费。
 func parseGeminiInteractionUsage(parsed map[string]interface{}) Usage {
 	payload := parsed
 	if interaction := asMap(parsed["interaction"]); len(interaction) > 0 {

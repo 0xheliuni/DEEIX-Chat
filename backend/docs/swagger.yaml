@@ -1123,8 +1123,6 @@ definitions:
         type: string
       description:
         type: string
-      discountPercent:
-        type: integer
       featureJSON:
         type: string
       id:
@@ -1150,7 +1148,6 @@ definitions:
     required:
     - code
     - description
-    - discountPercent
     - featureJSON
     - id
     - isActive
@@ -8065,10 +8062,6 @@ definitions:
       description:
         maxLength: 255
         type: string
-      discountPercent:
-        maximum: 100
-        minimum: 0
-        type: integer
       name:
         maxLength: 64
         minLength: 1
@@ -8083,7 +8076,6 @@ definitions:
     - amountUSD
     - billingInterval
     - description
-    - discountPercent
     - name
     - periodCreditUSD
     type: object

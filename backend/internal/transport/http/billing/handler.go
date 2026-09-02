@@ -729,7 +729,6 @@ func (h *Handler) UpdatePlan(c *gin.Context) {
 			"plan_id":           planID,
 			"name":              req.Name,
 			"period_credit_usd": *req.PeriodCreditUSD,
-			"discount_percent":  *req.DiscountPercent,
 			"amount_usd":        *req.AmountUSD,
 			"billing_interval":  req.BillingInterval,
 		},

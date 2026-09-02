@@ -16172,7 +16172,6 @@ const docTemplate = `{
             "required": [
                 "code",
                 "description",
-                "discountPercent",
                 "featureJSON",
                 "id",
                 "isActive",
@@ -16189,9 +16188,6 @@ const docTemplate = `{
                 },
                 "description": {
                     "type": "string"
-                },
-                "discountPercent": {
-                    "type": "integer"
                 },
                 "featureJSON": {
                     "type": "string"
@@ -26038,7 +26034,6 @@ const docTemplate = `{
                 "amountUSD",
                 "billingInterval",
                 "description",
-                "discountPercent",
                 "name",
                 "periodCreditUSD"
             ],
@@ -26062,11 +26057,6 @@ const docTemplate = `{
                 "description": {
                     "type": "string",
                     "maxLength": 255
-                },
-                "discountPercent": {
-                    "type": "integer",
-                    "maximum": 100,
-                    "minimum": 0
                 },
                 "name": {
                     "type": "string",

@@ -7,7 +7,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
+	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/lifecycle"
@@ -18,8 +20,8 @@ import (
 
 // Handler 封装会话 HTTP 处理。
 type Handler struct {
-	service  *appconversation.Service
-	cfg      *config.Runtime
+	service *appconversation.Service
+	cfg     *config.Runtime
 	// shutdown 触发时订阅型长连接（run 对账流、run 观看流）立即退出，
 	// 让优雅关停不被常驻 SSE 拖到超时；客户端依靠既有重连逻辑恢复。
 	shutdown *lifecycle.Shutdown
@@ -213,6 +215,9 @@ func mapStreamError(err error) streamError {
 	case errors.Is(err, appconversation.ErrDuplicateMessageGenerationRun):
 		status = http.StatusConflict
 		message = "message generation run already exists"
+	case errors.Is(err, billing.ErrUsageBalanceInsufficient):
+		status = http.StatusPaymentRequired
+		message = "usage balance is insufficient"
 	case errors.Is(err, appconversation.ErrUpstreamRequestFailed):
 		status = http.StatusBadGateway
 		code = appconversation.MessageErrorCode(err)
@@ -252,12 +257,16 @@ func streamErrorPayloadWithCode(code string, message string) map[string]interfac
 
 // moderationBlockedStreamPayload is retained for recovery/reconnect assembly only.
 // Live streams receive moderation_blocked via OnEvent after ApplyRunBlock commits.
-func moderationBlockedStreamPayload(result *appconversation.SendMessageResult) map[string]interface{} {
+// 此时运行已定稿，可直接按结算结论标注"拦截后上游用量照常计费"。
+func moderationBlockedStreamPayload(result *appconversation.SendMessageResult, authorization *domainbilling.UsageAuthorization) map[string]interface{} {
 	payload := map[string]interface{}{
 		"type": "moderation_blocked",
 	}
 	if result == nil {
 		return payload
+	}
+	if billedReason := appconversation.ModerationBlockedBilledReason(result, authorization); billedReason != "" {
+		payload["billedReason"] = billedReason
 	}
 	if result.Moderation != nil && result.Moderation.Blocked {
 		payload["eventID"] = result.Moderation.EventID

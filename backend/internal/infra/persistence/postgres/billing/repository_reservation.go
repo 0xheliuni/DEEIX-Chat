@@ -74,7 +74,7 @@ func (r *Repo) ReserveUsageBalance(ctx context.Context, input domainbilling.Usag
 		if availableBalanceNanousd < 0 {
 			return repository.ErrInsufficientBalance
 		}
-		activeBalanceNanousd, err := sumActiveBalanceReservations(tx, input.UserID, now)
+		activeBalanceNanousd, err := sumActiveBalanceReservations(tx, input.UserID, 0, now)
 		if err != nil {
 			return err
 		}
@@ -82,12 +82,9 @@ func (r *Repo) ReserveUsageBalance(ctx context.Context, input domainbilling.Usag
 
 		availableCreditNanousd := int64(0)
 		if input.Mode == "period" {
-			var usedNanousd int64
-			if err = tx.Model(&model.UsageLedger{}).
-				Select("COALESCE(SUM(billed_nanousd), 0)").
-				Where("user_id = ? AND is_free_model = ? AND billing_at >= ? AND billing_at < ?", input.UserID, false, *input.PeriodStartAt, *input.PeriodEndAt).
-				Scan(&usedNanousd).Error; err != nil {
-				return translateError(err)
+			usedNanousd, usedErr := sumPeriodBilledNanousd(tx, input.UserID, *input.PeriodStartAt, *input.PeriodEndAt)
+			if usedErr != nil {
+				return usedErr
 			}
 			reservedCreditNanousd, reserveErr := sumActivePeriodCreditReservations(
 				tx,
@@ -140,6 +137,71 @@ func (r *Repo) ReserveUsageBalance(ctx context.Context, input domainbilling.Usag
 		return nil, err
 	}
 	return result, nil
+}
+
+// RaiseUsageBalanceReservation 在请求形状确定后把预留抬高到覆盖预估成本。预留只增不减：
+// 预估不超过现有预留时保持管理端配置的风险预算；可用预算（排除本预留后的余额与周期额度）
+// 不足以覆盖预估时返回 ErrInsufficientBalance，由调用方在产生任何上游费用之前终止运行。
+func (r *Repo) RaiseUsageBalanceReservation(ctx context.Context, userID uint, refNo string, requiredNanousd int64) error {
+	refNo = strings.TrimSpace(refNo)
+	if userID == 0 || refNo == "" || requiredNanousd < 0 {
+		return repository.ErrInvalidInput
+	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		account, err := getOrCreateBillingAccountForUpdate(tx, userID)
+		if err != nil {
+			return err
+		}
+		now := time.Now()
+		var reservation model.UsageReservation
+		if err = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("user_id = ? AND ref_no = ?", userID, refNo).
+			First(&reservation).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return repository.ErrConflict
+			}
+			return translateError(err)
+		}
+		if reservation.Status != domainbilling.UsageReservationStatusActive || !reservation.ExpiresAt.After(now) {
+			return repository.ErrConflict
+		}
+		if requiredNanousd <= addNonNegativeInt64(reservation.BalanceNanousd, reservation.PeriodCreditNanousd) {
+			return nil
+		}
+
+		otherBalanceReservedNanousd, err := sumActiveBalanceReservations(tx, userID, reservation.ID, now)
+		if err != nil {
+			return err
+		}
+		availableBalanceNanousd := remainingNonNegativeBudget(account.BalanceNanousd, otherBalanceReservedNanousd, 0)
+		availableCreditNanousd := int64(0)
+		if reservation.Mode == "period" && reservation.PeriodStartAt != nil && reservation.PeriodEndAt != nil {
+			usedNanousd, usedErr := sumPeriodBilledNanousd(tx, userID, *reservation.PeriodStartAt, *reservation.PeriodEndAt)
+			if usedErr != nil {
+				return usedErr
+			}
+			otherCreditReservedNanousd, reserveErr := sumActivePeriodCreditReservations(
+				tx,
+				userID,
+				*reservation.PeriodStartAt,
+				*reservation.PeriodEndAt,
+				reservation.ID,
+				now,
+			)
+			if reserveErr != nil {
+				return reserveErr
+			}
+			availableCreditNanousd = remainingNonNegativeBudget(reservation.PeriodLimitNanousd, usedNanousd, otherCreditReservedNanousd)
+		}
+		if requiredNanousd > addNonNegativeInt64(availableCreditNanousd, availableBalanceNanousd) {
+			return repository.ErrInsufficientBalance
+		}
+		periodCreditNanousd := minInt64(requiredNanousd, availableCreditNanousd)
+		return translateError(tx.Model(&reservation).Updates(map[string]interface{}{
+			"balance_nanousd":       requiredNanousd - periodCreditNanousd,
+			"period_credit_nanousd": periodCreditNanousd,
+		}).Error)
+	})
 }
 
 // ReleaseUsageBalanceReservation 在调用失败时释放预留预算，重复调用保持幂等。
@@ -286,9 +348,8 @@ func matchesPeriodReservation(reservation *model.UsageReservation, periodStart t
 		reservation.PeriodLimitNanousd == periodCreditNanousd
 }
 
-func sumActiveBalanceReservations(tx *gorm.DB, userID uint, now time.Time) (int64, error) {
-	var result int64
-	err := tx.Model(&model.UsageReservation{}).
+func sumActiveBalanceReservations(tx *gorm.DB, userID uint, excludeID uint, now time.Time) (int64, error) {
+	query := tx.Model(&model.UsageReservation{}).
 		Select("COALESCE(SUM(balance_nanousd), 0)").
 		Where(
 			"user_id = ? AND ((status = ? AND expires_at > ?) OR status = ?)",
@@ -296,8 +357,12 @@ func sumActiveBalanceReservations(tx *gorm.DB, userID uint, now time.Time) (int6
 			domainbilling.UsageReservationStatusActive,
 			now,
 			domainbilling.UsageReservationStatusReconciliation,
-		).
-		Scan(&result).Error
+		)
+	if excludeID > 0 {
+		query = query.Where("id <> ?", excludeID)
+	}
+	var result int64
+	err := query.Scan(&result).Error
 	return result, translateError(err)
 }
 
@@ -314,6 +379,16 @@ func countActiveUsageReservations(tx *gorm.DB, userID uint, now time.Time) (int6
 		).
 		Count(&count).Error
 	return count, translateError(err)
+}
+
+// sumPeriodBilledNanousd 统计周期内已结算的付费用量，免费模型不占用周期额度。
+func sumPeriodBilledNanousd(tx *gorm.DB, userID uint, periodStart time.Time, periodEnd time.Time) (int64, error) {
+	var result int64
+	err := tx.Model(&model.UsageLedger{}).
+		Select("COALESCE(SUM(billed_nanousd), 0)").
+		Where("user_id = ? AND is_free_model = ? AND billing_at >= ? AND billing_at < ?", userID, false, periodStart, periodEnd).
+		Scan(&result).Error
+	return result, translateError(err)
 }
 
 func sumActivePeriodCreditReservations(

@@ -211,7 +211,6 @@ func (r *Repo) UpdatePlanWithDefaultPrice(ctx context.Context, plan *domainbilli
 			"name":                  strings.TrimSpace(plan.Name),
 			"description":           strings.TrimSpace(plan.Description),
 			"period_credit_nanousd": clampNonNegative(plan.PeriodCreditNanousd),
-			"discount_percent":      clampPercent(plan.DiscountPercent),
 			"is_active":             true,
 			"permission_group_id":   plan.PermissionGroupID,
 		}
@@ -528,13 +527,38 @@ func (r *Repo) MarkPaymentOrderPaidAndGrantSubscription(
 	return &result, activated, nil
 }
 
-// AddUsage 写入账本。
+// AddUsage 写入账本。带运行级幂等键的重试回读首次提交的账本，不重复入账。
 func (r *Repo) AddUsage(ctx context.Context, usage *domainbilling.UsageLedger) error {
 	if usage == nil {
 		return nil
 	}
-	record := toModelUsageLedger(usage)
-	return r.db.WithContext(ctx).Create(&record).Error
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		restored, err := restoreUsageLedgerByRefNo(tx, usage)
+		if err != nil || restored {
+			return err
+		}
+		record := toModelUsageLedger(usage)
+		return translateError(tx.Create(&record).Error)
+	})
+}
+
+// restoreUsageLedgerByRefNo 按运行级幂等键回读已提交的账本：命中时用首次入账的权威内容覆盖
+// usage 并返回 true。没有幂等键的账本不参与幂等，直接返回 false。
+func restoreUsageLedgerByRefNo(tx *gorm.DB, usage *domainbilling.UsageLedger) (bool, error) {
+	refNo := strings.TrimSpace(usage.RefNo)
+	if usage.UserID == 0 || refNo == "" {
+		return false, nil
+	}
+	var existing model.UsageLedger
+	err := tx.Where("user_id = ? AND ref_no = ?", usage.UserID, refNo).First(&existing).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, translateError(err)
+	}
+	*usage = toDomainUsageLedger(existing)
+	return true, nil
 }
 
 // AddUsageAndSettleBalance 写入真实用量，并消费对应的预算预留。
@@ -561,6 +585,12 @@ func (r *Repo) AddUsageAndSettleBalance(ctx context.Context, usage *domainbillin
 		}
 		if alreadySettled {
 			return restoreSettledUsageLedger(tx, reservationRow.UsageLedgerID, usage)
+		}
+		// 无预留的结算（免费模型）没有预留状态机可依赖，靠账本幂等键识别重试；账户行锁已串行化同一用户的写入。
+		if reservationRow == nil {
+			if restored, err := restoreUsageLedgerByRefNo(tx, usage); err != nil || restored {
+				return err
+			}
 		}
 
 		nextBalance := account.BalanceNanousd - chargeNanousd
@@ -630,6 +660,16 @@ func (r *Repo) AddPeriodUsageAndSettleOverage(
 			}
 			settledSnapshotJSON = usage.PricingSnapshotJSON
 			return nil
+		}
+		if reservationRow == nil {
+			restored, restoreErr := restoreUsageLedgerByRefNo(tx, usage)
+			if restoreErr != nil {
+				return restoreErr
+			}
+			if restored {
+				settledSnapshotJSON = usage.PricingSnapshotJSON
+				return nil
+			}
 		}
 
 		var usedBeforeNanousd int64
@@ -2260,6 +2300,7 @@ func toDomainPaymentOrder(item model.PaymentOrder) domainbilling.PaymentOrder {
 func toModelUsageLedger(usage *domainbilling.UsageLedger) model.UsageLedger {
 	return model.UsageLedger{
 		UserID:              usage.UserID,
+		RefNo:               strings.TrimSpace(usage.RefNo),
 		ConversationID:      usage.ConversationID,
 		ProviderProtocol:    usage.ProviderProtocol,
 		UpstreamName:        usage.UpstreamName,
@@ -2292,6 +2333,7 @@ func toDomainUsageLedger(item model.UsageLedger) domainbilling.UsageLedger {
 	return domainbilling.UsageLedger{
 		ID:                  item.ID,
 		UserID:              item.UserID,
+		RefNo:               item.RefNo,
 		ConversationID:      item.ConversationID,
 		ProviderProtocol:    item.ProviderProtocol,
 		UpstreamName:        item.UpstreamName,
@@ -3102,16 +3144,6 @@ func minInt64(a int64, b int64) int64 {
 	return b
 }
 
-func clampPercent(value int) int {
-	if value < 0 {
-		return 0
-	}
-	if value > 100 {
-		return 100
-	}
-	return value
-}
-
 func normalizeInterval(value string) string {
 	switch strings.TrimSpace(value) {
 	case domainbilling.IntervalYear:
@@ -3140,7 +3172,6 @@ func toPlanDomain(item model.BillingPlan) domainbilling.Plan {
 		Description:         item.Description,
 		FeatureJSON:         item.FeatureJSON,
 		PeriodCreditNanousd: item.PeriodCreditNanousd,
-		DiscountPercent:     item.DiscountPercent,
 		SortOrder:           item.SortOrder,
 		IsActive:            item.IsActive,
 		PermissionGroupID:   item.PermissionGroupID,
