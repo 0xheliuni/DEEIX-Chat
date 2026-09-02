@@ -28,7 +28,6 @@ type Plan struct {
 	Description         string
 	FeatureJSON         string
 	PeriodCreditNanousd int64
-	DiscountPercent     int
 	SortOrder           int
 	IsActive            bool
 	PermissionGroupID   *uint
@@ -260,8 +259,11 @@ type UsageBalanceReservation struct {
 }
 
 // UsageAuthorization 表示一次上游调用在请求开始时确定的计费策略与可选预算预留。
+// RefNo 是本次调用的幂等编号：有预留时与预留编号一致，无预留（self 模式、免费模型）时
+// 仍作为账本的运行级幂等键，保证结算重试不会重复入账。
 type UsageAuthorization struct {
 	Mode        string
+	RefNo       string
 	Reservation *UsageBalanceReservation
 }
 
@@ -285,8 +287,10 @@ type ModelPricing struct {
 
 // UsageLedger 表示用量账本。
 type UsageLedger struct {
-	ID                  uint
-	UserID              uint
+	ID     uint
+	UserID uint
+	// RefNo 是运行级幂等键（与计费授权编号一致），同一用户下非空值唯一；为空的账本不参与幂等。
+	RefNo               string
 	ConversationID      uint
 	ProviderProtocol    string
 	UpstreamName        string

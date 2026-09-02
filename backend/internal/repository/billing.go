@@ -27,6 +27,9 @@ type BillingRepository interface {
 	AddUsageAndSettleBalance(ctx context.Context, usage *domainbilling.UsageLedger, reservation *domainbilling.UsageBalanceReservation) error
 	AddPeriodUsageAndSettleOverage(ctx context.Context, usage *domainbilling.UsageLedger, periodStart time.Time, periodEnd time.Time, periodCreditNanousd int64, reservation *domainbilling.UsageBalanceReservation) error
 	ReserveUsageBalance(ctx context.Context, input domainbilling.UsageBalanceReservationRequest) (*domainbilling.UsageBalanceReservation, error)
+	// RaiseUsageBalanceReservation 把有效预留抬高到不低于 requiredNanousd；预留已足够时保持原值，
+	// 可用预算不足返回 ErrInsufficientBalance。
+	RaiseUsageBalanceReservation(ctx context.Context, userID uint, refNo string, requiredNanousd int64) error
 	RenewUsageBalanceReservation(ctx context.Context, userID uint, refNo string) error
 	ReleaseUsageBalanceReservation(ctx context.Context, userID uint, refNo string) error
 	MarkUsageReservationReconciliationRequired(ctx context.Context, userID uint, refNo string, failureCode string) error

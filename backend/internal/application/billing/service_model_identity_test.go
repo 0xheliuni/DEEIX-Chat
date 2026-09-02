@@ -228,6 +228,9 @@ type billingRepositoryStub struct {
 	replacedSubscription       *domainbilling.Subscription
 	reservationRequest         *domainbilling.UsageBalanceReservationRequest
 	reservationErr             error
+	raisedReservationRefNo     string
+	raisedReservationNanousd   int64
+	raiseReservationErr        error
 	periodUsageSettled         bool
 	usageSettled               bool
 	usageAdded                 bool
@@ -373,6 +376,11 @@ func (r *billingRepositoryStub) ReserveUsageBalance(_ context.Context, input dom
 		Mode:   input.Mode,
 	}, nil
 }
+func (r *billingRepositoryStub) RaiseUsageBalanceReservation(_ context.Context, _ uint, refNo string, requiredNanousd int64) error {
+	r.raisedReservationRefNo = refNo
+	r.raisedReservationNanousd = requiredNanousd
+	return r.raiseReservationErr
+}
 func (r *billingRepositoryStub) RenewUsageBalanceReservation(context.Context, uint, string) error {
 	panic("not used")
 }
@@ -510,6 +518,9 @@ func TestUsageAuthorizationKeepsSelfModeAfterAdminModeChange(t *testing.T) {
 	if authorization == nil || authorization.Mode != "self" || authorization.Reservation != nil {
 		t.Fatalf("authorization = %+v, want self mode without reservation", authorization)
 	}
+	if authorization.RefNo != "run_self_snapshot" {
+		t.Fatalf("authorization ref no = %q, want the run id even without a reservation", authorization.RefNo)
+	}
 
 	repo.mode = "usage"
 	ledger, err := service.BuildUsageLedger(context.Background(), UsagePricingInput{
@@ -525,6 +536,10 @@ func TestUsageAuthorizationKeepsSelfModeAfterAdminModeChange(t *testing.T) {
 	}
 	if ledger.BilledNanousd != 0 {
 		t.Fatalf("ledger billed nanousd = %d, want 0 from self-mode snapshot", ledger.BilledNanousd)
+	}
+	// 无预留的账本靠运行级幂等键识别重试，必须从授权带到账本。
+	if ledger.RefNo != "run_self_snapshot" {
+		t.Fatalf("ledger ref no = %q, want authorization ref no", ledger.RefNo)
 	}
 	if err = service.RecordUsageWithAuthorization(context.Background(), ledger, authorization); err != nil {
 		t.Fatalf("RecordUsageWithAuthorization() error = %v", err)
@@ -616,6 +631,7 @@ func TestBuildUsageLedgerSnapshotsModelIdentity(t *testing.T) {
 		InputTokens:       1_000_000,
 		OutputTokens:      1_000_000,
 		UsageSource:       "estimated",
+		BilledReason:      BilledReasonModerationBlockedUpstreamUsage,
 		RawUsageJSON:      `{"input_tokens":1000000,"output_tokens":1000000,"vendor_extra":"kept"}`,
 		ServerSideToolUsage: map[string]int64{
 			"web_search": 2,
@@ -651,6 +667,9 @@ func TestBuildUsageLedgerSnapshotsModelIdentity(t *testing.T) {
 	}
 	if snapshot["usage_source"] != "estimated" {
 		t.Fatalf("expected usage source snapshot, got %#v", snapshot["usage_source"])
+	}
+	if snapshot["billed_reason"] != BilledReasonModerationBlockedUpstreamUsage {
+		t.Fatalf("expected billed reason snapshot, got %#v", snapshot["billed_reason"])
 	}
 	if snapshot["routed_binding_code"] != "upm_gpt55_20260514" || snapshot["upstream_model_name"] != "gpt-5.5-upstream" {
 		t.Fatalf("expected routed binding/upstream snapshot, got routed=%#v upstream_model=%#v", snapshot["routed_binding_code"], snapshot["upstream_model_name"])

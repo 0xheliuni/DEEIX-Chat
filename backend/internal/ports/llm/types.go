@@ -118,7 +118,7 @@ type ToolDefinition struct {
 	InputSchema json.RawMessage
 }
 
-// Usage 记录上游返回 token 使用量。
+// Usage 记录上游返回 token 使用量。InputTokens 是扣除缓存读取后的非缓存输入。
 type Usage struct {
 	InputTokens        int64
 	OutputTokens       int64
@@ -130,6 +130,18 @@ type Usage struct {
 	Speed              string
 	ServiceTier        string
 	RawUsageJSON       string
+}
+
+// HasObservedInput 表示上游是否上报了输入侧用量。提示词全部命中缓存时非缓存输入
+// 合法为 0，因此判断"是否观测到输入"必须连同缓存读写一起看，不能只看 InputTokens。
+func (u Usage) HasObservedInput() bool {
+	return u.InputTokens > 0 || u.CacheReadTokens > 0 || u.CacheWriteTokens > 0
+}
+
+// HasObservedOutput 表示上游是否上报了输出侧用量。部分上游把思考 token 与可见输出分开上报，
+// 因此任一侧大于 0 都算已观测；两者同时为 0 才需要按已产出文本预估。
+func (u Usage) HasObservedOutput() bool {
+	return u.OutputTokens > 0 || u.ReasoningTokens > 0
 }
 
 // MergeRawUsageJSON 合并两段上游原始 usage JSON，去重并保持数组语义。

@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	appchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	appstorage "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/objectstorage"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
@@ -241,6 +242,8 @@ func classifyRunErrorCode(err error) string {
 		return "media_video_too_many_inputs"
 	case errors.Is(err, ErrMediaRouteProtocolMismatch):
 		return "media_route_protocol_mismatch"
+	case errors.Is(err, appbilling.ErrUsageBalanceInsufficient):
+		return messageUsageBalanceErrorCode
 	case errors.Is(err, ErrUpstreamRequestFailed):
 		return "upstream_request_failed"
 	default:

@@ -397,14 +397,16 @@ func shouldSkipNormalizedProviderOption(key string, value interface{}) bool {
 	}
 }
 
-func nonCachedInputTokens(totalInputTokens int64, cacheReadTokens int64) int64 {
+// nonCachedInputTokens 从提示词侧总量中扣除已按缓存价计费的 token（缓存读取与缓存写入），
+// 得到按普通输入价计费的非缓存输入。上游各字段是未对齐的前缀计数，差值可能为负，钳制为 0。
+func nonCachedInputTokens(totalInputTokens int64, cachedTokens int64) int64 {
 	if totalInputTokens <= 0 {
 		return 0
 	}
-	if cacheReadTokens <= 0 {
+	if cachedTokens <= 0 {
 		return totalInputTokens
 	}
-	remaining := totalInputTokens - cacheReadTokens
+	remaining := totalInputTokens - cachedTokens
 	if remaining < 0 {
 		return 0
 	}

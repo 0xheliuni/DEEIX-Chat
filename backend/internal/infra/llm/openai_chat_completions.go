@@ -576,27 +576,33 @@ func parseOpenAICompatibleUsageForAdapter(adapter string, parsed map[string]inte
 		getInt64FromPath(parsed, "usage", "cache_read_input_tokens"),
 		getInt64FromPath(parsed, "usage", "cache_read_tokens"),
 	)
+	cacheWriteTokens := firstNonZero(
+		getInt64FromPath(parsed, "usage", "input_tokens_details", "cache_write_tokens"),
+		getInt64FromPath(parsed, "usage", "prompt_tokens_details", "cache_write_tokens"),
+		getInt64FromPath(parsed, "usage", "input_tokens_details", "cache_creation_tokens"),
+		getInt64FromPath(parsed, "usage", "prompt_tokens_details", "cache_creation_tokens"),
+		getInt64FromPath(parsed, "usage", "input_tokens_details", "cached_creation_tokens"),
+		getInt64FromPath(parsed, "usage", "prompt_tokens_details", "cached_creation_tokens"),
+		getInt64FromPath(parsed, "usage", "input_tokens_details", "cache_creation_input_tokens"),
+		getInt64FromPath(parsed, "usage", "prompt_tokens_details", "cache_creation_input_tokens"),
+		getInt64FromPath(parsed, "usage", "cache_write_input_tokens"),
+		getInt64FromPath(parsed, "usage", "cache_write_tokens"),
+		getInt64FromPath(parsed, "usage", "cache_creation_input_tokens"),
+		getInt64FromPath(parsed, "usage", "cache_creation", "input_tokens"),
+		getInt64FromPath(parsed, "usage", "cache_creation", "ephemeral_1h_input_tokens")+
+			getInt64FromPath(parsed, "usage", "cache_creation", "ephemeral_5m_input_tokens"),
+	)
+	// OpenAI 兼容 usage 的 prompt_tokens/input_tokens 是提示词侧总量，缓存读取与缓存写入都是它的子集
+	// （OpenAI 原生、new-api、OpenRouter 均如此）。非缓存输入必须同时扣除两者，否则缓存写入的 token
+	// 会先按输入价、再按写入价重复计费。
 	return Usage{
-		InputTokens:     nonCachedInputTokens(totalInputTokens, cacheReadTokens),
-		OutputTokens:    visibleTokens,
-		CacheReadTokens: cacheReadTokens,
-		CacheWriteTokens: firstNonZero(
-			getInt64FromPath(parsed, "usage", "input_tokens_details", "cache_write_tokens"),
-			getInt64FromPath(parsed, "usage", "prompt_tokens_details", "cache_write_tokens"),
-			getInt64FromPath(parsed, "usage", "input_tokens_details", "cache_creation_tokens"),
-			getInt64FromPath(parsed, "usage", "prompt_tokens_details", "cache_creation_tokens"),
-			getInt64FromPath(parsed, "usage", "input_tokens_details", "cache_creation_input_tokens"),
-			getInt64FromPath(parsed, "usage", "prompt_tokens_details", "cache_creation_input_tokens"),
-			getInt64FromPath(parsed, "usage", "cache_write_input_tokens"),
-			getInt64FromPath(parsed, "usage", "cache_write_tokens"),
-			getInt64FromPath(parsed, "usage", "cache_creation_input_tokens"),
-			getInt64FromPath(parsed, "usage", "cache_creation", "input_tokens"),
-			getInt64FromPath(parsed, "usage", "cache_creation", "ephemeral_1h_input_tokens")+
-				getInt64FromPath(parsed, "usage", "cache_creation", "ephemeral_5m_input_tokens"),
-		),
-		ReasoningTokens: reasoningTokens,
-		ServiceTier:     strings.TrimSpace(getString(parsed["service_tier"])),
-		RawUsageJSON:    rawUsageJSONFromPath(parsed, "usage"),
+		InputTokens:      nonCachedInputTokens(totalInputTokens, cacheReadTokens+cacheWriteTokens),
+		OutputTokens:     visibleTokens,
+		CacheReadTokens:  cacheReadTokens,
+		CacheWriteTokens: cacheWriteTokens,
+		ReasoningTokens:  reasoningTokens,
+		ServiceTier:      strings.TrimSpace(getString(parsed["service_tier"])),
+		RawUsageJSON:     rawUsageJSONFromPath(parsed, "usage"),
 	}
 }
 

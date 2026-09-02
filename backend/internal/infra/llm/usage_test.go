@@ -154,7 +154,7 @@ func TestParseOpenAICompatibleUsageAliases(t *testing.T) {
 	}`)
 
 	usage := parseOpenAICompatibleUsage(payload)
-	if usage.InputTokens != 84 ||
+	if usage.InputTokens != 75 ||
 		usage.OutputTokens != 16 ||
 		usage.CacheReadTokens != 17 ||
 		usage.CacheWriteTokens != 9 ||
@@ -178,12 +178,52 @@ func TestParseOpenAICompatibleUsageCacheCreationAliases(t *testing.T) {
 	}`)
 
 	usage := parseOpenAICompatibleUsage(payload)
-	if usage.InputTokens != 84 ||
+	if usage.InputTokens != 75 ||
 		usage.OutputTokens != 16 ||
 		usage.CacheReadTokens != 17 ||
 		usage.CacheWriteTokens != 9 ||
 		usage.ReasoningTokens != 7 {
 		t.Fatalf("unexpected openai-compatible cache creation aliases: %+v", usage)
+	}
+}
+
+// new-api 把 Anthropic 用量转成 OpenAI 形状时，prompt_tokens = input + cache_read + cache_creation，
+// 并同时在 cache_write_tokens 与旧字段 cached_creation_tokens 中透传写入量。非缓存输入必须扣掉两类缓存，
+// 否则缓存写入会被按输入价与写入价各计一次。
+func TestParseOpenAICompatibleUsageExcludesCacheWriteFromNonCachedInput(t *testing.T) {
+	payload := mustDecodeObject(t, `{
+		"usage": {
+			"prompt_tokens": 3400,
+			"completion_tokens": 12,
+			"total_tokens": 3412,
+			"usage_semantic": "openai",
+			"usage_source": "anthropic",
+			"prompt_tokens_details": {
+				"cached_tokens": 0,
+				"cached_creation_tokens": 3355,
+				"cache_write_tokens": 3355
+			}
+		}
+	}`)
+
+	usage := parseOpenAICompatibleUsageForAdapter(AdapterOpenAIChatCompletions, payload)
+	if usage.InputTokens != 45 || usage.CacheReadTokens != 0 || usage.CacheWriteTokens != 3355 || usage.OutputTokens != 12 {
+		t.Fatalf("unexpected new-api cache write usage: %+v", usage)
+	}
+
+	legacyOnly := mustDecodeObject(t, `{
+		"usage": {
+			"prompt_tokens": 3400,
+			"completion_tokens": 12,
+			"prompt_tokens_details": {
+				"cached_tokens": 40,
+				"cached_creation_tokens": 3355
+			}
+		}
+	}`)
+	usage = parseOpenAICompatibleUsageForAdapter(AdapterOpenAIChatCompletions, legacyOnly)
+	if usage.InputTokens != 5 || usage.CacheReadTokens != 40 || usage.CacheWriteTokens != 3355 {
+		t.Fatalf("unexpected legacy cached_creation_tokens usage: %+v", usage)
 	}
 }
 

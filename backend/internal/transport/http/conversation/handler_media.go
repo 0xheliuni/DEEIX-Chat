@@ -137,6 +137,7 @@ func (h *Handler) streamMediaVideo(c *gin.Context, taskType appconversation.Medi
 				ParentMessagePublicID: req.ParentMessagePublicID,
 				SourceMessagePublicID: req.SourceMessagePublicID,
 				BranchReason:          req.BranchReason,
+				UsageAuthorization:    authorization,
 				OnEvent:               onEvent,
 			})
 		},
@@ -196,6 +197,7 @@ func (h *Handler) streamMediaImage(c *gin.Context, taskType appconversation.Medi
 				ParentMessagePublicID: req.ParentMessagePublicID,
 				SourceMessagePublicID: req.SourceMessagePublicID,
 				BranchReason:          req.BranchReason,
+				UsageAuthorization:    authorization,
 				OnEvent:               onEvent,
 			})
 		},
@@ -242,7 +244,7 @@ func (h *Handler) streamMediaTask(
 	})
 	if err == nil && result != nil && result.IsModerationBlocked() {
 		if !result.ModerationTerminalEmitted() {
-			_ = flushStreamEvent(moderationBlockedStreamPayload(result))
+			_ = flushStreamEvent(moderationBlockedStreamPayload(result, authorization))
 		}
 		if result.Billable {
 			billingCtx, billingCancel := context.WithTimeout(context.Background(), 10*time.Second)

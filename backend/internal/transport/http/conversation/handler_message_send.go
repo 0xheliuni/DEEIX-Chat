@@ -411,6 +411,8 @@ func handleSendMessageError(c *gin.Context, err error) {
 		response.Error(c, http.StatusBadGateway, "model returned empty response")
 	case appconversation.IsUpstreamRateLimitError(err):
 		response.ErrorWithCode(c, http.StatusTooManyRequests, appconversation.MessageErrorCodeUpstreamRateLimited, "upstream rate limited")
+	case errors.Is(err, billing.ErrUsageBalanceInsufficient):
+		response.Error(c, http.StatusPaymentRequired, "usage balance is insufficient")
 	case errors.Is(err, appconversation.ErrUpstreamRequestFailed):
 		if code := appconversation.MessageErrorCode(err); code != "" {
 			response.ErrorWithCode(c, http.StatusBadGateway, code, mapClientErrorMessage(err))
@@ -446,6 +448,7 @@ func (h *Handler) SendMessage(c *gin.Context) {
 	if err != nil {
 		return
 	}
+	input.UsageAuthorization = authorization
 	stopAuthorizationRenewal := h.startUsageAuthorizationRenewal(authorization)
 	defer stopAuthorizationRenewal()
 
@@ -507,6 +510,7 @@ func (h *Handler) StreamMessage(c *gin.Context) {
 	if err != nil {
 		return
 	}
+	input.UsageAuthorization = authorization
 	stopAuthorizationRenewal := h.startUsageAuthorizationRenewal(authorization)
 	defer stopAuthorizationRenewal()
 
@@ -558,7 +562,7 @@ func (h *Handler) StreamMessage(c *gin.Context) {
 	if err == nil && result != nil && result.IsModerationBlocked() {
 		// Guarantee a terminal event even if live OnEvent path missed emit.
 		if !result.ModerationTerminalEmitted() {
-			_ = flushStreamEvent(moderationBlockedStreamPayload(result))
+			_ = flushStreamEvent(moderationBlockedStreamPayload(result, authorization))
 		}
 		if result.Billable {
 			billingCtx, billingCancel := context.WithTimeout(context.Background(), 10*time.Second)

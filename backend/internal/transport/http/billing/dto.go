@@ -109,7 +109,6 @@ type UpdateBillingPlanRequest struct {
 	Name              string   `json:"name" binding:"required,min=1,max=64"`
 	Description       *string  `json:"description" binding:"required,max=255"`
 	PeriodCreditUSD   *float64 `json:"periodCreditUSD" binding:"required,gte=0"`
-	DiscountPercent   *int     `json:"discountPercent" binding:"required,gte=0,lte=100"`
 	Currency          string   `json:"currency,omitempty" binding:"omitempty,max=16"`
 	AmountUSD         *float64 `json:"amountUSD" binding:"required,gte=0"`
 	BillingInterval   string   `json:"billingInterval" binding:"required,oneof=month year lifetime"`
@@ -180,7 +179,6 @@ type BillingPlanResponse struct {
 	FeatureJSON         string                 `json:"featureJSON"`
 	PeriodCreditUSD     float64                `json:"periodCreditUSD"`
 	PeriodCreditNanousd int64                  `json:"periodCreditNanousd"`
-	DiscountPercent     int                    `json:"discountPercent"`
 	SortOrder           int                    `json:"sortOrder"`
 	IsActive            bool                   `json:"isActive"`
 	PermissionGroupID   *uint                  `json:"permissionGroupID" extensions:"x-nullable,!x-omitempty"`
@@ -717,7 +715,6 @@ func toPlanListResponse(views []appbilling.BillingPlanView) []BillingPlanRespons
 			FeatureJSON:         v.FeatureJSON,
 			PeriodCreditUSD:     nanousdToUSD(v.PeriodCreditNanousd),
 			PeriodCreditNanousd: v.PeriodCreditNanousd,
-			DiscountPercent:     v.DiscountPercent,
 			SortOrder:           v.SortOrder,
 			IsActive:            v.IsActive,
 			PermissionGroupID:   v.PermissionGroupID,
@@ -1171,7 +1168,6 @@ func planUpdateInputFromRequest(req UpdateBillingPlanRequest) appbilling.PlanUpd
 		Name:                req.Name,
 		Description:         *req.Description,
 		PeriodCreditNanousd: usdToNanousd(*req.PeriodCreditUSD),
-		DiscountPercent:     *req.DiscountPercent,
 		Currency:            req.Currency,
 		AmountCents:         usdToCents(*req.AmountUSD),
 		BillingInterval:     req.BillingInterval,
