@@ -5,7 +5,6 @@ import (
 	"time"
 
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
-	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 )
 
 // MessageUsageUpdate 定义消息 token 用量更新字段。
@@ -75,10 +74,8 @@ type ConversationMetadataRepository interface {
 	ReorderConversationProjects(ctx context.Context, userID uint, publicIDs []string) error
 	UpdateConversationProjectAssignmentByPublicID(ctx context.Context, userID uint, conversationPublicID string, projectID *uint) (*domainconversation.Conversation, error)
 	BatchUpdateConversationProjectByPublicIDs(ctx context.Context, userID uint, conversationPublicIDs []string, projectID *uint) (int64, error)
-	GetActiveConversationShareByConversation(ctx context.Context, userID uint, conversationID uint) (*domainconversation.ConversationShare, error)
 	GetLatestConversationShareByConversation(ctx context.Context, userID uint, conversationID uint) (*domainconversation.ConversationShare, error)
 	GetActiveConversationShareByShareID(ctx context.Context, shareID string) (*domainconversation.ConversationShare, *domainconversation.Conversation, error)
-	CreateConversationShare(ctx context.Context, item *domainconversation.ConversationShare) error
 	ReplaceActiveConversationShare(ctx context.Context, item *domainconversation.ConversationShare) error
 	RevokeActiveConversationShares(ctx context.Context, userID uint, conversationIDs []uint) error
 	TouchConversationShareAccess(ctx context.Context, shareID string, accessedAt time.Time) error
@@ -89,7 +86,6 @@ type ConversationMetadataRepository interface {
 	UpdateConversationStarByPublicID(ctx context.Context, userID uint, publicID string, starred bool) (*domainconversation.Conversation, error)
 	UpdateConversationArchiveByPublicID(ctx context.Context, userID uint, publicID string, archived bool) (*domainconversation.Conversation, error)
 	DeleteConversationByPublicID(ctx context.Context, userID uint, publicID string, deleteFiles bool) ([]string, error)
-	GetUserByID(ctx context.Context, userID uint) (*domainuser.User, error)
 	IncrementMessageCount(ctx context.Context, conversationID uint, delta int) error
 	UpdateConversationLastResponseID(ctx context.Context, conversationID uint, responseID string) error
 	UpdateConversationStatefulResponse(ctx context.Context, conversationID uint, responseID string, promptFingerprint string) error

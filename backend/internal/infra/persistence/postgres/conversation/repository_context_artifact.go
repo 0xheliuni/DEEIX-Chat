@@ -45,19 +45,6 @@ func (r *Repo) GetContextArtifactByIDForUser(ctx context.Context, userID uint, a
 	return &result, nil
 }
 
-// ListContextArtifactsByMessage 查询单条消息对应的上下文证据。
-func (r *Repo) ListContextArtifactsByMessage(ctx context.Context, conversationID uint, messageID uint) ([]domainconversation.ContextArtifact, error) {
-	items := make([]models.ChatContextRecord, 0)
-	if err := r.db.WithContext(ctx).
-		Where("record_type = ? AND conversation_id = ? AND message_id = ?", chatContextRecordArtifact, conversationID, messageID).
-		Where("expires_at IS NULL OR expires_at > ?", time.Now()).
-		Order("id ASC").
-		Find(&items).Error; err != nil {
-		return nil, translateError(err)
-	}
-	return toContextArtifactDomains(items), nil
-}
-
 // ListRecentContextArtifacts 在当前活跃分支内按类型查询最近的上下文证据。
 func (r *Repo) ListRecentContextArtifacts(ctx context.Context, filter repository.ContextArtifactListFilter) ([]domainconversation.ContextArtifact, error) {
 	if !filter.Scope.Valid() {

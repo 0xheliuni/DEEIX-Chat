@@ -409,20 +409,6 @@ func (r *Repo) GetConversationByPublicID(ctx context.Context, publicID string, u
 	return &result, nil
 }
 
-// GetActiveConversationShareByConversation 查询会话当前有效分享。
-func (r *Repo) GetActiveConversationShareByConversation(ctx context.Context, userID uint, conversationID uint) (*domainconversation.ConversationShare, error) {
-	var item models.ConversationShare
-	if err := r.db.WithContext(ctx).
-		Where("user_id = ? AND conversation_id = ? AND status = ?", userID, conversationID, "active").
-		Order("updated_at DESC").
-		Order("id DESC").
-		First(&item).Error; err != nil {
-		return nil, translateError(err)
-	}
-	result := toConversationShareDomain(item)
-	return &result, nil
-}
-
 // GetLatestConversationShareByConversation 查询会话最近一次分享记录。
 func (r *Repo) GetLatestConversationShareByConversation(ctx context.Context, userID uint, conversationID uint) (*domainconversation.ConversationShare, error) {
 	var item models.ConversationShare
@@ -454,16 +440,6 @@ func (r *Repo) GetActiveConversationShareByShareID(ctx context.Context, shareID 
 	shareDomain := toConversationShareDomain(share)
 	conversationDomain := toConversationDomain(conversation)
 	return &shareDomain, &conversationDomain, nil
-}
-
-// CreateConversationShare 创建会话公开分享快照。
-func (r *Repo) CreateConversationShare(ctx context.Context, item *domainconversation.ConversationShare) error {
-	entity := toConversationShareModel(item)
-	if err := r.db.WithContext(ctx).Create(&entity).Error; err != nil {
-		return translateError(err)
-	}
-	*item = toConversationShareDomain(entity)
-	return nil
 }
 
 // ReplaceActiveConversationShare 在一个事务内撤销旧分享并创建新快照。

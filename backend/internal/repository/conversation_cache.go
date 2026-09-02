@@ -129,7 +129,8 @@ type UserSettingCacheRepository interface {
 	SetUserSettingCache(ctx context.Context, userID uint, key, version, value string, ttl time.Duration) error
 }
 
-// ConversationCacheRepository 聚合 conversation 领域缓存能力。
+// ConversationCacheRepository 描述同一个缓存后端（Redis 或进程内存）对外提供的 conversation 领域全部缓存能力，
+// 由 infra 构造并在组合根按需拆分注入：处理流水线、RAG 与会话服务各自只依赖其中的子接口。
 type ConversationCacheRepository interface {
 	FileProcessingQueueRepository
 	RAGCacheRepository

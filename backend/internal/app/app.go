@@ -333,8 +333,6 @@ func NewApp() (*App, error) {
 		llmClient,
 		mediaArtifactClient,
 		mcpClient,
-		embedClient,
-		nil,
 		compactService,
 		embeddingService,
 		processingService,

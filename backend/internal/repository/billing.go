@@ -16,7 +16,6 @@ type BillingRepository interface {
 	ListPlansByIDs(ctx context.Context, planIDs []uint) ([]domainbilling.Plan, error)
 	GetActivePlanByCode(ctx context.Context, code string) (*domainbilling.Plan, error)
 	UpdatePlanWithDefaultPrice(ctx context.Context, plan *domainbilling.Plan, price *domainbilling.Price) error
-	ListCurrentSubscriptionsByUserIDs(ctx context.Context, userIDs []uint, now time.Time) ([]domainbilling.Subscription, error)
 	ListSubscriptionEntitlementsByUserIDs(ctx context.Context, userIDs []uint, now time.Time) ([]domainbilling.Subscription, error)
 	ReplaceSubscription(ctx context.Context, item *domainbilling.Subscription) error
 	CreatePaymentOrder(ctx context.Context, item *domainbilling.PaymentOrder) (*domainbilling.PaymentOrder, error)
