@@ -222,16 +222,19 @@ func (s *Service) StreamTemporaryChat(
 		return nil, ErrUpstreamEmptyResponse
 	}
 	usage := generation.Usage
+	// 非缓存输入为 0 是全部命中缓存时的合法观测值，只有上游完全没上报输入侧用量才用预估补齐。
+	inputObserved := usage.HasObservedInput()
+	outputObserved := usage.OutputTokens > 0
 	inputTokens := usage.InputTokens
-	if inputTokens <= 0 {
+	if !inputObserved {
 		inputTokens = estimateGenerateInputTokens(generateInput)
 	}
 	outputTokens := resolveObservedOrEstimatedOutputTokens(usage.OutputTokens, assistantText)
 	usageSource := "observed"
 	switch {
-	case usage.InputTokens <= 0 && usage.OutputTokens <= 0:
+	case !inputObserved && !outputObserved:
 		usageSource = "estimated"
-	case usage.InputTokens <= 0 || usage.OutputTokens <= 0:
+	case !inputObserved || !outputObserved:
 		usageSource = "mixed"
 	}
 	firstTokenLatencyMS := generation.FirstTokenLatency

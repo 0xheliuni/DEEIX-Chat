@@ -22,6 +22,8 @@ import (
 type temporaryLLMGatewayStub struct {
 	inputs           []llm.GenerateInput
 	onGenerateStream func(llm.GenerateInput)
+	// output 非空时作为上游返回，用于构造带 usage 的响应。
+	output *llm.GenerateOutput
 }
 
 type temporaryBuiltinParserStub struct{}
@@ -62,6 +64,9 @@ func (s *temporaryLLMGatewayStub) GenerateStream(
 		s.onGenerateStream(input)
 	}
 	s.inputs = append(s.inputs, input)
+	if s.output != nil {
+		return s.output, nil
+	}
 	return &llm.GenerateOutput{Text: "ok"}, nil
 }
 
@@ -399,6 +404,52 @@ func TestStreamTemporaryChatPreservesProviderNativeToolsWithoutMCPTools(t *testi
 				t.Fatalf("expected provider-native tool parameters to remain, got %#v", tools[0])
 			}
 		})
+	}
+}
+
+func TestStreamTemporaryChatKeepsFullyCachedInputTokensObserved(t *testing.T) {
+	gateway := &temporaryLLMGatewayStub{output: &llm.GenerateOutput{
+		Text:  "ok",
+		Usage: llm.Usage{CacheReadTokens: 3355, OutputTokens: 23, ReasoningTokens: 49},
+	}}
+	service := &Service{
+		cfg: config.NewRuntime(config.Config{
+			ModelOptionPolicyMode:   modelOptionPolicyAllowlist,
+			ModelOptionAllowedPaths: config.DefaultModelOptionAllowedPathsJSON(),
+			ModelOptionDeniedPaths:  config.DefaultModelOptionDeniedPathsJSON(),
+		}),
+		routeResolver: &textTaskRouteResolverStub{routes: map[string]*channel.ResolvedRoute{
+			"chat": {
+				PlatformModelName: "chat",
+				UpstreamModel:     "chat",
+				Protocol:          llm.AdapterOpenAIChatCompletions,
+			},
+		}},
+		llmClient: gateway,
+	}
+
+	result, err := service.StreamTemporaryChat(t.Context(), TemporaryChatInput{
+		UserID:      1,
+		SessionID:   "temporary-session",
+		ClientRunID: "temporary-run",
+		Model:       "chat",
+		Messages:    []TemporaryChatMessage{{Role: "user", Content: strings.Repeat("cached prompt ", 200)}},
+	}, nil)
+	if err != nil {
+		t.Fatalf("stream temporary chat: %v", err)
+	}
+
+	if result.UserMessage.InputTokens != 0 || result.UserMessage.TokenUsage != 0 {
+		t.Fatalf("expected fully cached prompt to keep zero non-cached input, got input=%d usage=%d", result.UserMessage.InputTokens, result.UserMessage.TokenUsage)
+	}
+	if result.UserMessage.CacheReadTokens != 3355 {
+		t.Fatalf("expected cache read tokens to be preserved, got %d", result.UserMessage.CacheReadTokens)
+	}
+	if result.AssistantMessage.OutputTokens != 23 || result.AssistantMessage.ReasoningTokens != 49 {
+		t.Fatalf("unexpected output usage: %#v", result.AssistantMessage)
+	}
+	if result.UsageSource != "observed" {
+		t.Fatalf("expected fully cached usage to be observed, got %q", result.UsageSource)
 	}
 }
 

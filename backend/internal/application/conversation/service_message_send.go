@@ -1021,7 +1021,7 @@ func (s *Service) sendMessageInternal(
 				}
 			}
 			if generateErr == nil {
-				usageAccumulator.finishCall(output != nil && output.Usage.InputTokens > 0)
+				usageAccumulator.finishCall(output != nil && output.Usage.HasObservedInput())
 			}
 			return output, err
 		}
@@ -1141,7 +1141,7 @@ func (s *Service) sendMessageInternal(
 			}
 		}
 		if generateErr == nil {
-			usageAccumulator.finishCall((callStreamUsage.InputTokens > 0) || (output != nil && output.Usage.InputTokens > 0))
+			usageAccumulator.finishCall(callStreamUsage.HasObservedInput() || (output != nil && output.Usage.HasObservedInput()))
 		}
 		return output, generateErr
 	}

@@ -10,8 +10,11 @@ import (
 	"go.uber.org/zap"
 )
 
+// messageUsageAccumulator 汇总一条消息内多次 LLM 调用的输入用量。上游上报了输入侧用量的
+// 调用以观测值为准；未上报的调用用请求形状预估补齐。观测值与预估值按调用互斥，不叠加。
 type messageUsageAccumulator struct {
 	observedUsage                   llm.Usage
+	inputObserved                   bool
 	estimatedUnobservedInputTokens  int64
 	currentCallEstimatedInputTokens int64
 }
@@ -20,12 +23,10 @@ func (a *messageUsageAccumulator) beginCall(input llm.GenerateInput) {
 	a.currentCallEstimatedInputTokens = estimateGenerateInputTokens(input)
 }
 
+// finishCall 结束当前调用：上报了输入侧用量则丢弃本次预估，否则把预估计入未观测部分。
 func (a *messageUsageAccumulator) finishCall(observedInput bool) {
 	if observedInput {
-		a.currentCallEstimatedInputTokens = 0
-		return
-	}
-	if a.currentCallEstimatedInputTokens <= 0 {
+		a.markInputObserved()
 		return
 	}
 	a.estimatedUnobservedInputTokens += a.currentCallEstimatedInputTokens
@@ -37,17 +38,22 @@ func (a *messageUsageAccumulator) addObservedUsage(delta llm.Usage) llm.Usage {
 		return a.observedUsage
 	}
 	a.observedUsage = addLLMUsage(a.observedUsage, delta)
-	if delta.InputTokens > 0 {
-		a.currentCallEstimatedInputTokens = 0
+	if delta.HasObservedInput() {
+		a.markInputObserved()
 	}
 	return a.observedUsage
 }
 
 func (a *messageUsageAccumulator) setObservedUsage(usage llm.Usage) {
 	a.observedUsage = usage
-	if usage.InputTokens > 0 {
-		a.currentCallEstimatedInputTokens = 0
+	if usage.HasObservedInput() {
+		a.markInputObserved()
 	}
+}
+
+func (a *messageUsageAccumulator) markInputObserved() {
+	a.inputObserved = true
+	a.currentCallEstimatedInputTokens = 0
 }
 
 func (a *messageUsageAccumulator) usage() llm.Usage {
@@ -58,15 +64,14 @@ func (a *messageUsageAccumulator) interruptedInputTokens() int64 {
 	return a.observedUsage.InputTokens + a.estimatedUnobservedInputTokens + a.currentCallEstimatedInputTokens
 }
 
+// effectiveInputTokens 返回本条消息最终计费的非缓存输入。只要有调用上报过输入侧用量，
+// 非缓存输入为 0（提示词全部命中缓存）也如实采用；仅在完全没有观测值时才回退到规划预估。
 func (a *messageUsageAccumulator) effectiveInputTokens(promptFallback int64) int64 {
 	inputTokens := a.observedUsage.InputTokens + a.estimatedUnobservedInputTokens
-	if inputTokens > 0 {
+	if a.inputObserved || inputTokens > 0 {
 		return inputTokens
 	}
-	if promptFallback > 0 {
-		return promptFallback
-	}
-	return 0
+	return max(promptFallback, 0)
 }
 
 func resolveObservedOrEstimatedOutputTokens(observedTokens int64, assistantText string) int64 {

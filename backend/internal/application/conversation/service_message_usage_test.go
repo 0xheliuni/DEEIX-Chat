@@ -36,6 +36,68 @@ func TestMessageUsageAccumulatorCombinesObservedAndUnobservedInput(t *testing.T)
 	}
 }
 
+func TestMessageUsageAccumulatorKeepsFullyCachedInputObserved(t *testing.T) {
+	input := llm.GenerateInput{Messages: []llm.Message{
+		{Role: "system", Content: strings.Repeat("long system prompt ", 400)},
+		{Role: "user", Content: "hi"},
+	}}
+	if estimateGenerateInputTokens(input) <= 0 {
+		t.Fatal("expected a positive prompt estimate for the regression input")
+	}
+	fullyCached := llm.Usage{CacheReadTokens: 3355, OutputTokens: 23, ReasoningTokens: 49}
+	const promptFallback = int64(4068)
+
+	tests := map[string]func(accumulator *messageUsageAccumulator){
+		"streaming": func(accumulator *messageUsageAccumulator) {
+			accumulator.beginCall(input)
+			accumulator.addObservedUsage(fullyCached)
+			accumulator.finishCall(fullyCached.HasObservedInput())
+		},
+		"non-streaming": func(accumulator *messageUsageAccumulator) {
+			accumulator.beginCall(input)
+			accumulator.finishCall(fullyCached.HasObservedInput())
+			accumulator.setObservedUsage(fullyCached)
+		},
+	}
+	for name, run := range tests {
+		t.Run(name, func(t *testing.T) {
+			accumulator := &messageUsageAccumulator{}
+			run(accumulator)
+
+			if got := accumulator.effectiveInputTokens(promptFallback); got != 0 {
+				t.Fatalf("expected fully cached prompt to bill zero non-cached input, got %d", got)
+			}
+			if got := accumulator.interruptedInputTokens(); got != 0 {
+				t.Fatalf("expected no estimated input once upstream reported cached input, got %d", got)
+			}
+			if got := accumulator.usage().CacheReadTokens; got != fullyCached.CacheReadTokens {
+				t.Fatalf("expected cache read tokens to be preserved, got %d", got)
+			}
+		})
+	}
+}
+
+func TestMessageUsageAccumulatorFallsBackToEstimateWithoutObservedInput(t *testing.T) {
+	input := llm.GenerateInput{Messages: []llm.Message{{Role: "user", Content: "hello"}}}
+	accumulator := &messageUsageAccumulator{}
+
+	if got := accumulator.effectiveInputTokens(4068); got != 4068 {
+		t.Fatalf("expected prompt fallback before any call, got %d", got)
+	}
+
+	accumulator.beginCall(input)
+	accumulator.addObservedUsage(llm.Usage{OutputTokens: 5})
+	accumulator.finishCall(false)
+
+	want := estimateGenerateInputTokens(input)
+	if got := accumulator.effectiveInputTokens(4068); got != want {
+		t.Fatalf("expected output-only usage to keep the call estimate, got %d want %d", got, want)
+	}
+	if got := accumulator.interruptedInputTokens(); got != want {
+		t.Fatalf("expected interrupted input to include the unobserved estimate, got %d want %d", got, want)
+	}
+}
+
 func TestResolveObservedOrHigherEstimatedTokensKeepsLargerEstimate(t *testing.T) {
 	if got := resolveObservedOrHigherEstimatedTokens(40, 96); got != 96 {
 		t.Fatalf("expected larger input estimate, got %d", got)
