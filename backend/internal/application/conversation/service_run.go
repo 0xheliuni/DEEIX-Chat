@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/traceid"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
@@ -13,9 +14,11 @@ import (
 )
 
 type messageSendRunState struct {
-	service          *Service
-	conversation     *model.Conversation
-	run              *model.Run
+	service      *Service
+	conversation *model.Conversation
+	run          *model.Run
+	// route 是最近一次应用到 run 的上游路由；中断收尾与成功持久化都以它标注消息来源。
+	route            *channel.ResolvedRoute
 	startedAt        time.Time
 	userMessage      **model.Message
 	assistantMessage **model.Message
@@ -23,6 +26,21 @@ type messageSendRunState struct {
 	result           **SendMessageResult
 	traceContext     context.Context
 	reuseUserMessage bool
+}
+
+// applyRoute 把解析出的上游路由写入 run 记录；路由故障转移后再次调用即覆盖。
+func (r *messageSendRunState) applyRoute(route *channel.ResolvedRoute) {
+	r.route = route
+	r.run.Endpoint = llm.DefaultEndpointForAdapter(route.Protocol)
+	r.run.ProviderProtocol = route.Protocol
+	r.run.UpstreamID = route.UpstreamID
+	r.run.UpstreamModelID = route.UpstreamModelID
+	r.run.UpstreamName = route.UpstreamName
+	r.run.PlatformModelName = route.PlatformModelName
+	r.run.RoutedBindingCode = route.BindingCode
+	r.run.ModelVendor = route.ModelVendor
+	r.run.ModelIcon = route.ModelIcon
+	r.run.UpstreamModelName = route.UpstreamModel
 }
 
 func newMessageSendRunState(
@@ -125,15 +143,15 @@ func (r *messageSendRunState) finalizeRun(retErr error) {
 	case errors.Is(retErr, ErrMessageGenerationCanceled):
 		r.run.Status = "canceled"
 		r.run.ErrorCode = classifyRunErrorCode(retErr)
-		r.run.ErrorMessage = truncateError(retErr.Error(), 255)
+		r.run.ErrorMessage = truncateError(messageErrorSummary(retErr), 255)
 	case r.currentAssistantMessage() != nil && r.currentAssistantMessage().Status == "interrupted":
 		r.run.Status = "interrupted"
 		r.run.ErrorCode = classifyRunErrorCode(retErr)
-		r.run.ErrorMessage = truncateError(retErr.Error(), 255)
+		r.run.ErrorMessage = truncateError(messageErrorSummary(retErr), 255)
 	default:
 		r.run.Status = "error"
 		r.run.ErrorCode = classifyRunErrorCode(retErr)
-		r.run.ErrorMessage = truncateError(retErr.Error(), 255)
+		r.run.ErrorMessage = truncateError(messageErrorSummary(retErr), 255)
 	}
 	// Preserve barrier pass/fail-open state written mid-flight (do not default to not_required).
 	if result := r.currentResult(); result != nil {

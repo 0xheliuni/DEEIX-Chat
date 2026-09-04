@@ -22,6 +22,26 @@ func TestTranslateErrorAllowsNil(t *testing.T) {
 	}
 }
 
+func TestReplaceActiveConversationShareReportsMissingSchemaColumn(t *testing.T) {
+	db := openConversationRepositoryTestDB(t)
+	if err := db.Migrator().DropColumn(&model.ConversationShare{}, "default_message_ids_json"); err != nil {
+		t.Fatalf("drop legacy share column: %v", err)
+	}
+
+	item := &domainconversation.ConversationShare{
+		ShareID:               "share_schema_test",
+		ConversationID:        1,
+		UserID:                1,
+		Status:                "active",
+		MessageIDsJSON:        "[]",
+		DefaultMessageIDsJSON: "[]",
+	}
+	err := NewRepo(db).ReplaceActiveConversationShare(context.Background(), item)
+	if !errors.Is(err, repository.ErrConversationShareSchemaOutdated) {
+		t.Fatalf("ReplaceActiveConversationShare() error = %v, want ErrConversationShareSchemaOutdated", err)
+	}
+}
+
 func TestAttachmentDurationSecondsFromMetaJSON(t *testing.T) {
 	if got := attachmentDurationSecondsFromMetaJSON(`{"duration_seconds":6}`); got != 6 {
 		t.Fatalf("expected attachment duration 6, got %d", got)

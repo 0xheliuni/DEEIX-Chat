@@ -140,7 +140,7 @@ func (s *Service) enqueue(task *moderationTask) error {
 		s.workerMu.Unlock()
 		if task.Coord != nil {
 			bg, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			s.recordFailedOpen(bg, task.Coord.meta, task.Direction, task.Modality, domaincm.ErrorCodeQueueFull, ErrQueueFull.Error(), 0)
+			s.recordFailedOpen(bg, task.Coord.meta, task.Direction, task.Modality, domaincm.ErrorCodeQueueFull, 0)
 			s.bumpDailyStat(bg, task.Direction, task.Modality, domaincm.ResultFailedOpen, "", 1, contentItemCount(task), 0, 1, 0)
 			cancel()
 		}
@@ -156,7 +156,7 @@ func (s *Service) enqueue(task *moderationTask) error {
 		s.workerMu.Unlock()
 		if task.Coord != nil {
 			bg, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			s.recordFailedOpen(bg, task.Coord.meta, task.Direction, task.Modality, domaincm.ErrorCodeQueueFull, ErrQueueFull.Error(), 0)
+			s.recordFailedOpen(bg, task.Coord.meta, task.Direction, task.Modality, domaincm.ErrorCodeQueueFull, 0)
 			s.bumpDailyStat(bg, task.Direction, task.Modality, domaincm.ResultFailedOpen, "", 1, contentItemCount(task), 0, 1, 0)
 			cancel()
 		}
@@ -212,7 +212,14 @@ func (s *Service) executeTask(parent context.Context, task *moderationTask) {
 
 	if err != nil {
 		code := classifyErrorCode(err)
-		s.recordFailedOpen(persistCtx, task.Coord.meta, task.Direction, task.Modality, code, err.Error(), latency)
+		s.logWarn("content_moderation_provider_failed",
+			zap.String("run_id", task.Coord.meta.RunID),
+			zap.String("direction", task.Direction),
+			zap.String("modality", task.Modality),
+			zap.String("error_code", code),
+			zap.Error(err),
+		)
+		s.recordFailedOpen(persistCtx, task.Coord.meta, task.Direction, task.Modality, code, latency)
 		s.bumpDailyStat(persistCtx, task.Direction, task.Modality, domaincm.ResultFailedOpen, "", 1, contentItemCount(task), 0, 1, latency)
 		task.Coord.onTaskResult(task, taskResult{
 			Err:       err,
@@ -290,7 +297,7 @@ func classifyErrorCode(err error) string {
 func (s *Service) recordFailedOpen(
 	ctx context.Context,
 	meta RunMeta,
-	direction, modality, errorCode, errorMessage string,
+	direction, modality, errorCode string,
 	latencyMS int64,
 ) {
 	if s.repo == nil {
@@ -311,7 +318,7 @@ func (s *Service) recordFailedOpen(
 		CategoryScoresJSON:  "{}",
 		LatencyMS:           latencyMS,
 		ErrorCode:           errorCode,
-		ErrorMessage:        truncate(errorMessage, 255),
+		ErrorMessage:        truncate(moderationFailureMessage(errorCode), 255),
 		ContentLocationJSON: "{}",
 		ContentSummary:      "",
 		ImageMetaJSON:       "[]",
@@ -331,6 +338,29 @@ func (s *Service) recordFailedOpen(
 		zap.String("modality", modality),
 		zap.String("error_code", errorCode),
 	)
+}
+
+func moderationFailureMessage(errorCode string) string {
+	switch strings.TrimSpace(errorCode) {
+	case domaincm.ErrorCodeTimeout:
+		return ErrModerationTimeout.Error()
+	case domaincm.ErrorCodeRateLimited:
+		return ErrModerationRateLimited.Error()
+	case domaincm.ErrorCodeQueueFull:
+		return ErrQueueFull.Error()
+	case domaincm.ErrorCodeInvalidResp:
+		return ErrModerationInvalidResp.Error()
+	case domaincm.ErrorCodeNetworkError:
+		return ErrModerationNetwork.Error()
+	case domaincm.ErrorCodeWorkerLost:
+		return ErrWorkerLost.Error()
+	case domaincm.ErrorCodeConfigMissing:
+		return "content moderation configuration unavailable"
+	case domaincm.ErrorCodeServiceError:
+		return ErrModerationService.Error()
+	default:
+		return "content moderation check failed"
+	}
 }
 
 func (s *Service) recordPass(ctx context.Context, task *moderationTask, latencyMS int64, resp *Response) (string, error) {

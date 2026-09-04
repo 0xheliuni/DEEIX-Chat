@@ -4,11 +4,12 @@ import (
 	"errors"
 
 	cmport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/contentmoderation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 )
 
 var (
-	ErrSuperAdminRequired    = errors.New("superadmin permission required")
-	ErrAdminRequired         = errors.New("admin permission required")
+	ErrSuperAdminRequired    = apperr.New("auth.superadmin_required", "superadmin permission required")
+	ErrAdminRequired         = apperr.New("auth.admin_required", "admin permission required")
 	ErrInvalidConfig         = errors.New("invalid content moderation config")
 	ErrServiceConfigRequired = errors.New("content moderation service config and policy are required when enabled")
 	ErrInvalidBaseURL        = cmport.ErrInvalidBaseURL
@@ -19,7 +20,7 @@ var (
 	ErrInvalidCategories     = errors.New("invalid content moderation categories")
 	ErrInvalidEventFilter    = errors.New("invalid content moderation event filter")
 	ErrImageTextOnlyCategory = errors.New("text-only categories cannot be selected for image policies")
-	ErrEventNotFound         = errors.New("content moderation event not found")
+	ErrEventNotFound         = apperr.New("content_moderation.event_not_found", "content moderation event not found")
 	ErrProbeFailed           = errors.New("content moderation probe failed")
 	ErrQueueFull             = errors.New("content moderation queue is full")
 	ErrModerationTimeout     = cmport.ErrTimeout

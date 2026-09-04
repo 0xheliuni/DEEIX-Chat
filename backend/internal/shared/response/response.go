@@ -2,8 +2,8 @@ package response
 
 import (
 	"net/http"
-	"strings"
 
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 	"github.com/gin-gonic/gin"
 )
 
@@ -47,34 +47,64 @@ func SuccessPage[T any](c *gin.Context, total int64, results []T) {
 	})
 }
 
-// Error 返回错误响应。
-func Error(c *gin.Context, status int, msg string) {
-	code := InferErrorCode(status, msg)
-	ErrorWithDetails(c, status, code, PublicErrorMessage(status, code, msg), nil)
+// Description 是 HTTP 响应与 NDJSON 流式终态事件共用的错误契约。
+type Description struct {
+	Status  int
+	Code    string
+	Message string
 }
 
-// ErrorFrom 把 error 转成统一错误响应；对外文案由 PublicErrorMessage 白名单决定。
+// Describe 从错误链读取类型化应用错误。普通错误不会向客户端泄露，也不会参与错误码推断。
+func Describe(status int, err error) Description {
+	if coded, ok := apperr.Find(err); ok {
+		return Description{Status: status, Code: coded.Code(), Message: coded.Message()}
+	}
+	return defaultDescription(status)
+}
+
+// DescribeCode 从响应边界登记的稳定错误码构造描述。未登记错误码安全退化为对应状态的通用契约。
+func DescribeCode(status int, code string) Description {
+	message, ok := canonicalMessage(code)
+	if !ok {
+		return defaultDescription(status)
+	}
+	return Description{Status: status, Code: code, Message: message}
+}
+
+// ErrorFrom 把类型化应用错误写成统一错误响应；普通错误按状态码安全退化。
 func ErrorFrom(c *gin.Context, status int, err error) {
-	msg := ""
-	if err != nil {
-		msg = strings.TrimSpace(err.Error())
-	}
-	Error(c, status, msg)
+	ErrorDescribed(c, Describe(status, err))
 }
 
-// ErrorWithCode 返回带稳定错误码的错误响应。
-func ErrorWithCode(c *gin.Context, status int, code string, msg string) {
-	ErrorWithDetails(c, status, code, PublicErrorMessage(status, code, msg), nil)
+// ErrorDescribed 写出已确定的错误描述。
+func ErrorDescribed(c *gin.Context, description Description) {
+	write(c, description.Status, description.Code, description.Message, nil)
 }
 
-// ErrorWithDetails 返回带稳定错误码、调试信息和请求 ID 的错误响应。
-func ErrorWithDetails(c *gin.Context, status int, code string, msg string, details interface{}) {
-	if code == "" {
-		code = InferErrorCode(status, msg)
-	}
-	msg = PublicErrorMessage(status, code, msg)
+// InternalError 返回通用内部错误响应（500 / internal.error）。失败原因只应进入日志。
+func InternalError(c *gin.Context) {
+	ErrorDescribed(c, defaultDescription(http.StatusInternalServerError))
+}
+
+// InvalidQueryParam 返回查询参数解析失败响应；动态文案只包含由服务端选定的参数名。
+func InvalidQueryParam(c *gin.Context, key string) {
+	write(c, http.StatusBadRequest, CodeRequestInvalidQuery, "invalid "+key, nil)
+}
+
+// ErrorWithCode 写出响应边界登记的稳定错误码。未登记错误码安全退化为对应状态的通用契约。
+func ErrorWithCode(c *gin.Context, status int, code string) {
+	ErrorDescribed(c, DescribeCode(status, code))
+}
+
+// ErrorWithDetails 写出响应边界登记的稳定错误码及结构化详情。
+func ErrorWithDetails(c *gin.Context, status int, code string, details interface{}) {
+	description := DescribeCode(status, code)
+	write(c, description.Status, description.Code, description.Message, details)
+}
+
+func write(c *gin.Context, status int, code string, message string, details interface{}) {
 	c.JSON(status, Envelope{
-		ErrorMsg:  msg,
+		ErrorMsg:  message,
 		ErrorCode: code,
 		Details:   details,
 		RequestID: requestID(c),

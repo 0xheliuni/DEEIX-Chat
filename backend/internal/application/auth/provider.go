@@ -295,10 +295,10 @@ func (s *Service) ReorderIdentityProviders(ctx context.Context, publicIDs []stri
 	for _, publicID := range publicIDs {
 		normalizedID := conv.NormalizePublicID(publicID)
 		if normalizedID == "" {
-			return fmt.Errorf("provider id is required")
+			return ErrProviderIDRequired
 		}
 		if _, ok := seen[normalizedID]; ok {
-			return fmt.Errorf("provider ids must be unique")
+			return ErrProviderOrderInvalid
 		}
 		seen[normalizedID] = struct{}{}
 		normalizedIDs = append(normalizedIDs, normalizedID)
@@ -318,7 +318,7 @@ func (s *Service) CompleteProviderLogin(
 	auditCtx requestmeta.SessionAuditContext,
 ) (*LoginResult, error) {
 	if !s.cfg.Snapshot().ThirdPartyLoginEnabled {
-		return nil, fmt.Errorf("third-party login is disabled")
+		return nil, ErrThirdPartyLoginDisabled
 	}
 	provider, err := s.repo.GetIdentityProviderBySlug(ctx, slug)
 	if err != nil {
@@ -326,24 +326,24 @@ func (s *Service) CompleteProviderLogin(
 	}
 	trimmedCode := strings.TrimSpace(code)
 	if trimmedCode == "" {
-		return nil, fmt.Errorf("authorization code is required")
+		return nil, ErrAuthorizationCodeRequired
 	}
 	verifiedState, err := s.verifyProviderState(slug, redirectURI, state)
 	if err != nil {
 		return nil, err
 	}
 	if verifiedState.Intent != normalizeProviderIntent(intent) {
-		return nil, fmt.Errorf("oauth intent mismatch")
+		return nil, ErrOAuthIntentMismatch
 	}
 	if verifiedState.Intent == providerIntentLogin && !provider.LoginEnabled {
-		return nil, fmt.Errorf("provider login is disabled")
+		return nil, ErrProviderLoginDisabled
 	}
 	if verifiedState.Intent == providerIntentBind {
-		return nil, fmt.Errorf("provider bind must use account binding endpoint")
+		return nil, ErrProviderBindEndpointRequired
 	}
 	if verifiedState.Intent == providerIntentRegister {
 		if !provider.LoginEnabled || !provider.RegistrationEnabled {
-			return nil, fmt.Errorf("provider registration is disabled")
+			return nil, ErrProviderRegistrationDisabled
 		}
 	}
 	if err = validateProviderCodeVerifier(codeVerifier, verifiedState.CodeChallenge); err != nil {
@@ -376,7 +376,7 @@ func (s *Service) resolveProviderLoginCode(
 	profileJSON, _ := json.Marshal(profile)
 	subject := claimString(profile, provider.SubjectField)
 	if subject == "" {
-		return nil, "", fmt.Errorf("provider subject is missing")
+		return nil, "", ErrProviderSubjectMissing
 	}
 	email, err := normalizeProviderEmail(claimString(profile, provider.EmailField))
 	if err != nil {
@@ -463,28 +463,28 @@ func (s *Service) CompleteProviderBind(
 	auditCtx requestmeta.SessionAuditContext,
 ) (*UserIdentityView, error) {
 	if userID == 0 {
-		return nil, fmt.Errorf("unauthorized")
+		return nil, ErrUnauthorized
 	}
 	if !s.cfg.Snapshot().ThirdPartyLoginEnabled {
-		return nil, fmt.Errorf("third-party login is disabled")
+		return nil, ErrThirdPartyLoginDisabled
 	}
 	provider, err := s.repo.GetIdentityProviderBySlug(ctx, slug)
 	if err != nil {
 		return nil, err
 	}
 	if !provider.LoginEnabled {
-		return nil, fmt.Errorf("provider login is disabled")
+		return nil, ErrProviderLoginDisabled
 	}
 	trimmedCode := strings.TrimSpace(code)
 	if trimmedCode == "" {
-		return nil, fmt.Errorf("authorization code is required")
+		return nil, ErrAuthorizationCodeRequired
 	}
 	verifiedState, err := s.verifyProviderState(slug, redirectURI, state)
 	if err != nil {
 		return nil, err
 	}
 	if verifiedState.Intent != providerIntentBind {
-		return nil, fmt.Errorf("oauth intent mismatch")
+		return nil, ErrOAuthIntentMismatch
 	}
 	if err = validateProviderCodeVerifier(codeVerifier, verifiedState.CodeChallenge); err != nil {
 		return nil, err
@@ -501,7 +501,7 @@ func (s *Service) CompleteProviderBind(
 	profileJSON, _ := json.Marshal(profile)
 	subject := claimString(profile, provider.SubjectField)
 	if subject == "" {
-		return nil, fmt.Errorf("provider subject is missing")
+		return nil, ErrProviderSubjectMissing
 	}
 	normalizedEmail, err := normalizeProviderEmail(claimString(profile, provider.EmailField))
 	if err != nil {
@@ -514,7 +514,7 @@ func (s *Service) CompleteProviderBind(
 	existingIdentity, err := s.repo.GetUserIdentityByProviderSubject(ctx, provider.ID, subject)
 	if err == nil {
 		if existingIdentity.UserID != userID {
-			return nil, fmt.Errorf("provider identity is already bound to another account")
+			return nil, ErrProviderIdentityConflict
 		}
 		if err = s.repo.UpdateUserIdentityLogin(ctx, existingIdentity.ID, string(profileJSON), providerDisplayName, normalizedEmail, emailVerified); err != nil {
 			return nil, err
@@ -539,7 +539,7 @@ func (s *Service) CompleteProviderBind(
 	if normalizedEmail != "" {
 		existingUser, findErr := s.repo.GetByEmail(ctx, normalizedEmail)
 		if findErr == nil && existingUser.ID != userID {
-			return nil, fmt.Errorf("provider email belongs to another account; sign in to that account or change its email before binding")
+			return nil, fmt.Errorf("provider email belongs to another account; sign in to that account or change its email before binding: %w", ErrProviderEmailConflict)
 		}
 		if findErr != nil && !errors.Is(findErr, repository.ErrNotFound) {
 			return nil, findErr
@@ -551,7 +551,7 @@ func (s *Service) CompleteProviderBind(
 	}
 	for _, identity := range currentIdentities {
 		if identity.ProviderID == provider.ID {
-			return nil, fmt.Errorf("provider is already bound")
+			return nil, ErrProviderAlreadyBound
 		}
 	}
 
@@ -593,18 +593,18 @@ func (s *Service) CompleteProviderBind(
 func (s *Service) normalizeProviderInput(input UpsertIdentityProviderInput, current *domainuser.IdentityProvider) (*domainuser.IdentityProvider, error) {
 	providerType := strings.ToLower(strings.TrimSpace(input.Type))
 	if providerType != domainuser.IdentityProviderTypeOIDC && providerType != domainuser.IdentityProviderTypeOAuth2 {
-		return nil, fmt.Errorf("provider type must be oidc or oauth2")
+		return nil, ErrProviderTypeInvalid
 	}
 	name := strings.TrimSpace(input.Name)
 	if name == "" {
-		return nil, fmt.Errorf("provider name is required")
+		return nil, ErrProviderNameRequired
 	}
 	slug := normalizeProviderSlug(input.Slug)
 	if slug == "" {
 		slug = normalizeProviderSlug(name)
 	}
 	if slug == "" {
-		return nil, fmt.Errorf("provider slug is required")
+		return nil, ErrProviderSlugRequired
 	}
 	scopes := strings.TrimSpace(input.Scopes)
 	if scopes == "" && providerType == domainuser.IdentityProviderTypeOIDC {
@@ -618,14 +618,14 @@ func (s *Service) normalizeProviderInput(input UpsertIdentityProviderInput, curr
 		defaultRole = domainuser.RoleUser
 	}
 	if defaultRole != domainuser.RoleUser && defaultRole != domainuser.RoleAdmin && defaultRole != domainuser.RoleSuperAdmin {
-		return nil, fmt.Errorf("default role must be user, admin or superadmin")
+		return nil, ErrProviderDefaultRoleInvalid
 	}
 	if defaultRole == domainuser.RoleSuperAdmin && input.ActorRole != domainuser.RoleSuperAdmin {
 		return nil, ErrIdentityProviderSuperAdminDefaultRoleNotAllowed
 	}
 	logoURL := strings.TrimSpace(input.LogoURL)
 	if logoURL != "" && !isValidProviderLogoURL(logoURL) {
-		return nil, fmt.Errorf("logo url must be a valid http(s) or absolute path")
+		return nil, ErrProviderLogoURLInvalid
 	}
 	provider := &domainuser.IdentityProvider{
 		Type:                providerType,
@@ -652,7 +652,7 @@ func (s *Service) normalizeProviderInput(input UpsertIdentityProviderInput, curr
 		SortOrder:           100,
 	}
 	if provider.RegistrationEnabled && !provider.LoginEnabled {
-		return nil, fmt.Errorf("provider registration requires provider login to be enabled")
+		return nil, ErrProviderRegistrationRequiresLogin
 	}
 	if current != nil {
 		provider.PublicID = current.PublicID
@@ -666,20 +666,20 @@ func (s *Service) normalizeProviderInput(input UpsertIdentityProviderInput, curr
 		provider.ClientSecret = encrypted
 	}
 	if provider.ClientID == "" {
-		return nil, fmt.Errorf("client id is required")
+		return nil, ErrProviderClientIDRequired
 	}
 	if provider.ClientSecret == "" {
-		return nil, fmt.Errorf("client secret is required")
+		return nil, ErrProviderClientSecretRequired
 	}
 	if err := validateIdentityProviderEndpoints(*provider); err != nil {
 		return nil, err
 	}
 	if providerType == domainuser.IdentityProviderTypeOIDC {
 		if provider.IssuerURL == "" && provider.DiscoveryURL == "" {
-			return nil, fmt.Errorf("OIDC issuer url or discovery url is required")
+			return nil, ErrProviderOIDCIssuerRequired
 		}
 	} else if provider.AuthURL == "" || provider.TokenURL == "" || provider.UserInfoURL == "" {
-		return nil, fmt.Errorf("OAuth2 auth url, token url and userinfo url are required")
+		return nil, ErrProviderOAuthURLsRequired
 	}
 	return provider, nil
 }
@@ -701,7 +701,7 @@ func validateIdentityProviderEndpoints(provider domainuser.IdentityProvider) err
 			continue
 		}
 		if err := security.ValidateTrustedOutboundHTTPURL(endpoint.value); err != nil {
-			return fmt.Errorf("provider %s must be a valid http(s) endpoint without credentials; metadata and link-local targets are not allowed", endpoint.name)
+			return fmt.Errorf("provider %s must be a valid http(s) endpoint without credentials; metadata and link-local targets are not allowed: %w", endpoint.name, ErrProviderEndpointInvalid)
 		}
 	}
 	return nil
@@ -835,7 +835,7 @@ func boolValue(value *bool, fallback bool) bool {
 
 func buildProviderAuthURL(provider domainuser.IdentityProvider, authURL string, redirectURI string, state string, codeChallenge string) (string, error) {
 	if authURL == "" {
-		return "", fmt.Errorf("provider auth url is not configured")
+		return "", ErrProviderAuthURLNotConfigured
 	}
 	parsed, err := url.Parse(authURL)
 	if err != nil {
@@ -857,7 +857,7 @@ func buildProviderAuthURL(provider domainuser.IdentityProvider, authURL string, 
 
 func (s *Service) BuildProviderAuthURL(ctx context.Context, slug string, redirectURI string, nextPath string, codeChallenge string, intent string) (string, error) {
 	if !s.cfg.Snapshot().ThirdPartyLoginEnabled {
-		return "", fmt.Errorf("third-party login is disabled")
+		return "", ErrThirdPartyLoginDisabled
 	}
 	if err := s.validateProviderRedirectURI(slug, redirectURI); err != nil {
 		return "", err
@@ -871,14 +871,14 @@ func (s *Service) BuildProviderAuthURL(ctx context.Context, slug string, redirec
 	}
 	normalizedIntent := normalizeProviderIntent(intent)
 	if normalizedIntent == providerIntentLogin && !provider.LoginEnabled {
-		return "", fmt.Errorf("provider login is disabled")
+		return "", ErrProviderLoginDisabled
 	}
 	if normalizedIntent == providerIntentBind && !provider.LoginEnabled {
-		return "", fmt.Errorf("provider login is disabled")
+		return "", ErrProviderLoginDisabled
 	}
 	if normalizedIntent == providerIntentRegister {
 		if !provider.LoginEnabled || !provider.RegistrationEnabled {
-			return "", fmt.Errorf("provider registration is disabled")
+			return "", ErrProviderRegistrationDisabled
 		}
 	}
 	authURL, _, _, err := s.resolveProviderEndpoints(ctx, *provider)
@@ -929,14 +929,14 @@ func (s *Service) exchangeProviderCode(ctx context.Context, provider domainuser.
 		return nil, err
 	}
 	if !response.Successful() {
-		return nil, fmt.Errorf("provider token exchange failed: %s", response.Status)
+		return nil, fmt.Errorf("provider token exchange failed: %s: %w", response.Status, ErrProviderUpstreamFailed)
 	}
 	var tokenResponse oauthTokenResponse
 	if tokenResponse, err = parseOAuthTokenResponse(response.Body); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("provider token response decode failed: %w", ErrProviderUpstreamFailed)
 	}
 	if strings.TrimSpace(tokenResponse.AccessToken) == "" {
-		return nil, fmt.Errorf("provider token response missing access token")
+		return nil, fmt.Errorf("provider token response missing access token: %w", ErrProviderUpstreamFailed)
 	}
 	return &tokenResponse, nil
 }
@@ -960,11 +960,11 @@ func (s *Service) fetchProviderUserInfo(ctx context.Context, provider domainuser
 		return nil, err
 	}
 	if !response.Successful() {
-		return nil, fmt.Errorf("provider userinfo failed: %s", response.Status)
+		return nil, fmt.Errorf("provider userinfo failed: %s: %w", response.Status, ErrProviderUpstreamFailed)
 	}
 	var profile map[string]interface{}
 	if err = json.Unmarshal(response.Body, &profile); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("provider userinfo response decode failed: %w", ErrProviderUpstreamFailed)
 	}
 	if githubEmailsURL, ok := githubEmailsEndpoint(provider, userInfoURL); ok {
 		if err = s.enrichGitHubVerifiedEmail(ctx, accessToken, profile, githubEmailsURL, trustedEndpoints); err != nil {
@@ -1001,11 +1001,11 @@ func (s *Service) enrichGitHubVerifiedEmail(
 		return err
 	}
 	if !response.Successful() {
-		return fmt.Errorf("github provider emails failed: %s", response.Status)
+		return fmt.Errorf("github provider emails failed: %s: %w", response.Status, ErrProviderUpstreamFailed)
 	}
 	var emails []githubEmailAddress
 	if err = json.Unmarshal(response.Body, &emails); err != nil {
-		return err
+		return fmt.Errorf("github provider emails response decode failed: %w", ErrProviderUpstreamFailed)
 	}
 	verifiedEmail := selectGitHubVerifiedEmail(existingEmail, emails)
 	if verifiedEmail == "" {
@@ -1101,7 +1101,7 @@ func (s *Service) resolveProviderEndpoints(ctx context.Context, provider domainu
 		return "", "", "", err
 	}
 	if !response.Successful() {
-		return "", "", "", fmt.Errorf("provider discovery failed: %s", response.Status)
+		return "", "", "", fmt.Errorf("provider discovery failed: %s: %w", response.Status, ErrProviderUpstreamFailed)
 	}
 	metadata, err := parseOIDCDiscoveryDocument(response.Body)
 	if err != nil {
@@ -1159,7 +1159,7 @@ func (s *Service) resolveProviderUser(ctx context.Context, provider domainuser.I
 	identity, err := s.repo.GetUserIdentityByProviderSubject(ctx, provider.ID, subject)
 	if err == nil {
 		if !provider.LoginEnabled {
-			return nil, fmt.Errorf("provider login is disabled")
+			return nil, ErrProviderLoginDisabled
 		}
 		userItem, getErr := s.repo.GetByID(ctx, identity.UserID)
 		if getErr != nil {
@@ -1209,7 +1209,7 @@ func (s *Service) resolveProviderUser(ctx context.Context, provider domainuser.I
 		}
 	}
 	if !provider.RegistrationEnabled {
-		return nil, fmt.Errorf("provider account is not registered")
+		return nil, ErrProviderAccountNotRegistered
 	}
 
 	emailVerifiedAt := (*time.Time)(nil)
@@ -1316,25 +1316,25 @@ func (s *Service) signProviderState(state providerOAuthState) (string, error) {
 func (s *Service) verifyProviderState(slug string, redirectURI string, rawState string) (*providerOAuthState, error) {
 	parts := strings.Split(strings.TrimSpace(rawState), ".")
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return nil, fmt.Errorf("invalid oauth state")
+		return nil, ErrOAuthStateInvalid
 	}
 	expected := providerStateSignature(s.cfg.Snapshot().JWTSecret, parts[0])
 	if !hmac.Equal([]byte(expected), []byte(parts[1])) {
-		return nil, fmt.Errorf("invalid oauth state")
+		return nil, ErrOAuthStateInvalid
 	}
 	payload, err := base64.RawURLEncoding.DecodeString(parts[0])
 	if err != nil {
-		return nil, fmt.Errorf("invalid oauth state")
+		return nil, ErrOAuthStateInvalid
 	}
 	var state providerOAuthState
 	if err = json.Unmarshal(payload, &state); err != nil {
-		return nil, fmt.Errorf("invalid oauth state")
+		return nil, ErrOAuthStateInvalid
 	}
 	if state.Provider != slug || state.RedirectURI != redirectURI {
-		return nil, fmt.Errorf("oauth state mismatch")
+		return nil, ErrOAuthStateMismatch
 	}
 	if time.Now().Unix() > state.ExpiresAt {
-		return nil, fmt.Errorf("oauth state expired")
+		return nil, ErrOAuthStateExpired
 	}
 	if err = s.validateProviderRedirectURI(slug, redirectURI); err != nil {
 		return nil, err
@@ -1357,7 +1357,7 @@ var providerPKCEPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{43,128}$`)
 
 func validateProviderCodeChallenge(codeChallenge string) error {
 	if !providerPKCEPattern.MatchString(strings.TrimSpace(codeChallenge)) {
-		return fmt.Errorf("valid pkce code challenge is required")
+		return ErrPKCEChallengeRequired
 	}
 	return nil
 }
@@ -1365,10 +1365,10 @@ func validateProviderCodeChallenge(codeChallenge string) error {
 func validateProviderCodeVerifier(codeVerifier string, expectedChallenge string) error {
 	trimmedVerifier := strings.TrimSpace(codeVerifier)
 	if !providerPKCEPattern.MatchString(trimmedVerifier) {
-		return fmt.Errorf("valid pkce code verifier is required")
+		return ErrPKCEVerifierRequired
 	}
 	if !hmac.Equal([]byte(providerCodeChallenge(trimmedVerifier)), []byte(strings.TrimSpace(expectedChallenge))) {
-		return fmt.Errorf("pkce code verifier mismatch")
+		return ErrPKCEMismatch
 	}
 	return nil
 }
@@ -1376,15 +1376,15 @@ func validateProviderCodeVerifier(codeVerifier string, expectedChallenge string)
 func (s *Service) validateProviderRedirectURI(slug string, redirectURI string) error {
 	parsed, err := url.Parse(strings.TrimSpace(redirectURI))
 	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
-		return fmt.Errorf("invalid redirect uri")
+		return ErrInvalidRedirectURI
 	}
 	if parsed.Path != "/auth/callback" || parsed.Query().Get("provider") != slug {
-		return fmt.Errorf("invalid redirect uri")
+		return ErrInvalidRedirectURI
 	}
 	if s.isAllowedProviderRedirectOrigin(parsed) {
 		return nil
 	}
-	return fmt.Errorf("redirect uri origin is not allowed")
+	return ErrRedirectURIOriginNotAllowed
 }
 
 func (s *Service) isAllowedProviderRedirectOrigin(parsed *url.URL) bool {
@@ -1447,7 +1447,7 @@ func normalizeProviderEmail(raw string) (string, error) {
 	}
 	normalized, err := normalizeRegistrationEmail(trimmed)
 	if err != nil {
-		return "", fmt.Errorf("provider email is invalid")
+		return "", ErrProviderEmailInvalid
 	}
 	return normalized, nil
 }

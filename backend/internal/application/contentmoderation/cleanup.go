@@ -148,7 +148,7 @@ func (s *Service) recoverStaleRuns(ctx context.Context) {
 		if s.recoverKnownHit(ctx, runID) {
 			continue
 		}
-		s.recordFailedOpen(ctx, RunMeta{RunID: runID}, domaincm.DirectionOutput, domaincm.ModalityText, domaincm.ErrorCodeWorkerLost, ErrWorkerLost.Error(), 0)
+		s.recordFailedOpen(ctx, RunMeta{RunID: runID}, domaincm.DirectionOutput, domaincm.ModalityText, domaincm.ErrorCodeWorkerLost, 0)
 		if err := s.repo.UpdateRunModeration(ctx, runID, domaincm.ModerationStateFailedOpen, "", "[]"); err != nil {
 			s.logWarn("content_moderation_recover_mark_failed_open_failed", zap.String("run_id", runID), zap.Error(err))
 		}

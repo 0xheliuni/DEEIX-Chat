@@ -190,12 +190,12 @@ func (c *Client) rpcWithSession(
 	if nextSessionID := strings.TrimSpace(resp.Header.Get("Mcp-Session-Id")); nextSessionID != "" {
 		sessionID = nextSessionID
 	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, sessionID, fmt.Errorf("mcp request failed: status=%d", resp.StatusCode)
+	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 8*1024*1024))
 	if err != nil {
 		return nil, sessionID, err
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, sessionID, fmt.Errorf("mcp request failed: status=%d body=%s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	if notification {
 		return nil, sessionID, nil

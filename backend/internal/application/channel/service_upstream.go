@@ -13,6 +13,7 @@ import (
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/secretbox"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
@@ -363,7 +364,7 @@ func (s *Service) BatchDeleteUpstreams(ctx context.Context, upstreamIDs []uint) 
 			result.Results = append(result.Results, BatchDeleteResultView{
 				ID:     upstreamID,
 				Status: BatchDeleteStatusFailed,
-				Error:  err.Error(),
+				Error:  apperr.MessageOr(err, "batch delete failed"),
 			})
 		}
 	}

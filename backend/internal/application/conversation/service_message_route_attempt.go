@@ -46,6 +46,20 @@ func withMessageRouteReasoningPassbackOptions(
 	)
 }
 
+// planRoutePrompt 按路由决定推理内容是否回传后构建提示词；路由故障转移时对新路由重新规划。
+// 返回值中的 bool 是该路由生效的推理回传开关。
+func (s *Service) planRoutePrompt(
+	ctx context.Context,
+	userID uint,
+	base messageRoutePromptInput,
+	route *channel.ResolvedRoute,
+) (PromptPlan, bool, error) {
+	passbackEnabled := s.reasoningContentPassbackEnabled(ctx, userID, route)
+	base.ReasoningContentPassback = passbackEnabled
+	plan, err := s.buildMessageRoutePrompt(ctx, route, base)
+	return plan, passbackEnabled, err
+}
+
 func (s *Service) buildMessageRoutePrompt(ctx context.Context, route *channel.ResolvedRoute, input messageRoutePromptInput) (PromptPlan, error) {
 	// 模型上下文预算在最终 GenerateInput 完整组装后统一执行。这里保留完整活跃
 	// 分支，避免先按历史消息耗尽预算，再遗漏文件、RAG、Skill 与工具定义开销。

@@ -442,7 +442,7 @@ func parseFileProcessingMessage(msg redis.XMessage) (repository.FileProcessingMe
 
 	lastError := ""
 	if rawLastError, ok := msg.Values["last_error"]; ok {
-		lastError = getStringVal(rawLastError)
+		lastError = truncateStr(getStringVal(rawLastError), 255)
 	}
 	embeddingSignature := strings.TrimSpace(getOptionalStringVal(msg.Values, "embedding_signature"))
 	embeddingHost := strings.TrimRight(strings.TrimSpace(getOptionalStringVal(msg.Values, "embedding_host")), "/")
@@ -469,12 +469,7 @@ func (c *conversationCache) deadLetterInvalidFileProcessingMessage(
 	parseErr error,
 	queue fileQueueConfig,
 ) (bool, error) {
-	lastError := "invalid queue message: " + parseErr.Error()
-	if rawLastError, ok := message.Values["last_error"]; ok {
-		if previousError := strings.TrimSpace(getStringVal(rawLastError)); previousError != "" {
-			lastError += "; previous error: " + previousError
-		}
-	}
+	lastError := "invalid queue message"
 
 	return fileProcessingScriptResult(deadLetterFileProcessingMessageScript.Run(
 		ctx,

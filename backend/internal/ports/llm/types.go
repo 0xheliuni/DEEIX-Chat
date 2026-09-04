@@ -292,6 +292,7 @@ type UpstreamError struct {
 	Message    string
 	Body       string
 	Debug      *UpstreamDebugSnapshot
+	Cause      error
 }
 
 func (e *UpstreamError) Error() string {
@@ -299,6 +300,13 @@ func (e *UpstreamError) Error() string {
 		return fmt.Sprintf("upstream request failed: status=%d", e.StatusCode)
 	}
 	return fmt.Sprintf("upstream request failed: status=%d message=%s", e.StatusCode, e.Message)
+}
+
+func (e *UpstreamError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Cause
 }
 
 // AcceptedRequestError 表示上游已接受请求，或请求已写出但结果未知。

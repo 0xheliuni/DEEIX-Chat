@@ -471,7 +471,7 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 			return buildBillableFailure(retErr, output.Usage), retErr
 		}
 		fileName := generatedImageFileName(route.PlatformModelName, now, i, len(output.GeneratedImages), mimeType)
-		uploadResult, uploadErr := s.UploadFile(ctx, appupload.UploadFileInput{
+		uploadResult, uploadErr := s.uploadSvc.UploadFile(ctx, appupload.UploadFileInput{
 			UserID:       input.UserID,
 			Purpose:      "generated_image",
 			FileName:     fileName,
@@ -683,7 +683,7 @@ func (s *Service) resolveMediaImageEditMask(ctx context.Context, userID uint, fi
 }
 
 func (s *Service) readMediaImageEditFile(ctx context.Context, userID uint, fileID string) (llm.ContentPart, error) {
-	content, err := s.OpenFileContent(ctx, userID, strings.TrimSpace(fileID))
+	content, err := s.uploadSvc.OpenFileContent(ctx, userID, strings.TrimSpace(fileID))
 	if err != nil {
 		return llm.ContentPart{}, err
 	}

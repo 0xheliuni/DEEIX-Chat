@@ -37,7 +37,7 @@ func (h *Handler) ListAnnouncements(c *gin.Context) {
 	includeDismissed, _ := strconv.ParseBool(c.Query("include_dismissed"))
 	items, err := h.service.ListActive(c.Request.Context(), middleware.MustUserID(c), time.Now(), includeDismissed)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "list announcements failed")
+		response.InternalError(c)
 		return
 	}
 	response.Success(c, toAnnouncementResponses(items))
@@ -60,7 +60,7 @@ func (h *Handler) ListAnnouncements(c *gin.Context) {
 func (h *Handler) DismissAnnouncementToday(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
 	if err != nil || id == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid announcement id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidAnnouncementID)
 		return
 	}
 	var req AnnouncementStateRequest
@@ -95,7 +95,7 @@ func (h *Handler) DismissAnnouncementToday(c *gin.Context) {
 func (h *Handler) CloseAnnouncement(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
 	if err != nil || id == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid announcement id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidAnnouncementID)
 		return
 	}
 	var req AnnouncementStateRequest
@@ -143,7 +143,7 @@ func (h *Handler) ListAdminAnnouncements(c *gin.Context) {
 		PageSize: pageSize,
 	})
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "list announcements failed")
+		response.InternalError(c)
 		return
 	}
 	response.SuccessPage(c, total, toAnnouncementResponses(items))
@@ -192,7 +192,7 @@ func (h *Handler) CreateAnnouncement(c *gin.Context) {
 func (h *Handler) PatchAnnouncement(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
 	if err != nil || id == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid announcement id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidAnnouncementID)
 		return
 	}
 	var req PatchAnnouncementRequest
@@ -235,7 +235,7 @@ func (h *Handler) PatchAnnouncement(c *gin.Context) {
 func (h *Handler) DeleteAnnouncement(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
 	if err != nil || id == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid announcement id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidAnnouncementID)
 		return
 	}
 	if err := h.service.Delete(c.Request.Context(), uint(id)); err != nil {
@@ -247,14 +247,14 @@ func (h *Handler) DeleteAnnouncement(c *gin.Context) {
 
 func writeAnnouncementError(c *gin.Context, err error) {
 	if errors.Is(err, appannouncement.ErrAnnouncementNotFound) {
-		response.Error(c, http.StatusNotFound, "announcement not found")
+		response.ErrorFrom(c, http.StatusNotFound, err)
 		return
 	}
 	if errors.Is(err, appannouncement.ErrInvalidAnnouncement) {
 		response.ErrorFrom(c, http.StatusBadRequest, err)
 		return
 	}
-	response.Error(c, http.StatusInternalServerError, "announcement operation failed")
+	response.InternalError(c)
 }
 
 func pageParams(c *gin.Context) (int, int) {

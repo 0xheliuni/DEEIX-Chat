@@ -219,11 +219,11 @@ func (s *Service) RequestLoginEmailVerification(
 		return nil, err
 	}
 	if !containsSecurityVerificationMethod(methods, SecurityVerificationMethodEmail) {
-		return nil, fmt.Errorf("verification method is unavailable")
+		return nil, ErrSecurityVerificationMethodUnavailable
 	}
 	normalizedEmail, err := normalizeRegistrationEmail(item.Email)
 	if err != nil {
-		return nil, fmt.Errorf("user email is invalid")
+		return nil, ErrSecurityVerificationEmailInvalid
 	}
 	return s.requestEmailVerificationCode(ctx, item.ID, user.ContactVerificationPurposeLogin, normalizedEmail, "login_email_code", requestID, auditCtx)
 }
@@ -262,7 +262,7 @@ func (s *Service) StartCurrentTwoFactorSetup(ctx context.Context, userID uint) (
 		return nil, err
 	}
 	if current != nil && current.TOTPEnabled {
-		return nil, fmt.Errorf("two factor authentication is already enabled")
+		return nil, ErrTwoFactorAlreadyEnabled
 	}
 	if current != nil && strings.TrimSpace(current.TOTPSecretEncrypted) != "" &&
 		current.TOTPSetupExpiresAt != nil && time.Now().Before(*current.TOTPSetupExpiresAt) {

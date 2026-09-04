@@ -251,7 +251,6 @@ func (s *Service) BeginRun(ctx context.Context, meta RunMeta) *RunCoordinator {
 			domaincm.DirectionInput,
 			domaincm.ModalityText,
 			domaincm.ErrorCodeConfigMissing,
-			"content moderation configuration unavailable",
 			0,
 		)
 		s.bumpDailyStat(ctx, domaincm.DirectionInput, domaincm.ModalityText, domaincm.ResultFailedOpen, "", 1, 1, 0, 1, 0)
@@ -357,7 +356,7 @@ func (s *Service) RecoverRunIfStale(ctx context.Context, runID string) {
 	if s.recoverKnownHit(ctx, runID) {
 		return
 	}
-	s.recordFailedOpen(ctx, RunMeta{RunID: runID}, domaincm.DirectionOutput, domaincm.ModalityText, domaincm.ErrorCodeWorkerLost, ErrWorkerLost.Error(), 0)
+	s.recordFailedOpen(ctx, RunMeta{RunID: runID}, domaincm.DirectionOutput, domaincm.ModalityText, domaincm.ErrorCodeWorkerLost, 0)
 	if err := s.repo.UpdateRunModeration(ctx, runID, domaincm.ModerationStateFailedOpen, "", "[]"); err != nil {
 		s.logWarn("content_moderation_recover_run_mark_failed_open_failed", zap.String("run_id", runID), zap.Error(err))
 	}

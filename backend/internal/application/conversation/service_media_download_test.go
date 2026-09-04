@@ -203,7 +203,7 @@ func TestFinalizeGeneratedMediaArtifactFailurePreservesCancellation(t *testing.T
 	if !errors.Is(err, ErrMessageGenerationCanceled) {
 		t.Fatalf("expected canceled media run, got %v", err)
 	}
-	if repo.contextError != nil || repo.status != "canceled" || repo.errorCode != "generation_canceled" {
+	if repo.contextError != nil || repo.status != "canceled" || repo.errorCode != "conversation_run.canceled" {
 		t.Fatalf("unexpected persisted cancellation: status=%q code=%q contextErr=%v", repo.status, repo.errorCode, repo.contextError)
 	}
 }

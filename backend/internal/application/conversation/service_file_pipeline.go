@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -12,7 +11,6 @@ import (
 	appprocessing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/processing"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -99,18 +97,6 @@ func (s *Service) GetChatFilePolicy(ctx context.Context, userID uint) (*ChatFile
 		CapabilityMode:         capability.CapabilityMode,
 		FileMode:               fileMode,
 	}, nil
-}
-
-func (s *Service) GetFileProcessingStatus(ctx context.Context, userID uint, fileID string) (*appprocessing.FileProcessingStatusDTO, error) {
-	result, err := s.processingSvc.GetFileProcessingStatus(ctx, userID, fileID)
-	if errors.Is(err, repository.ErrNotFound) {
-		return nil, ErrFileNotFound
-	}
-	return result, err
-}
-
-func (s *Service) GetFileProcessingStatuses(ctx context.Context, userID uint, fileIDs []string) ([]appprocessing.FileProcessingStatusDTO, error) {
-	return s.processingSvc.GetFileProcessingStatuses(ctx, userID, fileIDs)
 }
 
 func (s *Service) resolveAttachments(
@@ -338,7 +324,7 @@ func (s *Service) hydrateAttachmentsForSend(
 	if err := g.Wait(); err != nil {
 		switch {
 		case errors.Is(err, appprocessing.ErrFileProcessingFailed):
-			return nil, fmt.Errorf("%w: %s", ErrFileProcessingNotReady, err.Error())
+			return nil, errors.Join(ErrFileProcessingNotReady, err)
 		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 			return nil, err
 		default:
@@ -398,25 +384,4 @@ func marshalAttachmentSnapshots(items []AttachmentInput) string {
 		return "[]"
 	}
 	return string(raw)
-}
-
-func classifyProcessingErrorCode(err error) string {
-	if err == nil {
-		return ""
-	}
-	msg := strings.ToLower(strings.TrimSpace(err.Error()))
-	switch {
-	case strings.Contains(msg, "ocr_disabled"):
-		return "ocr_disabled"
-	case strings.Contains(msg, "ocr_failed"):
-		return "ocr_failed"
-	case strings.Contains(msg, "deadline") || strings.Contains(msg, "timeout"):
-		return "extract_timeout"
-	default:
-		return "extract_failed"
-	}
-}
-
-func isProcessingNotFound(err error) bool {
-	return errors.Is(err, repository.ErrNotFound)
 }

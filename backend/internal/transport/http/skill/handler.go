@@ -41,7 +41,7 @@ func (h *Handler) ListVisibleSkills(c *gin.Context) {
 	page, pageSize := pageParams(c)
 	rawIDs := c.QueryArray("id")
 	if len(rawIDs) > config.MaxMCPSelectedToolsPerMessage {
-		response.ErrorWithCode(c, http.StatusBadRequest, "skill.too_many_ids", "too many skill ids")
+		response.ErrorWithCode(c, http.StatusBadRequest, "skill.too_many_ids")
 		return
 	}
 	ids := make([]uint, 0, len(rawIDs))
@@ -49,7 +49,7 @@ func (h *Handler) ListVisibleSkills(c *gin.Context) {
 	for _, rawID := range rawIDs {
 		parsed, err := strconv.ParseUint(rawID, 10, strconv.IntSize)
 		if err != nil || parsed == 0 {
-			response.Error(c, http.StatusBadRequest, "invalid skill id")
+			response.ErrorFrom(c, http.StatusBadRequest, errInvalidSkillID)
 			return
 		}
 		id := uint(parsed)
@@ -347,7 +347,7 @@ func patchInputFromRequest(req PatchSkillRequest) appskill.PatchInput {
 func idParam(c *gin.Context) (uint, bool) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
 	if err != nil || id == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid skill id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidSkillID)
 		return 0, false
 	}
 	return uint(id), true
@@ -399,16 +399,16 @@ func auditInput(c *gin.Context, action string, resourceID uint, detail interface
 
 func writeSkillError(c *gin.Context, err error) {
 	if errors.Is(err, appskill.ErrSkillNotFound) {
-		response.Error(c, http.StatusNotFound, "skill not found")
+		response.ErrorFrom(c, http.StatusNotFound, err)
 		return
 	}
 	if errors.Is(err, appskill.ErrSkillConflict) {
-		response.Error(c, http.StatusConflict, "skill trigger already exists")
+		response.ErrorFrom(c, http.StatusConflict, err)
 		return
 	}
 	if errors.Is(err, appskill.ErrInvalidSkill) {
 		response.ErrorFrom(c, http.StatusBadRequest, err)
 		return
 	}
-	response.Error(c, http.StatusInternalServerError, "skill operation failed")
+	response.InternalError(c)
 }

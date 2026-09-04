@@ -11,6 +11,7 @@ import (
 
 const (
 	fileProcessingMinIdle = 45 * time.Second
+	maxFileQueueErrorSize = 255
 	// maxFileQueueLength 限制内存主队列长度，避免积压时内存无界增长；
 	// 达到上限后新任务入队返回 ErrFileProcessingQueueFull，
 	// 由 processing.InitializeUploadedFile 将文件标为 failed，避免永远停在 queued。
@@ -92,7 +93,7 @@ func (c *Cache) enqueueFileMessage(ctx context.Context, message repository.FileP
 	c.fileSeq++
 	message.ID = strconv.FormatInt(c.fileSeq, 10)
 	message.FileID = strings.TrimSpace(message.FileID)
-	message.LastError = strings.TrimSpace(message.LastError)
+	message.LastError = truncateFileQueueError(message.LastError)
 	msg := message
 	state.queue = append(state.queue, msg)
 	notifyFileQueueLocked(state)
@@ -255,7 +256,7 @@ func (c *Cache) RequeueFileProcessingMessage(
 		UserID:             message.UserID,
 		FileID:             strings.TrimSpace(message.FileID),
 		Retry:              retry,
-		LastError:          strings.TrimSpace(lastError),
+		LastError:          truncateFileQueueError(lastError),
 		Kind:               message.Kind,
 		Queue:              queueForMessage(message),
 		EmbeddingSignature: message.EmbeddingSignature,
@@ -293,7 +294,7 @@ func (c *Cache) DeadLetterFileProcessingMessage(
 		UserID:             message.UserID,
 		FileID:             strings.TrimSpace(message.FileID),
 		Retry:              message.Retry,
-		LastError:          strings.TrimSpace(lastError),
+		LastError:          truncateFileQueueError(lastError),
 		Kind:               message.Kind,
 		Queue:              queueForMessage(message),
 		EmbeddingSignature: message.EmbeddingSignature,
@@ -327,4 +328,13 @@ func queueForMessage(message repository.FileProcessingMessage) repository.FilePr
 func notifyFileQueueLocked(state *fileQueueState) {
 	close(state.notify)
 	state.notify = make(chan struct{})
+}
+
+func truncateFileQueueError(message string) string {
+	value := strings.TrimSpace(message)
+	runes := []rune(value)
+	if len(runes) > maxFileQueueErrorSize {
+		return string(runes[:maxFileQueueErrorSize])
+	}
+	return value
 }

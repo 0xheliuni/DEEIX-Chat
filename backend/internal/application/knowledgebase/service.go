@@ -39,7 +39,7 @@ type auditWriter interface {
 }
 
 type fileCleaner interface {
-	DeleteFileIfUnreferenced(ctx context.Context, userID uint, fileID string) (bool, error)
+	DeleteFileIfUnreferenced(ctx context.Context, userID uint, fileID string) (*appupload.DeleteFileResult, bool, error)
 }
 
 type fileContentOpener interface {
@@ -330,7 +330,7 @@ func (s *Service) delete(ctx context.Context, knowledgeBaseID uint, deleteFiles 
 		return result, nil
 	}
 	for _, candidate := range candidates {
-		deleted, cleanupErr := s.fileCleaner.DeleteFileIfUnreferenced(ctx, candidate.UserID, candidate.FileID)
+		_, deleted, cleanupErr := s.fileCleaner.DeleteFileIfUnreferenced(ctx, candidate.UserID, candidate.FileID)
 		if cleanupErr != nil {
 			if s.logger != nil {
 				s.logger.Warn("delete_knowledge_base_file_failed",
@@ -515,7 +515,7 @@ func (s *Service) DeletePlatformFile(ctx context.Context, actorUserID uint, file
 	if s.fileCleaner == nil {
 		return ErrKnowledgeBaseFileCleanupUnavailable
 	}
-	deleted, err := s.fileCleaner.DeleteFileIfUnreferenced(ctx, 0, fileID)
+	_, deleted, err := s.fileCleaner.DeleteFileIfUnreferenced(ctx, 0, fileID)
 	if err != nil {
 		return err
 	}

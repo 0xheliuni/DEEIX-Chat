@@ -209,6 +209,27 @@ func TestClientListToolsParsesSSEJSONRPC(t *testing.T) {
 	}
 }
 
+func TestClientListToolsDoesNotExposeHTTPResponseBody(t *testing.T) {
+	const secret = "provider-internal-secret"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte(secret))
+	}))
+	defer server.Close()
+
+	client := NewClient(security.OutboundPolicy{})
+	_, err := client.ListTools(context.Background(), CallConfig{BaseURL: server.URL})
+	if err == nil {
+		t.Fatal("expected list tools to fail")
+	}
+	if strings.Contains(err.Error(), secret) {
+		t.Fatalf("provider response body leaked into error: %v", err)
+	}
+	if !strings.Contains(err.Error(), "status=502") {
+		t.Fatalf("error = %v, want status-only diagnostic", err)
+	}
+}
+
 func TestParseRPCResponseParsesLargeSingleLineSSEData(t *testing.T) {
 	toolDescription := strings.Repeat("x", 70*1024)
 	payload := `event: message

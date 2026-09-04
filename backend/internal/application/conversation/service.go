@@ -263,8 +263,7 @@ type MessageFeedbackResult struct {
 }
 
 // NewServiceWithRuntime 创建使用运行时配置容器的服务。
-// 压缩、embedding、处理流水线、抽取与 RAG 服务由组合根装配后注入；上传服务的钩子需要回调本服务的
-// 文件能力与处理流水线，因此基于同一仓储在这里装配。
+// 压缩、embedding、处理流水线、上传、抽取与 RAG 服务全部由组合根装配后注入。
 func NewServiceWithRuntime(
 	cfg *config.Runtime,
 	repo repository.ConversationRepository,
@@ -277,6 +276,7 @@ func NewServiceWithRuntime(
 	compactSvc *appcompact.Service,
 	embeddingSvc *appembedding.Service,
 	processingSvc *appprocessing.Service,
+	uploadSvc *appupload.Service,
 	extractSvc *extraction.Service,
 	ragSvc *apprag.Service,
 	logger *zap.Logger,
@@ -293,6 +293,7 @@ func NewServiceWithRuntime(
 		compactSvc:        compactSvc,
 		embeddingSvc:      embeddingSvc,
 		processingSvc:     processingSvc,
+		uploadSvc:         uploadSvc,
 		extractSvc:        extractSvc,
 		ragSvc:            ragSvc,
 		storeProvider:     appstorage.NewRuntimeProvider(cfg, nil),
@@ -300,17 +301,14 @@ func NewServiceWithRuntime(
 		generationStreams: newGenerationStreamRegistry(cache, defaultGenerationStreamOptions()),
 		imageContextCache: defaultPreparedConversationImageCache(),
 	}
-	extractSvc.SetObjectStoreProvider(svc.storeProvider)
-	uploadSvc := appupload.NewServiceWithRuntime(cfg, repo, logger, appupload.Hooks{
-		ResolveCapability: func(ctx context.Context) appupload.FileCapability {
-			capability := svc.resolveChatFileCapability(ctx)
-			return appupload.FileCapability{
-				RAGAvailable:         capability.RAGAvailable,
-				EffectiveDocMaxBytes: capability.EffectiveDocMaxBytes,
-			}
-		},
-		InitializeUploadedFile: processingSvc.InitializeUploadedFile,
-	}, appupload.ErrorSet{
+	// 注入 LLM 语义压缩回调（在 svc 完全初始化后绑定）
+	svc.compactSvc.SetLLMSummarizer(svc.callCompactLLM)
+	return svc
+}
+
+// UploadErrorSet 让上传服务返回会话域的文件错误哨兵，HTTP 层因此沿用同一套文件错误映射。
+func UploadErrorSet() appupload.ErrorSet {
+	return appupload.ErrorSet{
 		InvalidFileReference: ErrInvalidFileReference,
 		InvalidFileName:      ErrInvalidFileName,
 		FileNotFound:         ErrFileNotFound,
@@ -320,12 +318,7 @@ func NewServiceWithRuntime(
 		MIMEBlocked:          ErrMIMEBlocked,
 		EmbeddingUnavailable: ErrEmbeddingUnavailable,
 		DangerousMIMEType:    ErrDangerousMIMEType,
-	}, appprocessing.DefaultExtractorVersion)
-	uploadSvc.SetObjectStoreProvider(svc.storeProvider)
-	svc.uploadSvc = uploadSvc
-	// 注入 LLM 语义压缩回调（在 svc 完全初始化后绑定）
-	svc.compactSvc.SetLLMSummarizer(svc.callCompactLLM)
-	return svc
+	}
 }
 
 // InvalidateMemoryCache 清除指定用户的记忆缓存，使下一次请求重新从 DB 加载。
@@ -344,15 +337,10 @@ func (s *Service) SetAuditWriter(writer auditWriter) {
 	s.auditWriter = writer
 }
 
+// SetObjectStoreProvider 注入本服务读写媒体产物所用的对象存储；上传与抽取服务的存储由组合根各自注入。
 func (s *Service) SetObjectStoreProvider(provider appstorage.Provider) {
 	if provider != nil {
 		s.storeProvider = provider
-		if s.uploadSvc != nil {
-			s.uploadSvc.SetObjectStoreProvider(provider)
-		}
-		if s.extractSvc != nil {
-			s.extractSvc.SetObjectStoreProvider(provider)
-		}
 	}
 }
 

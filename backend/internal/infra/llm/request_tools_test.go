@@ -1037,7 +1037,8 @@ func TestAttachUpstreamDebugWrapsStreamErrors(t *testing.T) {
 		},
 	}
 
-	err := attachUpstreamDebug(errors.New("Argument not supported: metadata"), debug)
+	cause := errors.New("Argument not supported: metadata")
+	err := attachUpstreamDebug(cause, debug)
 	var upstreamErr *UpstreamError
 	if !errors.As(err, &upstreamErr) {
 		t.Fatalf("expected upstream error, got %T %v", err, err)
@@ -1050,6 +1051,16 @@ func TestAttachUpstreamDebugWrapsStreamErrors(t *testing.T) {
 	}
 	if upstreamErr.StatusCode != 400 || upstreamErr.Body == "" {
 		t.Fatalf("expected response status/body to be preserved, got %#v", upstreamErr)
+	}
+	if !errors.Is(err, cause) {
+		t.Fatal("expected wrapped stream error identity to be preserved")
+	}
+
+	existingCause := errors.New("existing cause")
+	existing := MarkRequestAccepted(&UpstreamError{Cause: existingCause})
+	existing = attachUpstreamDebug(existing, debug)
+	if !errors.Is(existing, existingCause) {
+		t.Fatal("expected existing upstream error cause to be preserved")
 	}
 }
 

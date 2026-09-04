@@ -80,7 +80,7 @@ func (s *Service) processImageAttachments(
 	}
 	store, err := storeProvider.Open(ctx)
 	if err != nil {
-		return result, fmt.Errorf("%w: open object storage: %v", ErrImageAttachmentProcessingFailed, err)
+		return result, fmt.Errorf("%w: open object storage: %w", ErrImageAttachmentProcessingFailed, err)
 	}
 
 	totalImageBytes := 0
@@ -105,7 +105,7 @@ func (s *Service) processImageAttachments(
 		}
 		argumentsJSON, marshalErr := json.Marshal(arguments)
 		if marshalErr != nil {
-			return result, fmt.Errorf("%w: encode processor arguments: %v", ErrImageAttachmentProcessingFailed, marshalErr)
+			return result, fmt.Errorf("%w: encode processor arguments: %w", ErrImageAttachmentProcessingFailed, marshalErr)
 		}
 		normalizedArguments, validationErr := normalizeToolArguments(string(argumentsJSON), input.Runtime.schemas[processor.modelName])
 		row := domainconversation.ToolCall{
@@ -123,7 +123,7 @@ func (s *Service) processImageAttachments(
 			row.Status = "error"
 			row.ErrorJSON = validationErr.Error()
 			s.persistImageAttachmentToolRow(ctx, &row, &result)
-			return result, fmt.Errorf("%w: %v", ErrImageAttachmentProcessingFailed, validationErr)
+			return result, fmt.Errorf("%w: %w", ErrImageAttachmentProcessingFailed, validationErr)
 		}
 
 		binding, ok := input.Runtime.mcpBindings[processor.modelName]
@@ -149,7 +149,7 @@ func (s *Service) processImageAttachments(
 			row.Status = "error"
 			row.ErrorJSON = toolresult.SanitizeOpaque(executeErr.Error())
 			s.persistImageAttachmentToolRow(ctx, &row, &result)
-			return result, fmt.Errorf("%w: %v", ErrImageAttachmentProcessingFailed, executeErr)
+			return result, fmt.Errorf("%w: %w", ErrImageAttachmentProcessingFailed, executeErr)
 		}
 		row.OutputJSON = toolresult.SanitizeOpaque(output)
 		if row.OutputJSON == "" {
@@ -222,15 +222,15 @@ func prepareImageAttachmentForProcessor(
 	}
 	reader, _, err := store.Open(ctx, storagePath)
 	if err != nil {
-		return preparedImageAttachment{}, fmt.Errorf("%w: open image %s: %v", ErrFileNotFound, attachment.FileID, err)
+		return preparedImageAttachment{}, fmt.Errorf("%w: open image %s: %w", ErrFileNotFound, attachment.FileID, err)
 	}
 	data, readErr := io.ReadAll(io.LimitReader(reader, maxConversationImageSourceBytes+1))
 	closeErr := reader.Close()
 	if readErr != nil {
-		return preparedImageAttachment{}, fmt.Errorf("%w: read image %s: %v", ErrFileNotFound, attachment.FileID, readErr)
+		return preparedImageAttachment{}, fmt.Errorf("%w: read image %s: %w", ErrFileNotFound, attachment.FileID, readErr)
 	}
 	if closeErr != nil {
-		return preparedImageAttachment{}, fmt.Errorf("%w: close image %s: %v", ErrFileNotFound, attachment.FileID, closeErr)
+		return preparedImageAttachment{}, fmt.Errorf("%w: close image %s: %w", ErrFileNotFound, attachment.FileID, closeErr)
 	}
 	if len(data) == 0 {
 		return preparedImageAttachment{}, fmt.Errorf("%w: image %s is empty", ErrInvalidFileReference, attachment.FileID)

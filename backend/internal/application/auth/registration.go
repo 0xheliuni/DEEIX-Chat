@@ -75,7 +75,7 @@ type EmailChangeVerificationStartResult struct {
 func (s *Service) RequestEmailRegistration(ctx context.Context, email string, turnstileToken string, remoteIP string, requestID string, auditCtx requestmeta.SessionAuditContext) (*EmailRegistrationStartResult, error) {
 	cfg := s.cfg.Snapshot()
 	if !cfg.EmailLoginEnabled || !cfg.EmailRegistrationEnabled {
-		return nil, fmt.Errorf("email registration is disabled")
+		return nil, ErrEmailRegistrationDisabled
 	}
 	normalizedEmail, err := normalizeRegistrationEmail(email)
 	if err != nil {
@@ -85,13 +85,13 @@ func (s *Service) RequestEmailRegistration(ctx context.Context, email string, tu
 		return nil, err
 	}
 	if !cfg.EmailVerificationEnabled {
-		return nil, fmt.Errorf("email verification is disabled")
+		return nil, ErrEmailVerificationDisabled
 	}
 	if err = s.verifyRegistrationTurnstile(ctx, cfg, turnstileToken, remoteIP); err != nil {
 		return nil, err
 	}
 	if _, err = s.repo.GetByEmail(ctx, normalizedEmail); err == nil {
-		return nil, fmt.Errorf("email already exists")
+		return nil, ErrEmailAlreadyExists
 	} else if !errors.Is(err, repository.ErrNotFound) {
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func (s *Service) RequestEmailRegistration(ctx context.Context, email string, tu
 	now := time.Now()
 	existingVerification, err := s.repo.GetPendingContactVerification(ctx, domainuser.ContactVerificationChannelEmail, domainuser.ContactVerificationPurposeRegister, normalizedEmail, now)
 	if err == nil && existingVerification.SentAt != nil && now.Sub(*existingVerification.SentAt) < emailRegistrationSendCooldown {
-		return nil, fmt.Errorf("verification code was sent recently")
+		return nil, ErrVerificationCodeRecent
 	}
 	if err != nil && !errors.Is(err, repository.ErrNotFound) {
 		return nil, err
@@ -154,7 +154,7 @@ func (s *Service) RequestEmailRegistration(ctx context.Context, email string, tu
 func (s *Service) RegisterWithEmail(ctx context.Context, email string, password string, code string, turnstileToken string, remoteIP string, requestID string, auditCtx requestmeta.SessionAuditContext) (*LoginResult, error) {
 	cfg := s.cfg.Snapshot()
 	if !cfg.EmailLoginEnabled || !cfg.EmailRegistrationEnabled {
-		return nil, fmt.Errorf("email registration is disabled")
+		return nil, ErrEmailRegistrationDisabled
 	}
 	normalizedEmail, err := normalizeRegistrationEmail(email)
 	if err != nil {
@@ -175,7 +175,7 @@ func (s *Service) RegisterWithEmail(ctx context.Context, email string, password 
 		}
 	}
 	if _, err = s.repo.GetByEmail(ctx, normalizedEmail); err == nil {
-		return nil, fmt.Errorf("email already exists")
+		return nil, ErrEmailAlreadyExists
 	} else if !errors.Is(err, repository.ErrNotFound) {
 		return nil, err
 	}
@@ -186,16 +186,16 @@ func (s *Service) RegisterWithEmail(ctx context.Context, email string, password 
 		verification, err = s.repo.GetPendingContactVerification(ctx, domainuser.ContactVerificationChannelEmail, domainuser.ContactVerificationPurposeRegister, normalizedEmail, now)
 		if err != nil {
 			if errors.Is(err, repository.ErrNotFound) {
-				return nil, fmt.Errorf("verification code is invalid or expired")
+				return nil, ErrSecurityVerificationCodeInvalid
 			}
 			return nil, err
 		}
 		if verification.AttemptCount >= emailRegistrationMaxAttempts {
-			return nil, fmt.Errorf("verification code attempts exceeded")
+			return nil, ErrVerificationCodeAttempts
 		}
 		if !verifyRegistrationCode(cfg.JWTSecret, verification.Token, strings.TrimSpace(code), verification.CodeHash) {
 			_ = s.repo.IncrementContactVerificationAttempt(ctx, verification.ID)
-			return nil, fmt.Errorf("verification code is invalid or expired")
+			return nil, ErrSecurityVerificationCodeInvalid
 		}
 	}
 
@@ -266,21 +266,21 @@ func (s *Service) RequestPasswordChangeVerification(ctx context.Context, userID 
 		method = normalizedMethod
 	}
 	if !containsSecurityVerificationMethod(methods, method) {
-		return nil, fmt.Errorf("verification method is unavailable")
+		return nil, ErrSecurityVerificationMethodUnavailable
 	}
 	if method != SecurityVerificationMethodEmail {
 		return &PasswordChangeVerificationStartResult{Sent: false, Method: method, AvailableMethods: methods}, nil
 	}
 	normalizedEmail, err := normalizeRegistrationEmail(item.Email)
 	if err != nil {
-		return nil, fmt.Errorf("user email is invalid")
+		return nil, ErrSecurityVerificationEmailInvalid
 	}
 
 	cfg := s.cfg.Snapshot()
 	now := time.Now()
 	existingVerification, err := s.repo.GetPendingContactVerificationForUser(ctx, userID, domainuser.ContactVerificationChannelEmail, domainuser.ContactVerificationPurposePasswordChange, normalizedEmail, now)
 	if err == nil && existingVerification.SentAt != nil && now.Sub(*existingVerification.SentAt) < emailRegistrationSendCooldown {
-		return nil, fmt.Errorf("verification code was sent recently")
+		return nil, ErrVerificationCodeRecent
 	}
 	if err != nil && !errors.Is(err, repository.ErrNotFound) {
 		return nil, err
@@ -350,7 +350,7 @@ func (s *Service) ChangePassword(ctx context.Context, userID uint, currentPasswo
 	}
 	initialReset := credential.MustResetPassword || isBootstrapSuperAdminAdminCreatedPassword(*item, credential)
 	if initialReset && isBootstrapSuperAdminAdminCreatedPassword(*item, credential) && passwordMatchesCredential(normalizedPassword, credential) {
-		return fmt.Errorf("new password must be different from the bootstrap password")
+		return ErrPasswordReuse
 	}
 	if credential.PasswordEnabled && !initialReset {
 		if err = bcrypt.CompareHashAndPassword([]byte(credential.PasswordHash), []byte(currentPassword)); err != nil {
@@ -370,17 +370,17 @@ func (s *Service) ChangePassword(ctx context.Context, userID uint, currentPasswo
 			method = normalizedMethod
 		}
 		if !containsSecurityVerificationMethod(methods, method) {
-			return fmt.Errorf("verification method is unavailable")
+			return ErrSecurityVerificationMethodUnavailable
 		}
 		if method == SecurityVerificationMethodEmail {
 			normalizedEmail, err = normalizeRegistrationEmail(item.Email)
 			if err != nil {
-				return fmt.Errorf("user email is invalid")
+				return ErrSecurityVerificationEmailInvalid
 			}
 		}
 		if method != SecurityVerificationMethodNone {
 			if err = s.verifySecurityCodeWithMethod(ctx, item, method, domainuser.ContactVerificationPurposePasswordChange, normalizedEmail, code, now); err != nil {
-				return fmt.Errorf("verification code is invalid or expired")
+				return ErrSecurityVerificationCodeInvalid
 			}
 		}
 	}
@@ -616,7 +616,7 @@ func (s *Service) RequestEmailBootstrapVerification(ctx context.Context, userID 
 		return nil, err
 	}
 	if !canBootstrapEmail(item) {
-		return nil, fmt.Errorf("email bootstrap is not allowed")
+		return nil, ErrEmailBootstrapNotAllowed
 	}
 	normalizedEmail, err := normalizeRegistrationEmail(newEmail)
 	if err != nil {
@@ -626,7 +626,7 @@ func (s *Service) RequestEmailBootstrapVerification(ctx context.Context, userID 
 		return nil, err
 	}
 	if existingUser, findErr := s.repo.GetByEmail(ctx, normalizedEmail); findErr == nil && existingUser.ID != userID {
-		return nil, fmt.Errorf("email already exists")
+		return nil, ErrEmailAlreadyExists
 	} else if findErr != nil && !errors.Is(findErr, repository.ErrNotFound) {
 		return nil, findErr
 	}
@@ -640,7 +640,7 @@ func (s *Service) CompleteEmailBootstrap(ctx context.Context, userID uint, newEm
 		return nil, err
 	}
 	if !canBootstrapEmail(item) {
-		return nil, fmt.Errorf("email bootstrap is not allowed")
+		return nil, ErrEmailBootstrapNotAllowed
 	}
 	normalizedEmail, err := normalizeRegistrationEmail(newEmail)
 	if err != nil {
@@ -650,7 +650,7 @@ func (s *Service) CompleteEmailBootstrap(ctx context.Context, userID uint, newEm
 		return nil, err
 	}
 	if existingUser, findErr := s.repo.GetByEmail(ctx, normalizedEmail); findErr == nil && existingUser.ID != userID {
-		return nil, fmt.Errorf("email already exists")
+		return nil, ErrEmailAlreadyExists
 	} else if findErr != nil && !errors.Is(findErr, repository.ErrNotFound) {
 		return nil, findErr
 	}
@@ -686,11 +686,11 @@ func (s *Service) RequestCurrentEmailVerification(ctx context.Context, userID ui
 		return nil, err
 	}
 	if !hasEmailCandidate(item) {
-		return nil, fmt.Errorf("current email cannot be verified")
+		return nil, ErrCurrentEmailNotVerified
 	}
 	normalizedEmail, err := normalizeRegistrationEmail(item.Email)
 	if err != nil {
-		return nil, fmt.Errorf("user email is invalid")
+		return nil, ErrSecurityVerificationEmailInvalid
 	}
 	return s.requestEmailVerificationCode(ctx, userID, domainuser.ContactVerificationPurposeEmailVerifyCurrent, normalizedEmail, "email_verify_current_code", requestID, auditCtx)
 }
@@ -698,18 +698,18 @@ func (s *Service) RequestCurrentEmailVerification(ctx context.Context, userID ui
 func (s *Service) CompleteCurrentEmailVerification(ctx context.Context, userID uint, code string, requestID string, auditCtx requestmeta.SessionAuditContext) (*domainuser.User, error) {
 	cfg := s.cfg.Snapshot()
 	if !cfg.EmailVerificationEnabled {
-		return nil, fmt.Errorf("email verification is disabled")
+		return nil, ErrEmailVerificationDisabled
 	}
 	item, err := s.repo.GetByID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
 	if !hasEmailCandidate(item) {
-		return nil, fmt.Errorf("current email cannot be verified")
+		return nil, ErrCurrentEmailNotVerified
 	}
 	normalizedEmail, err := normalizeRegistrationEmail(item.Email)
 	if err != nil {
-		return nil, fmt.Errorf("user email is invalid")
+		return nil, ErrSecurityVerificationEmailInvalid
 	}
 	now := time.Now()
 	if err = s.verifyEmailCode(ctx, userID, domainuser.ContactVerificationPurposeEmailVerifyCurrent, normalizedEmail, strings.TrimSpace(code), now); err != nil {
@@ -740,14 +740,14 @@ func (s *Service) RequestCurrentEmailChangeVerification(ctx context.Context, use
 		method = normalizedMethod
 	}
 	if !containsSecurityVerificationMethod(methods, method) {
-		return nil, fmt.Errorf("verification method is unavailable")
+		return nil, ErrSecurityVerificationMethodUnavailable
 	}
 	if method != SecurityVerificationMethodEmail {
 		return &EmailChangeVerificationStartResult{Sent: false, Method: method, AvailableMethods: methods}, nil
 	}
 	normalizedEmail, err := normalizeRegistrationEmail(item.Email)
 	if err != nil {
-		return nil, fmt.Errorf("user email is invalid")
+		return nil, ErrSecurityVerificationEmailInvalid
 	}
 	return s.requestEmailVerificationCode(ctx, userID, domainuser.ContactVerificationPurposeEmailChangeCurrent, normalizedEmail, "email_change_current_code", requestID, auditCtx)
 }
@@ -765,7 +765,7 @@ func (s *Service) RequestNewEmailChangeVerification(ctx context.Context, userID 
 		return nil, err
 	}
 	if _, err = s.repo.GetByEmail(ctx, normalizedEmail); err == nil {
-		return nil, fmt.Errorf("email already exists")
+		return nil, ErrEmailAlreadyExists
 	} else if !errors.Is(err, repository.ErrNotFound) {
 		return nil, err
 	}
@@ -787,13 +787,13 @@ func (s *Service) CompleteEmailChange(ctx context.Context, userID uint, newEmail
 		method = normalizedMethod
 	}
 	if !containsSecurityVerificationMethod(methods, method) {
-		return nil, fmt.Errorf("verification method is unavailable")
+		return nil, ErrSecurityVerificationMethodUnavailable
 	}
 	currentEmail := ""
 	if strings.TrimSpace(item.Email) != "" {
 		currentEmail, err = normalizeRegistrationEmail(item.Email)
 		if err != nil {
-			return nil, fmt.Errorf("user email is invalid")
+			return nil, ErrSecurityVerificationEmailInvalid
 		}
 	}
 	normalizedEmail, err := normalizeRegistrationEmail(newEmail)
@@ -801,20 +801,20 @@ func (s *Service) CompleteEmailChange(ctx context.Context, userID uint, newEmail
 		return nil, err
 	}
 	if currentEmail != "" && normalizedEmail == currentEmail {
-		return nil, fmt.Errorf("new email must be different")
+		return nil, ErrEmailUnchanged
 	}
 	if err = validateEmailRegistrationPolicy(cfg, normalizedEmail); err != nil {
 		return nil, err
 	}
 	if _, err = s.repo.GetByEmail(ctx, normalizedEmail); err == nil {
-		return nil, fmt.Errorf("email already exists")
+		return nil, ErrEmailAlreadyExists
 	} else if !errors.Is(err, repository.ErrNotFound) {
 		return nil, err
 	}
 	now := time.Now()
 	if method != SecurityVerificationMethodNone {
 		if method == SecurityVerificationMethodEmail && currentEmail == "" {
-			return nil, fmt.Errorf("user email is invalid")
+			return nil, ErrSecurityVerificationEmailInvalid
 		}
 		if err = s.verifySecurityCodeWithMethod(ctx, item, method, domainuser.ContactVerificationPurposeEmailChangeCurrent, currentEmail, currentCode, now); err != nil {
 			return nil, err
@@ -842,11 +842,11 @@ func (s *Service) CompleteEmailChange(ctx context.Context, userID uint, newEmail
 func normalizeRegistrationEmail(raw string) (string, error) {
 	normalized := strings.ToLower(strings.TrimSpace(raw))
 	if normalized == "" || len(normalized) > 128 || containsEmailControlCharacter(normalized) {
-		return "", fmt.Errorf("invalid email")
+		return "", ErrInvalidEmail
 	}
 	parsed, err := mail.ParseAddress(normalized)
 	if err != nil || strings.ToLower(parsed.Address) != normalized {
-		return "", fmt.Errorf("invalid email")
+		return "", ErrInvalidEmail
 	}
 	return normalized, nil
 }
@@ -860,10 +860,10 @@ func containsEmailControlCharacter(value string) bool {
 func validateEmailRegistrationPolicy(cfg config.Config, email string) error {
 	local, domain, ok := strings.Cut(email, "@")
 	if !ok || local == "" || domain == "" {
-		return fmt.Errorf("invalid email")
+		return ErrInvalidEmail
 	}
 	if cfg.EmailRegistrationNoAlias && strings.Contains(local, "+") {
-		return fmt.Errorf("email aliases are not allowed")
+		return ErrEmailAliasNotAllowed
 	}
 	allowedDomains := splitRegistrationDomains(cfg.EmailRegistrationDomains)
 	if len(allowedDomains) == 0 {
@@ -875,7 +875,7 @@ func validateEmailRegistrationPolicy(cfg config.Config, email string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("email domain is not allowed")
+	return ErrEmailDomainNotAllowed
 }
 
 func splitRegistrationDomains(value string) []string {
@@ -1042,13 +1042,13 @@ func (s *Service) sendAccountDeleteVerificationEmail(to string, code string) err
 
 func (s *Service) requestEmailVerificationCode(ctx context.Context, userID uint, purpose string, target string, eventType string, requestID string, auditCtx requestmeta.SessionAuditContext) (*EmailChangeVerificationStartResult, error) {
 	if userID == 0 {
-		return nil, fmt.Errorf("user id is required")
+		return nil, ErrUserIDRequired
 	}
 	cfg := s.cfg.Snapshot()
 	now := time.Now()
 	existingVerification, err := s.repo.GetPendingContactVerificationForUser(ctx, userID, domainuser.ContactVerificationChannelEmail, purpose, target, now)
 	if err == nil && existingVerification.SentAt != nil && now.Sub(*existingVerification.SentAt) < emailRegistrationSendCooldown {
-		return nil, fmt.Errorf("verification code was sent recently")
+		return nil, ErrVerificationCodeRecent
 	}
 	if err != nil && !errors.Is(err, repository.ErrNotFound) {
 		return nil, err
@@ -1112,25 +1112,25 @@ func (s *Service) sendEmailVerificationByPurpose(purpose string, target string, 
 
 func (s *Service) verifyEmailCode(ctx context.Context, userID uint, purpose string, target string, code string, now time.Time) error {
 	if userID == 0 {
-		return fmt.Errorf("verification code is invalid or expired")
+		return ErrSecurityVerificationCodeInvalid
 	}
 	cfg := s.cfg.Snapshot()
 	verification, err := s.repo.GetPendingContactVerificationForUser(ctx, userID, domainuser.ContactVerificationChannelEmail, purpose, target, now)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			return fmt.Errorf("verification code is invalid or expired")
+			return ErrSecurityVerificationCodeInvalid
 		}
 		return err
 	}
 	if verification.UserID != 0 && verification.UserID != userID {
-		return fmt.Errorf("verification code is invalid or expired")
+		return ErrSecurityVerificationCodeInvalid
 	}
 	if verification.AttemptCount >= emailRegistrationMaxAttempts {
-		return fmt.Errorf("verification code attempts exceeded")
+		return ErrVerificationCodeAttempts
 	}
 	if !verifyRegistrationCode(cfg.JWTSecret, verification.Token, strings.TrimSpace(code), verification.CodeHash) {
 		_ = s.repo.IncrementContactVerificationAttempt(ctx, verification.ID)
-		return fmt.Errorf("verification code is invalid or expired")
+		return ErrSecurityVerificationCodeInvalid
 	}
 	return s.repo.MarkContactVerificationVerified(ctx, verification.ID, now)
 }
@@ -1153,11 +1153,11 @@ func (s *Service) sendEmailVerificationCode(to string, code string, template ver
 		from = strings.TrimSpace(cfg.SMTPUsername)
 	}
 	if strings.TrimSpace(cfg.SMTPHost) == "" || from == "" {
-		return fmt.Errorf("smtp is not configured")
+		return ErrSMTPNotConfigured
 	}
 	parsedFrom, err := mail.ParseAddress(from)
 	if err != nil {
-		return fmt.Errorf("smtp from is invalid")
+		return ErrSMTPFromInvalid
 	}
 	normalizedTo, err := normalizeRegistrationEmail(to)
 	if err != nil {
@@ -1329,7 +1329,7 @@ func sendSMTPMail(addr string, host string, port int, auth smtp.Auth, from strin
 				return err
 			}
 		} else {
-			return fmt.Errorf("smtp auth is not supported")
+			return ErrSMTPAuthUnsupported
 		}
 	}
 	if err = client.Mail(from); err != nil {

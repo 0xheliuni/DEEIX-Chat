@@ -9,6 +9,8 @@ import (
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
+	appprocessing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/processing"
+	appupload "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/upload"
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
@@ -21,7 +23,10 @@ import (
 // Handler 封装会话 HTTP 处理。
 type Handler struct {
 	service *appconversation.Service
-	cfg     *config.Runtime
+	// uploads 与 processing 直接承接文件 CRUD、内容读取与处理状态查询，不经会话服务转发。
+	uploads    *appupload.Service
+	processing *appprocessing.Service
+	cfg        *config.Runtime
 	// shutdown 触发时订阅型长连接（run 对账流、run 观看流）立即退出，
 	// 让优雅关停不被常驻 SSE 拖到超时；客户端依靠既有重连逻辑恢复。
 	shutdown *lifecycle.Shutdown
@@ -53,11 +58,19 @@ func normalizeStreamEventPayload(eventType string, payload map[string]interface{
 }
 
 // NewHandler 创建处理器。
-func NewHandler(service *appconversation.Service, cfg *config.Runtime, shutdown *lifecycle.Shutdown) *Handler {
+func NewHandler(
+	service *appconversation.Service,
+	uploads *appupload.Service,
+	processing *appprocessing.Service,
+	cfg *config.Runtime,
+	shutdown *lifecycle.Shutdown,
+) *Handler {
 	return &Handler{
-		service:  service,
-		cfg:      cfg,
-		shutdown: shutdown,
+		service:    service,
+		uploads:    uploads,
+		processing: processing,
+		cfg:        cfg,
+		shutdown:   shutdown,
 	}
 }
 
@@ -109,132 +122,87 @@ func pageParamsWithMax(c *gin.Context, maxPageSize int) (int, int) {
 	return page, pageSize
 }
 
-type streamError struct {
-	Status  int
-	Code    string
-	Message string
+// sendMessageErrorStatuses 是消息发送、媒体生成与临时对话路径上哨兵错误到 HTTP 状态码的映射。
+// 错误码与对外文案由哨兵自身（apperr）声明，这里只决定传输语义；HTTP 响应与 NDJSON 终态事件共用。
+type sendMessageErrorStatus struct {
+	err    error
+	status int
 }
 
-func mapStreamError(err error) streamError {
-	status := http.StatusInternalServerError
-	code := ""
-	message := "send message failed"
+var sendMessageErrorStatuses = []sendMessageErrorStatus{
+	{err: appconversation.ErrConversationNotFound, status: http.StatusNotFound},
+	{err: appconversation.ErrInvalidFileReference, status: http.StatusBadRequest},
+	{err: appconversation.ErrFileNotFound, status: http.StatusNotFound},
+	{err: appconversation.ErrFileTooLarge, status: http.StatusRequestEntityTooLarge},
+	{err: appconversation.ErrInvalidMessageBranch, status: http.StatusBadRequest},
+	{err: appconversation.ErrTooManyMessageFiles, status: http.StatusBadRequest},
+	{err: appconversation.ErrTooManySelectedTools, status: http.StatusBadRequest},
+	{err: appconversation.ErrMultipleImageAttachmentProcessors, status: http.StatusBadRequest},
+	{err: appconversation.ErrImageAttachmentProcessingFailed, status: http.StatusBadGateway},
+	{err: appconversation.ErrTooManySelectedSkills, status: http.StatusBadRequest},
+	{err: appconversation.ErrSkillNotFound, status: http.StatusNotFound},
+	{err: appconversation.ErrInvalidSkillUse, status: http.StatusBadRequest},
+	{err: appconversation.ErrFileProcessingNotReady, status: http.StatusBadRequest},
+	{err: appconversation.ErrFileTooLargeForFullContext, status: http.StatusBadRequest},
+	{err: appconversation.ErrEmbeddingUnavailable, status: http.StatusBadRequest},
+	{err: appconversation.ErrInvalidKnowledgeBaseReference, status: http.StatusBadRequest},
+	{err: appconversation.ErrKnowledgeBaseUnavailable, status: http.StatusServiceUnavailable},
+	{err: appconversation.ErrKnowledgeBaseNotReady, status: http.StatusConflict},
+	{err: appconversation.ErrModelRouteNotConfigured, status: http.StatusServiceUnavailable},
+	{err: appconversation.ErrModelAccessDenied, status: http.StatusForbidden},
+	{err: appconversation.ErrStorageQuotaExceeded, status: http.StatusConflict},
+	{err: appconversation.ErrGeneratedMediaArtifactUnavailable, status: http.StatusBadGateway},
+	{err: appconversation.ErrUpstreamEmptyResponse, status: http.StatusBadGateway},
+	{err: appconversation.ErrToolRunFinalAnswerMissing, status: http.StatusBadGateway},
+	{err: appconversation.ErrMessageGenerationCanceled, status: http.StatusBadRequest},
+	{err: appconversation.ErrMessageGenerationInterrupted, status: http.StatusServiceUnavailable},
+	{err: appconversation.ErrMediaImagePromptRequired, status: http.StatusBadRequest},
+	{err: appconversation.ErrMediaImageGenerationRejectsInputs, status: http.StatusBadRequest},
+	{err: appconversation.ErrMediaImageEditInputRequired, status: http.StatusBadRequest},
+	{err: appconversation.ErrMediaImageEditTooManyInputs, status: http.StatusBadRequest},
+	{err: appconversation.ErrMediaImageEditInputInvalid, status: http.StatusBadRequest},
+	{err: appconversation.ErrMediaVideoPromptRequired, status: http.StatusBadRequest},
+	{err: appconversation.ErrMediaVideoInputInvalid, status: http.StatusBadRequest},
+	{err: appconversation.ErrMediaVideoTooManyInputs, status: http.StatusBadRequest},
+	{err: appconversation.ErrMediaRouteProtocolMismatch, status: http.StatusServiceUnavailable},
+	{err: appconversation.ErrInvalidMediaGenerationTask, status: http.StatusBadRequest},
+	{err: appconversation.ErrDuplicateMessageGenerationRun, status: http.StatusConflict},
+	{err: billing.ErrUsageConcurrencyLimitExceeded, status: http.StatusTooManyRequests},
+	{err: billing.ErrUsageReservationConflict, status: http.StatusConflict},
+	{err: billing.ErrUsageBalanceInsufficient, status: http.StatusPaymentRequired},
+	{err: billing.ErrModelPricingRequired, status: http.StatusPaymentRequired},
+}
+
+// describeSendMessageError 把消息发送 / 生成 / 计费路径上的错误映射为对外错误描述。
+// 上游失败的错误码与文案取决于上游响应特征，单独判定；其余按哨兵表映射；无法归类的错误一律
+// 作为内部错误返回，不把内部文案送进推断。
+func describeSendMessageError(err error) response.Description {
 	switch {
-	case errors.Is(err, appconversation.ErrConversationNotFound):
-		status = http.StatusNotFound
-		message = "conversation not found"
-	case errors.Is(err, appconversation.ErrInvalidFileReference):
-		status = http.StatusBadRequest
-		message = "invalid file reference"
-	case errors.Is(err, appconversation.ErrFileNotFound):
-		status = http.StatusNotFound
-		message = "file not found"
-	case errors.Is(err, appconversation.ErrFileTooLarge):
-		status = http.StatusRequestEntityTooLarge
-		message = "file too large"
-	case errors.Is(err, appconversation.ErrInvalidMessageBranch):
-		status = http.StatusBadRequest
-		message = "invalid message branch"
-	case errors.Is(err, appconversation.ErrTooManyMessageFiles):
-		status = http.StatusBadRequest
-		message = "too many files in one message"
-	case errors.Is(err, appconversation.ErrTooManySelectedTools):
-		status = http.StatusBadRequest
-		message = "too many selected tools"
-	case errors.Is(err, appconversation.ErrMultipleImageAttachmentProcessors):
-		status = http.StatusBadRequest
-		message = "multiple image attachment processors selected"
-	case errors.Is(err, appconversation.ErrImageAttachmentProcessingFailed):
-		status = http.StatusBadGateway
-		message = "image attachment processing failed"
-	case errors.Is(err, appconversation.ErrTooManySelectedSkills):
-		status = http.StatusBadRequest
-		message = "too many selected skills"
-	case errors.Is(err, appconversation.ErrSkillNotFound):
-		status = http.StatusNotFound
-		message = "skill not found"
-	case errors.Is(err, appconversation.ErrInvalidSkillUse):
-		status = http.StatusBadRequest
-		message = "invalid skill use"
-	case errors.Is(err, appconversation.ErrFileProcessingNotReady):
-		status = http.StatusBadRequest
-		message = "file processing not ready"
-	case errors.Is(err, appconversation.ErrFileTooLargeForFullContext):
-		status = http.StatusBadRequest
-		message = "file too large for full context"
-	case errors.Is(err, appconversation.ErrEmbeddingUnavailable):
-		status = http.StatusBadRequest
-		message = "embedding unavailable for current file capability"
-	case errors.Is(err, appconversation.ErrModelRouteNotConfigured):
-		status = http.StatusServiceUnavailable
-		message = "model route not configured"
-	case errors.Is(err, appconversation.ErrGeneratedMediaArtifactUnavailable):
-		status = http.StatusBadGateway
-		code = appconversation.MessageErrorCode(err)
-		message = "generated media artifact is temporarily unavailable"
-	case errors.Is(err, appconversation.ErrUpstreamEmptyResponse):
-		status = http.StatusBadGateway
-		message = "model returned empty response"
-	case errors.Is(err, appconversation.ErrMessageGenerationCanceled):
-		status = http.StatusBadRequest
-		message = "message generation canceled"
 	case appconversation.IsUpstreamRateLimitError(err):
-		status = http.StatusTooManyRequests
-		code = appconversation.MessageErrorCodeUpstreamRateLimited
-		message = "upstream rate limited"
-	case errors.Is(err, appconversation.ErrMediaImagePromptRequired):
-		status = http.StatusBadRequest
-		message = "image prompt is required"
-	case errors.Is(err, appconversation.ErrMediaImageGenerationRejectsInputs):
-		status = http.StatusBadRequest
-		message = "image generation does not accept input images"
-	case errors.Is(err, appconversation.ErrMediaImageEditInputRequired):
-		status = http.StatusBadRequest
-		message = "image edit requires at least one input image"
-	case errors.Is(err, appconversation.ErrMediaImageEditTooManyInputs):
-		status = http.StatusBadRequest
-		message = "too many image edit input images"
-	case errors.Is(err, appconversation.ErrMediaImageEditInputInvalid):
-		status = http.StatusBadRequest
-		message = "image edit input image is invalid"
-	case errors.Is(err, appconversation.ErrMediaVideoPromptRequired):
-		status = http.StatusBadRequest
-		message = "video prompt is required"
-	case errors.Is(err, appconversation.ErrMediaVideoInputInvalid):
-		status = http.StatusBadRequest
-		message = "video generation input is invalid"
-	case errors.Is(err, appconversation.ErrMediaVideoTooManyInputs):
-		status = http.StatusBadRequest
-		message = "too many video generation input images"
-	case errors.Is(err, appconversation.ErrMediaRouteProtocolMismatch):
-		status = http.StatusServiceUnavailable
-		message = "media route protocol does not match task"
-	case errors.Is(err, appconversation.ErrInvalidMediaGenerationTask):
-		status = http.StatusBadRequest
-		message = "invalid media generation task"
-	case errors.Is(err, appconversation.ErrDuplicateMessageGenerationRun):
-		status = http.StatusConflict
-		message = "message generation run already exists"
-	case errors.Is(err, billing.ErrUsageBalanceInsufficient):
-		status = http.StatusPaymentRequired
-		message = "usage balance is insufficient"
+		return response.DescribeCode(http.StatusTooManyRequests, appconversation.MessageErrorCodeUpstreamRateLimited)
 	case errors.Is(err, appconversation.ErrUpstreamRequestFailed):
-		status = http.StatusBadGateway
-		code = appconversation.MessageErrorCode(err)
-		message = mapClientErrorMessage(err)
+		return describeUpstreamRequestFailure(err)
 	}
+	for _, entry := range sendMessageErrorStatuses {
+		if errors.Is(err, entry.err) {
+			return response.Describe(entry.status, entry.err)
+		}
+	}
+	return response.DescribeCode(http.StatusInternalServerError, response.CodeInternal)
+}
+
+// describeUpstreamRequestFailure 描述上游请求失败。只有 application 层明确识别的上游场景
+// 才使用专用错误码，其余统一返回上游不可用，避免把上游原始文案当作错误码契约。
+func describeUpstreamRequestFailure(err error) response.Description {
+	code := appconversation.MessageErrorCode(err)
 	if code == "" {
-		code = response.InferErrorCode(status, message)
+		code = response.CodeUpstreamUnavailable
 	}
-	return streamError{
-		Status:  status,
-		Code:    code,
-		Message: response.PublicErrorMessage(status, code, message),
-	}
+	return response.DescribeCode(http.StatusBadGateway, code)
 }
 
 func streamErrorPayload(err error) map[string]interface{} {
-	mapped := mapStreamError(err)
+	mapped := describeSendMessageError(err)
 	payload := map[string]interface{}{
 		"type":      "error",
 		"status":    mapped.Status,
@@ -247,12 +215,13 @@ func streamErrorPayload(err error) map[string]interface{} {
 	return payload
 }
 
-func streamErrorPayloadWithCode(code string, message string) map[string]interface{} {
-	return map[string]interface{}{
-		"type":      "error",
-		"message":   message,
-		"errorCode": code,
+// streamErrorPayloadWithResult 在错误事件中保留已持久化的消息结果，供客户端完成临时消息对账。
+func streamErrorPayloadWithResult(err error, result *appconversation.SendMessageResult) map[string]interface{} {
+	payload := streamErrorPayload(err)
+	if result != nil {
+		payload["data"] = toSendMessageResponse(result)
 	}
+	return payload
 }
 
 // moderationBlockedStreamPayload is retained for recovery/reconnect assembly only.
@@ -296,29 +265,6 @@ func moderationBlockedStreamPayload(result *appconversation.SendMessageResult, a
 		payload["categories"] = categories
 	}
 	return payload
-}
-
-func mapClientErrorMessage(err error) string {
-	if err == nil {
-		return ""
-	}
-	if errors.Is(err, appconversation.ErrUpstreamEmptyResponse) {
-		return "model returned empty response"
-	}
-	if errors.Is(err, appconversation.ErrGeneratedMediaArtifactUnavailable) {
-		return "generated media artifact is temporarily unavailable"
-	}
-	if appconversation.IsUpstreamRateLimitError(err) {
-		return "upstream rate limited"
-	}
-	if errors.Is(err, appconversation.ErrUpstreamRequestFailed) {
-		detail := appconversation.MessageErrorSummary(err)
-		if detail != "" && detail != appconversation.ErrUpstreamRequestFailed.Error() {
-			return detail
-		}
-		return "model request failed"
-	}
-	return strings.TrimSpace(err.Error())
 }
 
 func stringParam(c *gin.Context, name string) (string, error) {

@@ -2,7 +2,6 @@ package channel
 
 import (
 	"encoding/json"
-	"errors"
 	"sort"
 	"strings"
 	"time"
@@ -745,17 +744,6 @@ func validateOptionalJSON(raw string) error {
 		return json.Unmarshal([]byte(v), &payload)
 	}
 	return nil
-}
-
-func isDuplicateKeyError(err error) bool {
-	if err == nil {
-		return false
-	}
-	if errors.Is(err, repository.ErrDuplicate) {
-		return true
-	}
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "duplicate key") || strings.Contains(msg, "unique constraint")
 }
 
 func mergeHeaderJSON(upstreamHeaders string, routeHeaders string) string {

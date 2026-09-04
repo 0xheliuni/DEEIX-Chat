@@ -408,7 +408,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 			return buildFailureResult(retErr, output.Usage), retErr
 		}
 		fileName := generatedVideoFileName(route.PlatformModelName, now, i, len(output.GeneratedVideos), mimeType)
-		uploadResult, uploadErr := s.UploadFile(ctx, appupload.UploadFileInput{
+		uploadResult, uploadErr := s.uploadSvc.UploadFile(ctx, appupload.UploadFileInput{
 			UserID:       input.UserID,
 			Purpose:      "generated_video",
 			FileName:     fileName,
@@ -602,7 +602,7 @@ func (s *Service) resolveMediaVideoInputs(ctx context.Context, input MediaVideoI
 }
 
 func (s *Service) readMediaVideoExtensionSource(ctx context.Context, userID uint, fileID string) (llm.ContentPart, error) {
-	content, err := s.OpenFileContent(ctx, userID, strings.TrimSpace(fileID))
+	content, err := s.uploadSvc.OpenFileContent(ctx, userID, strings.TrimSpace(fileID))
 	if err != nil {
 		return llm.ContentPart{}, err
 	}

@@ -447,6 +447,10 @@ func (r *Repo) ReplaceActiveConversationShare(ctx context.Context, item *domainc
 	if item == nil {
 		return nil
 	}
+	if r.db.Migrator().HasTable(&models.ConversationShare{}) &&
+		!r.db.Migrator().HasColumn(&models.ConversationShare{}, "default_message_ids_json") {
+		return repository.ErrConversationShareSchemaOutdated
+	}
 	var created models.ConversationShare
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		now := time.Now().UTC()

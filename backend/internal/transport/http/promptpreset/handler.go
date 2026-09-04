@@ -298,7 +298,7 @@ func patchInputFromRequest(req PatchPromptPresetRequest) apppromptpreset.PatchIn
 func idParam(c *gin.Context) (uint, bool) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
 	if err != nil || id == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid prompt preset id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidPromptPresetID)
 		return 0, false
 	}
 	return uint(id), true
@@ -350,16 +350,16 @@ func auditInput(c *gin.Context, action string, resourceID uint, detail interface
 
 func writePromptPresetError(c *gin.Context, err error) {
 	if errors.Is(err, apppromptpreset.ErrPromptPresetNotFound) {
-		response.Error(c, http.StatusNotFound, "prompt preset not found")
+		response.ErrorFrom(c, http.StatusNotFound, err)
 		return
 	}
 	if errors.Is(err, apppromptpreset.ErrPromptPresetConflict) {
-		response.Error(c, http.StatusConflict, "prompt preset trigger already exists")
+		response.ErrorFrom(c, http.StatusConflict, err)
 		return
 	}
 	if errors.Is(err, apppromptpreset.ErrInvalidPromptPreset) {
 		response.ErrorFrom(c, http.StatusBadRequest, err)
 		return
 	}
-	response.Error(c, http.StatusInternalServerError, "prompt preset operation failed")
+	response.InternalError(c)
 }

@@ -79,7 +79,7 @@ func (h *Handler) ListUsers(c *gin.Context) {
 		IdentityProvider:   c.Query("identity_provider"),
 	})
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "list users failed")
+		response.InternalError(c)
 		return
 	}
 	views := make([]UserResponse, 0, len(items))
@@ -128,7 +128,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, user.ErrUsernameTaken):
-			response.Error(c, http.StatusConflict, "username already exists")
+			response.ErrorFrom(c, http.StatusConflict, err)
 			return
 		case errors.Is(err, user.ErrInvalidUsername),
 			errors.Is(err, user.ErrInvalidDisplayName),
@@ -146,7 +146,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		default:
-			response.Error(c, http.StatusInternalServerError, "create user failed")
+			response.InternalError(c)
 			return
 		}
 	}
@@ -163,7 +163,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
 
 	view, err := h.service.BuildUserView(c.Request.Context(), *item)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "resolve subscription failed")
+		response.InternalError(c)
 		return
 	}
 
@@ -218,10 +218,10 @@ func (h *Handler) ImportOpenWebUIUsers(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusForbidden, err)
 			return
 		case errors.Is(err, appadmin.ErrOpenWebUIImportFailed):
-			response.Error(c, http.StatusInternalServerError, "openwebui import failed")
+			response.InternalError(c)
 			return
 		default:
-			response.Error(c, http.StatusInternalServerError, "import openwebui users failed")
+			response.InternalError(c)
 			return
 		}
 	}
@@ -250,7 +250,7 @@ func (h *Handler) PatchUser(c *gin.Context) {
 	rawID := c.Param("id")
 	parsedID, err := strconv.ParseUint(rawID, 10, strconv.IntSize)
 	if err != nil || parsedID == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid user id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidUserID)
 		return
 	}
 
@@ -288,7 +288,7 @@ func (h *Handler) PatchUser(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusConflict, err)
 			return
 		case errors.Is(err, user.ErrUserNotFound):
-			response.Error(c, http.StatusNotFound, "user not found")
+			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		case errors.Is(err, appadmin.ErrAdminPermissionRequired),
 			errors.Is(err, appadmin.ErrSuperAdminManagementNotAllowed):
@@ -301,14 +301,14 @@ func (h *Handler) PatchUser(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusConflict, err)
 			return
 		default:
-			response.Error(c, http.StatusInternalServerError, "patch user failed")
+			response.InternalError(c)
 			return
 		}
 	}
 
 	view, err := h.service.BuildUserView(c.Request.Context(), *item)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "resolve subscription failed")
+		response.InternalError(c)
 		return
 	}
 
@@ -359,7 +359,7 @@ func (h *Handler) ListAuditLogs(c *gin.Context) {
 		Sort:        c.Query("sort"),
 	})
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "list audit logs failed")
+		response.InternalError(c)
 		return
 	}
 	userIDs := make([]uint, 0, len(items))
@@ -414,7 +414,7 @@ func (h *Handler) CleanupLogs(c *gin.Context) {
 			errors.Is(err, applogcleanup.ErrFutureBefore):
 			response.ErrorFrom(c, http.StatusBadRequest, err)
 		default:
-			response.Error(c, http.StatusInternalServerError, "cleanup logs failed")
+			response.InternalError(c)
 		}
 		return
 	}
@@ -457,7 +457,7 @@ func (h *Handler) CleanupConversationRuns(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "cleanup conversation runs failed")
+		response.InternalError(c)
 		return
 	}
 	response.Success(c, CleanupConversationRunsResponse{
@@ -511,7 +511,7 @@ func (h *Handler) ListUsageLogs(c *gin.Context) {
 		Sort:              c.Query("sort"),
 	})
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "list call logs failed")
+		response.InternalError(c)
 		return
 	}
 	userIDs := make([]uint, 0, len(items))
@@ -565,20 +565,20 @@ func (h *Handler) GetUsageStatistics(c *gin.Context) {
 	startDate := endDate.AddDate(0, 0, -29)
 	if startDateText != "" || endDateText != "" {
 		if startDateText == "" || endDateText == "" {
-			response.ErrorWithCode(c, http.StatusBadRequest, "usage_statistics.invalid_date_range", "start_date and end_date must be provided together")
+			response.ErrorWithCode(c, http.StatusBadRequest, "usage_statistics.invalid_date_range")
 			return
 		}
 		parsedStartDate, startErr := time.Parse("2006-01-02", startDateText)
 		parsedEndDate, endErr := time.Parse("2006-01-02", endDateText)
 		if startErr != nil || endErr != nil {
-			response.ErrorWithCode(c, http.StatusBadRequest, "usage_statistics.invalid_date_range", "invalid usage statistics date range")
+			response.ErrorWithCode(c, http.StatusBadRequest, "usage_statistics.invalid_date_range")
 			return
 		}
 		startDate = parsedStartDate
 		endDate = parsedEndDate
 	}
 	if endDate.Before(startDate) || int(endDate.Sub(startDate).Hours()/24)+1 > 366 {
-		response.ErrorWithCode(c, http.StatusBadRequest, "usage_statistics.invalid_date_range", "invalid usage statistics date range")
+		response.ErrorWithCode(c, http.StatusBadRequest, "usage_statistics.invalid_date_range")
 		return
 	}
 
@@ -587,7 +587,7 @@ func (h *Handler) GetUsageStatistics(c *gin.Context) {
 		billingScope = "all"
 	}
 	if billingScope != "all" && billingScope != "free" && billingScope != "billable" {
-		response.ErrorWithCode(c, http.StatusBadRequest, "usage_statistics.invalid_billing_scope", "invalid billing_scope")
+		response.ErrorWithCode(c, http.StatusBadRequest, "usage_statistics.invalid_billing_scope")
 		return
 	}
 	section := strings.TrimSpace(c.Query("section"))
@@ -595,7 +595,7 @@ func (h *Handler) GetUsageStatistics(c *gin.Context) {
 		section = "all"
 	}
 	if section != "all" && section != "models" && section != "users" {
-		response.ErrorWithCode(c, http.StatusBadRequest, "usage_statistics.invalid_section", "invalid section")
+		response.ErrorWithCode(c, http.StatusBadRequest, "usage_statistics.invalid_section")
 		return
 	}
 	modelRankBy := strings.TrimSpace(c.Query("model_rank_by"))
@@ -603,7 +603,7 @@ func (h *Handler) GetUsageStatistics(c *gin.Context) {
 		modelRankBy = "cost"
 	}
 	if modelRankBy != "cost" && modelRankBy != "tokens" && modelRankBy != "calls" {
-		response.ErrorWithCode(c, http.StatusBadRequest, "usage_statistics.invalid_rank_by", "invalid model_rank_by")
+		response.ErrorWithCode(c, http.StatusBadRequest, "usage_statistics.invalid_rank_by")
 		return
 	}
 	userRankBy := strings.TrimSpace(c.Query("user_rank_by"))
@@ -611,7 +611,7 @@ func (h *Handler) GetUsageStatistics(c *gin.Context) {
 		userRankBy = "cost"
 	}
 	if userRankBy != "cost" && userRankBy != "tokens" && userRankBy != "calls" {
-		response.ErrorWithCode(c, http.StatusBadRequest, "usage_statistics.invalid_rank_by", "invalid user_rank_by")
+		response.ErrorWithCode(c, http.StatusBadRequest, "usage_statistics.invalid_rank_by")
 		return
 	}
 
@@ -629,11 +629,11 @@ func (h *Handler) GetUsageStatistics(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, appbilling.ErrInvalidUsageStatisticsSubject):
-			response.ErrorWithCode(c, http.StatusBadRequest, "usage_statistics.subject_conflict", err.Error())
+			response.ErrorWithCode(c, http.StatusBadRequest, "usage_statistics.subject_conflict")
 		case errors.Is(err, appadmin.ErrPermissionGroupNotFound):
 			response.ErrorFrom(c, http.StatusNotFound, err)
 		default:
-			response.Error(c, http.StatusInternalServerError, "get usage statistics failed")
+			response.InternalError(c)
 		}
 		return
 	}
@@ -692,7 +692,7 @@ func (h *Handler) ListPaymentOrders(c *gin.Context) {
 		Sort:        c.Query("sort"),
 	})
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "list payment orders failed")
+		response.InternalError(c)
 		return
 	}
 	userIDs := make([]uint, 0, len(items))
@@ -756,7 +756,7 @@ func (h *Handler) ListRedemptions(c *gin.Context) {
 		Sort:        c.Query("sort"),
 	})
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "list redemptions failed")
+		response.InternalError(c)
 		return
 	}
 	userIDs := make([]uint, 0, len(items))
@@ -824,7 +824,7 @@ func (h *Handler) ListConversationEvents(c *gin.Context) {
 		Sort:           c.Query("sort"),
 	})
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "list conversation events failed")
+		response.InternalError(c)
 		return
 	}
 	userIDs := make([]uint, 0, len(items))
@@ -856,7 +856,7 @@ func (h *Handler) ListConversationEvents(c *gin.Context) {
 func (h *Handler) GetConversationEvent(c *gin.Context) {
 	parsedID, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
 	if err != nil || parsedID == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid conversation event id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidConversationEventID)
 		return
 	}
 	item, err := h.service.GetConversationEventLog(c.Request.Context(), uint(parsedID))
@@ -865,7 +865,7 @@ func (h *Handler) GetConversationEvent(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "get conversation event failed")
+		response.InternalError(c)
 		return
 	}
 	label := h.service.ResolveUserLabels(c.Request.Context(), []uint{item.UserID})[item.UserID]
@@ -912,7 +912,7 @@ func (h *Handler) ListSystemEvents(c *gin.Context) {
 		Sort:        c.Query("sort"),
 	})
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "list system events failed")
+		response.InternalError(c)
 		return
 	}
 	results := make([]SystemEventResponse, 0, len(items))
@@ -929,7 +929,7 @@ func parseOptionalUintQuery(c *gin.Context, key string) (uint, bool) {
 	}
 	parsed, err := strconv.ParseUint(raw, 10, strconv.IntSize)
 	if err != nil || parsed == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid "+key)
+		response.InvalidQueryParam(c, key)
 		return 0, false
 	}
 	return uint(parsed), true
@@ -942,7 +942,7 @@ func parseOptionalTimeQuery(c *gin.Context, key string) (*time.Time, bool) {
 	}
 	parsed, err := time.Parse(time.RFC3339, raw)
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid "+key)
+		response.InvalidQueryParam(c, key)
 		return nil, false
 	}
 	return &parsed, true
@@ -967,7 +967,7 @@ func (h *Handler) RevokeUserSessions(c *gin.Context) {
 	rawID := c.Param("id")
 	parsedID, err := strconv.ParseUint(rawID, 10, strconv.IntSize)
 	if err != nil || parsedID == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid user id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidUserID)
 		return
 	}
 
@@ -980,14 +980,14 @@ func (h *Handler) RevokeUserSessions(c *gin.Context) {
 		c.Request.UserAgent(),
 	); err != nil {
 		if errors.Is(err, user.ErrUserNotFound) {
-			response.Error(c, http.StatusNotFound, "user not found")
+			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
 		if errors.Is(err, appadmin.ErrAdminPermissionRequired) || errors.Is(err, appadmin.ErrSuperAdminManagementNotAllowed) {
 			response.ErrorFrom(c, http.StatusForbidden, err)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "revoke user sessions failed")
+		response.InternalError(c)
 		return
 	}
 
@@ -1015,7 +1015,7 @@ func (h *Handler) UpdateUserStatus(c *gin.Context) {
 	rawID := c.Param("id")
 	parsedID, err := strconv.ParseUint(rawID, 10, strconv.IntSize)
 	if err != nil || parsedID == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid user id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidUserID)
 		return
 	}
 
@@ -1037,28 +1037,28 @@ func (h *Handler) UpdateUserStatus(c *gin.Context) {
 	)
 	if err != nil {
 		if errors.Is(err, appadmin.ErrInvalidUserStatus) {
-			response.Error(c, http.StatusBadRequest, "invalid user status")
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		}
 		if errors.Is(err, user.ErrUserNotFound) {
-			response.Error(c, http.StatusNotFound, "user not found")
+			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
 		if errors.Is(err, appadmin.ErrSuperAdminStatusChangeNotAllowed) {
-			response.Error(c, http.StatusConflict, "superadmin status change not allowed")
+			response.ErrorFrom(c, http.StatusConflict, err)
 			return
 		}
 		if errors.Is(err, appadmin.ErrAdminPermissionRequired) || errors.Is(err, appadmin.ErrSuperAdminManagementNotAllowed) {
 			response.ErrorFrom(c, http.StatusForbidden, err)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "update user status failed")
+		response.InternalError(c)
 		return
 	}
 
 	view, err := h.service.BuildUserView(c.Request.Context(), *item)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "resolve subscription failed")
+		response.InternalError(c)
 		return
 	}
 
@@ -1086,7 +1086,7 @@ func (h *Handler) ResetUserPassword(c *gin.Context) {
 	rawID := c.Param("id")
 	parsedID, err := strconv.ParseUint(rawID, 10, strconv.IntSize)
 	if err != nil || parsedID == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid user id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidUserID)
 		return
 	}
 
@@ -1112,11 +1112,11 @@ func (h *Handler) ResetUserPassword(c *gin.Context) {
 		c.Request.UserAgent(),
 	); err != nil {
 		if errors.Is(err, user.ErrUserNotFound) {
-			response.Error(c, http.StatusNotFound, "user not found")
+			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
 		if errors.Is(err, appadmin.ErrSuperAdminPasswordResetNotAllowed) {
-			response.Error(c, http.StatusConflict, "superadmin password reset not allowed")
+			response.ErrorFrom(c, http.StatusConflict, err)
 			return
 		}
 		if errors.Is(err, appadmin.ErrAdminPermissionRequired) || errors.Is(err, appadmin.ErrSuperAdminManagementNotAllowed) {
@@ -1127,7 +1127,7 @@ func (h *Handler) ResetUserPassword(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		}
-		response.ErrorFrom(c, http.StatusBadRequest, err)
+		response.InternalError(c)
 		return
 	}
 
@@ -1139,7 +1139,7 @@ func (h *Handler) ResetUserTwoFactor(c *gin.Context) {
 	rawID := c.Param("id")
 	parsedID, err := strconv.ParseUint(rawID, 10, strconv.IntSize)
 	if err != nil || parsedID == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid user id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidUserID)
 		return
 	}
 	if err = h.service.ResetUserTwoFactorByAdmin(
@@ -1151,18 +1151,18 @@ func (h *Handler) ResetUserTwoFactor(c *gin.Context) {
 		c.Request.UserAgent(),
 	); err != nil {
 		if errors.Is(err, user.ErrUserNotFound) {
-			response.Error(c, http.StatusNotFound, "user not found")
+			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
 		if errors.Is(err, appadmin.ErrSuperAdminTwoFactorResetNotAllowed) {
-			response.Error(c, http.StatusConflict, "superadmin two factor reset not allowed")
+			response.ErrorFrom(c, http.StatusConflict, err)
 			return
 		}
 		if errors.Is(err, appadmin.ErrAdminPermissionRequired) || errors.Is(err, appadmin.ErrSuperAdminManagementNotAllowed) {
 			response.ErrorFrom(c, http.StatusForbidden, err)
 			return
 		}
-		response.ErrorFrom(c, http.StatusBadRequest, err)
+		response.InternalError(c)
 		return
 	}
 	response.Success(c, ResetUserTwoFactorResponse{Reset: true})
@@ -1188,7 +1188,7 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 	rawID := c.Param("id")
 	parsedID, err := strconv.ParseUint(rawID, 10, strconv.IntSize)
 	if err != nil || parsedID == 0 {
-		response.Error(c, http.StatusBadRequest, "invalid user id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidUserID)
 		return
 	}
 
@@ -1202,7 +1202,7 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 	); err != nil {
 		switch {
 		case errors.Is(err, user.ErrUserNotFound):
-			response.Error(c, http.StatusNotFound, "user not found")
+			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		case errors.Is(err, appadmin.ErrAdminPermissionRequired),
 			errors.Is(err, appadmin.ErrSuperAdminManagementNotAllowed):
@@ -1213,10 +1213,10 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 			response.ErrorFrom(c, http.StatusConflict, err)
 			return
 		case errors.Is(err, domainknowledgebase.ErrBuiltinFileOwnerDeleteBlocked):
-			response.ErrorWithCode(c, http.StatusConflict, "knowledge_base.owner_file_reference", "user owns files referenced by builtin knowledge bases")
+			response.ErrorWithCode(c, http.StatusConflict, "knowledge_base.owner_file_reference")
 			return
 		default:
-			response.Error(c, http.StatusInternalServerError, "delete user failed")
+			response.InternalError(c)
 			return
 		}
 	}
@@ -1245,7 +1245,7 @@ func (h *Handler) ListUserAuthEvents(c *gin.Context) {
 	if raw := c.Query("user_id"); raw != "" {
 		parsedID, err := strconv.ParseUint(raw, 10, strconv.IntSize)
 		if err != nil || parsedID == 0 {
-			response.Error(c, http.StatusBadRequest, "invalid user_id")
+			response.ErrorFrom(c, http.StatusBadRequest, errInvalidUserID)
 			return
 		}
 		userID = uint(parsedID)
@@ -1261,7 +1261,7 @@ func (h *Handler) ListUserAuthEvents(c *gin.Context) {
 		pageSize,
 	)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "list user auth events failed")
+		response.InternalError(c)
 		return
 	}
 
@@ -1289,7 +1289,7 @@ func (h *Handler) ListUserAuthEvents(c *gin.Context) {
 // ExportConversations 流式导出全量对话。
 func (h *Handler) ExportConversations(c *gin.Context) {
 	if h.conversationExport == nil {
-		response.Error(c, http.StatusInternalServerError, "export not available")
+		response.InternalError(c)
 		return
 	}
 

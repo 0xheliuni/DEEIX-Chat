@@ -8,6 +8,7 @@ import (
 
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 )
 
 // ---------------------------------------------------------------------------
@@ -165,7 +166,7 @@ func (s *Service) UpsertUpstreamModel(ctx context.Context, upstreamID uint, inpu
 	})
 	if err != nil {
 		switch {
-		case isDuplicateKeyError(err):
+		case errors.Is(err, repository.ErrDuplicate):
 			return nil, ErrUpstreamModelConflict
 		case errors.Is(err, repository.ErrConflict):
 			return nil, ErrUpstreamModelBindingChanged
@@ -287,7 +288,7 @@ func ensurePlatformModel(ctx context.Context, repo repository.ChannelRepository,
 		Description:       "",
 	}
 	if err := repo.CreateModel(ctx, item); err != nil {
-		if !isDuplicateKeyError(err) {
+		if !errors.Is(err, repository.ErrDuplicate) {
 			return nil, false, err
 		}
 		item, err = repo.GetModelByName(ctx, platformModelName)
@@ -329,7 +330,7 @@ func ensureUpstreamCatalogModel(
 	item.Vendor = normalizeUpstreamModelVendor(vendor, upstreamModelName)
 	item.Icon = normalizeModelIcon(icon, item.Vendor, upstreamModelName)
 	if err := repo.CreateUpstreamModel(ctx, item); err != nil {
-		if isDuplicateKeyError(err) {
+		if errors.Is(err, repository.ErrDuplicate) {
 			return repo.GetUpstreamModelByUpstreamName(ctx, upstreamID, upstreamModelName)
 		}
 		return nil, err
@@ -396,7 +397,7 @@ func (s *Service) BatchDeleteUpstreamModels(ctx context.Context, upstreamID uint
 			result.Results = append(result.Results, BatchDeleteResultView{ID: routeID, Status: BatchDeleteStatusNotFound})
 		default:
 			result.FailedCount += 1
-			result.Results = append(result.Results, BatchDeleteResultView{ID: routeID, Status: BatchDeleteStatusFailed, Error: err.Error()})
+			result.Results = append(result.Results, BatchDeleteResultView{ID: routeID, Status: BatchDeleteStatusFailed, Error: apperr.MessageOr(err, "batch delete failed")})
 		}
 	}
 

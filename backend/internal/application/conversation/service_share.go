@@ -145,20 +145,12 @@ func (s *Service) createConversationShare(ctx context.Context, userID uint, conv
 				zap.Error(err),
 			)
 		}
-		return nil, normalizeConversationSharePersistenceError(err)
+		if errors.Is(err, repository.ErrConversationShareSchemaOutdated) {
+			return nil, ErrConversationShareSchemaOutdated
+		}
+		return nil, err
 	}
 	return toConversationShareResult(share), nil
-}
-
-func normalizeConversationSharePersistenceError(err error) error {
-	if err == nil {
-		return nil
-	}
-	message := strings.ToLower(strings.TrimSpace(err.Error()))
-	if strings.Contains(message, "default_message_ids_json") && strings.Contains(message, "does not exist") {
-		return ErrConversationShareSchemaOutdated
-	}
-	return err
 }
 
 // RevokeConversationShare 关闭单个会话的公开分享。
@@ -852,14 +844,14 @@ func isFileNotFoundError(err error) bool {
 	if err == nil {
 		return false
 	}
-	return errors.Is(err, repository.ErrNotFound) || errors.Is(err, ErrFileNotFound)
+	return errors.Is(err, repository.ErrNotFound) || errors.Is(err, repository.ErrFileNotFound) || errors.Is(err, ErrFileNotFound)
 }
 
 func isStorageQuotaExceededError(err error) bool {
 	if err == nil {
 		return false
 	}
-	return errors.Is(err, ErrStorageQuotaExceeded)
+	return errors.Is(err, repository.ErrStorageQuotaExceeded) || errors.Is(err, ErrStorageQuotaExceeded)
 }
 
 func (s *Service) resolveShareMessageIDs(ctx context.Context, conversationID uint, defaultPublicIDs []string) ([]string, []string, error) {

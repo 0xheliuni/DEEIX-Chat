@@ -28,15 +28,8 @@ import (
 
 var errLocalFileTooLarge = errors.New("local file too large")
 
-// FileCapability 描述上传服务可见的文档能力边界。
-type FileCapability struct {
-	RAGAvailable         bool
-	EffectiveDocMaxBytes int64
-}
-
 // Hooks 封装上传后续编排动作。
 type Hooks struct {
-	ResolveCapability      func(ctx context.Context) FileCapability
 	InitializeUploadedFile func(ctx context.Context, file *domainconversation.FileObject) error
 }
 
@@ -350,7 +343,7 @@ func (s *Service) UploadFile(ctx context.Context, input UploadFileInput) (*Uploa
 			return nil, err
 		}
 		removeUploadedObject(relativePath)
-		if errors.Is(err, s.errors.StorageQuotaExceeded) {
+		if errors.Is(err, repository.ErrStorageQuotaExceeded) || errors.Is(err, s.errors.StorageQuotaExceeded) {
 			return nil, s.errStorageQuotaExceeded()
 		}
 		return nil, err
@@ -537,6 +530,9 @@ func (s *Service) deleteFile(ctx context.Context, userID uint, fileID string, op
 		if errors.Is(err, repository.ErrConflict) {
 			return nil, false, s.errFileInUse()
 		}
+		if errors.Is(err, repository.ErrNotFound) || errors.Is(err, repository.ErrFileNotFound) {
+			return nil, false, s.errFileNotFound()
+		}
 		return nil, false, err
 	}
 	if shouldRemovePhysical {
@@ -571,7 +567,11 @@ func (s *Service) RenameFile(ctx context.Context, userID uint, fileID string, fi
 	if normalizedName == "" {
 		return nil, s.errInvalidFileName()
 	}
-	return s.repo.RenameFileObjectByID(ctx, userID, normalizedFileID, normalizedName)
+	item, err := s.repo.RenameFileObjectByID(ctx, userID, normalizedFileID, normalizedName)
+	if errors.Is(err, repository.ErrNotFound) || errors.Is(err, repository.ErrFileNotFound) {
+		return nil, s.errFileNotFound()
+	}
+	return item, err
 }
 
 // UpdateFileRagOptOut 更新用户文件的 RAG 检索开关。
@@ -580,7 +580,11 @@ func (s *Service) UpdateFileRagOptOut(ctx context.Context, userID uint, fileID s
 	if normalizedFileID == "" {
 		return nil, s.errInvalidFileReference()
 	}
-	return s.repo.UpdateFileObjectRagOptOut(ctx, userID, normalizedFileID, ragOptOut)
+	item, err := s.repo.UpdateFileObjectRagOptOut(ctx, userID, normalizedFileID, ragOptOut)
+	if errors.Is(err, repository.ErrNotFound) || errors.Is(err, repository.ErrFileNotFound) {
+		return nil, s.errFileNotFound()
+	}
+	return item, err
 }
 
 // ValidateImageFile 确认文件属于当前用户且可作为图片头像使用。
@@ -592,6 +596,9 @@ func (s *Service) ValidateImageFile(ctx context.Context, userID uint, fileID str
 
 	item, err := s.repo.GetActiveFileObjectByID(ctx, userID, normalizedFileID)
 	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) || errors.Is(err, repository.ErrFileNotFound) {
+			return s.errFileNotFound()
+		}
 		return err
 	}
 	if item.FileCategory == fileCategoryImage {
@@ -613,6 +620,9 @@ func (s *Service) OpenFileContent(ctx context.Context, userID uint, fileID strin
 
 	item, err := s.repo.GetActiveFileObjectByID(ctx, userID, normalizedFileID)
 	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) || errors.Is(err, repository.ErrFileNotFound) {
+			return nil, s.errFileNotFound()
+		}
 		return nil, err
 	}
 
@@ -686,13 +696,6 @@ func (s *Service) snapshot() config.Config {
 		return config.Config{}
 	}
 	return s.cfg.Snapshot()
-}
-
-func (s *Service) resolveCapability(ctx context.Context) FileCapability {
-	if s == nil || s.hooks.ResolveCapability == nil {
-		return FileCapability{}
-	}
-	return s.hooks.ResolveCapability(ctx)
 }
 
 func (s *Service) initializeUploadedFile(ctx context.Context, file *domainconversation.FileObject) error {

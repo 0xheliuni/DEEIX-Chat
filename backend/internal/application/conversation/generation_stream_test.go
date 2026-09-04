@@ -516,6 +516,35 @@ func TestServiceListActiveMessageGenerationsDelegatesToRegistry(t *testing.T) {
 	}
 }
 
+type interruptedGenerationRepository struct {
+	repository.ConversationRepository
+	errorCode    string
+	errorMessage string
+}
+
+func (r *interruptedGenerationRepository) InterruptPendingAssistantMessageByRunID(
+	_ context.Context,
+	_ uint,
+	_ string,
+	errorCode string,
+	errorMessage string,
+) (bool, error) {
+	r.errorCode = errorCode
+	r.errorMessage = errorMessage
+	return true, nil
+}
+
+func TestMarkMessageGenerationInterruptedPersistsTypedContract(t *testing.T) {
+	repo := &interruptedGenerationRepository{}
+	service := &Service{repo: repo}
+
+	service.MarkMessageGenerationInterrupted(t.Context(), 7, "run_interrupted")
+
+	if repo.errorCode != ErrMessageGenerationInterrupted.Code() || repo.errorMessage != ErrMessageGenerationInterrupted.Message() {
+		t.Fatalf("persisted interruption contract = (%q, %q)", repo.errorCode, repo.errorMessage)
+	}
+}
+
 func TestGenerationStreamStoreActiveLeaseExpires(t *testing.T) {
 	store := newTestGenerationStreamStore()
 	ctx := context.Background()

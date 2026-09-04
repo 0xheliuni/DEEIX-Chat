@@ -632,7 +632,7 @@ func (c *Client) ListModels(ctx context.Context, route RouteConfig) ([]ModelItem
 	fallbackRoute.Protocol = AdapterOpenAIChatCompletions
 	fallbackItems, fallbackErr := c.listModelsOpenAICompatible(ctx, fallbackRoute)
 	if fallbackErr != nil {
-		return nil, fmt.Errorf("%w; openai-compatible models fallback failed: %v", err, fallbackErr)
+		return nil, fmt.Errorf("%w; openai-compatible models fallback failed: %w", err, fallbackErr)
 	}
 	return fallbackItems, nil
 }
@@ -976,6 +976,7 @@ func attachUpstreamDebug(err error, debug *UpstreamDebugSnapshot) error {
 		Message:    message,
 		Body:       debug.Response.Body,
 		Debug:      debug,
+		Cause:      err,
 	}
 }
 

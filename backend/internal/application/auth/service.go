@@ -561,7 +561,7 @@ func (s *Service) CompleteOnboarding(
 			return nil, false, policyErr
 		}
 		if isBootstrapSuperAdminAdminCreatedPassword(*item, credential) && passwordMatchesCredential(trimmedPassword, credential) {
-			return nil, false, fmt.Errorf("new password must be different from the bootstrap password")
+			return nil, false, ErrPasswordReuse
 		}
 		passwordHash, hashErr := bcrypt.GenerateFromPassword([]byte(trimmedPassword), passwordHashCost)
 		if hashErr != nil {
@@ -1033,14 +1033,14 @@ func (s *Service) RequestAccountDeleteVerification(ctx context.Context, userID u
 		return nil, ErrAccountDeleteVerificationRequired
 	}
 	if !containsSecurityVerificationMethod(methods, method) {
-		return nil, fmt.Errorf("verification method is unavailable")
+		return nil, ErrSecurityVerificationMethodUnavailable
 	}
 	if method != SecurityVerificationMethodEmail {
 		return &EmailChangeVerificationStartResult{Sent: false, Method: method, AvailableMethods: methods}, nil
 	}
 	normalizedEmail, err := normalizeRegistrationEmail(item.Email)
 	if err != nil {
-		return nil, fmt.Errorf("user email is invalid")
+		return nil, ErrSecurityVerificationEmailInvalid
 	}
 	return s.requestEmailVerificationCode(ctx, userID, domainuser.ContactVerificationPurposeAccountDelete, normalizedEmail, "account_delete_code", requestID, auditCtx)
 }

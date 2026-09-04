@@ -38,7 +38,7 @@ func (h *Handler) requireKnowledgeBaseEnabled(c *gin.Context) {
 		c.Next()
 		return
 	}
-	response.ErrorWithCode(c, http.StatusForbidden, "knowledge_base.disabled", "knowledge base feature is disabled")
+	response.ErrorWithCode(c, http.StatusForbidden, "knowledge_base.disabled")
 	c.Abort()
 }
 
@@ -325,12 +325,12 @@ func (h *Handler) UploadAdminFile(c *gin.Context) {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, h.maxUploadRequestBytes())
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "file is required")
+		response.ErrorFrom(c, http.StatusBadRequest, errFileRequired)
 		return
 	}
 	fileReader, err := fileHeader.Open()
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid file stream")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidFileStream)
 		return
 	}
 	defer fileReader.Close() //nolint:errcheck
@@ -376,11 +376,11 @@ func (h *Handler) SubmitAdminFileEmbeddings(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, appembedding.ErrTooManyTargetedFiles):
-			response.ErrorWithCode(c, http.StatusBadRequest, "embedding.too_many_files", "too many files")
+			response.ErrorWithCode(c, http.StatusBadRequest, "embedding.too_many_files")
 		case errors.Is(err, appembedding.ErrEmbeddingServiceNotConfigured):
-			response.ErrorWithCode(c, http.StatusServiceUnavailable, "embedding.service_not_configured", "embedding service not configured")
+			response.ErrorWithCode(c, http.StatusServiceUnavailable, "embedding.service_not_configured")
 		case errors.Is(err, appembedding.ErrEmbeddingServiceUnavailable):
-			response.ErrorWithCode(c, http.StatusServiceUnavailable, "embedding.service_unavailable", "embedding service unavailable")
+			response.ErrorWithCode(c, http.StatusServiceUnavailable, "embedding.service_unavailable")
 		default:
 			writeError(c, err)
 		}
@@ -459,15 +459,15 @@ func (h *Handler) maxUploadRequestBytes() int64 {
 func (h *Handler) writeUploadError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, appconversation.ErrStorageQuotaExceeded):
-		response.Error(c, http.StatusConflict, "storage quota exceeded")
+		response.ErrorFrom(c, http.StatusConflict, errStorageQuotaExceeded)
 	case errors.Is(err, appconversation.ErrDangerousMIMEType), errors.Is(err, appconversation.ErrMIMEBlocked), errors.Is(err, appconversation.ErrInvalidFileReference):
-		response.Error(c, http.StatusBadRequest, "invalid file")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidFile)
 	case errors.Is(err, appconversation.ErrEmbeddingUnavailable):
-		response.Error(c, http.StatusBadRequest, "embedding unavailable for this file size")
+		response.ErrorFrom(c, http.StatusBadRequest, errFileEmbeddingUnavailable)
 	case errors.Is(err, appconversation.ErrFileTooLarge):
-		response.Error(c, http.StatusRequestEntityTooLarge, "file too large")
+		response.ErrorFrom(c, http.StatusRequestEntityTooLarge, err)
 	default:
-		response.Error(c, http.StatusInternalServerError, "upload file failed")
+		response.InternalError(c)
 	}
 }
 
@@ -853,19 +853,19 @@ func boolQuery(c *gin.Context, key string) *bool {
 func writeError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, appknowledgebase.ErrInvalidKnowledgeBase):
-		response.ErrorWithCode(c, http.StatusBadRequest, "knowledge_base.invalid", "invalid knowledge base request")
+		response.ErrorWithCode(c, http.StatusBadRequest, "knowledge_base.invalid")
 	case errors.Is(err, appknowledgebase.ErrKnowledgeBaseNotFound), errors.Is(err, appknowledgebase.ErrKnowledgeBaseFileNotFound):
-		response.ErrorWithCode(c, http.StatusNotFound, "knowledge_base.not_found", "knowledge base not found")
+		response.ErrorWithCode(c, http.StatusNotFound, "knowledge_base.not_found")
 	case errors.Is(err, appconversation.ErrFileNotFound):
-		response.ErrorWithCode(c, http.StatusNotFound, "file.not_found", "file not found")
+		response.ErrorWithCode(c, http.StatusNotFound, "file.not_found")
 	case errors.Is(err, appknowledgebase.ErrKnowledgeBaseConflict):
-		response.ErrorWithCode(c, http.StatusConflict, "knowledge_base.conflict", "knowledge base conflict")
+		response.ErrorWithCode(c, http.StatusConflict, "knowledge_base.conflict")
 	case errors.Is(err, appknowledgebase.ErrPlatformFileInUse):
-		response.ErrorWithCode(c, http.StatusConflict, "knowledge_base.platform_file_in_use", "platform file is in use")
+		response.ErrorWithCode(c, http.StatusConflict, "knowledge_base.platform_file_in_use")
 	case errors.Is(err, appknowledgebase.ErrKnowledgeBaseFileCleanupUnavailable):
-		response.ErrorWithCode(c, http.StatusServiceUnavailable, "knowledge_base.file_cleanup_unavailable", "platform file cleanup unavailable")
+		response.ErrorWithCode(c, http.StatusServiceUnavailable, "knowledge_base.file_cleanup_unavailable")
 	default:
-		response.ErrorWithCode(c, http.StatusInternalServerError, "knowledge_base.internal", "knowledge base operation failed")
+		response.ErrorWithCode(c, http.StatusInternalServerError, "knowledge_base.internal")
 	}
 }
 

@@ -22,6 +22,22 @@ type PatchItem struct {
 	Clear     bool   `json:"clear,omitempty"`
 }
 
+type settingValidationDetailsResponse struct {
+	Field  string   `json:"field,omitempty"`
+	Fields []string `json:"fields,omitempty"`
+	Rule   string   `json:"rule"`
+	Param  string   `json:"param,omitempty"`
+}
+
+func toSettingValidationDetailsResponse(details appsettings.SettingValidationDetails) settingValidationDetailsResponse {
+	return settingValidationDetailsResponse{
+		Field:  details.Field,
+		Fields: append([]string(nil), details.Fields...),
+		Rule:   details.Rule,
+		Param:  details.Param,
+	}
+}
+
 // ── 响应 DTO ─────────────────────────────────────────────────────────────────
 
 // SettingResponse 单个配置项响应。
@@ -136,7 +152,7 @@ func sanitizePatchItemsForAudit(items []PatchItem) []PatchItem {
 	results := make([]PatchItem, 0, len(items))
 	for _, item := range items {
 		next := item
-		if isSensitiveSettingKey(item.Key) {
+		if appsettings.IsSensitiveSetting(item.Namespace, item.Key) {
 			if strings.TrimSpace(item.Value) == "" {
 				next.Value = ""
 			} else {
@@ -146,15 +162,6 @@ func sanitizePatchItemsForAudit(items []PatchItem) []PatchItem {
 		results = append(results, next)
 	}
 	return results
-}
-
-func isSensitiveSettingKey(key string) bool {
-	normalized := strings.ToLower(strings.TrimSpace(key))
-	return strings.Contains(normalized, "password") ||
-		strings.Contains(normalized, "secret") ||
-		strings.Contains(normalized, "auth_token") ||
-		strings.Contains(normalized, "api_key") ||
-		strings.HasSuffix(normalized, "_key")
 }
 
 func toSettingResponseList(items []appsettings.SettingItem) []SettingResponse {

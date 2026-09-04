@@ -13,16 +13,63 @@ import (
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/embeddingutil"
 	"go.uber.org/zap"
 )
 
 var (
-	ErrEmbeddingServiceNotConfigured = errors.New("embedding service not configured")
+	ErrEmbeddingServiceNotConfigured = apperr.NewMasked("embedding.service_not_configured", "embedding service is not configured", "embedding service not configured")
 	ErrEmbeddingServiceUnavailable   = errors.New("embedding service unavailable")
+	ErrEmbeddingQueueUnavailable     = errors.New("embedding queue unavailable")
 	ErrTooManyTargetedFiles          = errors.New("too many files for targeted embedding")
+	errNoExtractableText             = errors.New("no extractable text in file")
+	errEmptyChunks                   = errors.New("embedding produced no chunks")
+	errEmbeddingConfigurationChanged = errors.New("embedding configuration changed")
 )
+
+const (
+	embeddingErrorLimit           = 255
+	embeddingFailureMessage       = "向量化失败，请稍后重试。"
+	embeddingUnavailableMessage   = "向量化服务暂时不可用，请稍后重试。"
+	embeddingNotConfiguredMessage = "向量化服务尚未配置。"
+	embeddingTimeoutMessage       = "向量化超时，请稍后重试。"
+	embeddingCanceledMessage      = "向量化已取消。"
+	embeddingNoTextMessage        = "无法读取文件提取文本。"
+	embeddingEmptyChunksMessage   = "文件没有可用于向量化的内容。"
+	embeddingConfigurationChanged = "向量化配置已变更，请重新提交任务。"
+)
+
+// ErrorSummary returns a bounded, user-visible description without exposing
+// provider responses, URLs, credentials, or internal storage details.
+func ErrorSummary(err error) string {
+	if err == nil {
+		return ""
+	}
+	if errors.Is(err, context.Canceled) {
+		return embeddingCanceledMessage
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return embeddingTimeoutMessage
+	}
+	if errors.Is(err, ErrEmbeddingServiceNotConfigured) {
+		return embeddingNotConfiguredMessage
+	}
+	if errors.Is(err, ErrEmbeddingServiceUnavailable) {
+		return embeddingUnavailableMessage
+	}
+	if errors.Is(err, errNoExtractableText) {
+		return embeddingNoTextMessage
+	}
+	if errors.Is(err, errEmptyChunks) {
+		return embeddingEmptyChunksMessage
+	}
+	if errors.Is(err, errEmbeddingConfigurationChanged) {
+		return embeddingConfigurationChanged
+	}
+	return embeddingFailureMessage
+}
 
 const (
 	WorkerConcurrency = 4
@@ -326,14 +373,14 @@ func (s *Service) ProcessTargetedJob(ctx context.Context, job TargetedJob) error
 	cfg := s.snapshot()
 	if configuredModelSignature(cfg) != strings.TrimSpace(job.EmbeddingSignature) ||
 		strings.TrimRight(strings.TrimSpace(cfg.EmbeddingHost), "/") != strings.TrimRight(strings.TrimSpace(job.EmbeddingHost), "/") {
-		_ = s.updateFileObjectEmbedStatus(ctx, job.UserID, job.FileID, job.EmbeddingSignature, "stale", "embedding configuration changed before processing")
+		_ = s.updateFileObjectEmbedStatus(ctx, job.UserID, job.FileID, job.EmbeddingSignature, "stale", errEmbeddingConfigurationChanged)
 		return nil
 	}
 	available, reason, err := s.indexingAvailable(ctx, cfg)
 	if !available {
 		switch reason {
 		case "embedding_disabled", "embedding_model_missing", "embedding_host_missing":
-			_ = s.updateFileObjectEmbedStatus(ctx, job.UserID, job.FileID, job.EmbeddingSignature, "stale", "embedding configuration changed before processing")
+			_ = s.updateFileObjectEmbedStatus(ctx, job.UserID, job.FileID, job.EmbeddingSignature, "stale", errEmbeddingConfigurationChanged)
 			return nil
 		default:
 			return embeddingAvailabilityError(reason, err)
@@ -353,13 +400,13 @@ func (s *Service) ProcessTargetedJob(ctx context.Context, job TargetedJob) error
 }
 
 // FailTargetedJob 将投递失败的已领取任务释放为可重试状态。
-func (s *Service) FailTargetedJob(ctx context.Context, job TargetedJob, message string) error {
-	return s.updateFileObjectEmbedStatus(ctx, job.UserID, job.FileID, job.EmbeddingSignature, "failed", truncateError(message, 255))
+func (s *Service) FailTargetedJob(ctx context.Context, job TargetedJob, cause error) error {
+	return s.updateFileObjectEmbedStatus(ctx, job.UserID, job.FileID, job.EmbeddingSignature, "failed", cause)
 }
 
 // RequeueTargetedJob 将等待重试的任务恢复为排队状态，避免重试退避期间误显示为执行中或失败。
-func (s *Service) RequeueTargetedJob(ctx context.Context, job TargetedJob, message string) error {
-	return s.updateFileObjectEmbedStatus(ctx, job.UserID, job.FileID, job.EmbeddingSignature, "queued", truncateError(message, 255))
+func (s *Service) RequeueTargetedJob(ctx context.Context, job TargetedJob, cause error) error {
+	return s.updateFileObjectEmbedStatus(ctx, job.UserID, job.FileID, job.EmbeddingSignature, "queued", cause)
 }
 
 func fileVectorizationSkipReason(cfg config.Config, fileObj domainconversation.FileObject, embeddingSignature string) string {
@@ -404,7 +451,7 @@ func normalizeTargetedFileIDs(fileIDs []string) []string {
 
 func embeddingAvailabilityError(reason string, cause error) error {
 	if cause != nil {
-		return fmt.Errorf("%w: %v", ErrEmbeddingServiceUnavailable, cause)
+		return fmt.Errorf("%w: %w", ErrEmbeddingServiceUnavailable, cause)
 	}
 	if reason == "embedding_disabled" || reason == "embedding_model_missing" || reason == "embedding_host_missing" {
 		return ErrEmbeddingServiceNotConfigured
@@ -458,23 +505,23 @@ func (s *Service) ProcessFile(ctx context.Context, fileObj domainconversation.Fi
 func (s *Service) processClaimedFile(ctx context.Context, fileObj domainconversation.FileObject, cfg config.Config, embeddingSignature string) error {
 	text, err := s.loadSourceText(ctx, fileObj)
 	if err != nil {
-		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", "无法提取文本")
+		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", err)
 		return err
 	}
 	if strings.TrimSpace(text) == "" {
-		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", "无法提取文本")
-		return fmt.Errorf("no extractable text in file %s", fileObj.FileID)
+		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", errNoExtractableText)
+		return fmt.Errorf("%w %s", errNoExtractableText, fileObj.FileID)
 	}
 
 	chunks := embeddingutil.ChunkText(text, cfg.EmbedChunkSizeTokens, cfg.EmbedChunkOverlapTokens)
 	if len(chunks) == 0 {
-		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", "分片结果为空")
-		return nil
+		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", errEmptyChunks)
+		return errEmptyChunks
 	}
 
 	embeddings, err := s.embedTextsWithConfig(ctx, chunks, cfg)
 	if err != nil {
-		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", truncateError(err.Error(), 255))
+		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", err)
 		return err
 	}
 
@@ -493,7 +540,7 @@ func (s *Service) processClaimedFile(ctx context.Context, fileObj domainconversa
 	}
 	published, err := s.repo.ReplaceFileChunks(ctx, fileObj.ID, embeddingSignature, fileChunks, embeddings)
 	if err != nil {
-		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", err.Error())
+		_ = s.updateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, embeddingSignature, "failed", err)
 		return err
 	}
 	if !published {
@@ -546,7 +593,7 @@ func (s *Service) embeddingConfigurationCurrent(expectedSignature string, expect
 		strings.TrimRight(strings.TrimSpace(cfg.EmbeddingHost), "/") == strings.TrimRight(strings.TrimSpace(expectedHost), "/")
 }
 
-func (s *Service) updateFileObjectEmbedStatus(ctx context.Context, userID uint, fileID string, embeddingSignature string, status string, embedErr string) error {
+func (s *Service) updateFileObjectEmbedStatus(ctx context.Context, userID uint, fileID string, embeddingSignature string, status string, embedErr error) error {
 	if s == nil || s.repo == nil {
 		return nil
 	}
@@ -556,7 +603,7 @@ func (s *Service) updateFileObjectEmbedStatus(ctx context.Context, userID uint, 
 		writeCtx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 	}
-	_, err := s.repo.UpdateFileObjectEmbedStatus(writeCtx, userID, fileID, embeddingSignature, status, embedErr)
+	_, err := s.repo.UpdateFileObjectEmbedStatus(writeCtx, userID, fileID, embeddingSignature, status, ErrorSummary(embedErr))
 	return err
 }
 

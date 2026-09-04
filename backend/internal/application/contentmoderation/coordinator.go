@@ -324,16 +324,18 @@ func (c *RunCoordinator) recordSurfaceFailure(direction, modality, fileID string
 	c.failedOpen = true
 	c.mu.Unlock()
 
-	message := errString(surfaceErr)
-	if strings.TrimSpace(message) == "" {
-		message = "content unavailable for moderation"
-	}
-	if fileID = strings.TrimSpace(fileID); fileID != "" {
-		message += " (file_id=" + fileID + ")"
+	if surfaceErr != nil {
+		c.service.logWarn("content_moderation_surface_unavailable",
+			zap.String("run_id", c.meta.RunID),
+			zap.String("direction", direction),
+			zap.String("modality", modality),
+			zap.String("file_id", strings.TrimSpace(fileID)),
+			zap.Error(surfaceErr),
+		)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	c.service.recordFailedOpen(ctx, c.meta, direction, modality, domaincm.ErrorCodeServiceError, message, 0)
+	c.service.recordFailedOpen(ctx, c.meta, direction, modality, domaincm.ErrorCodeServiceError, 0)
 	c.service.bumpDailyStat(ctx, direction, modality, domaincm.ResultFailedOpen, "", 1, 1, 0, 1, 0)
 }
 
@@ -592,11 +594,4 @@ func (c *RunCoordinator) IsBlocked() (bool, BlockInfo) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.blocked, c.blockInfo
-}
-
-func errString(err error) string {
-	if err == nil {
-		return ""
-	}
-	return err.Error()
 }

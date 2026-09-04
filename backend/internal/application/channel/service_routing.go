@@ -226,7 +226,7 @@ func (s *Service) MarkRouteFailure(ctx context.Context, route *ResolvedRoute, ca
 	}
 
 	metaCtx := bookkeepingContext(ctx)
-	lastErrMsg := truncateMessage(strings.TrimSpace(errorMessage(cause)), 255)
+	lastErrMsg := routeFailureSummary(cause)
 	s.cache.RecordFailureMetadata(metaCtx, route.UpstreamID, lastErrMsg)
 
 	switch s.classifyRouteFailure(metaCtx, cause) {
@@ -590,20 +590,8 @@ func isCircuitFailure(cause error) bool {
 	if errors.Is(cause, context.DeadlineExceeded) {
 		return true
 	}
-	message := strings.ToLower(errorMessage(cause))
-	switch {
-	case strings.Contains(message, "timeout"),
-		strings.Contains(message, "deadline exceeded"),
-		strings.Contains(message, "connection refused"),
-		strings.Contains(message, "connection reset"),
-		strings.Contains(message, "broken pipe"),
-		strings.Contains(message, "dial tcp"),
-		strings.Contains(message, "no such host"),
-		strings.Contains(message, "eof"):
-		return true
-	default:
-		return false
-	}
+	var networkErr net.Error
+	return errors.As(cause, &networkErr)
 }
 
 // ShouldFailoverRoute reports whether a request can be retried on a different
@@ -750,9 +738,19 @@ func (s *Service) loadRateLimitDefaults(ctx context.Context) domainchannel.RateL
 	return cfg
 }
 
-func errorMessage(err error) string {
+func routeFailureSummary(err error) string {
 	if err == nil {
 		return ""
 	}
-	return err.Error()
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "upstream request timed out"
+	}
+	var upstreamErr *llm.UpstreamError
+	if errors.As(err, &upstreamErr) {
+		if upstreamErr.StatusCode > 0 {
+			return "upstream request failed with status " + strconv.Itoa(upstreamErr.StatusCode)
+		}
+		return "upstream request failed"
+	}
+	return "upstream request failed"
 }

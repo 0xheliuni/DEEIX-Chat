@@ -119,8 +119,8 @@ func (s *Service) MarkMessageGenerationInterrupted(ctx context.Context, userID u
 		markCtx,
 		userID,
 		normalizeRunID(runID),
-		"stream_interrupted",
-		"generation stream was interrupted; retry this message",
+		ErrMessageGenerationInterrupted.Code(),
+		ErrMessageGenerationInterrupted.Message(),
 	)
 }
 

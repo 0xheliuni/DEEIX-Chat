@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -113,12 +112,12 @@ func (s *Service) verifySecurityCodeWithMethod(
 		}
 	}
 	if !containsSecurityVerificationMethod(methods, method) {
-		return fmt.Errorf("verification method is unavailable")
+		return ErrSecurityVerificationMethodUnavailable
 	}
 	switch method {
 	case SecurityVerificationMethodTwoFactor:
 		if err = s.verifyCurrentTwoFactorCode(ctx, item.ID, code); err != nil {
-			return fmt.Errorf("verification code is invalid or expired")
+			return ErrSecurityVerificationCodeInvalid
 		}
 		return nil
 	case SecurityVerificationMethodEmail:

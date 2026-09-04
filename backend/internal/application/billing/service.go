@@ -453,7 +453,11 @@ func (s *Service) NormalizeNativeToolPricingJSON(ctx context.Context, overrides 
 	if err != nil {
 		return "", err
 	}
-	return nativetool.PricingOverridesJSONForDefinitions(overrides, definitions)
+	value, err := nativetool.PricingOverridesJSONForDefinitions(overrides, definitions)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", ErrInvalidNativeToolPricing, err)
+	}
+	return value, nil
 }
 
 func (s *Service) nativeToolDefinitions(ctx context.Context) ([]nativetool.Definition, error) {
@@ -645,20 +649,41 @@ func (s *Service) ListCurrentSubscriptionSnapshots(
 
 // Subscribe 创建用户订阅。
 func (s *Service) Subscribe(ctx context.Context, userID uint, priceID uint, cycles int) (*domainbilling.Subscription, error) {
+	if userID == 0 || priceID == 0 {
+		return nil, ErrInvalidBillingPlan
+	}
 	if cycles <= 0 {
 		cycles = 1
 	}
 
 	price, err := s.repo.GetPriceByID(ctx, priceID)
 	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, ErrBillingPlanNotFound
+		}
+		if errors.Is(err, repository.ErrInvalidInput) {
+			return nil, ErrInvalidBillingPlan
+		}
 		return nil, err
+	}
+	if price == nil {
+		return nil, ErrBillingPlanNotFound
 	}
 	plan, err := s.repo.GetPlanByID(ctx, price.PlanID)
 	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, ErrBillingPlanNotFound
+		}
+		if errors.Is(err, repository.ErrInvalidInput) {
+			return nil, ErrInvalidBillingPlan
+		}
 		return nil, err
 	}
+	if plan == nil {
+		return nil, ErrBillingPlanNotFound
+	}
 	if !plan.IsActive || !price.IsActive {
-		return nil, repository.ErrNotFound
+		return nil, ErrBillingPlanNotFound
 	}
 	now := time.Now()
 	if strings.TrimSpace(plan.Code) == "free" {
@@ -692,6 +717,12 @@ func (s *Service) Subscribe(ctx context.Context, userID uint, priceID uint, cycl
 		AutoRenew:            price.BillingInterval != domainbilling.IntervalLifetime,
 	}
 	if err := s.repo.ReplaceSubscription(ctx, item); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, ErrBillingPlanNotFound
+		}
+		if errors.Is(err, repository.ErrInvalidInput) {
+			return nil, ErrInvalidBillingPlan
+		}
 		return nil, err
 	}
 	return item, nil
@@ -801,30 +832,39 @@ func (s *Service) CreatePaymentOrder(ctx context.Context, input PaymentOrderInpu
 
 	price, err := s.repo.GetPriceByID(ctx, input.PriceID)
 	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, nil, nil, ErrBillingPlanNotFound
+		}
 		return nil, nil, nil, err
 	}
 	plan, err := s.repo.GetPlanByID(ctx, price.PlanID)
 	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, nil, nil, ErrBillingPlanNotFound
+		}
 		return nil, nil, nil, err
 	}
 	if input.UserID == 0 || !plan.IsActive || !price.IsActive {
-		return nil, nil, nil, repository.ErrInvalidInput
+		return nil, nil, nil, ErrInvalidPaymentOrder
 	}
 	if price.AmountCents <= 0 {
-		return nil, nil, nil, repository.ErrInvalidInput
+		return nil, nil, nil, ErrInvalidPaymentOrder
 	}
 	baseCurrency := normalizeCurrency(price.Currency)
 	baseAmountCents := price.AmountCents * int64(cycles)
 	if baseAmountCents <= 0 {
-		return nil, nil, nil, repository.ErrInvalidInput
+		return nil, nil, nil, ErrInvalidPaymentOrder
 	}
 	quote := resolvePaymentQuote(provider, baseCurrency, baseAmountCents, input.USDToCNYRate, input.PreferredPayCurrency)
 	if quote.PayAmountCents <= 0 {
-		return nil, nil, nil, repository.ErrInvalidInput
+		return nil, nil, nil, ErrInvalidPaymentOrder
 	}
 
 	orderNo, err := generateOrderNo()
 	if err != nil {
+		if errors.Is(err, repository.ErrInvalidInput) {
+			return nil, nil, nil, ErrInvalidPaymentOrder
+		}
 		return nil, nil, nil, err
 	}
 	now := time.Now()
@@ -888,7 +928,7 @@ func (s *Service) CreateTopUpPaymentOrder(ctx context.Context, input TopUpPaymen
 		return nil, ErrPaymentProviderUnavailable
 	}
 	if input.UserID == 0 || input.AmountMinorUnits <= 0 {
-		return nil, repository.ErrInvalidInput
+		return nil, ErrInvalidPaymentOrder
 	}
 
 	baseCurrency := "USD"
@@ -898,7 +938,7 @@ func (s *Service) CreateTopUpPaymentOrder(ctx context.Context, input TopUpPaymen
 	if amountCurrency == "CNY" {
 		baseAmountUSD = baseAmountUSD / rate
 	} else if amountCurrency != "USD" {
-		return nil, repository.ErrInvalidInput
+		return nil, ErrInvalidPaymentOrder
 	}
 	creditNanousd := usdToNanousd(baseAmountUSD)
 	baseAmountCents := int64(math.Round(baseAmountUSD * 100))
@@ -909,7 +949,7 @@ func (s *Service) CreateTopUpPaymentOrder(ctx context.Context, input TopUpPaymen
 		quote.PayAmountCents = int64(math.Round(baseAmountUSD * rate * 100))
 	}
 	if quote.BaseAmountCents <= 0 || quote.PayAmountCents <= 0 || creditNanousd <= 0 {
-		return nil, repository.ErrInvalidInput
+		return nil, ErrInvalidPaymentOrder
 	}
 
 	orderNo, err := generateOrderNo()
@@ -934,7 +974,7 @@ func (s *Service) CreateTopUpPaymentOrder(ctx context.Context, input TopUpPaymen
 	if raw, marshalErr := json.Marshal(snapshot); marshalErr == nil {
 		snapshotJSON = string(raw)
 	}
-	return s.repo.CreatePaymentOrder(ctx, &domainbilling.PaymentOrder{
+	order, err := s.repo.CreatePaymentOrder(ctx, &domainbilling.PaymentOrder{
 		OrderNo:         orderNo,
 		OrderType:       domainbilling.PaymentOrderTypeTopUp,
 		UserID:          input.UserID,
@@ -951,6 +991,10 @@ func (s *Service) CreateTopUpPaymentOrder(ctx context.Context, input TopUpPaymen
 		ExpiredAt:       &expiredAt,
 		SnapshotJSON:    snapshotJSON,
 	})
+	if errors.Is(err, repository.ErrInvalidInput) {
+		return nil, ErrInvalidPaymentOrder
+	}
+	return order, err
 }
 
 // AttachPaymentCheckout 保存外部收银台信息。
@@ -960,13 +1004,26 @@ func (s *Service) AttachPaymentCheckout(ctx context.Context, orderNo string, ext
 
 // GetPaymentOrder 查询支付单。
 func (s *Service) GetPaymentOrder(ctx context.Context, orderNo string) (*domainbilling.PaymentOrder, error) {
-	return s.repo.GetPaymentOrderByOrderNo(ctx, orderNo)
+	order, err := s.repo.GetPaymentOrderByOrderNo(ctx, orderNo)
+	if errors.Is(err, repository.ErrNotFound) {
+		return nil, ErrPaymentOrderNotFound
+	}
+	if errors.Is(err, repository.ErrInvalidInput) {
+		return nil, ErrInvalidPaymentOrder
+	}
+	return order, err
 }
 
 // CompletePaymentOrder 支付成功后开通订阅。
 func (s *Service) CompletePaymentOrder(ctx context.Context, orderNo string, externalPaymentID string, paidAt time.Time) (*domainbilling.PaymentOrder, bool, error) {
 	order, err := s.repo.GetPaymentOrderByOrderNo(ctx, orderNo)
 	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, false, ErrPaymentOrderNotFound
+		}
+		if errors.Is(err, repository.ErrInvalidInput) {
+			return nil, false, ErrInvalidPaymentOrder
+		}
 		return nil, false, err
 	}
 	if order.Status == domainbilling.PaymentStatusPaid {
@@ -976,7 +1033,14 @@ func (s *Service) CompletePaymentOrder(ctx context.Context, orderNo string, exte
 		paidAt = time.Now()
 	}
 	if order.OrderType == domainbilling.PaymentOrderTypeTopUp {
-		return s.repo.MarkPaymentOrderPaidAndCreditBalance(ctx, orderNo, externalPaymentID, paidAt)
+		result, credited, err := s.repo.MarkPaymentOrderPaidAndCreditBalance(ctx, orderNo, externalPaymentID, paidAt)
+		if errors.Is(err, repository.ErrInvalidInput) {
+			return nil, false, ErrPaymentOrderStateInvalid
+		}
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, false, ErrPaymentOrderNotFound
+		}
+		return result, credited, err
 	}
 	endAt := resolvePeriodEnd(paidAt, order.BillingInterval, order.Cycles)
 	subscription := &domainbilling.Subscription{
@@ -991,7 +1055,14 @@ func (s *Service) CompletePaymentOrder(ctx context.Context, orderNo string, exte
 		CanceledAt:           nil,
 		AutoRenew:            order.BillingInterval != domainbilling.IntervalLifetime,
 	}
-	return s.repo.MarkPaymentOrderPaidAndGrantSubscription(ctx, orderNo, externalPaymentID, paidAt, subscription)
+	result, activated, err := s.repo.MarkPaymentOrderPaidAndGrantSubscription(ctx, orderNo, externalPaymentID, paidAt, subscription)
+	if errors.Is(err, repository.ErrInvalidInput) {
+		return nil, false, ErrPaymentOrderStateInvalid
+	}
+	if errors.Is(err, repository.ErrNotFound) {
+		return nil, false, ErrPaymentOrderNotFound
+	}
+	return result, activated, err
 }
 
 // UpdatePlan 保存周期套餐与默认价格。
@@ -2875,7 +2946,7 @@ func (s *Service) GetBillingAccount(ctx context.Context, userID uint) (*domainbi
 // SetBillingAccountBalance 管理员设置用户按量余额。
 func (s *Service) SetBillingAccountBalance(ctx context.Context, input BillingAccountBalanceInput) (*domainbilling.BillingAccount, error) {
 	if input.UserID == 0 || input.BalanceUSD < 0 || math.IsNaN(input.BalanceUSD) || math.IsInf(input.BalanceUSD, 0) {
-		return nil, repository.ErrInvalidInput
+		return nil, ErrInvalidBillingAccountBalance
 	}
 	mode, err := s.repo.GetBillingMode(ctx)
 	if err != nil {

@@ -31,7 +31,7 @@ func (h *Handler) UpdateMessage(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	publicID, err := stringParam(c, "id")
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid message id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidMessageID)
 		return
 	}
 
@@ -45,19 +45,19 @@ func (h *Handler) UpdateMessage(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, appconversation.ErrInvalidMessageContent):
-			response.Error(c, http.StatusBadRequest, "invalid message content")
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		case errors.Is(err, appconversation.ErrMessageEditTargetInvalid):
-			response.Error(c, http.StatusBadRequest, "message edit target invalid")
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		case errors.Is(err, appconversation.ErrMessageEditStateInvalid):
-			response.Error(c, http.StatusBadRequest, "message edit state invalid")
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		case errors.Is(err, appconversation.ErrMessageNotFound):
-			response.Error(c, http.StatusNotFound, "message not found")
+			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		default:
-			response.Error(c, http.StatusInternalServerError, "update message failed")
+			response.InternalError(c)
 			return
 		}
 	}
@@ -99,7 +99,7 @@ func (h *Handler) SetMessageFeedback(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	publicID, err := stringParam(c, "id")
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid message id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidMessageID)
 		return
 	}
 
@@ -113,16 +113,16 @@ func (h *Handler) SetMessageFeedback(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, appconversation.ErrInvalidMessageFeedback):
-			response.Error(c, http.StatusBadRequest, "invalid message feedback")
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		case errors.Is(err, appconversation.ErrMessageFeedbackTargetInvalid):
-			response.Error(c, http.StatusBadRequest, "message feedback target invalid")
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 			return
 		case errors.Is(err, appconversation.ErrMessageNotFound):
-			response.Error(c, http.StatusNotFound, "message not found")
+			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		default:
-			response.Error(c, http.StatusInternalServerError, "set message feedback failed")
+			response.InternalError(c)
 			return
 		}
 	}
@@ -158,7 +158,7 @@ func (h *Handler) ListMessages(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	publicID, err := stringParam(c, "id")
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid conversation id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidConversationID)
 		return
 	}
 
@@ -167,7 +167,7 @@ func (h *Handler) ListMessages(c *gin.Context) {
 	if rawBeforeID := strings.TrimSpace(c.Query("before_id")); rawBeforeID != "" {
 		parsed, parseErr := strconv.ParseUint(rawBeforeID, 10, strconv.IntSize)
 		if parseErr != nil || parsed == 0 {
-			response.Error(c, http.StatusBadRequest, "invalid before message id")
+			response.ErrorFrom(c, http.StatusBadRequest, errInvalidBeforeMessageID)
 			return
 		}
 		beforeID = uint(parsed)
@@ -175,10 +175,10 @@ func (h *Handler) ListMessages(c *gin.Context) {
 	conversation, err := h.service.GetConversationByPublicID(c.Request.Context(), userID, publicID)
 	if err != nil {
 		if errors.Is(err, appconversation.ErrConversationNotFound) {
-			response.Error(c, http.StatusNotFound, "conversation not found")
+			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "load conversation failed")
+		response.InternalError(c)
 		return
 	}
 
@@ -193,10 +193,10 @@ func (h *Handler) ListMessages(c *gin.Context) {
 	}
 	if err != nil {
 		if errors.Is(err, appconversation.ErrConversationNotFound) {
-			response.Error(c, http.StatusNotFound, "conversation not found")
+			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "list messages failed")
+		response.InternalError(c)
 		return
 	}
 	runModels := map[string]model.Run{}
@@ -205,10 +205,10 @@ func (h *Handler) ListMessages(c *gin.Context) {
 		runs, runErr := h.service.ListConversationRunsByRunIDs(c.Request.Context(), userID, conversation.ID, runIDs)
 		if runErr != nil {
 			if errors.Is(runErr, appconversation.ErrConversationNotFound) {
-				response.Error(c, http.StatusNotFound, "conversation not found")
+				response.ErrorFrom(c, http.StatusNotFound, runErr)
 				return
 			}
-			response.Error(c, http.StatusInternalServerError, "list conversation runs failed")
+			response.InternalError(c)
 			return
 		}
 		for _, run := range runs {
@@ -242,16 +242,16 @@ func (h *Handler) ListConversationPreviewMessages(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	publicID, err := stringParam(c, "id")
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid conversation id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidConversationID)
 		return
 	}
 	items, err := h.service.ListConversationPreviewMessages(c.Request.Context(), userID, publicID)
 	if err != nil {
 		if errors.Is(err, appconversation.ErrConversationNotFound) {
-			response.Error(c, http.StatusNotFound, "conversation not found")
+			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "list conversation preview messages failed")
+		response.InternalError(c)
 		return
 	}
 	results := make([]ConversationPreviewMessageResponse, 0, len(items))
@@ -299,7 +299,7 @@ func (h *Handler) ListConversationRuns(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	publicID, err := stringParam(c, "id")
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid conversation id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidConversationID)
 		return
 	}
 
@@ -307,20 +307,20 @@ func (h *Handler) ListConversationRuns(c *gin.Context) {
 	conversation, err := h.service.GetConversationByPublicID(c.Request.Context(), userID, publicID)
 	if err != nil {
 		if errors.Is(err, appconversation.ErrConversationNotFound) {
-			response.Error(c, http.StatusNotFound, "conversation not found")
+			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "load conversation failed")
+		response.InternalError(c)
 		return
 	}
 
 	items, total, err := h.service.ListConversationRuns(c.Request.Context(), userID, conversation.ID, page, pageSize)
 	if err != nil {
 		if errors.Is(err, appconversation.ErrConversationNotFound) {
-			response.Error(c, http.StatusNotFound, "conversation not found")
+			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
 		}
-		response.Error(c, http.StatusInternalServerError, "list conversation runs failed")
+		response.InternalError(c)
 		return
 	}
 	runResults := make([]RunResponse, 0, len(items))
@@ -345,7 +345,7 @@ func (h *Handler) ListConversationRuns(c *gin.Context) {
 func (h *Handler) GetConversationRunStatuses(c *gin.Context) {
 	var req GetConversationRunStatusesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid run ids")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidRunIDs)
 		return
 	}
 
@@ -355,7 +355,7 @@ func (h *Handler) GetConversationRunStatuses(c *gin.Context) {
 		req.RunIDs,
 	)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "get conversation run statuses failed")
+		response.InternalError(c)
 		return
 	}
 	statuses := make([]ConversationRunStatusResponse, 0, len(items))

@@ -2,11 +2,11 @@ package logcleanup
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"time"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 )
 
 const (
@@ -21,10 +21,10 @@ const (
 const maxConversationRunCleanupCount = 100
 
 var (
-	ErrInvalidType   = errors.New("invalid log cleanup type")
-	ErrInvalidBefore = errors.New("invalid log cleanup before")
-	ErrFutureBefore  = errors.New("log cleanup before must not be in the future")
-	ErrInvalidRunIDs = errors.New("invalid conversation run ids")
+	ErrInvalidType   = apperr.New("request.invalid_log_cleanup_type", "invalid log cleanup type")
+	ErrInvalidBefore = apperr.New("request.invalid_log_cleanup_before", "invalid log cleanup before")
+	ErrFutureBefore  = apperr.New("log_cleanup.before_in_future", "log cleanup before must not be in the future")
+	ErrInvalidRunIDs = apperr.New("request.invalid_conversation_run_ids", "invalid conversation run ids")
 )
 
 type auditWriter interface {

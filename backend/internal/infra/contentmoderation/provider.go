@@ -179,7 +179,7 @@ func (c *Client) moderate(ctx context.Context, config domaincm.ProviderConfig, i
 
 		response, err := c.Do(request, config.BaseURL)
 		if err != nil {
-			lastErr = fmt.Errorf("%w: %v", cmport.ErrNetwork, err)
+			lastErr = fmt.Errorf("%w: %w", cmport.ErrNetwork, err)
 			if attempt == 0 && shouldRetryNetwork(err) {
 				continue
 			}
@@ -382,7 +382,7 @@ func mapContextError(err error) error {
 	if errors.Is(err, context.DeadlineExceeded) {
 		return cmport.ErrTimeout
 	}
-	return fmt.Errorf("%w: %v", cmport.ErrNetwork, err)
+	return fmt.Errorf("%w: %w", cmport.ErrNetwork, err)
 }
 
 func shouldRetryNetwork(err error) bool {

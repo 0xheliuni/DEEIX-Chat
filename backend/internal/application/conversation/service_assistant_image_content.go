@@ -102,7 +102,7 @@ func (s *Service) saveAssistantImages(
 	now := time.Now()
 	for _, image := range images {
 		fileName := generatedImageFileName(modelName, now, len(uploaded), len(images), image.MIMEType)
-		uploadResult, uploadErr := s.UploadFile(ctx, appupload.UploadFileInput{
+		uploadResult, uploadErr := s.uploadSvc.UploadFile(ctx, appupload.UploadFileInput{
 			UserID:       userID,
 			Purpose:      "generated_image",
 			FileName:     fileName,

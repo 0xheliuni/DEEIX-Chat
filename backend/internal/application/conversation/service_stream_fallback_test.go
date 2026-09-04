@@ -137,13 +137,21 @@ func TestMessageErrorSummaryHidesRawSSEForSuccessfulHTTPStatus(t *testing.T) {
 	}
 }
 
-func TestMessageGenerationCanceledDetectsWrappedSuccessfulUpstreamError(t *testing.T) {
-	err := &llm.UpstreamError{
+func TestMessageGenerationCanceledUsesWrappedCause(t *testing.T) {
+	err := llm.MarkRequestAccepted(&llm.UpstreamError{
+		StatusCode: 200,
+		Message:    "stream callback failed",
+		Cause:      errors.Join(errors.New("emit event"), ErrMessageGenerationCanceled),
+	})
+	if !isMessageGenerationCanceledError(err) {
+		t.Fatal("expected wrapped cancellation cause to be recognized")
+	}
+	lookalike := llm.MarkRequestAccepted(&llm.UpstreamError{
 		StatusCode: 200,
 		Message:    ErrMessageGenerationCanceled.Error(),
-	}
-	if !isMessageGenerationCanceledError(err) {
-		t.Fatalf("expected wrapped HTTP 200 cancellation to be recognized")
+	})
+	if isMessageGenerationCanceledError(lookalike) {
+		t.Fatal("upstream message text must not be classified as a local cancellation")
 	}
 }
 

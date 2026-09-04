@@ -10,7 +10,6 @@ import (
 	"sort"
 	"strings"
 
-	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	appchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	appstorage "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/objectstorage"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
@@ -19,6 +18,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/conv"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/objectstore"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 )
 
 const (
@@ -27,6 +27,10 @@ const (
 	MessageErrorCodeKnowledgeBaseUnavailable      = "knowledge_base.unavailable"
 	MessageErrorCodeKnowledgeBaseNotReady         = "knowledge_base.not_ready"
 	MessageErrorCodeUpstreamRateLimited           = "upstream.rate_limited"
+	MessageErrorCodeUpstreamEmptyResponse         = "llm.empty_response"
+	MessageErrorCodeUpstreamUnavailable           = "upstream.unavailable"
+	MessageErrorCodeToolRunFinalAnswerMissing     = "tool_run.final_answer_missing"
+	MessageErrorCodeQuotaExceeded                 = "quota.exceeded"
 	messageErrorCodeInternal                      = "internal.error"
 )
 
@@ -197,58 +201,19 @@ func classifyRunErrorCode(err error) string {
 	if errors.As(err, &upstreamErr) && isImageStreamConfigurationFailure(upstreamErr) {
 		return MessageErrorCodeMediaImageStreamUnsupported
 	}
-	switch {
-	case IsUpstreamRateLimitError(err):
+	if IsUpstreamRateLimitError(err) {
 		return MessageErrorCodeUpstreamRateLimited
-	case errors.Is(err, ErrConversationNotFound):
-		return "conversation_not_found"
-	case errors.Is(err, ErrInvalidFileReference):
-		return "invalid_file_reference"
-	case errors.Is(err, ErrFileNotFound):
-		return "file_not_found"
-	case errors.Is(err, ErrStorageQuotaExceeded):
-		return "storage_quota_exceeded"
-	case errors.Is(err, ErrFileTooLarge):
-		return "file_too_large"
-	case errors.Is(err, ErrInvalidKnowledgeBaseReference):
-		return MessageErrorCodeKnowledgeBaseInvalidReference
-	case errors.Is(err, ErrKnowledgeBaseUnavailable):
-		return MessageErrorCodeKnowledgeBaseUnavailable
-	case errors.Is(err, ErrKnowledgeBaseNotReady):
-		return MessageErrorCodeKnowledgeBaseNotReady
-	case errors.Is(err, ErrModelRouteNotConfigured):
-		return "model_route_not_configured"
-	case errors.Is(err, ErrUpstreamEmptyResponse):
-		return "upstream_empty_response"
-	case errors.Is(err, ErrToolRunFinalAnswerMissing):
-		return "tool_run_final_answer_missing"
-	case errors.Is(err, ErrMessageGenerationCanceled):
-		return "generation_canceled"
-	case errors.Is(err, ErrMediaImagePromptRequired):
-		return "media_image_prompt_required"
-	case errors.Is(err, ErrMediaImageGenerationRejectsInputs):
-		return "media_image_generation_rejects_inputs"
-	case errors.Is(err, ErrMediaImageEditInputRequired):
-		return "media_image_edit_input_required"
-	case errors.Is(err, ErrMediaImageEditTooManyInputs):
-		return "media_image_edit_too_many_inputs"
-	case errors.Is(err, ErrMediaImageEditInputInvalid):
-		return "media_image_edit_input_invalid"
-	case errors.Is(err, ErrMediaVideoPromptRequired):
-		return "media_video_prompt_required"
-	case errors.Is(err, ErrMediaVideoInputInvalid):
-		return "media_video_input_invalid"
-	case errors.Is(err, ErrMediaVideoTooManyInputs):
-		return "media_video_too_many_inputs"
-	case errors.Is(err, ErrMediaRouteProtocolMismatch):
-		return "media_route_protocol_mismatch"
-	case errors.Is(err, appbilling.ErrUsageBalanceInsufficient):
-		return messageUsageBalanceErrorCode
-	case errors.Is(err, ErrUpstreamRequestFailed):
-		return "upstream_request_failed"
-	default:
-		return messageErrorCodeInternal
 	}
+	if errors.Is(err, ErrUpstreamEmptyResponse) {
+		return MessageErrorCodeUpstreamEmptyResponse
+	}
+	if errors.Is(err, ErrUpstreamRequestFailed) {
+		return MessageErrorCodeUpstreamUnavailable
+	}
+	if code := apperr.Code(err); code != "" {
+		return code
+	}
+	return messageErrorCodeInternal
 }
 
 // IsUpstreamRateLimitError 判断错误是否来自真实上游 429 或本地路由级退避。
@@ -271,29 +236,19 @@ func messageErrorSummary(err error) string {
 	if errors.As(err, &upstreamErr) {
 		return upstreamErrorSummary(upstreamErr)
 	}
-	value := strings.TrimSpace(err.Error())
-	if value == "" {
-		return ""
+	if errors.Is(err, ErrUpstreamRequestFailed) {
+		return "upstream service unavailable"
 	}
-	prefix := ErrUpstreamRequestFailed.Error() + ":"
-	for strings.HasPrefix(value, prefix) {
-		value = strings.TrimSpace(strings.TrimPrefix(value, prefix))
+	if coded, ok := apperr.Find(err); ok {
+		if message := strings.TrimSpace(coded.Message()); message != "" {
+			return message
+		}
 	}
-	return value
+	return "internal server error"
 }
 
 func isMessageGenerationCanceledError(err error) bool {
-	if err == nil {
-		return false
-	}
-	if errors.Is(err, ErrMessageGenerationCanceled) {
-		return true
-	}
-	var upstreamErr *llm.UpstreamError
-	if !errors.As(err, &upstreamErr) || !isSuccessfulUpstreamStatus(upstreamErr.StatusCode) {
-		return false
-	}
-	return strings.TrimSpace(upstreamErr.Message) == ErrMessageGenerationCanceled.Error()
+	return errors.Is(err, ErrMessageGenerationCanceled)
 }
 
 func messageErrorDebug(err error) *llm.UpstreamDebugSnapshot {
@@ -538,15 +493,18 @@ func MessageErrorCode(err error) string {
 	if err == nil {
 		return ""
 	}
-	if IsUpstreamRateLimitError(err) {
-		return MessageErrorCodeUpstreamRateLimited
-	}
 	if errors.Is(err, ErrGeneratedMediaArtifactUnavailable) {
 		return MessageErrorCodeMediaArtifactUnavailable
 	}
 	var upstreamErr *llm.UpstreamError
 	if errors.As(err, &upstreamErr) && isImageStreamConfigurationFailure(upstreamErr) {
 		return MessageErrorCodeMediaImageStreamUnsupported
+	}
+	if IsUpstreamRateLimitError(err) {
+		return MessageErrorCodeUpstreamRateLimited
+	}
+	if errors.Is(err, ErrUpstreamEmptyResponse) {
+		return MessageErrorCodeUpstreamEmptyResponse
 	}
 	return ""
 }
@@ -926,21 +884,21 @@ func (s *Service) injectConversationImageContext(
 				if store == nil {
 					openedStore, openErr := storeProvider.Open(ctx)
 					if openErr != nil {
-						return nil, fmt.Errorf("%w: open object storage: %v", ErrFileNotFound, openErr)
+						return nil, fmt.Errorf("%w: open object storage: %w", ErrFileNotFound, openErr)
 					}
 					store = openedStore
 				}
 				reader, _, openErr := store.Open(ctx, strings.TrimSpace(att.StoragePath))
 				if openErr != nil {
-					return nil, fmt.Errorf("%w: historical image %s: %v", ErrFileNotFound, ref.fileID, openErr)
+					return nil, fmt.Errorf("%w: historical image %s: %w", ErrFileNotFound, ref.fileID, openErr)
 				}
 				data, readErr := io.ReadAll(io.LimitReader(reader, maxConversationImageSourceBytes+1))
 				closeErr := reader.Close()
 				if readErr != nil {
-					return nil, fmt.Errorf("%w: read historical image %s: %v", ErrFileNotFound, ref.fileID, readErr)
+					return nil, fmt.Errorf("%w: read historical image %s: %w", ErrFileNotFound, ref.fileID, readErr)
 				}
 				if closeErr != nil {
-					return nil, fmt.Errorf("%w: close historical image %s: %v", ErrFileNotFound, ref.fileID, closeErr)
+					return nil, fmt.Errorf("%w: close historical image %s: %w", ErrFileNotFound, ref.fileID, closeErr)
 				}
 				if len(data) == 0 {
 					return nil, fmt.Errorf("%w: historical image %s is empty", ErrInvalidFileReference, ref.fileID)

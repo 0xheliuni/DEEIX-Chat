@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-	"time"
 
 	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
@@ -63,22 +62,20 @@ func (h *Handler) StreamTemporaryChatMessage(c *gin.Context) {
 		})
 	}
 	if err := appconversation.ValidateTemporaryChatInput(input); err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid temporary chat messages")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidTemporaryChatMessages)
 		return
 	}
 
-	billingInput := appconversation.SendMessageBillingInput{
+	session, ok := h.beginUsageSession(c, appconversation.SendMessageBillingInput{
 		UserID:            input.UserID,
 		PlatformModelName: input.Model,
 		ClientRunID:       input.ClientRunID,
-	}
-	authorization, err := h.authorizeUsage(c, billingInput)
-	if err != nil {
+	})
+	if !ok {
 		return
 	}
-	input.UsageAuthorization = authorization
-	stopAuthorizationRenewal := h.startUsageAuthorizationRenewal(authorization)
-	defer stopAuthorizationRenewal()
+	defer session.Close()
+	input.UsageAuthorization = session.Authorization()
 
 	c.Header("Content-Type", "application/x-ndjson; charset=utf-8")
 	c.Header("Cache-Control", "no-store, no-cache, no-transform")
@@ -105,46 +102,28 @@ func (h *Handler) StreamTemporaryChatMessage(c *gin.Context) {
 	result, streamErr := h.service.StreamTemporaryChat(c.Request.Context(), input, func(delta string) error {
 		return writeEvent(map[string]interface{}{"type": "delta", "delta": delta})
 	})
-	if streamErr != nil {
-		if result != nil && result.Billable {
-			billingCtx, billingCancel := context.WithTimeout(context.Background(), 10*time.Second)
-			billingInput.Result = result
-			billingErr := h.recordAndApplyUsageBilling(billingCtx, billingInput, result, authorization)
-			billingCancel()
-			if billingErr != nil && c.Request.Context().Err() == nil {
-				_ = writeEvent(billingStreamErrorPayload(billingErr))
-			}
-		} else {
-			_ = h.releaseSendMessageUsageAuthorization(authorization)
-		}
-		if result != nil && result.IsModerationBlocked() {
-			if !result.ModerationTerminalEmitted() && c.Request.Context().Err() == nil {
-				_ = writeEvent(moderationBlockedStreamPayload(result, authorization))
-			}
-			h.recordTemporaryChatAuditAsync(c, req, len(input.Attachments), "blocked")
-			return
-		}
-		if c.Request.Context().Err() == nil {
-			_ = writeEvent(streamErrorPayload(streamErr))
-		}
-		h.recordTemporaryChatAuditAsync(c, req, len(input.Attachments), "failed")
-		return
-	}
+	clientConnected := func() bool { return c.Request.Context().Err() == nil }
 
-	billingCtx, billingCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	billingInput.Result = result
-	billingErr := h.recordAndApplyUsageBilling(billingCtx, billingInput, result, authorization)
-	billingCancel()
-	if billingErr != nil {
-		_ = writeEvent(billingStreamErrorPayload(billingErr))
+	billingErr := session.Finish(c.Request.Context(), result)
+	if billingErr != nil && clientConnected() {
+		_ = writeEvent(streamErrorPayload(billingErr))
+	}
+	if streamErr == nil && billingErr != nil {
 		h.recordTemporaryChatAuditAsync(c, req, len(input.Attachments), "billing_failed")
 		return
 	}
-	if result.IsModerationBlocked() {
-		if !result.ModerationTerminalEmitted() {
-			_ = writeEvent(moderationBlockedStreamPayload(result, authorization))
+	if result != nil && result.IsModerationBlocked() {
+		if !result.ModerationTerminalEmitted() && clientConnected() {
+			_ = writeEvent(moderationBlockedStreamPayload(result, session.Authorization()))
 		}
 		h.recordTemporaryChatAuditAsync(c, req, len(input.Attachments), "blocked")
+		return
+	}
+	if streamErr != nil {
+		if clientConnected() {
+			_ = writeEvent(streamErrorPayload(streamErr))
+		}
+		h.recordTemporaryChatAuditAsync(c, req, len(input.Attachments), "failed")
 		return
 	}
 	_ = writeEvent(map[string]interface{}{
@@ -174,7 +153,7 @@ func (h *Handler) bindTemporaryChatRequest(c *gin.Context) (
 
 	policy, err := h.service.GetChatFilePolicy(c.Request.Context(), middleware.MustUserID(c))
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "failed to resolve temporary attachment policy")
+		response.InternalError(c)
 		return TemporaryChatMessageRequest{}, nil, noop, false
 	}
 	maxUploadBytes := policy.MaxUploadFileBytes
@@ -218,7 +197,7 @@ func (h *Handler) bindTemporaryChatRequest(c *gin.Context) (
 	fileHeaders := c.Request.MultipartForm.File["attachments"]
 	if len(fileHeaders) == 0 || len(fileHeaders) != len(messageIndexes) || len(fileHeaders) > appconversation.TemporaryChatMaxAttachments {
 		removeMultipartFiles()
-		response.Error(c, http.StatusBadRequest, "invalid file reference")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidFileReference)
 		return TemporaryChatMessageRequest{}, nil, noop, false
 	}
 	maxFilesPerMessage := policy.MaxMessageFiles
@@ -241,19 +220,19 @@ func (h *Handler) bindTemporaryChatRequest(c *gin.Context) (
 		messageIndex := messageIndexes[index]
 		if messageIndex < 0 || messageIndex >= len(req.Messages) || strings.TrimSpace(req.Messages[messageIndex].Role) != "user" {
 			closeAll()
-			response.Error(c, http.StatusBadRequest, "invalid file reference")
+			response.ErrorFrom(c, http.StatusBadRequest, errInvalidFileReference)
 			return TemporaryChatMessageRequest{}, nil, noop, false
 		}
 		counts[messageIndex]++
 		if counts[messageIndex] > maxFilesPerMessage {
 			closeAll()
-			response.Error(c, http.StatusBadRequest, "too many files in one message")
+			response.ErrorFrom(c, http.StatusBadRequest, errTooManyFilesInOneMessage)
 			return TemporaryChatMessageRequest{}, nil, noop, false
 		}
 		file, openErr := header.Open()
 		if openErr != nil {
 			closeAll()
-			response.Error(c, http.StatusBadRequest, "invalid file reference")
+			response.ErrorFrom(c, http.StatusBadRequest, errInvalidFileReference)
 			return TemporaryChatMessageRequest{}, nil, noop, false
 		}
 		opened = append(opened, file)
@@ -270,8 +249,8 @@ func (h *Handler) bindTemporaryChatRequest(c *gin.Context) (
 
 func writeTemporaryChatBindError(c *gin.Context, err error) {
 	var maxBytesErr *http.MaxBytesError
-	if errors.As(err, &maxBytesErr) || strings.Contains(strings.ToLower(err.Error()), "request body too large") {
-		response.Error(c, http.StatusRequestEntityTooLarge, "temporary chat context is too large")
+	if errors.As(err, &maxBytesErr) || errors.Is(err, multipart.ErrMessageTooLarge) {
+		response.ErrorFrom(c, http.StatusRequestEntityTooLarge, errTemporaryChatContextTooLarge)
 		return
 	}
 	response.InvalidRequestBody(c, err)

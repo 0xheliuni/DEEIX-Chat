@@ -170,7 +170,10 @@ func (s *Service) ExtractTemporaryFile(ctx context.Context, input ExtractInput) 
 	return s.extractLocalFile(ctx, input, absPath)
 }
 
-func (s *Service) extractLocalFile(ctx context.Context, input ExtractInput, absPath string) (Result, error) {
+func (s *Service) extractLocalFile(ctx context.Context, input ExtractInput, absPath string) (result Result, err error) {
+	defer func() {
+		err = withErrorCode(err)
+	}()
 	file := input.File
 	file.StoragePath = absPath
 	input.File = file
@@ -182,7 +185,7 @@ func (s *Service) extractLocalFile(ctx context.Context, input ExtractInput, absP
 	}
 	if input.File.FileCategory == "image" {
 		if !input.ImageOCREnabled {
-			return Result{Engine: "image_direct"}, fmt.Errorf("image_ocr_disabled")
+			return Result{Engine: "image_direct"}, NewError("image_ocr_disabled", errors.New("image OCR is disabled"))
 		}
 		result, err := s.extractImageWithOCR(ctx, input)
 		return sanitizeExtractResult(result), err
@@ -234,7 +237,7 @@ func (s *Service) extractLocalFile(ctx context.Context, input ExtractInput, absP
 			return Result{}, extractErr
 		}
 		if input.File.FileCategory != "pdf" {
-			return Result{}, fmt.Errorf("extract_failed")
+			return Result{}, NewError("extract_failed", errors.New("extraction failed"))
 		}
 		if extractErr != nil && !input.PDFOCRFallbackEnabled {
 			return Result{PageCount: pageCount, Engine: primaryEngineName(primary)}, extractErr
@@ -250,16 +253,16 @@ func (s *Service) extractLocalFile(ctx context.Context, input ExtractInput, absP
 		if err != nil {
 			return result, err
 		}
-		return Result{PageCount: pageCount, Engine: "pdf_ocr_fallback", OCRUsed: true}, fmt.Errorf("ocr_failed")
+		return Result{PageCount: pageCount, Engine: "pdf_ocr_fallback", OCRUsed: true}, NewError("ocr_failed", errors.New("OCR failed"))
 	}
 
 	if input.File.FileCategory == "pdf" {
 		if primary != nil {
-			return Result{PageCount: pageCount, Engine: primaryEngineName(primary)}, fmt.Errorf("pdf_no_extractable_text")
+			return Result{PageCount: pageCount, Engine: primaryEngineName(primary)}, NewError("pdf_no_extractable_text", errors.New("PDF has no extractable text"))
 		}
-		return Result{PageCount: pageCount, Engine: primaryEngineName(primary)}, fmt.Errorf("extract_failed")
+		return Result{PageCount: pageCount, Engine: primaryEngineName(primary)}, NewError("extract_failed", errors.New("extraction failed"))
 	}
-	return Result{}, fmt.Errorf("extract_failed")
+	return Result{}, NewError("extract_failed", errors.New("extraction failed"))
 }
 
 // WriteExtractedText 将提取结果写入标准文本产物路径。
@@ -561,14 +564,14 @@ func (s *Service) extractImageWithOCR(ctx context.Context, input ExtractInput) (
 	}
 	item := resolveOCREngine(snapshot, input.OCREngine)
 	if !item.Supports(input.File) {
-		return Result{Engine: ocrEngineName(item.provider), OCRUsed: true}, errors.New(prefixOCRError(item.provider, "ocr_unavailable"))
+		return Result{Engine: ocrEngineName(item.provider), OCRUsed: true}, NewOCRError(item.provider, "ocr_unavailable", nil)
 	}
 	result, err := item.Extract(ctx, input)
 	if err != nil {
 		return result, err
 	}
 	if strings.TrimSpace(result.Text) == "" {
-		return result, errors.New(prefixOCRError(item.provider, "ocr_empty_content"))
+		return result, NewOCRError(item.provider, "ocr_empty_content", nil)
 	}
 	return result, nil
 }
@@ -580,7 +583,7 @@ func (s *Service) extractWithOCRPageRanges(ctx context.Context, input ExtractInp
 	}
 	item := resolveOCREngine(snapshot, input.OCREngine)
 	if !item.Supports(input.File) {
-		return Result{PageCount: pageCount, Engine: ocrEngineName(item.provider), OCRUsed: true}, errors.New(prefixOCRError(item.provider, "ocr_unavailable"))
+		return Result{PageCount: pageCount, Engine: ocrEngineName(item.provider), OCRUsed: true}, NewOCRError(item.provider, "ocr_unavailable", nil)
 	}
 	if len(ranges) == 0 {
 		ranges = buildFullPDFPageRanges(pageCount)
@@ -663,7 +666,7 @@ func (builtinEngine) Extract(ctx context.Context, input ExtractInput) (Result, e
 			Engine:    "builtin_pdf",
 		}, pdfErr
 	default:
-		return Result{}, fmt.Errorf("extract_failed")
+		return Result{}, NewError("extract_failed", errors.New("extraction failed"))
 	}
 }
 
@@ -689,7 +692,7 @@ func (e tikaEngine) Supports(file domainconversation.FileObject) bool {
 
 func (e tikaEngine) Extract(ctx context.Context, input ExtractInput) (Result, error) {
 	if e.client == nil {
-		return Result{}, fmt.Errorf("tika_disabled")
+		return Result{}, NewError("tika_disabled", errors.New("Tika is disabled"))
 	}
 	text, err := e.client.ExtractText(ctx, extractport.DocumentRequest{
 		AbsolutePath: input.File.StoragePath,
@@ -757,7 +760,7 @@ func (e ocrEngine) Extract(ctx context.Context, input ExtractInput) (Result, err
 	provider := normalizeOCREngine(input.OCREngine)
 	engineName := ocrEngineName(provider)
 	if e.client == nil {
-		return Result{Engine: engineName}, errors.New(prefixOCRError(provider, "ocr_unavailable"))
+		return Result{Engine: engineName}, NewOCRError(provider, "ocr_unavailable", nil)
 	}
 	response, err := e.client.ExtractText(ctx, extractport.OCRRequest{
 		AbsolutePath: input.File.StoragePath,
@@ -769,7 +772,7 @@ func (e ocrEngine) Extract(ctx context.Context, input ExtractInput) (Result, err
 		return Result{
 			Engine:  engineName,
 			OCRUsed: true,
-		}, errors.New(prefixOCRError(provider, err.Error()))
+		}, NewOCRError(provider, "ocr_failed", err)
 	}
 	return Result{
 		Text:     response.Text,
@@ -808,18 +811,6 @@ func ocrEngineName(engine string) string {
 	}
 }
 
-func prefixOCRError(mode string, raw string) string {
-	provider := normalizeOCREngine(mode)
-	value := strings.TrimSpace(raw)
-	if value == "" {
-		return provider + "_ocr_failed"
-	}
-	if strings.HasPrefix(value, "ocr_") {
-		return strings.Replace(value, "ocr_", provider+"_ocr_", 1)
-	}
-	return provider + "_ocr_failed: " + value
-}
-
 func (s *Service) extractBuiltinPDF(ctx context.Context, input ExtractInput, pageCount int) (Result, error) {
 	native, err := extractPDFPagesNative(input.File.StoragePath, input.PDFMaxPages)
 	if err != nil {
@@ -851,7 +842,7 @@ func (s *Service) extractPDFWithSelectiveOCR(
 				Engine:    nativeEngineName,
 			}, nil
 		}
-		return Result{PageCount: pageCount, Engine: nativeEngineName}, fmt.Errorf("pdf_no_extractable_text")
+		return Result{PageCount: pageCount, Engine: nativeEngineName}, NewError("pdf_no_extractable_text", errors.New("PDF has no extractable text"))
 	}
 
 	candidatePages := collectPDFOCRCandidatePages(input.File.FileName, native.Pages)
@@ -863,7 +854,7 @@ func (s *Service) extractPDFWithSelectiveOCR(
 				Engine:    nativeEngineName,
 			}, nil
 		}
-		return Result{PageCount: pageCount, Engine: nativeEngineName}, fmt.Errorf("pdf_no_extractable_text")
+		return Result{PageCount: pageCount, Engine: nativeEngineName}, NewError("pdf_no_extractable_text", errors.New("PDF has no extractable text"))
 	}
 
 	ocrResult, err := s.extractWithOCRPageRanges(ctx, input, pageCount, compactPageNumbersToRanges(candidatePages))
@@ -885,7 +876,7 @@ func (s *Service) extractPDFWithSelectiveOCR(
 			PageCount: pageCount,
 			Engine:    ocrResult.Engine,
 			OCRUsed:   true,
-		}, errors.New(prefixOCRError(input.OCREngine, "ocr_invalid_response"))
+		}, NewOCRError(input.OCREngine, "ocr_invalid_response", nil)
 	}
 
 	merged := joinBuiltinPDFPages(native.Pages, ocrPages)
@@ -894,7 +885,7 @@ func (s *Service) extractPDFWithSelectiveOCR(
 			PageCount: pageCount,
 			Engine:    ocrResult.Engine,
 			OCRUsed:   true,
-		}, fmt.Errorf("extract_failed")
+		}, NewError("extract_failed", errors.New("extraction failed"))
 	}
 	return Result{
 		Text:      merged,

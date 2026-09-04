@@ -16,6 +16,7 @@ import (
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/secretbox"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 )
 
 const (
@@ -368,7 +369,7 @@ func (s *Service) BatchDeleteRedemptionCodes(ctx context.Context, ids []uint) *B
 			result.Results = append(result.Results, BatchDeleteResultView{ID: id, Status: BatchDeleteStatusNotFound})
 		default:
 			result.FailedCount++
-			result.Results = append(result.Results, BatchDeleteResultView{ID: id, Status: BatchDeleteStatusFailed, Error: err.Error()})
+			result.Results = append(result.Results, BatchDeleteResultView{ID: id, Status: BatchDeleteStatusFailed, Error: apperr.MessageOr(err, "batch delete failed")})
 		}
 	}
 	return result

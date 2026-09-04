@@ -14,23 +14,24 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/secretbox"
 	portmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
 var (
-	ErrInvalidServerName           = errors.New("invalid mcp server name")
-	ErrInvalidServerBaseURL        = errors.New("invalid mcp server base url")
-	ErrInvalidServerStatus         = errors.New("invalid mcp server status")
-	ErrInvalidServerHeaders        = errors.New("invalid mcp server headers json")
-	ErrInvalidToolStatus           = errors.New("invalid mcp tool status")
-	ErrInvalidToolName             = errors.New("invalid mcp tool display name")
-	ErrInvalidToolDesc             = errors.New("invalid mcp tool description")
-	ErrInvalidToolAttachmentConfig = errors.New("invalid mcp tool attachment configuration")
-	ErrInvalidToolSelection        = errors.New("invalid mcp tool selection")
-	ErrInvalidToolPrice            = errors.New("invalid mcp tool price")
-	ErrMCPClientUnavailable        = errors.New("mcp client unavailable")
+	ErrInvalidServerName           = apperr.New("mcp.invalid_server_name", "invalid mcp server name")
+	ErrInvalidServerBaseURL        = apperr.New("mcp.invalid_server_base_url", "invalid mcp server base url")
+	ErrInvalidServerStatus         = apperr.New("mcp.invalid_server_status", "invalid mcp server status")
+	ErrInvalidServerHeaders        = apperr.New("mcp.invalid_server_headers", "invalid mcp server headers json")
+	ErrInvalidToolStatus           = apperr.New("mcp.invalid_tool_status", "invalid mcp tool status")
+	ErrInvalidToolName             = apperr.New("mcp.invalid_tool_name", "invalid mcp tool display name")
+	ErrInvalidToolDesc             = apperr.New("mcp.invalid_tool_description", "invalid mcp tool description")
+	ErrInvalidToolAttachmentConfig = apperr.NewMasked("mcp.invalid_attachment_configuration", "invalid MCP tool attachment configuration", "invalid mcp tool attachment configuration")
+	ErrInvalidToolSelection        = apperr.New("mcp.invalid_tool_selection", "invalid mcp tool selection")
+	ErrInvalidToolPrice            = apperr.New("request.invalid_mcp_tool_price", "invalid mcp tool price")
+	ErrMCPClientUnavailable        = apperr.New("mcp.client_unavailable", "mcp client unavailable")
 	// ErrServerLimitExceeded MCP 服务数量超限。
-	ErrServerLimitExceeded = repository.ErrMCPServerLimitExceeded
+	ErrServerLimitExceeded = apperr.New("mcp.server_limit_exceeded", "mcp server limit exceeded")
 )
 
 const mcpServerToolListTimeoutMS = 10000
@@ -121,13 +122,17 @@ func (s *Service) CreateServer(ctx context.Context, input ServerInput) (*domainm
 	if err != nil {
 		return nil, err
 	}
-	return s.repo.CreateServer(ctx, repository.CreateMCPServerInput{
+	item, err := s.repo.CreateServer(ctx, repository.CreateMCPServerInput{
 		Name:         normalized.Name,
 		BaseURL:      normalized.BaseURL,
 		AuthTokenEnc: tokenEnc,
 		HeadersJSON:  normalized.HeadersJSON,
 		Status:       normalized.Status,
 	})
+	if errors.Is(err, repository.ErrMCPServerLimitExceeded) {
+		return nil, ErrServerLimitExceeded
+	}
+	return item, err
 }
 
 func (s *Service) UpdateServer(ctx context.Context, serverID uint, input ServerInput) (*domainmcp.Server, error) {
@@ -159,8 +164,9 @@ func (s *Service) SyncServerTools(ctx context.Context, input SyncServerToolsInpu
 	serverID := input.ServerID
 	fail := func(err error) ([]domainmcp.Tool, error) {
 		s.writeToolSyncEvent(ctx, input.RequestID, "error", "mcp.tools_sync_failed", serverID, "MCP 工具同步失败", map[string]interface{}{
-			"server_id": serverID,
-			"error":     err.Error(),
+			"server_id":  serverID,
+			"error":      "MCP 工具同步失败",
+			"error_code": mcpSyncErrorCode(err),
 		})
 		return nil, err
 	}
@@ -190,7 +196,7 @@ func (s *Service) SyncServerTools(ctx context.Context, input SyncServerToolsInpu
 		Headers:   headers,
 	})
 	if err != nil {
-		message := err.Error()
+		message := "MCP 工具同步失败"
 		_, _ = s.repo.UpdateServer(ctx, serverID, repository.UpdateMCPServerInput{LastError: &message})
 		return fail(err)
 	}
@@ -243,6 +249,13 @@ func (s *Service) SyncServerTools(ctx context.Context, input SyncServerToolsInpu
 		"overwrite_customized_metadata": input.OverwriteCustomizedMetadata,
 	})
 	return result, nil
+}
+
+func mcpSyncErrorCode(err error) string {
+	if code := apperr.Code(err); code != "" {
+		return code
+	}
+	return "mcp.tools_sync_failed"
 }
 
 func preserveCompatibleToolAttachmentConfig(discovered *domainmcp.Tool, existing domainmcp.Tool) {
@@ -650,7 +663,7 @@ func parseHeadersJSON(raw string) (map[string]string, error) {
 	}
 	payload := map[string]string{}
 	if err := json.Unmarshal([]byte(value), &payload); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidServerHeaders, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidServerHeaders, err)
 	}
 	result := make(map[string]string, len(payload))
 	for key, item := range payload {
