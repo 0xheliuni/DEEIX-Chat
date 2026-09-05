@@ -7,6 +7,7 @@ import (
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/traceid"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 	"go.uber.org/zap"
 )
 
@@ -110,8 +111,8 @@ func (a *messageUsageAccumulator) interruptedOutputTokens() (int64, int64) {
 // estimateOutputUsage 用已产出文本补齐一次调用的输出与思考用量：上游拆分上报了思考 token 时两侧
 // 分别取较大者；只上报了合并输出时把思考文本并入输出预估，避免重复计费；完全未上报时按文本预估。
 func estimateOutputUsage(observedOutputTokens int64, observedReasoningTokens int64, visibleText string, reasoningText string) (int64, int64) {
-	estimatedOutputTokens := estimateTokens(visibleText)
-	estimatedReasoningTokens := estimateTokens(reasoningText)
+	estimatedOutputTokens := tokenestimate.Estimate(visibleText)
+	estimatedReasoningTokens := tokenestimate.Estimate(reasoningText)
 	switch {
 	case observedReasoningTokens > 0:
 		return resolveObservedOrHigherEstimatedTokens(observedOutputTokens, estimatedOutputTokens),
@@ -149,7 +150,7 @@ func (a *messageUsageAccumulator) billedUsage() llm.Usage {
 }
 
 func resolveObservedOrEstimatedOutputTokens(observedTokens int64, assistantText string) int64 {
-	return resolveObservedOrEstimatedTokens(observedTokens, estimateTokens(assistantText))
+	return resolveObservedOrEstimatedTokens(observedTokens, tokenestimate.Estimate(assistantText))
 }
 
 func resolveObservedOrEstimatedTokens(observedTokens int64, estimatedTokens int64) int64 {
@@ -184,7 +185,7 @@ func estimateBillableInputTokens(input llm.GenerateInput, fullMessages []llm.Mes
 func estimateGenerateInputTokens(input llm.GenerateInput) int64 {
 	tokens := estimatePromptTokens(input.Messages)
 	if instructions := strings.TrimSpace(input.Instructions); instructions != "" {
-		tokens += estimateTokens(instructions) + 4
+		tokens += tokenestimate.Estimate(instructions) + 4
 	}
 	if !input.DisableTools {
 		tokens += estimateToolDefinitionTokens(input.Tools)
@@ -198,9 +199,9 @@ func estimateToolDefinitionTokens(tools []llm.ToolDefinition) int64 {
 	}
 	var tokens int64 = 2
 	for _, tool := range tools {
-		tokens += estimateTokens(tool.Name)
-		tokens += estimateTokens(tool.Description)
-		tokens += estimateTokens(string(tool.InputSchema))
+		tokens += tokenestimate.Estimate(tool.Name)
+		tokens += tokenestimate.Estimate(tool.Description)
+		tokens += tokenestimate.Estimate(string(tool.InputSchema))
 		tokens += 12
 	}
 	return tokens

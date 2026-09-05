@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	appaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/audit"
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	appcompact "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/compact"
@@ -81,7 +82,7 @@ type mcpToolCaller interface {
 }
 
 type auditWriter interface {
-	Write(ctx context.Context, requestID string, actorUserID uint, action string, resource string, resourceID string, ip string, userAgent string, detail interface{})
+	Write(ctx context.Context, input appaudit.WriteInput)
 }
 
 // generatedMediaDownloader 定义会话用例所需的最小媒体下载端口，避免应用层感知 HTTP 细节。
@@ -176,7 +177,7 @@ type AttachmentInput struct {
 	ExtractStatus          string
 	EmbedStatus            string
 	ExtractedText          string
-	RagOptOut              bool // 用户是否关闭该文件的 RAG；RAG 段直接复用，无需重查 DB
+	RAGOptOut              bool // 用户是否关闭该文件的 RAG；RAG 段直接复用，无需重查 DB
 	ChunkCount             int  // 向量分块数；RAG 缓存 key 需要
 	FileUpdatedAt          time.Time
 	Current                bool // 是否为本轮用户显式上传的附件
@@ -193,7 +194,7 @@ type SendMessageInput struct {
 	ContentType             string
 	Content                 string
 	PlatformModelName       string
-	Options                 map[string]interface{}
+	Options                 map[string]any
 	ClientRunID             string
 	FileIDs                 []string
 	SelectedToolIDs         []uint
@@ -207,7 +208,7 @@ type SendMessageInput struct {
 	// UsageAuthorization 是请求级计费授权；提示词形状确定后据此把预算预留抬高到预估成本。
 	UsageAuthorization *domainbilling.UsageAuthorization
 	// OnEvent 用于向调用方推送中间事件（如 rag_search），流式场景使用。
-	OnEvent func(eventType string, payload map[string]interface{}) error
+	OnEvent func(eventType string, payload map[string]any) error
 }
 
 // SetSkillResolver 注入会话技能解析器。
@@ -232,7 +233,7 @@ type SendMessageResult struct {
 	RoutedBindingCode   string
 	UpstreamModelName   string
 	UpstreamProtocol    string
-	EffectiveOptions    map[string]interface{}
+	EffectiveOptions    map[string]any
 	UsageSpeed          string
 	UsageServiceTier    string
 	UsageSource         string
@@ -262,55 +263,63 @@ type MessageFeedbackResult struct {
 	ThumbsDownCount int64
 }
 
+// Dependencies 描述会话服务运行所需的应用依赖。
+type Dependencies struct {
+	Config            *config.Runtime
+	Repository        repository.ConversationRepository
+	Cache             repository.ConversationCacheRepository
+	RouteResolver     routeResolver
+	MemoryRecorder    memoryRecorder
+	LLMClient         llmGateway
+	MediaDownloader   generatedMediaDownloader
+	MCPClient         mcpToolCaller
+	CompactService    *appcompact.Service
+	EmbeddingService  *appembedding.Service
+	ProcessingService *appprocessing.Service
+	UploadService     *appupload.Service
+	ExtractService    *extraction.Service
+	RAGService        *apprag.Service
+	Logger            *zap.Logger
+}
+
 // NewServiceWithRuntime 创建使用运行时配置容器的服务。
-// 压缩、embedding、处理流水线、抽取与 RAG 服务由组合根装配后注入；上传服务的钩子需要回调本服务的
-// 文件能力与处理流水线，因此基于同一仓储在这里装配。
-func NewServiceWithRuntime(
-	cfg *config.Runtime,
-	repo repository.ConversationRepository,
-	cache repository.ConversationCacheRepository,
-	routeResolver routeResolver,
-	memoryRecorder memoryRecorder,
-	llmClient llmGateway,
-	mediaDownloader generatedMediaDownloader,
-	mcpClient mcpToolCaller,
-	compactSvc *appcompact.Service,
-	embeddingSvc *appembedding.Service,
-	processingSvc *appprocessing.Service,
-	extractSvc *extraction.Service,
-	ragSvc *apprag.Service,
-	logger *zap.Logger,
-) *Service {
+// 压缩、embedding、处理流水线、上传、抽取与 RAG 服务全部由组合根装配后注入。
+func NewServiceWithRuntime(deps Dependencies) *Service {
 	svc := &Service{
-		cfg:               cfg,
-		repo:              repo,
-		cache:             cache,
-		routeResolver:     routeResolver,
-		memoryRecorder:    memoryRecorder,
-		llmClient:         llmClient,
-		mediaDownloader:   mediaDownloader,
-		mcpClient:         mcpClient,
-		compactSvc:        compactSvc,
-		embeddingSvc:      embeddingSvc,
-		processingSvc:     processingSvc,
-		extractSvc:        extractSvc,
-		ragSvc:            ragSvc,
-		storeProvider:     appstorage.NewRuntimeProvider(cfg, nil),
-		logger:            logger,
-		generationStreams: newGenerationStreamRegistry(cache, defaultGenerationStreamOptions()),
+		cfg:               deps.Config,
+		repo:              deps.Repository,
+		cache:             deps.Cache,
+		routeResolver:     deps.RouteResolver,
+		memoryRecorder:    deps.MemoryRecorder,
+		llmClient:         deps.LLMClient,
+		mediaDownloader:   deps.MediaDownloader,
+		mcpClient:         deps.MCPClient,
+		compactSvc:        deps.CompactService,
+		embeddingSvc:      deps.EmbeddingService,
+		processingSvc:     deps.ProcessingService,
+		uploadSvc:         deps.UploadService,
+		extractSvc:        deps.ExtractService,
+		ragSvc:            deps.RAGService,
+		logger:            deps.Logger,
+		generationStreams: newGenerationStreamRegistry(deps.Cache, defaultGenerationStreamOptions()),
 		imageContextCache: defaultPreparedConversationImageCache(),
 	}
-	extractSvc.SetObjectStoreProvider(svc.storeProvider)
-	uploadSvc := appupload.NewServiceWithRuntime(cfg, repo, logger, appupload.Hooks{
-		ResolveCapability: func(ctx context.Context) appupload.FileCapability {
-			capability := svc.resolveChatFileCapability(ctx)
-			return appupload.FileCapability{
-				RAGAvailable:         capability.RAGAvailable,
-				EffectiveDocMaxBytes: capability.EffectiveDocMaxBytes,
-			}
-		},
-		InitializeUploadedFile: processingSvc.InitializeUploadedFile,
-	}, appupload.ErrorSet{
+	// 注入 LLM 语义压缩回调（在 svc 完全初始化后绑定）
+	svc.compactSvc.SetLLMSummarizer(svc.callCompactLLM)
+	return svc
+}
+
+// Close 停止接收新流式生成，取消活动生成，并等待请求收尾与常驻事件读取器退出。
+func (s *Service) Close() {
+	if s == nil || s.generationStreams == nil {
+		return
+	}
+	s.generationStreams.close()
+}
+
+// UploadErrorSet 让上传服务返回会话域的文件错误哨兵，HTTP 层因此沿用同一套文件错误映射。
+func UploadErrorSet() appupload.ErrorSet {
+	return appupload.ErrorSet{
 		InvalidFileReference: ErrInvalidFileReference,
 		InvalidFileName:      ErrInvalidFileName,
 		FileNotFound:         ErrFileNotFound,
@@ -318,14 +327,8 @@ func NewServiceWithRuntime(
 		StorageQuotaExceeded: ErrStorageQuotaExceeded,
 		FileTooLarge:         ErrFileTooLarge,
 		MIMEBlocked:          ErrMIMEBlocked,
-		EmbeddingUnavailable: ErrEmbeddingUnavailable,
 		DangerousMIMEType:    ErrDangerousMIMEType,
-	}, appprocessing.DefaultExtractorVersion)
-	uploadSvc.SetObjectStoreProvider(svc.storeProvider)
-	svc.uploadSvc = uploadSvc
-	// 注入 LLM 语义压缩回调（在 svc 完全初始化后绑定）
-	svc.compactSvc.SetLLMSummarizer(svc.callCompactLLM)
-	return svc
+	}
 }
 
 // InvalidateMemoryCache 清除指定用户的记忆缓存，使下一次请求重新从 DB 加载。
@@ -344,15 +347,10 @@ func (s *Service) SetAuditWriter(writer auditWriter) {
 	s.auditWriter = writer
 }
 
+// SetObjectStoreProvider 注入本服务读写媒体产物所用的对象存储；上传与抽取服务的存储由组合根各自注入。
 func (s *Service) SetObjectStoreProvider(provider appstorage.Provider) {
 	if provider != nil {
 		s.storeProvider = provider
-		if s.uploadSvc != nil {
-			s.uploadSvc.SetObjectStoreProvider(provider)
-		}
-		if s.extractSvc != nil {
-			s.extractSvc.SetObjectStoreProvider(provider)
-		}
 	}
 }
 

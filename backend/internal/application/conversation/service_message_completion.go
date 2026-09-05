@@ -8,6 +8,7 @@ import (
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/traceid"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
@@ -59,7 +60,7 @@ type persistInterruptedMessageGenerationInput struct {
 	PersistedToolCallKeys    map[string]struct{}
 	TraceRecorder            *messageTraceRecorder
 	Route                    *channel.ResolvedRoute
-	EffectiveOptions         map[string]interface{}
+	EffectiveOptions         map[string]any
 	ServerSideToolUsage      map[string]int64
 	// MCPToolUsage 聚合中断前成功的 MCP 调用；错误中断时也需带出已产生的上游费用。
 	MCPToolUsage     []MCPToolUsageItem
@@ -116,9 +117,13 @@ func (s *Service) persistSuccessfulMessageGeneration(ctx context.Context, input 
 		msgID := input.UserMessage.ID
 		inputTokens, cacheReadTokens, cacheWriteTokens := input.InputTokens, input.CacheReadTokens, input.CacheWriteTokens
 		background.Go(s.logger, "user_message_usage_update", func() {
-			bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			bgCtx, cancel := background.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
-			_ = s.repo.UpdateMessageUsage(bgCtx, msgID, inputTokens, 0, cacheReadTokens, cacheWriteTokens, 0)
+			_ = s.repo.UpdateMessageUsage(bgCtx, msgID, repository.MessageUsageUpdate{
+				InputTokens:      inputTokens,
+				CacheReadTokens:  cacheReadTokens,
+				CacheWriteTokens: cacheWriteTokens,
+			})
 		})
 	}
 
@@ -184,24 +189,22 @@ func (s *Service) persistAssistantImagePayloadIfPresent(ctx context.Context, inp
 		if input.Route != nil {
 			trustedProviderEndpoint = input.Route.BaseURL
 		}
-		normalized, err = s.normalizeAssistantGeneratedImages(
-			ctx,
-			input.SendInput.UserID,
-			input.SendInput.ConversationID,
-			input.AssistantMessage.ID,
-			successfulMessageGenerationModelName(input),
-			trustedProviderEndpoint,
-			input.GeneratedImages,
-		)
+		normalized, err = s.normalizeAssistantGeneratedImages(ctx, assistantGeneratedImagesInput{
+			UserID:                  input.SendInput.UserID,
+			ConversationID:          input.SendInput.ConversationID,
+			AssistantMessageID:      input.AssistantMessage.ID,
+			ModelName:               successfulMessageGenerationModelName(input),
+			TrustedProviderEndpoint: trustedProviderEndpoint,
+			GeneratedImages:         input.GeneratedImages,
+		})
 	} else {
-		normalized, err = s.normalizeAssistantImageContent(
-			ctx,
-			input.SendInput.UserID,
-			input.SendInput.ConversationID,
-			input.AssistantMessage.ID,
-			successfulMessageGenerationModelName(input),
-			input.AssistantText,
-		)
+		normalized, err = s.normalizeAssistantImageContent(ctx, assistantImageContentInput{
+			UserID:             input.SendInput.UserID,
+			ConversationID:     input.SendInput.ConversationID,
+			AssistantMessageID: input.AssistantMessage.ID,
+			ModelName:          successfulMessageGenerationModelName(input),
+			Content:            input.AssistantText,
+		})
 	}
 	if err != nil || normalized == nil {
 		return false, err
@@ -302,15 +305,15 @@ func (s *Service) finishSuccessfulMessageGeneration(ctx context.Context, input p
 
 	// 非默认分支不代表会话主链，不能覆盖后续默认消息使用的 Responses 状态。
 	if normalizeBranchReason(input.SendInput.BranchReason) == "default" {
-		s.updateStatefulResponseAsync(input.SendInput.ConversationID, input.ResponseID, input.StatefulPromptFingerprint)
+		s.updateStatefulResponseAsync(ctx, input.SendInput.ConversationID, input.ResponseID, input.StatefulPromptFingerprint)
 	}
 	if input.SkipEmbed {
 		return nil
 	}
 	if input.ReuseUserMessage {
-		s.embedMessagePairAsync(input.SendInput, nil, input.AssistantMessage)
+		s.embedMessagePairAsync(ctx, input.SendInput, nil, input.AssistantMessage)
 	} else {
-		s.embedMessagePairAsync(input.SendInput, input.UserMessage, input.AssistantMessage)
+		s.embedMessagePairAsync(ctx, input.SendInput, input.UserMessage, input.AssistantMessage)
 	}
 
 	return nil
@@ -324,12 +327,8 @@ func (s *Service) persistInterruptedMessageGeneration(ctx context.Context, input
 	if !shouldPersistInterruptedMessageGeneration(input) {
 		return nil
 	}
-	persistCtx := ctx
-	var cancel context.CancelFunc
-	if persistCtx == nil || persistCtx.Err() != nil {
-		persistCtx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-	}
+	persistCtx, cancel := background.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
 
 	metrics := resolveInterruptedMessageGenerationMetrics(input)
 
@@ -341,11 +340,11 @@ func (s *Service) persistInterruptedMessageGeneration(ctx context.Context, input
 		if err := s.repo.UpdateMessageUsage(
 			persistCtx,
 			input.UserMessage.ID,
-			metrics.InputTokens,
-			0,
-			metrics.CacheReadTokens,
-			metrics.CacheWriteTokens,
-			0,
+			repository.MessageUsageUpdate{
+				InputTokens:      metrics.InputTokens,
+				CacheReadTokens:  metrics.CacheReadTokens,
+				CacheWriteTokens: metrics.CacheWriteTokens,
+			},
 		); err != nil {
 			s.logger.Warn("persist_interrupted_user_usage_failed",
 				zap.String("trace_id", traceid.FromContext(ctx)),
@@ -448,7 +447,7 @@ func resolveInterruptedMessageGenerationMetrics(input persistInterruptedMessageG
 		OutputTokens:     outputTokens,
 		LatencyMS:        latencyMS,
 		ErrorCode:        classifyRunErrorCode(input.Error),
-		ErrorMessage:     truncateError(messageErrorSummary(input.Error), 255),
+		ErrorMessage:     textutil.TruncateTrimmed(messageErrorSummary(input.Error), 255),
 		CacheReadTokens:  input.Usage.CacheReadTokens,
 		CacheWriteTokens: input.Usage.CacheWriteTokens,
 		ReasoningTokens:  reasoningTokens,
@@ -615,7 +614,7 @@ func normalizeMessageToolCallRows(input persistMessageToolCallsInput) []model.To
 	return rows
 }
 
-func (s *Service) updateStatefulResponseAsync(conversationID uint, responseID string, promptFingerprint string) {
+func (s *Service) updateStatefulResponseAsync(ctx context.Context, conversationID uint, responseID string, promptFingerprint string) {
 	respID := strings.TrimSpace(responseID)
 	if respID == "" {
 		return
@@ -625,19 +624,19 @@ func (s *Service) updateStatefulResponseAsync(conversationID uint, responseID st
 		return
 	}
 	background.Go(s.logger, "stateful_response_update", func() {
-		bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		bgCtx, cancel := background.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
 		_ = s.repo.UpdateConversationStatefulResponse(bgCtx, conversationID, respID, fingerprint)
 	})
 }
 
-func (s *Service) embedMessagePairAsync(input SendMessageInput, userMessage *model.Message, assistantMessage *model.Message) {
+func (s *Service) embedMessagePairAsync(ctx context.Context, input SendMessageInput, userMessage *model.Message, assistantMessage *model.Message) {
 	cfg := s.cfg.Snapshot()
 	if !cfg.EmbeddingEnabled || !cfg.MessageEmbeddingEnabled {
 		return
 	}
 	background.Go(s.logger, "message_pair_embedding", func() {
-		asyncCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		asyncCtx, cancel := background.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 		s.embedMessagePair(asyncCtx, input.ConversationID, input.UserID, userMessage, assistantMessage)
 	})

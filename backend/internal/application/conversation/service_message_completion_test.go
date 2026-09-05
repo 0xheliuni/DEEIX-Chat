@@ -6,6 +6,7 @@ import (
 
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 )
 
 func TestCanceledGenerationWithObservedUsageIsRetainedForBilling(t *testing.T) {
@@ -109,7 +110,7 @@ func TestCanceledGenerationEstimatesVisibleReasoningUsage(t *testing.T) {
 	}
 
 	metrics := resolveInterruptedMessageGenerationMetrics(input)
-	if metrics.InputTokens != 12 || metrics.OutputTokens != 0 || metrics.ReasoningTokens != estimateTokens(reasoningText) {
+	if metrics.InputTokens != 12 || metrics.OutputTokens != 0 || metrics.ReasoningTokens != tokenestimate.Estimate(reasoningText) {
 		t.Fatalf("expected visible reasoning to be estimated separately, got %#v", metrics)
 	}
 	if source := interruptedUsageSource(input, metrics); source != interruptedUsageSourceEstimated {
@@ -130,7 +131,7 @@ func TestCanceledGenerationDoesNotDoubleCountCombinedObservedOutput(t *testing.T
 	metrics := resolveInterruptedMessageGenerationMetrics(input)
 	wantOutput := resolveObservedOrHigherEstimatedTokens(
 		input.Usage.OutputTokens,
-		estimateTokens(visibleText)+estimateTokens(reasoningText),
+		tokenestimate.Estimate(visibleText)+tokenestimate.Estimate(reasoningText),
 	)
 	if metrics.OutputTokens != wantOutput || metrics.ReasoningTokens != 0 {
 		t.Fatalf("expected combined output without duplicated reasoning, got %#v", metrics)
@@ -158,7 +159,7 @@ func TestCanceledToolLoopOnlyEstimatesInterruptedCallTail(t *testing.T) {
 	if metrics.InputTokens != 40+55 {
 		t.Fatalf("expected observed first call plus estimated second call input, got %#v", metrics)
 	}
-	if want := int64(6) + estimateTokens(tailText); metrics.OutputTokens != want || metrics.ReasoningTokens != 0 {
+	if want := int64(6) + tokenestimate.Estimate(tailText); metrics.OutputTokens != want || metrics.ReasoningTokens != 0 {
 		t.Fatalf("expected reported first call output plus tail estimate (%d), got %#v", want, metrics)
 	}
 	if source := interruptedUsageSource(input, metrics); source != interruptedUsageSourceMixed {

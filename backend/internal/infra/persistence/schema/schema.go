@@ -10,8 +10,8 @@ import (
 )
 
 // Models returns all persistent Gorm models used by the application.
-func Models() []interface{} {
-	return []interface{}{
+func Models() []any {
+	return []any{
 		&model.User{},
 		&model.UserContactVerification{},
 		&model.UserCredential{},
@@ -225,7 +225,7 @@ func CleanupRemovedColumns(db *gorm.DB) error {
 	return nil
 }
 
-func dropColumns(db *gorm.DB, table interface{}, columns []string) error {
+func dropColumns(db *gorm.DB, table any, columns []string) error {
 	if !db.Migrator().HasTable(table) {
 		return nil
 	}

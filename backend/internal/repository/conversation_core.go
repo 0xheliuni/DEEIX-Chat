@@ -59,10 +59,28 @@ type ConversationMetadataPatch struct {
 	ReplaceableTitles []string
 }
 
+// ConversationListInput 描述用户会话列表的分页与筛选条件。
+type ConversationListInput struct {
+	UserID        uint
+	Offset        int
+	Limit         int
+	StatusFilter  string
+	StarredFilter string
+	ShareFilter   string
+	ProjectFilter string
+	SearchQuery   string
+}
+
+// DeleteConversationProjectOptions controls which project-owned records are removed.
+type DeleteConversationProjectOptions struct {
+	DeleteConversations bool
+	DeleteFiles         bool
+}
+
 // ConversationMetadataRepository 封装会话元信息与用户访问能力。
 type ConversationMetadataRepository interface {
 	CreateConversation(ctx context.Context, item *domainconversation.Conversation) error
-	ListConversationsByUser(ctx context.Context, userID uint, offset int, limit int, statusFilter string, starredFilter string, shareFilter string, projectFilter string, searchQuery string) ([]domainconversation.Conversation, int64, error)
+	ListConversationsByUser(ctx context.Context, input ConversationListInput) ([]domainconversation.Conversation, int64, error)
 	ListConversationsForSearch(ctx context.Context, userID uint, offset int, limit int, searchQuery string) ([]domainconversation.Conversation, error)
 	GetConversationByUser(ctx context.Context, conversationID uint, userID uint) (*domainconversation.Conversation, error)
 	GetConversationByPublicID(ctx context.Context, publicID string, userID uint) (*domainconversation.Conversation, error)
@@ -70,7 +88,7 @@ type ConversationMetadataRepository interface {
 	ListConversationProjects(ctx context.Context, userID uint, statusFilter string) ([]domainconversation.ConversationProject, error)
 	GetConversationProjectByPublicID(ctx context.Context, userID uint, publicID string) (*domainconversation.ConversationProject, error)
 	UpdateConversationProjectMetadataByPublicID(ctx context.Context, userID uint, publicID string, patch domainconversation.ConversationProjectPatch) (*domainconversation.ConversationProject, error)
-	DeleteConversationProjectByPublicID(ctx context.Context, userID uint, publicID string, deleteConversations bool, deleteFiles bool) ([]string, error)
+	DeleteConversationProjectByPublicID(ctx context.Context, userID uint, publicID string, options DeleteConversationProjectOptions) ([]string, error)
 	ReorderConversationProjects(ctx context.Context, userID uint, publicIDs []string) error
 	UpdateConversationProjectAssignmentByPublicID(ctx context.Context, userID uint, conversationPublicID string, projectID *uint) (*domainconversation.Conversation, error)
 	BatchUpdateConversationProjectByPublicIDs(ctx context.Context, userID uint, conversationPublicIDs []string, projectID *uint) (int64, error)
@@ -103,7 +121,7 @@ type MessageRepository interface {
 	CompleteAssistantMessageWithGeneratedAttachments(ctx context.Context, assistantMessageID uint, assistantCompletion AssistantMessageCompletionUpdate, assistantAttachments []domainconversation.Attachment) error
 	GetMessageByPublicID(ctx context.Context, conversationID uint, userID uint, publicID string) (*domainconversation.Message, error)
 	GetMessageByPublicIDForUser(ctx context.Context, userID uint, publicID string) (*domainconversation.Message, error)
-	UpdateMessageUsage(ctx context.Context, messageID uint, inputTokens int64, outputTokens int64, cacheReadTokens int64, cacheWriteTokens int64, reasoningTokens int64) error
+	UpdateMessageUsage(ctx context.Context, messageID uint, usage MessageUsageUpdate) error
 	UpdateMessageState(ctx context.Context, messageID uint, status string, errorCode string, errorMessage string) error
 	UpdateAssistantMessageContent(ctx context.Context, userID uint, publicID string, content string, editedAt time.Time) (*domainconversation.Message, error)
 	CancelPendingGenerationMessagesByRunID(ctx context.Context, userID uint, runID string, errorCode string, errorMessage string) (bool, error)
@@ -131,11 +149,10 @@ type MessageFeedbackRepository interface {
 // ConversationTraceRepository 封装附件、运行轨迹与工具调用能力。
 type ConversationTraceRepository interface {
 	CreateAttachments(ctx context.Context, items []domainconversation.Attachment) error
+	// CreateConversationRun 原子占用全局唯一的 run ID；重复 ID 返回 ErrDuplicate。
 	CreateConversationRun(ctx context.Context, item *domainconversation.Run) error
-	// EnsureConversationRun inserts a mid-flight run row if absent (moderation / recovery).
-	EnsureConversationRun(ctx context.Context, item *domainconversation.Run) error
-	// UpsertConversationRun creates or updates the final run snapshot by run_id.
-	UpsertConversationRun(ctx context.Context, item *domainconversation.Run) error
+	// UpdateConversationRun 更新已占用的运行快照，且不允许转移运行归属。
+	UpdateConversationRun(ctx context.Context, item *domainconversation.Run) error
 	UpsertConversationMessageTrace(ctx context.Context, item *domainconversation.MessageTrace) error
 	ListConversationMessageTracesByMessageIDs(ctx context.Context, messageIDs []uint) ([]domainconversation.MessageTrace, error)
 	UpsertConversationMessageTraceEvent(ctx context.Context, item *domainconversation.MessageTraceEventRow) error

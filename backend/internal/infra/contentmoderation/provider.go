@@ -41,8 +41,8 @@ type moderationImageURL struct {
 }
 
 type moderationRequest struct {
-	Model string      `json:"model"`
-	Input interface{} `json:"input"`
+	Model string `json:"model"`
+	Input any    `json:"input"`
 }
 
 type moderationCategoryResult struct {
@@ -149,7 +149,7 @@ func (c *Client) ModerateImages(
 	return merged, nil
 }
 
-func (c *Client) moderate(ctx context.Context, config domaincm.ProviderConfig, input interface{}) (*domaincm.ProviderResponse, error) {
+func (c *Client) moderate(ctx context.Context, config domaincm.ProviderConfig, input any) (*domaincm.ProviderResponse, error) {
 	endpoint, err := normalizeBaseURL(config.BaseURL)
 	if err != nil {
 		return nil, err
@@ -179,7 +179,7 @@ func (c *Client) moderate(ctx context.Context, config domaincm.ProviderConfig, i
 
 		response, err := c.Do(request, config.BaseURL)
 		if err != nil {
-			lastErr = fmt.Errorf("%w: %v", cmport.ErrNetwork, err)
+			lastErr = fmt.Errorf("%w: %w", cmport.ErrNetwork, err)
 			if attempt == 0 && shouldRetryNetwork(err) {
 				continue
 			}
@@ -382,7 +382,7 @@ func mapContextError(err error) error {
 	if errors.Is(err, context.DeadlineExceeded) {
 		return cmport.ErrTimeout
 	}
-	return fmt.Errorf("%w: %v", cmport.ErrNetwork, err)
+	return fmt.Errorf("%w: %w", cmport.ErrNetwork, err)
 }
 
 func shouldRetryNetwork(err error) bool {

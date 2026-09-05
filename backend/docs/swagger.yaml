@@ -4303,7 +4303,7 @@ definitions:
         maxLength: 128
         type: string
       options:
-        additionalProperties: true
+        additionalProperties: {}
         type: object
       parentMessagePublicID:
         maxLength: 32
@@ -7196,7 +7196,7 @@ definitions:
         maxLength: 128
         type: string
       options:
-        additionalProperties: true
+        additionalProperties: {}
         type: object
       parentMessagePublicID:
         maxLength: 32
@@ -7925,7 +7925,7 @@ definitions:
         maxLength: 128
         type: string
       options:
-        additionalProperties: true
+        additionalProperties: {}
         type: object
       selectedToolIDs:
         items:

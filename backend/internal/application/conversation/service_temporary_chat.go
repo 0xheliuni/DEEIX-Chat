@@ -30,7 +30,7 @@ type TemporaryChatInput struct {
 	SessionID                string
 	ClientRunID              string
 	Model                    string
-	Options                  map[string]interface{}
+	Options                  map[string]any
 	SelectedToolIDs          []uint
 	SkillIDs                 []uint
 	KnowledgeBaseIDs         []string
@@ -40,7 +40,7 @@ type TemporaryChatInput struct {
 	ReleaseAttachmentSources func()
 	// UsageAuthorization 是请求级计费授权；提示词形状确定后据此把预算预留抬高到预估成本。
 	UsageAuthorization *domainbilling.UsageAuthorization
-	OnEvent            func(eventType string, payload map[string]interface{}) error
+	OnEvent            func(eventType string, payload map[string]any) error
 }
 
 // StreamTemporaryChat 直接以请求上下文调用上游。调用方断开连接时生成随即取消，
@@ -198,17 +198,16 @@ func (s *Service) StreamTemporaryChat(
 		return nil, err
 	}
 
-	generation, generateErr := s.runTemporaryGeneration(
-		ctx,
-		input,
-		route,
-		routeConfig,
-		generateInput,
-		toolRuntime,
-		traceRecorder,
-		startedAt,
-		onDelta,
-	)
+	generation, generateErr := s.runTemporaryGeneration(ctx, temporaryGenerationInput{
+		Request:       input,
+		Route:         route,
+		RouteConfig:   routeConfig,
+		InitialInput:  generateInput,
+		ToolRuntime:   toolRuntime,
+		TraceRecorder: traceRecorder,
+		StartedAt:     startedAt,
+		OnDelta:       onDelta,
+	})
 	output := generation.Output
 	if generateErr != nil {
 		if output == nil || output.Text == "" && generation.Usage == (llm.Usage{}) {
@@ -334,7 +333,7 @@ func enforceTemporaryGenerateInput(input llm.GenerateInput) llm.GenerateInput {
 	return input
 }
 
-func stripTemporaryChatProviderStateOptions(options map[string]interface{}) map[string]interface{} {
+func stripTemporaryChatProviderStateOptions(options map[string]any) map[string]any {
 	if len(options) == 0 {
 		return nil
 	}

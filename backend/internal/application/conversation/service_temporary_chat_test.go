@@ -179,7 +179,7 @@ func TestStreamTemporaryChatSendsRequestScopedImageWithoutPersistence(t *testing
 		}},
 		llmClient:  gateway,
 		uploadSvc:  appupload.NewServiceWithRuntime(runtimeCfg, nil, nil, appupload.Hooks{}, appupload.ErrorSet{}, ""),
-		extractSvc: extraction.NewServiceWithRuntime(runtimeCfg),
+		extractSvc: extraction.NewServiceWithRuntime(runtimeCfg, extraction.EngineFactories{}),
 	}
 	var imageData bytes.Buffer
 	sourceImage := image.NewNRGBA(image.Rect(0, 0, 1, 1))
@@ -214,8 +214,6 @@ func TestStreamTemporaryChatSendsRequestScopedImageWithoutPersistence(t *testing
 }
 
 func TestStreamTemporaryChatExtractsDocumentAndReleasesUploadSourceBeforeGeneration(t *testing.T) {
-	extraction.RegisterEngineFactories(extraction.EngineFactories{Builtin: temporaryBuiltinParserStub{}})
-	t.Cleanup(func() { extraction.RegisterEngineFactories(extraction.EngineFactories{}) })
 	released := false
 	gateway := &temporaryLLMGatewayStub{
 		onGenerateStream: func(input llm.GenerateInput) {
@@ -245,7 +243,7 @@ func TestStreamTemporaryChatExtractsDocumentAndReleasesUploadSourceBeforeGenerat
 		}},
 		llmClient:  gateway,
 		uploadSvc:  appupload.NewServiceWithRuntime(runtimeCfg, nil, nil, appupload.Hooks{}, appupload.ErrorSet{}, ""),
-		extractSvc: extraction.NewServiceWithRuntime(runtimeCfg),
+		extractSvc: extraction.NewServiceWithRuntime(runtimeCfg, extraction.EngineFactories{Builtin: temporaryBuiltinParserStub{}}),
 	}
 
 	if _, err := service.StreamTemporaryChat(t.Context(), TemporaryChatInput{
@@ -284,12 +282,12 @@ func TestStreamTemporaryChatExtractsDocumentAndReleasesUploadSourceBeforeGenerat
 }
 
 func TestStripTemporaryChatProviderStateOptions(t *testing.T) {
-	input := map[string]interface{}{
+	input := map[string]any{
 		"temperature":          0.5,
 		"store":                true,
-		"cache_control":        map[string]interface{}{"type": "ephemeral"},
+		"cache_control":        map[string]any{"type": "ephemeral"},
 		"cachedContent":        "cachedContents/example",
-		"prompt_cache_options": map[string]interface{}{"mode": "explicit"},
+		"prompt_cache_options": map[string]any{"mode": "explicit"},
 	}
 	result := stripTemporaryChatProviderStateOptions(input)
 	if result["temperature"] != 0.5 {
@@ -325,7 +323,7 @@ func TestStreamTemporaryChatPreservesProviderNativeToolsWithoutMCPTools(t *testi
 	tests := []struct {
 		name             string
 		capabilitiesJSON string
-		options          map[string]interface{}
+		options          map[string]any
 		expectedType     string
 	}{
 		{
@@ -340,12 +338,12 @@ func TestStreamTemporaryChatPreservesProviderNativeToolsWithoutMCPTools(t *testi
 		{
 			name:             "user option",
 			capabilitiesJSON: `{"nativeToolKeys":["xai.x_search"]}`,
-			options: map[string]interface{}{
-				"tools": []interface{}{
-					map[string]interface{}{
+			options: map[string]any{
+				"tools": []any{
+					map[string]any{
 						"type":                       "x_search",
 						"enable_image_understanding": true,
-						"allowed_domains":            []interface{}{"x.com"},
+						"allowed_domains":            []any{"x.com"},
 					},
 				},
 			},
@@ -396,7 +394,7 @@ func TestStreamTemporaryChatPreservesProviderNativeToolsWithoutMCPTools(t *testi
 			if len(generateInput.Tools) != 0 {
 				t.Fatalf("expected no MCP tool declarations, got %#v", generateInput.Tools)
 			}
-			tools, ok := generateInput.Options["tools"].([]map[string]interface{})
+			tools, ok := generateInput.Options["tools"].([]map[string]any)
 			if !ok || len(tools) != 1 || tools[0]["type"] != test.expectedType {
 				t.Fatalf("expected %s provider-native tool, got %#v", test.expectedType, generateInput.Options["tools"])
 			}
@@ -490,7 +488,7 @@ func TestEphemeralTraceEmitsWithoutPersistence(t *testing.T) {
 		PublicID: "temporary-message",
 		UserID:   1,
 		RunID:    "temporary-run",
-	}, func(eventType string, payload map[string]interface{}) error {
+	}, func(eventType string, payload map[string]any) error {
 		eventCount++
 		if eventType == "process_update" {
 			if trace, ok := payload["trace"].(*model.MessageProcessTrace); ok && trace.PromptTrace != nil {

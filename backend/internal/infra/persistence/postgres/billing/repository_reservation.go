@@ -8,6 +8,7 @@ import (
 	"time"
 
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/gorm"
@@ -42,7 +43,7 @@ func (r *Repo) ReserveUsageBalance(ctx context.Context, input domainbilling.Usag
 			return repository.ErrConflict
 		}
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		var legacyReservationCount int64
 		if err = tx.Model(&model.BalanceTransaction{}).
@@ -56,7 +57,7 @@ func (r *Repo) ReserveUsageBalance(ctx context.Context, input domainbilling.Usag
 				},
 			).
 			Count(&legacyReservationCount).Error; err != nil {
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		if legacyReservationCount > 0 {
 			return repository.ErrConflict
@@ -124,10 +125,10 @@ func (r *Repo) ReserveUsageBalance(ctx context.Context, input domainbilling.Usag
 			ExpiresAt:           now.Add(usageReservationTTL),
 		}
 		if err = tx.Create(&reservationRow).Error; err != nil {
-			if translated := translateError(err); errors.Is(translated, repository.ErrDuplicate) {
+			if translated := dberror.Translate(err); errors.Is(translated, repository.ErrDuplicate) {
 				return repository.ErrConflict
 			}
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		domain := toDomainUsageReservation(reservationRow)
 		result = &domain
@@ -160,7 +161,7 @@ func (r *Repo) RaiseUsageBalanceReservation(ctx context.Context, userID uint, re
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return repository.ErrConflict
 			}
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		if reservation.Status != domainbilling.UsageReservationStatusActive || !reservation.ExpiresAt.After(now) {
 			return repository.ErrConflict
@@ -197,7 +198,7 @@ func (r *Repo) RaiseUsageBalanceReservation(ctx context.Context, userID uint, re
 			return repository.ErrInsufficientBalance
 		}
 		periodCreditNanousd := minInt64(requiredNanousd, availableCreditNanousd)
-		return translateError(tx.Model(&reservation).Updates(map[string]interface{}{
+		return dberror.Translate(tx.Model(&reservation).Updates(map[string]any{
 			"balance_nanousd":       requiredNanousd - periodCreditNanousd,
 			"period_credit_nanousd": periodCreditNanousd,
 		}).Error)
@@ -218,13 +219,13 @@ func (r *Repo) ReleaseUsageBalanceReservation(ctx context.Context, userID uint, 
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil
 			}
-			return translateError(err)
+			return dberror.Translate(err)
 		}
 		if reservation.Status != domainbilling.UsageReservationStatusActive {
 			return nil
 		}
 		releasedAt := time.Now()
-		return translateError(tx.Model(&reservation).Updates(map[string]interface{}{
+		return dberror.Translate(tx.Model(&reservation).Updates(map[string]any{
 			"status":      domainbilling.UsageReservationStatusReleased,
 			"released_at": releasedAt,
 		}).Error)
@@ -246,9 +247,9 @@ func (r *Repo) RenewUsageBalanceReservation(ctx context.Context, userID uint, re
 			domainbilling.UsageReservationStatusActive,
 			now,
 		).
-		Updates(map[string]interface{}{"expires_at": now.Add(usageReservationTTL)})
+		Updates(map[string]any{"expires_at": now.Add(usageReservationTTL)})
 	if result.Error != nil {
-		return translateError(result.Error)
+		return dberror.Translate(result.Error)
 	}
 	if result.RowsAffected == 0 {
 		return repository.ErrConflict
@@ -277,13 +278,13 @@ func (r *Repo) MarkUsageReservationReconciliationRequired(ctx context.Context, u
 				domainbilling.UsageReservationStatusReconciliation,
 			},
 		).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"status":            domainbilling.UsageReservationStatusReconciliation,
 			"failure_code":      failureCode,
 			"reconciliation_at": reconciliationAt,
 		})
 	if result.Error != nil {
-		return translateError(result.Error)
+		return dberror.Translate(result.Error)
 	}
 	if result.RowsAffected == 0 {
 		return repository.ErrConflict
@@ -311,7 +312,7 @@ func getUsageReservationForSettlement(
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, false, repository.ErrConflict
 		}
-		return nil, false, translateError(err)
+		return nil, false, dberror.Translate(err)
 	}
 	switch item.Status {
 	case domainbilling.UsageReservationStatusActive, domainbilling.UsageReservationStatusReconciliation:
@@ -331,7 +332,7 @@ func settleUsageReservation(tx *gorm.DB, reservation *model.UsageReservation, us
 		return nil
 	}
 	settledAt := time.Now()
-	return translateError(tx.Model(reservation).Updates(map[string]interface{}{
+	return dberror.Translate(tx.Model(reservation).Updates(map[string]any{
 		"status":          domainbilling.UsageReservationStatusSettled,
 		"usage_ledger_id": usageLedgerID,
 		"settled_at":      settledAt,
@@ -363,7 +364,7 @@ func sumActiveBalanceReservations(tx *gorm.DB, userID uint, excludeID uint, now 
 	}
 	var result int64
 	err := query.Scan(&result).Error
-	return result, translateError(err)
+	return result, dberror.Translate(err)
 }
 
 // countActiveUsageReservations 统计仍占用并发槽位的有效租约与待核对记录。
@@ -378,7 +379,7 @@ func countActiveUsageReservations(tx *gorm.DB, userID uint, now time.Time) (int6
 			domainbilling.UsageReservationStatusReconciliation,
 		).
 		Count(&count).Error
-	return count, translateError(err)
+	return count, dberror.Translate(err)
 }
 
 // sumPeriodBilledNanousd 统计周期内已结算的付费用量，免费模型不占用周期额度。
@@ -388,7 +389,7 @@ func sumPeriodBilledNanousd(tx *gorm.DB, userID uint, periodStart time.Time, per
 		Select("COALESCE(SUM(billed_nanousd), 0)").
 		Where("user_id = ? AND is_free_model = ? AND billing_at >= ? AND billing_at < ?", userID, false, periodStart, periodEnd).
 		Scan(&result).Error
-	return result, translateError(err)
+	return result, dberror.Translate(err)
 }
 
 func sumActivePeriodCreditReservations(
@@ -415,7 +416,7 @@ func sumActivePeriodCreditReservations(
 	}
 	var result int64
 	err := query.Scan(&result).Error
-	return result, translateError(err)
+	return result, dberror.Translate(err)
 }
 
 func addNonNegativeInt64(a int64, b int64) int64 {

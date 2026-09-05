@@ -411,10 +411,10 @@ docker build -t deeix-chat-rapidocr ../docker/rapidocr
 ```bash
 make run
 make fmt
+make lint
 make test
 make swagger
 go build ./cmd/server
-go vet ./...
 go mod tidy
 ```
 
@@ -438,7 +438,12 @@ make swagger
 ```bash
 go build ./cmd/server
 go test ./...
-go vet ./...
+make lint
 cd ..
 pnpm api:check
 ```
+
+`make lint` 依次检查 `gofmt`、生产代码中的 `any` 类型写法、应用层裸 `context.Background()`、
+`go vet`、`staticcheck` 与 `deadcode`。静态检查工具版本由 `backend/go.mod` 锁定；现有例外和历史诊断分别记录在
+`.lint-baseline/context-background.txt` 与 `.lint-baseline/staticcheck.txt`，新增项会失败，已移除项也会
+提示同步下调对应基线，确保基线只能逐步下降。`deadcode` 当前采用零基线。

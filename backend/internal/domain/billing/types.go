@@ -1,6 +1,9 @@
 package billing
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 const (
 	// PricingModeToken 表示按 token 用量计费。
@@ -19,6 +22,32 @@ const (
 	// IntervalLifetime 表示永久价格。
 	IntervalLifetime = "lifetime"
 )
+
+// NormalizePricingMode 将计费方式规范化为领域默认值。
+func NormalizePricingMode(value string) string {
+	switch strings.TrimSpace(value) {
+	case PricingModeCall:
+		return PricingModeCall
+	case PricingModeDuration:
+		return PricingModeDuration
+	case PricingModeTiered:
+		return PricingModeTiered
+	default:
+		return PricingModeToken
+	}
+}
+
+// NormalizeInterval 将订阅周期规范化为领域默认值。
+func NormalizeInterval(value string) string {
+	switch strings.TrimSpace(value) {
+	case IntervalYear:
+		return IntervalYear
+	case IntervalLifetime:
+		return IntervalLifetime
+	default:
+		return IntervalMonth
+	}
+}
 
 // Plan 表示订阅套餐。
 type Plan struct {

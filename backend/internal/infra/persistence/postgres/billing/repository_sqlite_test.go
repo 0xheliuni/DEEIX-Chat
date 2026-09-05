@@ -9,6 +9,7 @@ import (
 	"time"
 
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/driver/sqlite"
@@ -521,7 +522,7 @@ func TestUsageLedgerRefNoUniqueIndexOnlyCoversKeyedRows(t *testing.T) {
 	if err := db.Create(row("run_unique")).Error; err != nil {
 		t.Fatalf("create keyed ledger: %v", err)
 	}
-	if err := translateError(db.Create(row("run_unique")).Error); !errors.Is(err, repository.ErrDuplicate) {
+	if err := dberror.Translate(db.Create(row("run_unique")).Error); !errors.Is(err, repository.ErrDuplicate) {
 		t.Fatalf("duplicate keyed ledger error = %v, want ErrDuplicate", err)
 	}
 	for range 2 {
@@ -1095,7 +1096,7 @@ func TestAddPeriodUsageAndSettleOverageSplitsCreditAndBalance(t *testing.T) {
 	if ledger.BalanceAfterNanousd == nil || *ledger.BalanceAfterNanousd != 200 {
 		t.Fatalf("ledger balance after = %v, want 200", ledger.BalanceAfterNanousd)
 	}
-	var snapshot map[string]interface{}
+	var snapshot map[string]any
 	if err := json.Unmarshal([]byte(ledger.PricingSnapshotJSON), &snapshot); err != nil {
 		t.Fatalf("decode pricing snapshot: %v", err)
 	}
@@ -1182,7 +1183,7 @@ func TestAddPeriodUsageAndSettleOverageRecordsDebt(t *testing.T) {
 	}
 
 	assertUsageSettlement(t, db, 1, "gpt-period-debt", -300, -400, -300, "")
-	var snapshot map[string]interface{}
+	var snapshot map[string]any
 	if err := json.Unmarshal([]byte(usage.PricingSnapshotJSON), &snapshot); err != nil {
 		t.Fatalf("decode pricing snapshot: %v", err)
 	}

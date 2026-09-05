@@ -11,6 +11,7 @@ import (
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 )
 
 func TestMessageUsageAccumulatorCombinesObservedAndUnobservedInput(t *testing.T) {
@@ -187,15 +188,15 @@ func TestModerationBlockedBilledReason(t *testing.T) {
 
 func TestModerationLiveEmitterAnnotatesOutputBlocksOnly(t *testing.T) {
 	paid := &domainbilling.UsageAuthorization{Mode: "usage", RefNo: "run_1", Reservation: &domainbilling.UsageBalanceReservation{RefNo: "run_1"}}
-	var emitted []map[string]interface{}
-	emit := moderationLiveEmitter(func(_ string, payload map[string]interface{}) error {
+	var emitted []map[string]any
+	emit := moderationLiveEmitter(func(_ string, payload map[string]any) error {
 		emitted = append(emitted, payload)
 		return nil
 	}, paid)
 
-	emit("moderation_blocked", map[string]interface{}{"direction": "output"})
-	emit("moderation_blocked", map[string]interface{}{"direction": "input"})
-	emit("moderation_checking", map[string]interface{}{})
+	emit("moderation_blocked", map[string]any{"direction": "output"})
+	emit("moderation_blocked", map[string]any{"direction": "input"})
+	emit("moderation_checking", map[string]any{})
 
 	if len(emitted) != 3 {
 		t.Fatalf("expected every event to be forwarded, got %d", len(emitted))
@@ -210,11 +211,11 @@ func TestModerationLiveEmitterAnnotatesOutputBlocksOnly(t *testing.T) {
 		t.Fatal("expected non-block events to stay untouched")
 	}
 
-	var unpaid []map[string]interface{}
-	moderationLiveEmitter(func(_ string, payload map[string]interface{}) error {
+	var unpaid []map[string]any
+	moderationLiveEmitter(func(_ string, payload map[string]any) error {
 		unpaid = append(unpaid, payload)
 		return nil
-	}, &domainbilling.UsageAuthorization{Mode: "self"})("moderation_blocked", map[string]interface{}{"direction": "output"})
+	}, &domainbilling.UsageAuthorization{Mode: "self"})("moderation_blocked", map[string]any{"direction": "output"})
 	if _, ok := unpaid[0]["billedReason"]; ok {
 		t.Fatal("expected self-hosted output block to stay unannotated")
 	}
@@ -235,17 +236,17 @@ func TestSendMessageBillingCallCount(t *testing.T) {
 func TestMessageRequestMaxOutputTokensReadsProviderSpecificKeys(t *testing.T) {
 	tests := []struct {
 		name    string
-		options map[string]interface{}
+		options map[string]any
 		want    int64
 	}{
-		{name: "no limit", options: map[string]interface{}{"temperature": 0.7}, want: 0},
-		{name: "openai chat max_tokens", options: map[string]interface{}{"max_tokens": float64(4096)}, want: 4096},
-		{name: "openai responses max_output_tokens", options: map[string]interface{}{"max_output_tokens": 1024}, want: 1024},
-		{name: "openai completions max_completion_tokens", options: map[string]interface{}{"max_completion_tokens": "2048"}, want: 2048},
-		{name: "gemini nested generationConfig", options: map[string]interface{}{"generationConfig": map[string]interface{}{"maxOutputTokens": int64(512)}}, want: 512},
-		{name: "explicit limit wins over other keys", options: map[string]interface{}{"max_output_tokens": 300, "max_tokens": 900}, want: 300},
-		{name: "non-positive limit ignored", options: map[string]interface{}{"max_tokens": 0}, want: 0},
-		{name: "unparseable limit ignored", options: map[string]interface{}{"max_tokens": "many"}, want: 0},
+		{name: "no limit", options: map[string]any{"temperature": 0.7}, want: 0},
+		{name: "openai chat max_tokens", options: map[string]any{"max_tokens": float64(4096)}, want: 4096},
+		{name: "openai responses max_output_tokens", options: map[string]any{"max_output_tokens": 1024}, want: 1024},
+		{name: "openai completions max_completion_tokens", options: map[string]any{"max_completion_tokens": "2048"}, want: 2048},
+		{name: "gemini nested generationConfig", options: map[string]any{"generationConfig": map[string]any{"maxOutputTokens": int64(512)}}, want: 512},
+		{name: "explicit limit wins over other keys", options: map[string]any{"max_output_tokens": 300, "max_tokens": 900}, want: 300},
+		{name: "non-positive limit ignored", options: map[string]any{"max_tokens": 0}, want: 0},
+		{name: "unparseable limit ignored", options: map[string]any{"max_tokens": "many"}, want: 0},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -281,7 +282,7 @@ func TestFollowUpUsageBudgetEstimateAccumulatesObservedAndNextCall(t *testing.T)
 	unobservedVisibleText := strings.Repeat("streamed answer ", 40)
 	accumulator.recordCallVisibleText(unobservedVisibleText)
 	accumulator.finishCall(false, false)
-	unobservedOutputTokens := estimateTokens(unobservedVisibleText)
+	unobservedOutputTokens := tokenestimate.Estimate(unobservedVisibleText)
 	if unobservedOutputTokens <= 0 {
 		t.Fatal("expected a positive output estimate for the unobserved call")
 	}
@@ -297,7 +298,7 @@ func TestFollowUpUsageBudgetEstimateAccumulatesObservedAndNextCall(t *testing.T)
 	got := followUpUsageBudgetEstimate(
 		accumulator.billedUsage(),
 		nextInputTokens,
-		map[string]interface{}{"max_tokens": 4096},
+		map[string]any{"max_tokens": 4096},
 	)
 	want := usageBudgetEstimate{
 		InputTokens:      800 + 500 + nextInputTokens,
@@ -340,8 +341,8 @@ func TestMessageUsageAccumulatorInterruptedOutputOnlyEstimatesCurrentCallTail(t 
 	accumulator.recordCallReasoningText(tailReasoning)
 
 	gotOutput, gotReasoning := accumulator.interruptedOutputTokens()
-	wantOutput := int64(5) + estimateTokens(tailText)
-	wantReasoning := int64(3) + estimateTokens(tailReasoning)
+	wantOutput := int64(5) + tokenestimate.Estimate(tailText)
+	wantReasoning := int64(3) + tokenestimate.Estimate(tailReasoning)
 	if gotOutput != wantOutput || gotReasoning != wantReasoning {
 		t.Fatalf("interruptedOutputTokens() = (%d, %d), want (%d, %d)", gotOutput, gotReasoning, wantOutput, wantReasoning)
 	}
@@ -350,7 +351,7 @@ func TestMessageUsageAccumulatorInterruptedOutputOnlyEstimatesCurrentCallTail(t 
 	// 总量不变，已完成调用的观测值原样保留。
 	accumulator.addObservedUsage(llm.Usage{OutputTokens: 1})
 	gotOutput, gotReasoning = accumulator.interruptedOutputTokens()
-	if gotOutput != 5+estimateTokens(tailText)+estimateTokens(tailReasoning) || gotReasoning != 3 {
+	if gotOutput != 5+tokenestimate.Estimate(tailText)+tokenestimate.Estimate(tailReasoning) || gotReasoning != 3 {
 		t.Fatalf("partial combined output must fold the tail reasoning without stacking, got (%d, %d)", gotOutput, gotReasoning)
 	}
 
@@ -376,7 +377,7 @@ func TestMessageUsageAccumulatorEstimatesUnobservedCompletedOutput(t *testing.T)
 	accumulator.addObservedUsage(llm.Usage{InputTokens: 60, OutputTokens: 4})
 	accumulator.finishCall(true, true)
 
-	wantOutput := estimateTokens(firstText) + 4
+	wantOutput := tokenestimate.Estimate(firstText) + 4
 	if gotOutput, gotReasoning := accumulator.effectiveOutputTokens(); gotOutput != wantOutput || gotReasoning != 0 {
 		t.Fatalf("effectiveOutputTokens() = (%d, %d), want (%d, 0)", gotOutput, gotReasoning, wantOutput)
 	}
@@ -390,17 +391,17 @@ func TestEstimateOutputUsageFoldsReasoningIntoCombinedObservedOutput(t *testing.
 	reasoning := strings.Repeat("thinking ", 40)
 
 	gotOutput, gotReasoning := estimateOutputUsage(2, 0, visible, reasoning)
-	if gotOutput != estimateTokens(visible)+estimateTokens(reasoning) || gotReasoning != 0 {
+	if gotOutput != tokenestimate.Estimate(visible)+tokenestimate.Estimate(reasoning) || gotReasoning != 0 {
 		t.Fatalf("combined observed output must fold reasoning into the output estimate, got (%d, %d)", gotOutput, gotReasoning)
 	}
 
 	gotOutput, gotReasoning = estimateOutputUsage(2, 1, visible, reasoning)
-	if gotOutput != estimateTokens(visible) || gotReasoning != estimateTokens(reasoning) {
+	if gotOutput != tokenestimate.Estimate(visible) || gotReasoning != tokenestimate.Estimate(reasoning) {
 		t.Fatalf("split observed usage must estimate both sides separately, got (%d, %d)", gotOutput, gotReasoning)
 	}
 
 	gotOutput, gotReasoning = estimateOutputUsage(0, 0, visible, reasoning)
-	if gotOutput != estimateTokens(visible) || gotReasoning != estimateTokens(reasoning) {
+	if gotOutput != tokenestimate.Estimate(visible) || gotReasoning != tokenestimate.Estimate(reasoning) {
 		t.Fatalf("unreported usage must estimate both sides from text, got (%d, %d)", gotOutput, gotReasoning)
 	}
 }
@@ -811,18 +812,18 @@ func TestSendMessageBillingDurationSeconds(t *testing.T) {
 }
 
 func TestMediaDurationSecondsFromOptions(t *testing.T) {
-	if got := mediaDurationSecondsFromOptions(map[string]interface{}{"durationSeconds": float64(5)}); got != 5 {
+	if got := mediaDurationSecondsFromOptions(map[string]any{"durationSeconds": float64(5)}); got != 5 {
 		t.Fatalf("expected numeric duration seconds, got %d", got)
 	}
-	if got := mediaDurationSecondsFromOptions(map[string]interface{}{"duration": "5.2s"}); got != 6 {
+	if got := mediaDurationSecondsFromOptions(map[string]any{"duration": "5.2s"}); got != 6 {
 		t.Fatalf("expected string duration to round up, got %d", got)
 	}
-	if got := mediaDurationSecondsFromOptions(map[string]interface{}{"duration": "bad"}); got != 0 {
+	if got := mediaDurationSecondsFromOptions(map[string]any{"duration": "bad"}); got != 0 {
 		t.Fatalf("expected invalid duration to be ignored, got %d", got)
 	}
-	if got := mediaDurationSecondsFromOptions(map[string]interface{}{
-		"generation_config": map[string]interface{}{
-			"video_config": map[string]interface{}{"duration_seconds": 7},
+	if got := mediaDurationSecondsFromOptions(map[string]any{
+		"generation_config": map[string]any{
+			"video_config": map[string]any{"duration_seconds": 7},
 		},
 	}); got != 7 {
 		t.Fatalf("expected nested video duration seconds, got %d", got)
@@ -834,7 +835,7 @@ func TestWithDefaultMediaVideoDurationInjectsOnlySupportedProtocol(t *testing.T)
 	if got := mediaDurationSecondsFromOptions(xaiOptions); got != 6 {
 		t.Fatalf("expected xAI request default duration, got %d", got)
 	}
-	explicit := map[string]interface{}{"duration": 9}
+	explicit := map[string]any{"duration": 9}
 	if got := withDefaultMediaVideoDuration(explicit, llm.AdapterXAIVideo); got["duration"] != 9 {
 		t.Fatalf("explicit duration was overwritten: %#v", got)
 	}

@@ -20704,7 +20704,7 @@
                 },
                 "options": {
                     "type": "object",
-                    "additionalProperties": true
+                    "additionalProperties": {}
                 },
                 "parentMessagePublicID": {
                     "type": "string",
@@ -24811,7 +24811,7 @@
                 },
                 "options": {
                     "type": "object",
-                    "additionalProperties": true
+                    "additionalProperties": {}
                 },
                 "parentMessagePublicID": {
                     "type": "string",
@@ -25859,7 +25859,7 @@
                 },
                 "options": {
                     "type": "object",
-                    "additionalProperties": true
+                    "additionalProperties": {}
                 },
                 "selectedToolIDs": {
                     "type": "array",

@@ -9,15 +9,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
+
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	appcm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/contentmoderation"
 	appstorage "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/objectstorage"
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/objectstore"
-	"go.uber.org/zap"
 )
+
+const moderationFinalizationTimeout = 65 * time.Second
 
 // MessageModerationOutcome is the soft-moderation end state for a turn.
 // Nil means moderation was not required (policy off / no coordinator).
@@ -31,6 +33,15 @@ type MessageModerationOutcome struct {
 	State string
 	// TerminalEmitted is true when moderation_blocked was already pushed to the stream.
 	TerminalEmitted bool
+}
+
+type completeModerationAfterSuccessInput struct {
+	Coordinator      *appcm.RunCoordinator
+	Result           *SendMessageResult
+	OutputText       string
+	OutputImages     []appcm.OutputImageSource
+	EmbedInput       SendMessageInput
+	ReuseUserMessage bool
 }
 
 // IsModerationBlocked reports whether the turn was blocked after a safety check.
@@ -71,10 +82,10 @@ func paidUsageBilledReason(authorization *domainbilling.UsageAuthorization) stri
 
 // moderationLiveEmitter 把实时事件回调包装为审核协调器的推送出口，并给拦截事件标注计费说明。
 func moderationLiveEmitter(
-	onEvent func(eventType string, payload map[string]interface{}) error,
+	onEvent func(eventType string, payload map[string]any) error,
 	authorization *domainbilling.UsageAuthorization,
 ) appcm.LiveEmitter {
-	return func(eventType string, payload map[string]interface{}) {
+	return func(eventType string, payload map[string]any) {
 		if eventType == "moderation_blocked" && payload != nil {
 			direction, _ := payload["direction"].(string)
 			if reason := liveModerationBlockedBilledReason(direction, authorization); reason != "" {
@@ -91,23 +102,25 @@ func (s *Service) SetModerationService(svc *appcm.Service) {
 	if svc == nil {
 		return
 	}
-	svc.SetEventEmitter(func(runID string, eventType string, payload map[string]interface{}) {
+	svc.SetEventEmitter(func(ctx context.Context, runID string, eventType string, payload map[string]any) {
 		if payload == nil {
-			payload = map[string]interface{}{"type": eventType}
+			payload = map[string]any{"type": eventType}
 		} else if _, ok := payload["type"]; !ok {
 			payload["type"] = eventType
 		}
-		s.PublishMessageGenerationEvent(runID, payload)
-	})
-	svc.SetCancelRun(func(runID string) {
 		if s.generationStreams != nil {
-			s.generationStreams.cancelForced(context.Background(), normalizeRunID(runID))
+			s.generationStreams.publishCurrent(ctx, normalizeRunID(runID), payload)
 		}
 	})
-	svc.SetOnBlocked(func(runID string, _ appcm.BlockInfo) {
+	svc.SetCancelRun(func(ctx context.Context, runID string) {
+		if s.generationStreams != nil {
+			s.generationStreams.cancelForced(ctx, normalizeRunID(runID))
+		}
+	})
+	svc.SetOnBlocked(func(ctx context.Context, runID string, _ appcm.BlockInfo) {
 		// Drop retained deltas/media so reconnect cannot replay withdrawn content.
 		// The following emit of moderation_blocked re-seeds a safe terminal event.
-		s.resetGenerationStreamEvents(runID)
+		s.resetGenerationStreamEvents(ctx, runID)
 	})
 	svc.SetImageLoader(s.loadImageForModeration)
 	svc.SetObjectStore(&moderationObjectStoreAdapter{service: s})
@@ -116,14 +129,12 @@ func (s *Service) SetModerationService(svc *appcm.Service) {
 
 // startModerationRun begins per-turn moderation when policy is enabled.
 // Live events use the existing OnEvent path (set by HTTP handlers) — no side channel.
-// seedRun, when non-nil, is ensured in DB so mid-flight moderation_state updates have a row.
 func (s *Service) startModerationRun(
 	ctx context.Context,
 	input SendMessageInput,
 	runID string,
 	userMessage *model.Message,
 	assistantMessage *model.Message,
-	seedRun *model.Run,
 ) *appcm.RunCoordinator {
 	if s == nil || s.moderationSvc == nil || userMessage == nil {
 		return nil
@@ -144,10 +155,6 @@ func (s *Service) startModerationRun(
 	if coord == nil {
 		return nil
 	}
-	// Durable run row must exist before UpdateRunModeration / ApplyRunBlock.
-	s.ensureConversationRunForModeration(ctx, seedRun, input, runID)
-	// BeginRun may have updated before the row existed; re-apply pending now.
-	s.moderationSvc.SyncRunPending(ctx, runID)
 	if input.OnEvent != nil {
 		coord.SetLiveEmitter(moderationLiveEmitter(input.OnEvent, input.UsageAuthorization))
 	}
@@ -158,71 +165,23 @@ func (s *Service) startModerationRun(
 	return coord
 }
 
-// ensureConversationRunForModeration inserts a mid-flight run so barrier state updates are not no-ops.
-func (s *Service) ensureConversationRunForModeration(
-	ctx context.Context,
-	seedRun *model.Run,
-	input SendMessageInput,
-	runID string,
-) {
-	if s == nil || s.repo == nil {
-		return
-	}
-	var run model.Run
-	if seedRun != nil {
-		run = *seedRun
-	} else {
-		run = model.Run{
-			RunID:          runID,
-			RequestID:      strings.TrimSpace(input.RequestID),
-			UserID:         input.UserID,
-			ConversationID: input.ConversationID,
-			TaskType:       "chat",
-			Status:         "running",
-			StartedAt:      time.Now(),
-		}
-	}
-	if strings.TrimSpace(run.RunID) == "" {
-		run.RunID = runID
-	}
-	if strings.TrimSpace(run.Status) == "" || run.Status == "error" {
-		run.Status = "running"
-	}
-	run.ModerationState = "pending"
-	run.EndedAt = nil
-	if err := s.repo.EnsureConversationRun(ctx, &run); err != nil && s.logger != nil {
-		s.logger.Warn("ensure_conversation_run_for_moderation_failed",
-			zap.String("run_id", run.RunID),
-			zap.Error(err),
-		)
-	}
-}
-
 // completeModerationAfterSuccess runs the post-generation barrier.
 // On block it mutates result into a blocked snapshot and sets result.Moderation.
 // Callers branch on result.IsModerationBlocked(); embed only runs on pass/fail-open.
-func (s *Service) completeModerationAfterSuccess(
-	ctx context.Context,
-	coord *appcm.RunCoordinator,
-	result *SendMessageResult,
-	outputText string,
-	outputImages []appcm.OutputImageSource,
-	embedInput SendMessageInput,
-	reuseUserMessage bool,
-) {
-	if coord == nil || result == nil {
+func (s *Service) completeModerationAfterSuccess(ctx context.Context, input completeModerationAfterSuccessInput) {
+	if input.Coordinator == nil || input.Result == nil {
 		return
 	}
-	barrier := coord.AfterGeneration(ctx, outputText, outputImages)
-	applyBarrierOutcome(result, barrier)
-	if result.IsModerationBlocked() {
+	barrier := input.Coordinator.AfterGeneration(ctx, input.OutputText, input.OutputImages)
+	applyBarrierOutcome(input.Result, barrier)
+	if input.Result.IsModerationBlocked() {
 		return
 	}
 	// Pass / fail-open: embed now (persist path skipped embed while barrier was active).
-	if reuseUserMessage {
-		s.embedMessagePairAsync(embedInput, nil, &result.AssistantMessage)
+	if input.ReuseUserMessage {
+		s.embedMessagePairAsync(ctx, input.EmbedInput, nil, &input.Result.AssistantMessage)
 	} else {
-		s.embedMessagePairAsync(embedInput, &result.UserMessage, &result.AssistantMessage)
+		s.embedMessagePairAsync(ctx, input.EmbedInput, &input.Result.UserMessage, &input.Result.AssistantMessage)
 	}
 }
 
@@ -264,7 +223,7 @@ func applyBarrierOutcome(result *SendMessageResult, barrier appcm.BarrierResult)
 	if barrier.Block == nil {
 		result.Moderation = &MessageModerationOutcome{
 			Blocked: false,
-			State:   firstNonEmptyString(barrier.State, "passed"),
+			State:   textutil.FirstNonEmpty(barrier.State, "passed"),
 		}
 		return
 	}
@@ -366,14 +325,14 @@ func (s *Service) loadImageForModeration(ctx context.Context, userID uint, fileI
 	if err != nil || file == nil {
 		return empty, err
 	}
-	declaredMIME := firstNonEmptyString(file.DetectedMIME, file.MimeType)
+	declaredMIME := textutil.FirstNonEmpty(file.DetectedMIME, file.MimeType)
 	if normalizeAttachmentKind("", declaredMIME) != "image" {
 		return empty, appcm.ErrNonImageAttachment
 	}
 	cfg := s.cfg.Snapshot()
 	storeProvider := s.storeProvider
 	if storeProvider == nil {
-		storeProvider = appstorage.NewRuntimeProvider(config.NewRuntime(cfg), nil)
+		return empty, appstorage.ErrProviderNotConfigured
 	}
 	store, err := storeProvider.Open(ctx)
 	if err != nil {
@@ -435,7 +394,7 @@ func (s *Service) loadOutputImagesForModeration(ctx context.Context, coord *appc
 		if fileID == "" {
 			continue
 		}
-		kind := normalizeAttachmentKind(ref.Kind, firstNonEmptyString(ref.DetectedMIME, ref.MimeType))
+		kind := normalizeAttachmentKind(ref.Kind, textutil.FirstNonEmpty(ref.DetectedMIME, ref.MimeType))
 		if kind != "image" {
 			continue
 		}
@@ -468,19 +427,19 @@ func loadOutputImagesFromFiles(coord *appcm.RunCoordinator, files []model.FileOb
 		out = append(out, appcm.OutputImageSource{
 			FileID:   file.FileID,
 			Data:     data,
-			MimeType: firstNonEmptyString(file.DetectedMIME, file.MimeType, "image/png"),
+			MimeType: textutil.FirstNonEmpty(file.DetectedMIME, file.MimeType, "image/png"),
 			SHA256:   file.SHA256,
 		})
 	}
 	return out
 }
 
-func (s *Service) resetGenerationStreamEvents(runID string) {
+func (s *Service) resetGenerationStreamEvents(ctx context.Context, runID string) {
 	runID = normalizeRunID(runID)
 	if runID == "" || s == nil || s.generationStreams == nil {
 		return
 	}
-	s.generationStreams.resetEvents(context.Background(), runID)
+	s.generationStreams.resetCurrentEvents(ctx, runID)
 }
 
 type moderationObjectStoreAdapter struct {
@@ -518,10 +477,10 @@ func (a *moderationObjectStoreAdapter) Delete(ctx context.Context, path string) 
 }
 
 func (a *moderationObjectStoreAdapter) open(ctx context.Context) (objectstore.Store, error) {
-	provider := a.service.storeProvider
-	if provider == nil {
-		provider = appstorage.NewRuntimeProvider(a.service.cfg, nil)
+	if a == nil || a.service == nil || a.service.storeProvider == nil {
+		return nil, appstorage.ErrProviderNotConfigured
 	}
+	provider := a.service.storeProvider
 	return provider.Open(ctx)
 }
 
@@ -566,7 +525,7 @@ func (a *moderationFileAccessAdapter) DeleteGeneratedFileArtifacts(ctx context.C
 	}
 	storeProvider := a.service.storeProvider
 	if storeProvider == nil {
-		storeProvider = appstorage.NewRuntimeProvider(a.service.cfg, nil)
+		return appstorage.ErrProviderNotConfigured
 	}
 	store, err := storeProvider.Open(ctx)
 	if err != nil {

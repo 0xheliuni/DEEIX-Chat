@@ -93,7 +93,7 @@ type GenerateInput struct {
 	DisableTools bool
 	// Options 承载本次调用的自由 JSON 参数。系统字段（model/messages/input/stream）
 	// 由 adapter 固定构造；Options 只表达采样、推理、工具、缓存和厂商原生扩展。
-	Options map[string]interface{}
+	Options map[string]any
 	// PreviousResponseID 供 OpenAI Responses API 实现有状态会话。
 	// 非空时：仅在 input 中发送本轮新消息，服务端从存储状态续接历史。
 	// 空串时：退回全量发送模式，适用于所有 adapter。
@@ -154,7 +154,7 @@ func MergeRawUsageJSON(left string, right string) string {
 	if right == "" || right == left {
 		return left
 	}
-	items := make([]interface{}, 0, 2)
+	items := make([]any, 0, 2)
 	items = appendRawUsageJSON(items, left)
 	items = appendRawUsageJSON(items, right)
 	if len(items) == 0 {
@@ -174,19 +174,19 @@ func MergeRawUsageJSON(left string, right string) string {
 	return string(raw)
 }
 
-func appendRawUsageJSON(items []interface{}, raw string) []interface{} {
+func appendRawUsageJSON(items []any, raw string) []any {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return items
 	}
-	var decoded interface{}
+	var decoded any
 	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
 		return items
 	}
 	switch value := decoded.(type) {
-	case []interface{}:
+	case []any:
 		return append(items, value...)
-	case map[string]interface{}:
+	case map[string]any:
 		return append(items, value)
 	default:
 		return items
@@ -292,6 +292,7 @@ type UpstreamError struct {
 	Message    string
 	Body       string
 	Debug      *UpstreamDebugSnapshot
+	Cause      error
 }
 
 func (e *UpstreamError) Error() string {
@@ -299,6 +300,13 @@ func (e *UpstreamError) Error() string {
 		return fmt.Sprintf("upstream request failed: status=%d", e.StatusCode)
 	}
 	return fmt.Sprintf("upstream request failed: status=%d message=%s", e.StatusCode, e.Message)
+}
+
+func (e *UpstreamError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Cause
 }
 
 // AcceptedRequestError 表示上游已接受请求，或请求已写出但结果未知。

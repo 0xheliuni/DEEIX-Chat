@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "make build",
-    "check": "make check-version && go vet ./...",
+    "check": "make check-version && make lint",
     "clean": "rm -rf ../.cache/deeix-chat",
     "dev": "make run",
     "test": "make test"
