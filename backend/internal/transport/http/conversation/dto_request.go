@@ -90,7 +90,7 @@ type RenameFileRequest struct {
 // UpdateFileRequest 文件更新请求，file_name 和 rag_opt_out 至少填一个。
 type UpdateFileRequest struct {
 	FileName  *string `json:"fileName,omitempty"`
-	RagOptOut *bool   `json:"ragOptOut,omitempty"`
+	RAGOptOut *bool   `json:"ragOptOut,omitempty"`
 }
 
 // GetFileProcessingStatusesRequest 批量文件处理状态查询请求。

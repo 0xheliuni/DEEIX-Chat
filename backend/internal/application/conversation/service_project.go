@@ -185,8 +185,10 @@ func (s *Service) DeleteConversationProject(
 		ctx,
 		userID,
 		strings.TrimSpace(publicID),
-		deleteConversations,
-		deleteConversations && options.DeleteFiles,
+		repository.DeleteConversationProjectOptions{
+			DeleteConversations: deleteConversations,
+			DeleteFiles:         deleteConversations && options.DeleteFiles,
+		},
 	)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {

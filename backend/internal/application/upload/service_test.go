@@ -654,7 +654,7 @@ func (r *uploadTestRepo) RenameFileObjectByID(context.Context, uint, string, str
 	return nil, nil
 }
 
-func (r *uploadTestRepo) UpdateFileObjectRagOptOut(context.Context, uint, string, bool) (*domainconversation.FileObject, error) {
+func (r *uploadTestRepo) UpdateFileObjectRAGOptOut(context.Context, uint, string, bool) (*domainconversation.FileObject, error) {
 	return nil, nil
 }
 

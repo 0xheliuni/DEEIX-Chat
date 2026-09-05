@@ -268,7 +268,17 @@ func buildOpenAIRequestBody(protocol string, model string, endpoint string, inpu
 	case portllm.EndpointChatCompletions:
 		return buildChatCompletionsRequestBody(adapter, model, input, messages, providerTools, toolDefinitions, providerStreamOptions, stream), nil
 	default:
-		return buildResponsesRequestBody(adapter, model, input, messages, providerTools, toolDefinitions, toolsEnabled, providerStreamOptions, stream), nil
+		return buildResponsesRequestBody(responsesRequestInput{
+			Adapter:               adapter,
+			Model:                 model,
+			Generate:              input,
+			Messages:              messages,
+			ProviderTools:         providerTools,
+			ToolDefinitions:       toolDefinitions,
+			ToolsEnabled:          toolsEnabled,
+			ProviderStreamOptions: providerStreamOptions,
+			Stream:                stream,
+		}), nil
 	}
 }
 

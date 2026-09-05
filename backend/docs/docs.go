@@ -20711,7 +20711,7 @@ const docTemplate = `{
                 },
                 "options": {
                     "type": "object",
-                    "additionalProperties": true
+                    "additionalProperties": {}
                 },
                 "parentMessagePublicID": {
                     "type": "string",
@@ -24818,7 +24818,7 @@ const docTemplate = `{
                 },
                 "options": {
                     "type": "object",
-                    "additionalProperties": true
+                    "additionalProperties": {}
                 },
                 "parentMessagePublicID": {
                     "type": "string",
@@ -25866,7 +25866,7 @@ const docTemplate = `{
                 },
                 "options": {
                     "type": "object",
-                    "additionalProperties": true
+                    "additionalProperties": {}
                 },
                 "selectedToolIDs": {
                     "type": "array",

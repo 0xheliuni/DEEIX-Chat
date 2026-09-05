@@ -490,6 +490,103 @@ func TestGenerationStreamRegistryCancelUsesSharedMarker(t *testing.T) {
 	}
 }
 
+func TestGenerationStreamRegistryCancelWithoutStoreRequiresLocalOwner(t *testing.T) {
+	registry := newGenerationStreamRegistry(nil, generationStreamOptions{})
+	runID := EnsureMessageGenerationRunID("")
+	ctx, cleanup := registerTestGeneration(t, registry, runID, 9, "conv_test", func() {})
+	defer cleanup()
+
+	if registry.cancel(ctx, 8, runID) {
+		t.Fatal("expected cancel to reject a non-owner without shared storage")
+	}
+	if !registry.cancel(ctx, 9, runID) {
+		t.Fatal("expected cancel to accept the local owner")
+	}
+}
+
+type flakyGenerationStreamCompletionStore struct {
+	repository.GenerationStreamCacheRepository
+	mu       sync.Mutex
+	failures int
+	calls    int
+}
+
+func (s *flakyGenerationStreamCompletionStore) CompleteGenerationStream(
+	ctx context.Context,
+	lease repository.GenerationStreamLease,
+	retention time.Duration,
+) (bool, error) {
+	s.mu.Lock()
+	s.calls++
+	fail := s.failures > 0
+	if fail {
+		s.failures--
+	}
+	s.mu.Unlock()
+	if fail {
+		return false, errors.New("temporary cache failure")
+	}
+	return s.GenerationStreamCacheRepository.CompleteGenerationStream(ctx, lease, retention)
+}
+
+func TestGenerationStreamRegistryRetriesCompletionAfterTransientStoreFailure(t *testing.T) {
+	store := &flakyGenerationStreamCompletionStore{
+		GenerationStreamCacheRepository: cachememory.New(),
+		failures:                        1,
+	}
+	registry := newGenerationStreamRegistry(store, generationStreamOptions{
+		Retention:    time.Minute,
+		ActiveTTL:    time.Minute,
+		LeaseTTL:     time.Second,
+		LeaseRefresh: 100 * time.Millisecond,
+	})
+	runID := EnsureMessageGenerationRunID("")
+	ctx, cleanup := registerTestGeneration(t, registry, runID, 9, "conv_test", func() {})
+	registry.finish(ctx, runID)
+	cleanup()
+
+	store.mu.Lock()
+	calls := store.calls
+	store.mu.Unlock()
+	if calls != 2 {
+		t.Fatalf("completion calls = %d, want 2 after one transient failure", calls)
+	}
+	if registry.hasActive(context.Background(), runID) {
+		t.Fatal("completed generation remained active after retry")
+	}
+}
+
+func TestGenerationStreamRegistryRetriesCompletionAfterProlongedStoreFailure(t *testing.T) {
+	store := &flakyGenerationStreamCompletionStore{
+		GenerationStreamCacheRepository: cachememory.New(),
+		failures:                        generationStreamCompletionAttempts,
+	}
+	registry := newGenerationStreamRegistry(store, generationStreamOptions{
+		Retention:    time.Minute,
+		ActiveTTL:    time.Minute,
+		LeaseTTL:     time.Second,
+		LeaseRefresh: 100 * time.Millisecond,
+	})
+	runID := EnsureMessageGenerationRunID("")
+	ctx, cleanup := registerTestGeneration(t, registry, runID, 9, "conv_test", func() {})
+	registry.finish(ctx, runID)
+	cleanup()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		store.mu.Lock()
+		calls := store.calls
+		store.mu.Unlock()
+		if calls >= generationStreamCompletionAttempts+1 && !registry.hasActive(context.Background(), runID) {
+			registry.close()
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	registry.close()
+	t.Fatal("completion retry did not recover after prolonged store failure")
+}
+
 func TestGenerationStreamRegistryActiveLeaseLifecycle(t *testing.T) {
 	registry := newGenerationStreamRegistry(cachememory.New(), generationStreamOptions{
 		Retention:        time.Minute,

@@ -467,6 +467,7 @@ type UpdateProfileInput struct {
 	AppearancePreferences *string
 }
 
+// UpdateUsernameInput contains the one-time username change request.
 type UpdateUsernameInput struct {
 	Username string
 }
@@ -546,6 +547,7 @@ func shouldRequireInitialUsername(item domainuser.User, adminUsername string) bo
 	return false
 }
 
+// CompleteOnboarding completes required first-login account setup.
 func (s *Service) CompleteOnboarding(
 	ctx context.Context,
 	userID uint,

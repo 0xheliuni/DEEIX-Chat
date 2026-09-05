@@ -385,6 +385,8 @@ function resolveSettingsValidationMessage(error: ApiError, locale: AppLocale): s
         return `${displayLabel}包含不支持的协议。`;
       case "model_option_path":
         return `${displayLabel}包含无效的参数路径。`;
+      case "native_tool_pricing":
+        return `${displayLabel}包含无效的原生工具计费配置。`;
       case "mime":
         return `${displayLabel}包含无效的 MIME 类型。`;
       case "file_type":
@@ -453,6 +455,8 @@ function resolveSettingsValidationMessage(error: ApiError, locale: AppLocale): s
       return `${displayLabel} contains an unsupported protocol.`;
     case "model_option_path":
       return `${displayLabel} contains an invalid option path.`;
+    case "native_tool_pricing":
+      return `${displayLabel} contains invalid native tool pricing configuration.`;
     case "mime":
       return `${displayLabel} contains an invalid MIME type.`;
     case "file_type":

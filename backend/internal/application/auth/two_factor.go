@@ -85,6 +85,7 @@ func (s *Service) shouldRequireTwoFactor(ctx context.Context, item *user.User) (
 	return twoFactor.TOTPEnabled && strings.TrimSpace(twoFactor.TOTPSecretEncrypted) != "", nil
 }
 
+// VerifyLoginTwoFactor completes a login challenge using a second factor.
 func (s *Service) VerifyLoginTwoFactor(
 	ctx context.Context,
 	challengeToken string,
@@ -194,6 +195,7 @@ func (s *Service) markTwoFactorLoginFailure(ctx context.Context, item *user.User
 	return ErrAccountLocked
 }
 
+// RequestLoginEmailVerification sends an email code for a pending login challenge.
 func (s *Service) RequestLoginEmailVerification(
 	ctx context.Context,
 	challengeToken string,
@@ -237,6 +239,7 @@ func (s *Service) RequestLoginEmailVerification(
 	})
 }
 
+// GetCurrentTwoFactorStatus returns the current user's two-factor status.
 func (s *Service) GetCurrentTwoFactorStatus(ctx context.Context, userID uint) (*TwoFactorStatusResult, error) {
 	twoFactor, err := s.repo.GetUserTwoFactorByUserID(ctx, userID)
 	if err != nil {
@@ -254,6 +257,7 @@ func (s *Service) GetCurrentTwoFactorStatus(ctx context.Context, userID uint) (*
 	}, nil
 }
 
+// ResetUserTwoFactorByAdmin disables two-factor authentication for an administrator-managed user.
 func (s *Service) ResetUserTwoFactorByAdmin(ctx context.Context, userID uint) error {
 	if err := s.repo.DeleteUserTwoFactor(ctx, userID); err != nil && !errors.Is(err, repository.ErrNotFound) {
 		return err
@@ -261,6 +265,7 @@ func (s *Service) ResetUserTwoFactorByAdmin(ctx context.Context, userID uint) er
 	return nil
 }
 
+// StartCurrentTwoFactorSetup starts a new two-factor setup challenge.
 func (s *Service) StartCurrentTwoFactorSetup(ctx context.Context, userID uint) (*TwoFactorSetupStartResult, error) {
 	item, err := s.repo.GetByID(ctx, userID)
 	if err != nil {
@@ -310,6 +315,7 @@ func (s *Service) StartCurrentTwoFactorSetup(ctx context.Context, userID uint) (
 	}, nil
 }
 
+// ConfirmCurrentTwoFactorSetup verifies a setup code and enables two-factor authentication.
 func (s *Service) ConfirmCurrentTwoFactorSetup(ctx context.Context, userID uint, code string) (*TwoFactorSetupConfirmResult, error) {
 	twoFactor, err := s.repo.GetUserTwoFactorByUserID(ctx, userID)
 	if err != nil {
@@ -378,6 +384,7 @@ func (s *Service) ConfirmCurrentTwoFactorSetup(ctx context.Context, userID uint,
 	return &TwoFactorSetupConfirmResult{RecoveryCodes: recoveryCodes, Status: *status}, nil
 }
 
+// CancelCurrentTwoFactorSetup cancels the pending two-factor setup challenge.
 func (s *Service) CancelCurrentTwoFactorSetup(ctx context.Context, userID uint) error {
 	twoFactor, err := s.repo.GetUserTwoFactorByUserID(ctx, userID)
 	if err != nil {
@@ -392,6 +399,7 @@ func (s *Service) CancelCurrentTwoFactorSetup(ctx context.Context, userID uint) 
 	return s.repo.DeleteUserTwoFactor(ctx, userID)
 }
 
+// DisableCurrentTwoFactor disables two-factor authentication after code verification.
 func (s *Service) DisableCurrentTwoFactor(ctx context.Context, userID uint, code string) error {
 	if err := s.verifyCurrentTwoFactorCode(ctx, userID, code); err != nil {
 		return err
@@ -402,6 +410,7 @@ func (s *Service) DisableCurrentTwoFactor(ctx context.Context, userID uint, code
 	return nil
 }
 
+// RegenerateCurrentTwoFactorRecoveryCodes replaces the current user's recovery codes.
 func (s *Service) RegenerateCurrentTwoFactorRecoveryCodes(ctx context.Context, userID uint, code string) (*TwoFactorSetupConfirmResult, error) {
 	if err := s.verifyCurrentTwoFactorCode(ctx, userID, code); err != nil {
 		return nil, err

@@ -75,17 +75,15 @@ func (s *Service) Probe(ctx context.Context, actorRole string) (*ProbeResponse, 
 			// Official Omni responses include category_applied_input_types; require image proof.
 			applied := resp.Results[0].CategoryAppliedInputTypes
 			foundImage := false
-			if applied != nil {
-				for _, types := range applied {
-					for _, t := range types {
-						if strings.EqualFold(strings.TrimSpace(t), "image") {
-							foundImage = true
-							break
-						}
-					}
-					if foundImage {
+			for _, types := range applied {
+				for _, t := range types {
+					if strings.EqualFold(strings.TrimSpace(t), "image") {
+						foundImage = true
 						break
 					}
+				}
+				if foundImage {
+					break
 				}
 			}
 			if !foundImage {

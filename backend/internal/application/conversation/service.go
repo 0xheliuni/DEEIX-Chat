@@ -177,7 +177,7 @@ type AttachmentInput struct {
 	ExtractStatus          string
 	EmbedStatus            string
 	ExtractedText          string
-	RagOptOut              bool // 用户是否关闭该文件的 RAG；RAG 段直接复用，无需重查 DB
+	RAGOptOut              bool // 用户是否关闭该文件的 RAG；RAG 段直接复用，无需重查 DB
 	ChunkCount             int  // 向量分块数；RAG 缓存 key 需要
 	FileUpdatedAt          time.Time
 	Current                bool // 是否为本轮用户显式上传的附件

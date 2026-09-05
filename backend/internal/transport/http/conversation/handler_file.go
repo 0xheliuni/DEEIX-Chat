@@ -326,7 +326,7 @@ func (h *Handler) UpdateFile(c *gin.Context) {
 		response.InvalidRequestBody(c, err)
 		return
 	}
-	if req.FileName == nil && req.RagOptOut == nil {
+	if req.FileName == nil && req.RAGOptOut == nil {
 		response.ErrorFrom(c, http.StatusBadRequest, errAtLeastOneOfFileNameOrRAGOptOutRequired)
 		return
 	}
@@ -353,8 +353,8 @@ func (h *Handler) UpdateFile(c *gin.Context) {
 		}
 	}
 
-	if req.RagOptOut != nil {
-		item, err = h.uploads.UpdateFileRagOptOut(c.Request.Context(), userID, fileID, *req.RagOptOut)
+	if req.RAGOptOut != nil {
+		item, err = h.uploads.UpdateFileRAGOptOut(c.Request.Context(), userID, fileID, *req.RAGOptOut)
 		if err != nil {
 			switch {
 			case errors.Is(err, appconversation.ErrInvalidFileReference):
@@ -372,8 +372,8 @@ func (h *Handler) UpdateFile(c *gin.Context) {
 	if req.FileName != nil {
 		auditDetail["file_name"] = item.FileName
 	}
-	if req.RagOptOut != nil {
-		auditDetail["rag_opt_out"] = item.RagOptOut
+	if req.RAGOptOut != nil {
+		auditDetail["rag_opt_out"] = item.RAGOptOut
 	}
 	h.recordAudit(c, "update_file",
 		"file",

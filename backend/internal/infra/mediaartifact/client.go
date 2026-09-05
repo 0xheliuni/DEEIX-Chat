@@ -83,7 +83,7 @@ func newMediaArtifactHTTPClient(policy security.OutboundPolicy, strictPolicy sec
 // DownloadImage 从不可信的提供商返回 URL 下载生成图片。
 func (c *Client) DownloadImage(ctx context.Context, sourceURL string, trustedProviderEndpoint string, maxBytes int64) ([]byte, string, error) {
 	if _, _, ok := geminiGeneratedFileURLs(sourceURL); ok {
-		return nil, "", fmt.Errorf("Gemini Files generated image URI is not supported")
+		return nil, "", errors.New("gemini files generated image URI is not supported")
 	}
 	result, err := c.download(ctx, downloadRequest{
 		url:                sourceURL,
@@ -105,7 +105,7 @@ func (c *Client) DownloadVideo(ctx context.Context, sourceURL string, trustedPro
 	metadataURL, geminiDownloadURL, geminiFile := geminiGeneratedFileURLs(downloadURL)
 	if geminiFile {
 		if strings.TrimSpace(apiKey) == "" {
-			return nil, "", fmt.Errorf("Gemini Files generated video URI requires an API key")
+			return nil, "", errors.New("gemini files generated video URI requires an API key")
 		}
 		var err error
 		resolvedMIME, err = c.waitGeminiFileReady(ctx, metadataURL, trustedProviderEndpoint, apiKey)

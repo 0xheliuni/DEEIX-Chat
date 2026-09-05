@@ -28,6 +28,7 @@ type generationStream struct {
 	notify                chan struct{}
 }
 
+// ClaimGenerationStream claims ownership of a generation stream and renews its leases.
 func (c *Cache) ClaimGenerationStream(
 	_ context.Context,
 	lease repository.GenerationStreamLease,
@@ -76,6 +77,7 @@ func (c *Cache) ClaimGenerationStream(
 	return true, nil
 }
 
+// GetGenerationStreamOwner returns the active owner of a generation stream.
 func (c *Cache) GetGenerationStreamOwner(ctx context.Context, runID string) (uint, bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -87,6 +89,7 @@ func (c *Cache) GetGenerationStreamOwner(ctx context.Context, runID string) (uin
 	return stream.ownerID, true, nil
 }
 
+// RenewGenerationStreamLease extends the active and ownership leases for a stream.
 func (c *Cache) RenewGenerationStreamLease(
 	_ context.Context,
 	lease repository.GenerationStreamLease,
@@ -113,12 +116,17 @@ func (c *Cache) RenewGenerationStreamLease(
 	return true, nil
 }
 
+// CompleteGenerationStream marks a stream complete while retaining its events temporarily.
 func (c *Cache) CompleteGenerationStream(_ context.Context, lease repository.GenerationStreamLease, retention time.Duration) (bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	stream := c.streams[strings.TrimSpace(lease.RunID)]
 	now := time.Now()
-	if stream == nil || stream.executionID != strings.TrimSpace(lease.ExecutionID) || stream.ownerID != lease.UserID || stream.activeExpired(now) {
+	if stream == nil ||
+		stream.executionID != strings.TrimSpace(lease.ExecutionID) ||
+		stream.ownerID != lease.UserID ||
+		stream.conversationID != strings.TrimSpace(lease.ConversationPublicID) ||
+		stream.ownerExpired(now) {
 		return false, nil
 	}
 	stream.executionID = ""
@@ -134,6 +142,7 @@ func (c *Cache) CompleteGenerationStream(_ context.Context, lease repository.Gen
 	return true, nil
 }
 
+// AbandonGenerationStream removes an active stream without retaining its events.
 func (c *Cache) AbandonGenerationStream(_ context.Context, lease repository.GenerationStreamLease) (bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -151,6 +160,7 @@ func (c *Cache) AbandonGenerationStream(_ context.Context, lease repository.Gene
 	return true, nil
 }
 
+// ListActiveGenerationStreams lists active streams owned by a user.
 func (c *Cache) ListActiveGenerationStreams(ctx context.Context, userID uint) ([]repository.ActiveGenerationStream, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -169,6 +179,7 @@ func (c *Cache) ListActiveGenerationStreams(ctx context.Context, userID uint) ([
 	return items, nil
 }
 
+// IsGenerationStreamActive reports whether a generation stream is active.
 func (c *Cache) IsGenerationStreamActive(ctx context.Context, runID string) (bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -177,6 +188,7 @@ func (c *Cache) IsGenerationStreamActive(ctx context.Context, runID string) (boo
 	return stream != nil && !stream.activeExpired(now), nil
 }
 
+// RequestGenerationStreamCancel records a user's cancellation request for a stream.
 func (c *Cache) RequestGenerationStreamCancel(_ context.Context, runID string, userID uint, ttl time.Duration) (bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -190,6 +202,7 @@ func (c *Cache) RequestGenerationStreamCancel(_ context.Context, runID string, u
 	return true, nil
 }
 
+// IsGenerationStreamCanceled reports whether a stream has an unexpired cancellation request.
 func (c *Cache) IsGenerationStreamCanceled(ctx context.Context, runID string) (bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -198,6 +211,7 @@ func (c *Cache) IsGenerationStreamCanceled(ctx context.Context, runID string) (b
 	return stream != nil && !stream.cancelExpired(now), nil
 }
 
+// AppendGenerationStreamEvent appends an event to an owned generation stream.
 func (c *Cache) AppendGenerationStreamEvent(
 	_ context.Context,
 	lease repository.GenerationStreamLease,
@@ -218,6 +232,7 @@ func (c *Cache) AppendGenerationStreamEvent(
 	return record, true, nil
 }
 
+// AppendActiveGenerationEvent appends an event to the shared active-stream feed.
 func (c *Cache) AppendActiveGenerationEvent(
 	_ context.Context,
 	input repository.GenerationStreamAppend,
@@ -279,6 +294,7 @@ func appendGenerationStreamEventLocked(
 	return record
 }
 
+// GetGenerationStreamUpstreamThinkSnapshot returns the latest upstream thinking snapshot.
 func (c *Cache) GetGenerationStreamUpstreamThinkSnapshot(ctx context.Context, runID string) (repository.GenerationStreamUpstreamThinkSnapshot, bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -295,6 +311,7 @@ func (c *Cache) GetGenerationStreamUpstreamThinkSnapshot(ctx context.Context, ru
 	}, true, nil
 }
 
+// GetGenerationStreamTextSnapshot returns the latest accumulated text snapshot.
 func (c *Cache) GetGenerationStreamTextSnapshot(ctx context.Context, runID string) (repository.GenerationStreamTextSnapshot, bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -309,6 +326,7 @@ func (c *Cache) GetGenerationStreamTextSnapshot(ctx context.Context, runID strin
 	}, true, nil
 }
 
+// ListGenerationStreamEvents returns retained events for a generation stream.
 func (c *Cache) ListGenerationStreamEvents(ctx context.Context, runID string, limit int64) ([]repository.GenerationStreamMessage, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -323,6 +341,7 @@ func (c *Cache) ListGenerationStreamEvents(ctx context.Context, runID string, li
 	return append([]repository.GenerationStreamMessage(nil), stream.events[len(stream.events)-int(limit):]...), nil
 }
 
+// ReadGenerationStreamEvents waits for and returns events after a stream cursor.
 func (c *Cache) ReadGenerationStreamEvents(ctx context.Context, runID string, afterID string, block time.Duration, limit int64) ([]repository.GenerationStreamMessage, error) {
 	if c == nil {
 		return nil, nil
@@ -370,6 +389,7 @@ func (c *Cache) notifyGenerationStreamsLocked() {
 	c.streamNotify = make(chan struct{})
 }
 
+// ResetGenerationStreamEvents clears retained events while preserving stream ownership.
 func (c *Cache) ResetGenerationStreamEvents(_ context.Context, lease repository.GenerationStreamLease) (bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

@@ -183,6 +183,22 @@ func TestGenerationStreamRejectsReuseUntilOwnershipExpires(t *testing.T) {
 	}
 }
 
+func TestGenerationStreamCompletesAfterActiveLeaseExpires(t *testing.T) {
+	cache := New()
+	ctx := context.Background()
+	lease := testGenerationStreamLease("run_memory_expired_active", "execution_1")
+	if claimed, err := cache.ClaimGenerationStream(ctx, lease, 10*time.Millisecond, 200*time.Millisecond); err != nil || !claimed {
+		t.Fatalf("claim=%v err=%v, want true nil", claimed, err)
+	}
+	time.Sleep(20 * time.Millisecond)
+	if completed, err := cache.CompleteGenerationStream(ctx, lease, time.Minute); err != nil || !completed {
+		t.Fatalf("complete after active expiry=%v err=%v, want true nil", completed, err)
+	}
+	if active, err := cache.IsGenerationStreamActive(ctx, lease.RunID); err != nil || active {
+		t.Fatalf("completed stream active=%v err=%v, want false nil", active, err)
+	}
+}
+
 func testGenerationStreamLease(runID string, executionID string) repository.GenerationStreamLease {
 	return repository.GenerationStreamLease{
 		RunID:                runID,

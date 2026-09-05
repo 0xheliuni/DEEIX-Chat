@@ -649,7 +649,7 @@ func (r *messageTraceRecorder) reconcileStructuredThink(content string, summary 
 	r.updateStructuredThinkDraft(draft, content, summary, payload)
 	if terminal {
 		r.commitTerminalDraft(draft)
-		r.flushUpstreamThinkLiveUpdate(draft, true, false)
+		r.flushUpstreamThinkLiveUpdate(draft, upstreamThinkLiveUpdateOptions{Force: true})
 	}
 }
 
@@ -757,7 +757,7 @@ func (r *messageTraceRecorder) completeTools() {
 
 func (r *messageTraceRecorder) completeUpstreamThink() {
 	if r.completeDraft(r.upstreamThink) {
-		r.flushUpstreamThinkLiveUpdate(r.upstreamThink, true, false)
+		r.flushUpstreamThinkLiveUpdate(r.upstreamThink, upstreamThinkLiveUpdateOptions{Force: true})
 	}
 }
 
@@ -810,7 +810,7 @@ func (r *messageTraceRecorder) failWithContext(ctx context.Context, err error) {
 	if r.upstreamThink != nil {
 		r.upstreamThink.status = messageTraceStatusError
 		r.upstreamThink.endedAt = &now
-		r.flushUpstreamThinkLiveUpdate(r.upstreamThink, true, false)
+		r.flushUpstreamThinkLiveUpdate(r.upstreamThink, upstreamThinkLiveUpdateOptions{Force: true})
 		r.persistDraftCtx(ctx, r.upstreamThink, true)
 	}
 	if r.tools != nil {
@@ -985,7 +985,7 @@ func (r *messageTraceRecorder) queueUpstreamThinkLiveUpdate(draft *messageTraceD
 	if !r.shouldFlushUpstreamThinkLiveUpdate() {
 		return
 	}
-	r.flushUpstreamThinkLiveUpdate(draft, false, true)
+	r.flushUpstreamThinkLiveUpdate(draft, upstreamThinkLiveUpdateOptions{PersistSnapshot: true})
 }
 
 func (r *messageTraceRecorder) shouldFlushUpstreamThinkLiveUpdate() bool {
@@ -1014,7 +1014,12 @@ func (r *messageTraceRecorder) shouldPersistUpstreamThinkSnapshot() bool {
 	return time.Since(r.upstreamThinkLastPersist) >= upstreamThinkPersistInterval
 }
 
-func (r *messageTraceRecorder) flushUpstreamThinkLiveUpdate(draft *messageTraceDraft, force bool, persistSnapshot bool) {
+type upstreamThinkLiveUpdateOptions struct {
+	Force           bool
+	PersistSnapshot bool
+}
+
+func (r *messageTraceRecorder) flushUpstreamThinkLiveUpdate(draft *messageTraceDraft, options upstreamThinkLiveUpdateOptions) {
 	if !r.enabled() || draft == nil {
 		return
 	}
@@ -1024,10 +1029,10 @@ func (r *messageTraceRecorder) flushUpstreamThinkLiveUpdate(draft *messageTraceD
 		contentMarkdown: r.upstreamThinkPendingReplace,
 		reasoning:       r.upstreamThinkPendingReason,
 	}
-	if !force && update.delta == "" && update.contentMarkdown == "" && update.reasoning == nil {
+	if !options.Force && update.delta == "" && update.contentMarkdown == "" && update.reasoning == nil {
 		return
 	}
-	if persistSnapshot {
+	if options.PersistSnapshot {
 		r.refreshSnapshotEvent(draft)
 		if r.shouldPersistUpstreamThinkSnapshot() {
 			r.persistDraft(draft, false)

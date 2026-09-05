@@ -71,6 +71,12 @@ type ConversationListInput struct {
 	SearchQuery   string
 }
 
+// DeleteConversationProjectOptions controls which project-owned records are removed.
+type DeleteConversationProjectOptions struct {
+	DeleteConversations bool
+	DeleteFiles         bool
+}
+
 // ConversationMetadataRepository 封装会话元信息与用户访问能力。
 type ConversationMetadataRepository interface {
 	CreateConversation(ctx context.Context, item *domainconversation.Conversation) error
@@ -82,7 +88,7 @@ type ConversationMetadataRepository interface {
 	ListConversationProjects(ctx context.Context, userID uint, statusFilter string) ([]domainconversation.ConversationProject, error)
 	GetConversationProjectByPublicID(ctx context.Context, userID uint, publicID string) (*domainconversation.ConversationProject, error)
 	UpdateConversationProjectMetadataByPublicID(ctx context.Context, userID uint, publicID string, patch domainconversation.ConversationProjectPatch) (*domainconversation.ConversationProject, error)
-	DeleteConversationProjectByPublicID(ctx context.Context, userID uint, publicID string, deleteConversations bool, deleteFiles bool) ([]string, error)
+	DeleteConversationProjectByPublicID(ctx context.Context, userID uint, publicID string, options DeleteConversationProjectOptions) ([]string, error)
 	ReorderConversationProjects(ctx context.Context, userID uint, publicIDs []string) error
 	UpdateConversationProjectAssignmentByPublicID(ctx context.Context, userID uint, conversationPublicID string, projectID *uint) (*domainconversation.Conversation, error)
 	BatchUpdateConversationProjectByPublicIDs(ctx context.Context, userID uint, conversationPublicIDs []string, projectID *uint) (int64, error)

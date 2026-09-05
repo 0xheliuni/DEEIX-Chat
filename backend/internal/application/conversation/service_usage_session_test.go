@@ -10,7 +10,7 @@ import (
 
 func TestBeginUsageSessionWithoutBillingServiceUsesSelfMode(t *testing.T) {
 	service := &Service{}
-	session, err := service.BeginUsageSession(nil, SendMessageBillingInput{UserID: 7, ClientRunID: "run-1"})
+	session, err := service.BeginUsageSession(context.TODO(), SendMessageBillingInput{UserID: 7, ClientRunID: "run-1"})
 	if err != nil {
 		t.Fatalf("begin usage session: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestUsageSessionZeroValueIsSafe(t *testing.T) {
 	if session.Authorization() != nil {
 		t.Fatal("zero-value session must not expose an authorization")
 	}
-	if err := session.Finish(nil, &SendMessageResult{Billable: true}); err != nil {
+	if err := session.Finish(context.TODO(), &SendMessageResult{Billable: true}); err != nil {
 		t.Fatalf("finish on zero-value session: %v", err)
 	}
 	session.Close()

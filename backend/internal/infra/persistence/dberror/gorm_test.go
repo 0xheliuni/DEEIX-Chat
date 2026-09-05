@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	sqlite3 "github.com/mattn/go-sqlite3"
 	"gorm.io/gorm"
 )
 
@@ -43,9 +44,13 @@ func TestIsUniqueConstraint(t *testing.T) {
 		{name: "gorm duplicate key", err: gorm.ErrDuplicatedKey, want: true},
 		{name: "postgres sql state", err: sqlStateTestError{state: "23505"}, want: true},
 		{name: "wrapped postgres sql state", err: errors.Join(errors.New("insert user"), sqlStateTestError{state: "23505"}), want: true},
-		{name: "postgres duplicate message", err: errors.New(`ERROR: duplicate key value violates unique constraint "users_email_key"`), want: true},
-		{name: "sqlite unique message", err: errors.New("UNIQUE constraint failed: users.email"), want: true},
-		{name: "sqlite check constraint", err: errors.New("CHECK constraint failed: users_balance_check"), want: false},
+		{name: "sqlite unique code", err: sqlite3.Error{Code: sqlite3.ErrConstraint, ExtendedCode: sqlite3.ErrConstraintUnique}, want: true},
+		{name: "sqlite primary key code", err: sqlite3.Error{Code: sqlite3.ErrConstraint, ExtendedCode: sqlite3.ErrConstraintPrimaryKey}, want: true},
+		{name: "sqlite rowid code", err: sqlite3.Error{Code: sqlite3.ErrConstraint, ExtendedCode: sqlite3.ErrConstraintRowID}, want: true},
+		{name: "sqlite check code", err: sqlite3.Error{Code: sqlite3.ErrConstraint, ExtendedCode: sqlite3.ErrConstraintCheck}, want: false},
+		{name: "sqlite unspecified constraint", err: sqlite3.Error{Code: sqlite3.ErrConstraint}, want: false},
+		{name: "sqlite non-constraint code", err: sqlite3.Error{Code: sqlite3.ErrBusy}, want: false},
+		{name: "untyped duplicate message", err: errors.New("duplicate key value violates unique constraint"), want: false},
 		{name: "other error", err: errors.New("connection refused"), want: false},
 	}
 

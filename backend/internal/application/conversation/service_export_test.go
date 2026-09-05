@@ -1,6 +1,7 @@
 package conversation
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -11,7 +12,7 @@ func TestExportUserConversationDataRejectsWrongUser(t *testing.T) {
 	svc := &Service{}
 	conv := &model.Conversation{ID: 1, UserID: 42}
 
-	_, err := svc.ExportUserConversationData(nil, 99, conv)
+	_, err := svc.ExportUserConversationData(context.TODO(), 99, conv)
 	if !errors.Is(err, ErrConversationNotFound) {
 		t.Fatalf("expected ErrConversationNotFound, got %v", err)
 	}

@@ -577,7 +577,7 @@ func validateStripeCheckoutSession(order *domainbilling.PaymentOrder, session st
 	if session.AmountTotal != order.PayAmountCents {
 		return errPaymentNotificationMismatch
 	}
-	if strings.ToUpper(strings.TrimSpace(session.Currency)) != strings.ToUpper(order.PayCurrency) {
+	if !strings.EqualFold(strings.TrimSpace(session.Currency), order.PayCurrency) {
 		return errPaymentNotificationMismatch
 	}
 	return nil
@@ -593,7 +593,7 @@ func validateEPayNotification(order *domainbilling.PaymentOrder, values url.Valu
 	if strings.TrimSpace(values.Get("pid")) != strings.TrimSpace(settings.EPayPID) {
 		return errPaymentNotificationMismatch
 	}
-	if strings.ToUpper(strings.TrimSpace(order.PayCurrency)) != "CNY" {
+	if !strings.EqualFold(strings.TrimSpace(order.PayCurrency), "CNY") {
 		return errPaymentNotificationMismatch
 	}
 	expected := domainbilling.FormatEPayAmount(order.PayAmountCents)

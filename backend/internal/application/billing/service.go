@@ -1922,7 +1922,14 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 	if err != nil {
 		nativeToolPricingOverrides = map[string]nativetool.PricingOverride{}
 	}
-	nativeToolItems, nativeToolBilledNanousd := buildNativeToolServiceItems(input, mode, isFreeModel, nativeToolBillingEnabled, nativeToolPricingOverrides, nativeToolDefinitions)
+	nativeToolItems, nativeToolBilledNanousd := buildNativeToolServiceItems(nativeToolServiceItemsInput{
+		Usage:            input,
+		BillingMode:      mode,
+		FreeModel:        isFreeModel,
+		BillingEnabled:   nativeToolBillingEnabled,
+		PricingOverrides: nativeToolPricingOverrides,
+		Definitions:      nativeToolDefinitions,
+	})
 	if len(nativeToolItems) > 0 {
 		serviceItems = append(serviceItems, nativeToolItems...)
 		serviceBilledNanousd += nativeToolBilledNanousd
@@ -3355,8 +3362,18 @@ func paginateModelPricing(items []domainbilling.ModelPricing, offset int, limit 
 }
 
 // buildNativeToolServiceItems 将原生 server-side tool 调用转换为账单服务项。
-func buildNativeToolServiceItems(input UsagePricingInput, billingMode string, isFreeModel bool, enabled bool, pricingOverrides map[string]nativetool.PricingOverride, definitions []nativetool.Definition) ([]domainbilling.UsageServiceItem, int64) {
-	if billingMode == "self" || isFreeModel || !enabled || len(input.ServerSideToolUsage) == 0 {
+type nativeToolServiceItemsInput struct {
+	Usage            UsagePricingInput
+	BillingMode      string
+	FreeModel        bool
+	BillingEnabled   bool
+	PricingOverrides map[string]nativetool.PricingOverride
+	Definitions      []nativetool.Definition
+}
+
+func buildNativeToolServiceItems(request nativeToolServiceItemsInput) ([]domainbilling.UsageServiceItem, int64) {
+	input := request.Usage
+	if request.BillingMode == "self" || request.FreeModel || !request.BillingEnabled || len(input.ServerSideToolUsage) == 0 {
 		return []domainbilling.UsageServiceItem{}, 0
 	}
 	counts := normalizeUsageCountMap(input.ServerSideToolUsage)
@@ -3366,7 +3383,7 @@ func buildNativeToolServiceItems(input UsagePricingInput, billingMode string, is
 	results := make([]domainbilling.UsageServiceItem, 0, len(counts))
 	var total int64
 	for toolName, count := range counts {
-		price, ok := nativeToolDefaultCallPrice(input, toolName, pricingOverrides, definitions)
+		price, ok := nativeToolDefaultCallPrice(input, toolName, request.PricingOverrides, request.Definitions)
 		if !ok || price.NanousdPerCall <= 0 || count <= 0 {
 			continue
 		}

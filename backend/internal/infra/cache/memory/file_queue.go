@@ -38,10 +38,12 @@ func newFileQueueState() fileQueueState {
 	}
 }
 
+// InitFileProcessingStream initializes the file-processing queue backend.
 func (c *Cache) InitFileProcessingStream(ctx context.Context) error {
 	return ctx.Err()
 }
 
+// EnqueueFileProcessing queues a file for extraction and processing.
 func (c *Cache) EnqueueFileProcessing(ctx context.Context, userID uint, fileID string, retry int, lastError string) error {
 	return c.enqueueFileMessage(ctx, repository.FileProcessingMessage{
 		UserID:    userID,
@@ -52,6 +54,7 @@ func (c *Cache) EnqueueFileProcessing(ctx context.Context, userID uint, fileID s
 	})
 }
 
+// EnqueueFileEmbedding queues a file for embedding with the requested service configuration.
 func (c *Cache) EnqueueFileEmbedding(
 	ctx context.Context,
 	userID uint,
@@ -102,10 +105,12 @@ func (c *Cache) enqueueFileMessage(ctx context.Context, message repository.FileP
 	return nil
 }
 
+// ClaimTimedOutFileProcessingMessages reclaims one timed-out extraction lease.
 func (c *Cache) ClaimTimedOutFileProcessingMessages(ctx context.Context, consumerName string) ([]repository.FileProcessingMessage, error) {
 	return c.claimTimedOutFileMessages(ctx, consumerName, repository.FileProcessingQueueDefault)
 }
 
+// ClaimTimedOutFileEmbeddingMessages reclaims one timed-out embedding lease.
 func (c *Cache) ClaimTimedOutFileEmbeddingMessages(ctx context.Context, consumerName string) ([]repository.FileProcessingMessage, error) {
 	return c.claimTimedOutFileMessages(ctx, consumerName, repository.FileProcessingQueueEmbedding)
 }
@@ -142,10 +147,12 @@ func (c *Cache) claimTimedOutFileMessages(ctx context.Context, consumerName stri
 	return []repository.FileProcessingMessage{candidate.message}, nil
 }
 
+// ReadFileProcessingMessages reads one extraction message and leases it to a consumer.
 func (c *Cache) ReadFileProcessingMessages(ctx context.Context, consumerName string) ([]repository.FileProcessingMessage, error) {
 	return c.readFileMessages(ctx, consumerName, repository.FileProcessingQueueDefault)
 }
 
+// ReadFileEmbeddingMessages reads one embedding message and leases it to a consumer.
 func (c *Cache) ReadFileEmbeddingMessages(ctx context.Context, consumerName string) ([]repository.FileProcessingMessage, error) {
 	return c.readFileMessages(ctx, consumerName, repository.FileProcessingQueueEmbedding)
 }
@@ -188,6 +195,7 @@ func (c *Cache) readFileMessages(ctx context.Context, consumerName string, queue
 	}
 }
 
+// RenewFileProcessingMessageLease extends a consumer's lease for a file message.
 func (c *Cache) RenewFileProcessingMessageLease(ctx context.Context, consumerName string, message repository.FileProcessingMessage) (bool, error) {
 	if c == nil {
 		return false, nil
@@ -208,6 +216,7 @@ func (c *Cache) RenewFileProcessingMessageLease(ctx context.Context, consumerNam
 	return true, nil
 }
 
+// SettleFileProcessingMessage acknowledges and removes a leased file message.
 func (c *Cache) SettleFileProcessingMessage(ctx context.Context, consumerName string, message repository.FileProcessingMessage) (bool, error) {
 	if c == nil {
 		return false, nil
@@ -228,6 +237,7 @@ func (c *Cache) SettleFileProcessingMessage(ctx context.Context, consumerName st
 	return true, nil
 }
 
+// RequeueFileProcessingMessage returns a leased file message to its queue.
 func (c *Cache) RequeueFileProcessingMessage(
 	ctx context.Context,
 	consumerName string,
@@ -268,6 +278,7 @@ func (c *Cache) RequeueFileProcessingMessage(
 	return true, nil
 }
 
+// DeadLetterFileProcessingMessage moves a leased file message to the dead-letter queue.
 func (c *Cache) DeadLetterFileProcessingMessage(
 	ctx context.Context,
 	consumerName string,

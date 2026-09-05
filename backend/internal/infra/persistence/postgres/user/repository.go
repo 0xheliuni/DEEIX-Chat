@@ -35,6 +35,9 @@ func translateError(err error) error {
 }
 
 func translateUniqueConstraint(err error) error {
+	// The generic uniqueness check has already validated the SQLSTATE or driver
+	// code. This narrow fallback only maps known constraint names to the more
+	// specific repository contract; it does not classify arbitrary errors.
 	msg := strings.ToLower(err.Error())
 	switch {
 	case strings.Contains(msg, "idx_identity_users_username"):

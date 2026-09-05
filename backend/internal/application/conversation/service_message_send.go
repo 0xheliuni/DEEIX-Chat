@@ -234,6 +234,10 @@ func (s *Service) sendMessageInternal(
 	}
 	defer func() {
 		if retErr != nil {
+			assistantReasoningText := ""
+			if traceRecorder != nil {
+				assistantReasoningText = traceRecorder.upstreamThinkContent()
+			}
 			retainedOutput := false
 			usageRecovered := false
 			if errors.Is(retErr, ErrMessageGenerationCanceled) || llm.RequestWasAccepted(retErr) {
@@ -250,7 +254,7 @@ func (s *Service) sendMessageInternal(
 				UserMessage:              userMessage,
 				AssistantMessage:         assistantMessage,
 				AssistantText:            runner.streamedText.String(),
-				AssistantReasoningText:   traceRecorder.upstreamThinkContent(),
+				AssistantReasoningText:   assistantReasoningText,
 				EstimatedInputTokens:     runner.usage.interruptedInputTokens(),
 				EstimatedOutputTokens:    estimatedOutputTokens,
 				EstimatedReasoningTokens: estimatedReasoningTokens,
@@ -291,7 +295,7 @@ func (s *Service) sendMessageInternal(
 						moderationCtx,
 						moderationCoord,
 						result,
-						moderationOutputText(runner.streamedText.String(), traceRecorder.upstreamThinkContent()),
+						moderationOutputText(runner.streamedText.String(), assistantReasoningText),
 					)
 				} else {
 					s.completeModerationAfterFailure(moderationCtx, moderationCoord, result)

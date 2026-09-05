@@ -448,7 +448,7 @@ type FileObjectResponse struct {
 	EmbedStatus            string     `json:"embedStatus"`
 	EmbedError             string     `json:"embedError"`
 	ChunkCount             int        `json:"chunkCount"`
-	RagOptOut              bool       `json:"ragOptOut"`
+	RAGOptOut              bool       `json:"ragOptOut"`
 	CanVectorize           bool       `json:"canVectorize"`
 	VectorizationReason    string     `json:"vectorizationReason"`
 	LastAccessedAt         *time.Time `json:"lastAccessedAt" extensions:"x-nullable,!x-omitempty"`
@@ -476,7 +476,7 @@ func toFileObjectResponse(item *model.FileObject, capability appembedding.FileVe
 		EmbedStatus:            item.EmbedStatus,
 		EmbedError:             item.EmbedError,
 		ChunkCount:             item.ChunkCount,
-		RagOptOut:              item.RagOptOut,
+		RAGOptOut:              item.RAGOptOut,
 		CanVectorize:           capability.CanVectorize,
 		VectorizationReason:    capability.Reason,
 		LastAccessedAt:         item.LastAccessedAt,

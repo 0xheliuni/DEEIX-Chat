@@ -2,6 +2,7 @@ package auth
 
 import "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 
+// ProviderEmailConflictActionSignInThenBind identifies the safe sign-in-then-bind recovery flow.
 const ProviderEmailConflictActionSignInThenBind = "sign_in_then_bind"
 
 var (
@@ -55,7 +56,8 @@ var (
 	ErrTwoFactorSetupNotStarted = apperr.New("auth.two_factor_not_started", "two factor setup not started")
 	// ErrTwoFactorSetupNotPersisted 两步验证确认后持久化状态未生效。
 	ErrTwoFactorSetupNotPersisted = apperr.NewMasked("internal.error", "internal server error", "two factor setup not persisted")
-	ErrTwoFactorAlreadyEnabled    = apperr.New("auth.two_factor_already_enabled", "two factor authentication is already enabled")
+	// ErrTwoFactorAlreadyEnabled indicates that two-factor authentication is already enabled.
+	ErrTwoFactorAlreadyEnabled = apperr.New("auth.two_factor_already_enabled", "two factor authentication is already enabled")
 	// ErrTwoFactorChallengeExpired 登录二次验证挑战已过期。
 	ErrTwoFactorChallengeExpired = apperr.New("auth.two_factor_expired", "two factor challenge expired")
 	// ErrPasswordResetFailed 表示密码重置失败，避免暴露邮箱或账号状态。
@@ -154,10 +156,12 @@ type IdentityProviderDeleteConflictError struct {
 	DependentUsers int
 }
 
+// Error returns the stable public identity-provider conflict error message.
 func (e *IdentityProviderDeleteConflictError) Error() string {
 	return ErrIdentityProviderDeleteConflict.Error()
 }
 
+// Unwrap exposes the sentinel used by transport error mapping.
 func (e *IdentityProviderDeleteConflictError) Unwrap() error {
 	return ErrIdentityProviderDeleteConflict
 }
@@ -169,10 +173,12 @@ type ProviderEmailConflictError struct {
 	Action       string
 }
 
+// Error returns the stable public provider-email conflict error message.
 func (e *ProviderEmailConflictError) Error() string {
 	return ErrProviderEmailConflict.Error()
 }
 
+// Unwrap exposes the sentinel used by transport error mapping.
 func (e *ProviderEmailConflictError) Unwrap() error {
 	return ErrProviderEmailConflict
 }

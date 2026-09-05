@@ -15,15 +15,18 @@ import (
 )
 
 const (
-	generationStreamRetention        = 15 * time.Minute
-	generationStreamActiveTTL        = 2 * time.Hour
-	generationStreamLeaseTTL         = 30 * time.Second
-	generationStreamLeaseRefresh     = 10 * time.Second
-	generationStreamMaxEvents        = 1024
-	generationStreamSubscriberBuffer = 128
-	generationStreamReadBlock        = 5 * time.Second
-	generationStreamMaxPayloadBytes  = 128 * 1024
-	generationStreamCleanupTimeout   = 5 * time.Second
+	generationStreamRetention            = 15 * time.Minute
+	generationStreamActiveTTL            = 2 * time.Hour
+	generationStreamLeaseTTL             = 30 * time.Second
+	generationStreamLeaseRefresh         = 10 * time.Second
+	generationStreamMaxEvents            = 1024
+	generationStreamSubscriberBuffer     = 128
+	generationStreamReadBlock            = 5 * time.Second
+	generationStreamMaxPayloadBytes      = 128 * 1024
+	generationStreamCleanupTimeout       = 5 * time.Second
+	generationStreamCompletionAttempts   = 3
+	generationStreamCompletionRetryDelay = 100 * time.Millisecond
+	generationStreamCompletionMaxDelay   = 5 * time.Second
 )
 
 type generationStreamOptions struct {
@@ -54,6 +57,13 @@ type retainedStreamEventsInput struct {
 	UpstreamThinkSnapshot    repository.GenerationStreamUpstreamThinkSnapshot
 	HasUpstreamThinkSnapshot bool
 	IncludeSnapshots         bool
+}
+
+type pendingGenerationCompletion struct {
+	lease       repository.GenerationStreamLease
+	nextAttempt time.Time
+	retryDelay  time.Duration
+	expiresAt   time.Time
 }
 
 func defaultGenerationStreamOptions() generationStreamOptions {
@@ -232,6 +242,12 @@ type generationStreamRegistry struct {
 	activeEventReaderWG      sync.WaitGroup
 	activeSubscriberSeq      uint64
 	activeSubscribers        map[uint]map[uint64]chan ActiveMessageGenerationEvent
+	completionMu             sync.Mutex
+	pendingCompletions       map[string]pendingGenerationCompletion
+	completionWake           chan struct{}
+	completionRunning        bool
+	completionClosed         bool
+	completionWG             sync.WaitGroup
 }
 
 func newGenerationStreamRegistry(store repository.GenerationStreamCacheRepository, options generationStreamOptions) *generationStreamRegistry {
@@ -255,12 +271,14 @@ func newGenerationStreamRegistry(store repository.GenerationStreamCacheRepositor
 	}
 	lifecycleCtx, lifecycleCancel := context.WithCancel(context.Background())
 	return &generationStreamRegistry{
-		active:            map[string]*activeGeneration{},
-		store:             store,
-		options:           options,
-		lifecycleCtx:      lifecycleCtx,
-		lifecycleCancel:   lifecycleCancel,
-		activeSubscribers: map[uint]map[uint64]chan ActiveMessageGenerationEvent{},
+		active:             map[string]*activeGeneration{},
+		store:              store,
+		options:            options,
+		lifecycleCtx:       lifecycleCtx,
+		lifecycleCancel:    lifecycleCancel,
+		activeSubscribers:  map[uint]map[uint64]chan ActiveMessageGenerationEvent{},
+		pendingCompletions: map[string]pendingGenerationCompletion{},
+		completionWake:     make(chan struct{}, 1),
 	}
 }
 
@@ -326,17 +344,19 @@ func (r *generationStreamRegistry) close() {
 		for runID, active := range orphanedGenerations {
 			stopActiveWorker(active)
 			cleanupCtx, cleanupCancel := background.WithTimeout(active.baseCtx, generationStreamCleanupTimeout)
-			completed := true
-			if r.store != nil {
-				completed, _ = r.store.CompleteGenerationStream(cleanupCtx, active.lease(runID), r.options.Retention)
-			}
-			if completed {
-				r.publishActiveEvent(cleanupCtx, active.userID, "finished", runID, active.conversationID)
-			}
+			r.finalizeGeneration(cleanupCtx, runID, active)
 			cleanupCancel()
 		}
 		r.activeWorkerWG.Wait()
 		r.activeEventReaderWG.Wait()
+		r.completionMu.Lock()
+		r.completionClosed = true
+		r.completionMu.Unlock()
+		select {
+		case r.completionWake <- struct{}{}:
+		default:
+		}
+		r.completionWG.Wait()
 	})
 }
 
@@ -455,12 +475,19 @@ func (r *generationStreamRegistry) cancel(ctx context.Context, userID uint, runI
 		if err != nil || !requested {
 			return false
 		}
+		if active := r.localActive(runID); active != nil && active.userID == userID && active.cancel != nil {
+			active.cancel()
+		}
+		return true
 	}
 	active := r.localActive(runID)
-	if active != nil && active.userID == userID && active.cancel != nil {
+	if active == nil || active.userID != userID {
+		return false
+	}
+	if active.cancel != nil {
 		active.cancel()
 	}
-	return r.store != nil || active != nil
+	return true
 }
 
 // cancelForced cancels a run without owner checks (internal system paths such as moderation).
@@ -723,17 +750,168 @@ func (r *generationStreamRegistry) finish(ctx context.Context, runID string) {
 	if active == nil {
 		return
 	}
-	completed := true
-	if r.store != nil {
-		var err error
-		completed, err = r.store.CompleteGenerationStream(ctx, active.lease(runID), r.options.Retention)
-		if err != nil {
-			completed = false
-		}
+	r.finalizeGeneration(ctx, runID, active)
+}
+
+func (r *generationStreamRegistry) finalizeGeneration(ctx context.Context, runID string, active *activeGeneration) {
+	if active == nil {
+		return
+	}
+	lease := active.lease(runID)
+	completed, err := r.completeGenerationStream(ctx, lease)
+	if err != nil {
+		r.enqueueCompletion(lease)
+		return
 	}
 	if completed {
 		r.publishActiveEvent(ctx, active.userID, "finished", runID, active.conversationID)
 	}
+}
+
+func (r *generationStreamRegistry) completeGenerationStream(ctx context.Context, lease repository.GenerationStreamLease) (bool, error) {
+	if r.store == nil {
+		return true, nil
+	}
+	var lastErr error
+	for attempt := 0; attempt < generationStreamCompletionAttempts; attempt++ {
+		completed, err := r.store.CompleteGenerationStream(ctx, lease, r.options.Retention)
+		if err == nil {
+			return completed, nil
+		}
+		lastErr = err
+		if attempt == generationStreamCompletionAttempts-1 {
+			return false, lastErr
+		}
+		timer := time.NewTimer(generationStreamCompletionRetryDelay << attempt)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return false, ctx.Err()
+		case <-timer.C:
+		}
+	}
+	return false, lastErr
+}
+
+func (r *generationStreamRegistry) enqueueCompletion(lease repository.GenerationStreamLease) {
+	if r == nil || r.store == nil || strings.TrimSpace(lease.RunID) == "" {
+		return
+	}
+	r.completionMu.Lock()
+	if r.completionClosed {
+		r.completionMu.Unlock()
+		return
+	}
+	key := generationCompletionKey(lease)
+	if _, exists := r.pendingCompletions[key]; !exists {
+		r.pendingCompletions[key] = pendingGenerationCompletion{
+			lease:       lease,
+			nextAttempt: time.Now(),
+			retryDelay:  generationStreamCompletionRetryDelay,
+			expiresAt:   time.Now().Add(r.options.ActiveTTL),
+		}
+	}
+	if !r.completionRunning {
+		r.completionRunning = true
+		r.completionWG.Add(1)
+		go r.runCompletionWorker()
+	}
+	r.completionMu.Unlock()
+	select {
+	case r.completionWake <- struct{}{}:
+	default:
+	}
+}
+
+func (r *generationStreamRegistry) runCompletionWorker() {
+	defer r.completionWG.Done()
+	for {
+		if r.isClosed() {
+			r.completionMu.Lock()
+			r.completionRunning = false
+			r.completionMu.Unlock()
+			return
+		}
+		pending, wait, ok := r.nextPendingCompletion()
+		if !ok {
+			r.completionMu.Lock()
+			if len(r.pendingCompletions) == 0 {
+				r.completionRunning = false
+				r.completionMu.Unlock()
+				return
+			}
+			r.completionMu.Unlock()
+			continue
+		}
+		if wait > 0 {
+			timer := time.NewTimer(wait)
+			select {
+			case <-r.completionWake:
+				timer.Stop()
+				continue
+			case <-timer.C:
+			}
+		}
+		if !pending.expiresAt.IsZero() && time.Now().After(pending.expiresAt) {
+			r.completionMu.Lock()
+			delete(r.pendingCompletions, generationCompletionKey(pending.lease))
+			r.completionMu.Unlock()
+			continue
+		}
+		cleanupCtx, cleanupCancel := background.WithTimeout(context.TODO(), generationStreamCleanupTimeout)
+		completed, err := r.completeGenerationStream(cleanupCtx, pending.lease)
+		cleanupCancel()
+		if err != nil {
+			pending.nextAttempt = time.Now().Add(pending.retryDelay)
+			pending.retryDelay *= 2
+			if pending.retryDelay > generationStreamCompletionMaxDelay {
+				pending.retryDelay = generationStreamCompletionMaxDelay
+			}
+			r.completionMu.Lock()
+			if !r.completionClosed {
+				r.pendingCompletions[generationCompletionKey(pending.lease)] = pending
+			}
+			r.completionMu.Unlock()
+			continue
+		}
+		r.completionMu.Lock()
+		delete(r.pendingCompletions, generationCompletionKey(pending.lease))
+		r.completionMu.Unlock()
+		if completed {
+			r.publishActiveEvent(background.Detach(context.TODO()), pending.lease.UserID, "finished", pending.lease.RunID, pending.lease.ConversationPublicID)
+		}
+	}
+}
+
+func generationCompletionKey(lease repository.GenerationStreamLease) string {
+	return strings.TrimSpace(lease.RunID) + "\x00" + strings.TrimSpace(lease.ExecutionID)
+}
+
+func (r *generationStreamRegistry) nextPendingCompletion() (pendingGenerationCompletion, time.Duration, bool) {
+	r.completionMu.Lock()
+	defer r.completionMu.Unlock()
+	var selected pendingGenerationCompletion
+	found := false
+	for _, pending := range r.pendingCompletions {
+		if !found || pending.nextAttempt.Before(selected.nextAttempt) {
+			selected = pending
+			found = true
+		}
+	}
+	if !found {
+		return pendingGenerationCompletion{}, 0, false
+	}
+	wait := time.Until(selected.nextAttempt)
+	if wait < 0 {
+		wait = 0
+	}
+	return selected, wait, true
+}
+
+func (r *generationStreamRegistry) isClosed() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.closed
 }
 
 func generationLifecycleOwnerFromContext(ctx context.Context) *generationLifecycleOwner {
@@ -791,8 +969,13 @@ func (r *generationStreamRegistry) runActiveWorker(ctx context.Context, runID st
 			if err != nil && time.Now().Before(leaseValidUntil) {
 				continue
 			}
-			if r.removeActiveExecution(runID, active) && active.cancel != nil {
-				active.cancel()
+			if r.removeActiveExecution(runID, active) {
+				if active.cancel != nil {
+					active.cancel()
+				}
+				cleanupCtx, cleanupCancel := background.WithTimeout(active.baseCtx, generationStreamCleanupTimeout)
+				r.finalizeGeneration(cleanupCtx, runID, active)
+				cleanupCancel()
 			}
 			return
 		case <-expiryTimer.C:
@@ -804,13 +987,7 @@ func (r *generationStreamRegistry) runActiveWorker(ctx context.Context, runID st
 				active.cancel()
 			}
 			cleanupCtx, cleanupCancel := background.WithTimeout(active.baseCtx, generationStreamCleanupTimeout)
-			completed := true
-			if r.store != nil {
-				completed, _ = r.store.CompleteGenerationStream(cleanupCtx, active.lease(runID), r.options.Retention)
-			}
-			if completed {
-				r.publishActiveEvent(cleanupCtx, active.userID, "finished", runID, active.conversationID)
-			}
+			r.finalizeGeneration(cleanupCtx, runID, active)
 			cleanupCancel()
 			return
 		}

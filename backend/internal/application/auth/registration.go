@@ -47,6 +47,7 @@ type verificationEmailTemplate struct {
 	SecurityNote string
 }
 
+// EmailRegistrationStartResult reports the result of sending a registration code.
 type EmailRegistrationStartResult struct {
 	Sent      bool
 	ExpiresAt time.Time
@@ -58,6 +59,7 @@ type PasswordResetStartResult struct {
 	ExpiresAt time.Time
 }
 
+// PasswordChangeVerificationStartResult reports the verification methods available for a password change.
 type PasswordChangeVerificationStartResult struct {
 	Sent             bool
 	ExpiresAt        time.Time
@@ -65,6 +67,7 @@ type PasswordChangeVerificationStartResult struct {
 	AvailableMethods []SecurityVerificationMethod
 }
 
+// EmailChangeVerificationStartResult reports the verification methods available for an email change.
 type EmailChangeVerificationStartResult struct {
 	Sent             bool
 	ExpiresAt        time.Time
@@ -124,6 +127,7 @@ type requestEmailVerificationCodeInput struct {
 	AuditContext requestmeta.SessionAuditContext
 }
 
+// RequestEmailRegistration sends a verification code for a new email account.
 func (s *Service) RequestEmailRegistration(ctx context.Context, email string, turnstileToken string, remoteIP string, requestID string, auditCtx requestmeta.SessionAuditContext) (*EmailRegistrationStartResult, error) {
 	cfg := s.cfg.Snapshot()
 	if !cfg.EmailLoginEnabled || !cfg.EmailRegistrationEnabled {
@@ -209,6 +213,7 @@ func (s *Service) RequestEmailRegistration(ctx context.Context, email string, tu
 	}, nil
 }
 
+// RegisterWithEmail creates an account after validating the registration code.
 func (s *Service) RegisterWithEmail(ctx context.Context, input RegisterWithEmailInput) (*LoginResult, error) {
 	cfg := s.cfg.Snapshot()
 	if !cfg.EmailLoginEnabled || !cfg.EmailRegistrationEnabled {
@@ -320,6 +325,7 @@ func (s *Service) RegisterWithEmail(ctx context.Context, input RegisterWithEmail
 	return result, nil
 }
 
+// RequestPasswordChangeVerification sends the selected verification code for a password change.
 func (s *Service) RequestPasswordChangeVerification(ctx context.Context, userID uint, requestedMethod string, requestID string, auditCtx requestmeta.SessionAuditContext) (*PasswordChangeVerificationStartResult, error) {
 	item, err := s.repo.GetByID(ctx, userID)
 	if err != nil {
@@ -410,6 +416,7 @@ func (s *Service) RequestPasswordChangeVerification(ctx context.Context, userID 
 	}, nil
 }
 
+// ChangePassword validates the current security requirements and changes the password.
 func (s *Service) ChangePassword(ctx context.Context, input ChangePasswordInput) error {
 	normalizedPassword, err := userapp.NormalizePassword(input.NewPassword)
 	if err != nil {
@@ -496,6 +503,7 @@ func (s *Service) ChangePassword(ctx context.Context, input ChangePasswordInput)
 	return nil
 }
 
+// RequestPasswordReset sends a password reset code without revealing account existence.
 func (s *Service) RequestPasswordReset(ctx context.Context, email string, requestID string, auditCtx requestmeta.SessionAuditContext) (*PasswordResetStartResult, error) {
 	cfg := s.cfg.Snapshot()
 	normalizedEmail, err := normalizeRegistrationEmail(email)
@@ -591,6 +599,7 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email string, reques
 	}, nil
 }
 
+// CompletePasswordReset verifies a reset code and sets the new password.
 func (s *Service) CompletePasswordReset(ctx context.Context, email string, code string, newPassword string, requestID string, auditCtx requestmeta.SessionAuditContext) error {
 	cfg := s.cfg.Snapshot()
 	normalizedEmail, err := normalizeRegistrationEmail(email)
@@ -732,6 +741,7 @@ func hashAuditEmail(email string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// RequestEmailBootstrapVerification sends a code for setting the initial account email.
 func (s *Service) RequestEmailBootstrapVerification(ctx context.Context, userID uint, newEmail string, requestID string, auditCtx requestmeta.SessionAuditContext) (*EmailChangeVerificationStartResult, error) {
 	cfg := s.cfg.Snapshot()
 	if !cfg.EmailVerificationEnabled {
@@ -766,6 +776,7 @@ func (s *Service) RequestEmailBootstrapVerification(ctx context.Context, userID 
 	})
 }
 
+// CompleteEmailBootstrap verifies and stores the initial account email.
 func (s *Service) CompleteEmailBootstrap(ctx context.Context, userID uint, newEmail string, code string, requestID string, auditCtx requestmeta.SessionAuditContext) (*domainuser.User, error) {
 	cfg := s.cfg.Snapshot()
 	item, err := s.repo.GetByID(ctx, userID)
@@ -809,6 +820,7 @@ func (s *Service) CompleteEmailBootstrap(ctx context.Context, userID uint, newEm
 	return updated, nil
 }
 
+// RequestCurrentEmailVerification sends a verification code for the current email.
 func (s *Service) RequestCurrentEmailVerification(ctx context.Context, userID uint, requestID string, auditCtx requestmeta.SessionAuditContext) (*EmailChangeVerificationStartResult, error) {
 	cfg := s.cfg.Snapshot()
 	if !cfg.EmailVerificationEnabled {
@@ -835,6 +847,7 @@ func (s *Service) RequestCurrentEmailVerification(ctx context.Context, userID ui
 	})
 }
 
+// CompleteCurrentEmailVerification verifies the current account email.
 func (s *Service) CompleteCurrentEmailVerification(ctx context.Context, userID uint, code string, requestID string, auditCtx requestmeta.SessionAuditContext) (*domainuser.User, error) {
 	cfg := s.cfg.Snapshot()
 	if !cfg.EmailVerificationEnabled {
@@ -866,6 +879,7 @@ func (s *Service) CompleteCurrentEmailVerification(ctx context.Context, userID u
 	return updated, nil
 }
 
+// RequestCurrentEmailChangeVerification starts the security verification for an email change.
 func (s *Service) RequestCurrentEmailChangeVerification(ctx context.Context, userID uint, requestedMethod string, requestID string, auditCtx requestmeta.SessionAuditContext) (*EmailChangeVerificationStartResult, error) {
 	item, err := s.repo.GetByID(ctx, userID)
 	if err != nil {
@@ -899,6 +913,7 @@ func (s *Service) RequestCurrentEmailChangeVerification(ctx context.Context, use
 	})
 }
 
+// RequestNewEmailChangeVerification sends a code to the proposed new email.
 func (s *Service) RequestNewEmailChangeVerification(ctx context.Context, userID uint, newEmail string, requestID string, auditCtx requestmeta.SessionAuditContext) (*EmailChangeVerificationStartResult, error) {
 	cfg := s.cfg.Snapshot()
 	if !cfg.EmailVerificationEnabled {
@@ -926,6 +941,7 @@ func (s *Service) RequestNewEmailChangeVerification(ctx context.Context, userID 
 	})
 }
 
+// CompleteEmailChange verifies both sides of an email change and updates the account.
 func (s *Service) CompleteEmailChange(ctx context.Context, input CompleteEmailChangeInput) (*domainuser.User, error) {
 	cfg := s.cfg.Snapshot()
 	item, err := s.repo.GetByID(ctx, input.UserID)

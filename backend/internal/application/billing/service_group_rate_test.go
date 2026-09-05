@@ -62,7 +62,7 @@ func (s *groupRateResolverStub) GetUserModelGroupRateMultiplierPercent(_ context
 
 func TestResolveGroupRatePercentNoResolverReturnsIdentity(t *testing.T) {
 	s := &Service{}
-	got, err := s.resolveGroupRatePercent(nil, 1, 99, nil)
+	got, err := s.resolveGroupRatePercent(context.TODO(), 1, 99, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

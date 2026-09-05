@@ -568,13 +568,13 @@ func (s *Service) RenameFile(ctx context.Context, userID uint, fileID string, fi
 	return item, err
 }
 
-// UpdateFileRagOptOut 更新用户文件的 RAG 检索开关。
-func (s *Service) UpdateFileRagOptOut(ctx context.Context, userID uint, fileID string, ragOptOut bool) (*domainconversation.FileObject, error) {
+// UpdateFileRAGOptOut 更新用户文件的 RAG 检索开关。
+func (s *Service) UpdateFileRAGOptOut(ctx context.Context, userID uint, fileID string, ragOptOut bool) (*domainconversation.FileObject, error) {
 	normalizedFileID := strings.TrimSpace(fileID)
 	if normalizedFileID == "" {
 		return nil, s.errInvalidFileReference()
 	}
-	item, err := s.repo.UpdateFileObjectRagOptOut(ctx, userID, normalizedFileID, ragOptOut)
+	item, err := s.repo.UpdateFileObjectRAGOptOut(ctx, userID, normalizedFileID, ragOptOut)
 	if errors.Is(err, repository.ErrNotFound) || errors.Is(err, repository.ErrFileNotFound) {
 		return nil, s.errFileNotFound()
 	}

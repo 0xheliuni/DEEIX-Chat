@@ -31,26 +31,31 @@ func (a *openAIResponsesAdapter) ListModels(ctx context.Context, route portllm.R
 	return a.client.listModelsOpenAICompatible(ctx, route)
 }
 
-func buildResponsesRequestBody(
-	adapter string,
-	model string,
-	input portllm.GenerateInput,
-	messages []portllm.Message,
-	providerTools []map[string]any,
-	toolDefinitions []portllm.ToolDefinition,
-	toolsEnabled bool,
-	providerStreamOptions map[string]any,
-	stream bool,
-) map[string]any {
-	if adapter == portllm.AdapterOpenRouterResponses {
-		return buildOpenRouterResponsesRequestBody(model, input, messages, providerTools, toolDefinitions, providerStreamOptions, stream)
+type responsesRequestInput struct {
+	Adapter               string
+	Model                 string
+	Generate              portllm.GenerateInput
+	Messages              []portllm.Message
+	ProviderTools         []map[string]any
+	ToolDefinitions       []portllm.ToolDefinition
+	ToolsEnabled          bool
+	ProviderStreamOptions map[string]any
+	Stream                bool
+}
+
+func buildResponsesRequestBody(request responsesRequestInput) map[string]any {
+	if request.Adapter == portllm.AdapterOpenRouterResponses {
+		return buildOpenRouterResponsesRequestBody(request.Model, request.Generate, request.Messages, request.ProviderTools, request.ToolDefinitions, request.ProviderStreamOptions, request.Stream)
 	}
+	adapter := request.Adapter
+	model := request.Model
+	input := request.Generate
 	promptCache := resolveOpenAIPromptCacheConfig(adapter, input)
-	items := buildResponsesAPIInput(messages, &promptCache)
+	items := buildResponsesAPIInput(request.Messages, &promptCache)
 	payload := map[string]any{
 		"model":  strings.TrimSpace(model),
 		"input":  items,
-		"stream": stream,
+		"stream": request.Stream,
 	}
 	if adapter == portllm.AdapterOpenAIResponses && input.Ephemeral {
 		payload["store"] = false
@@ -68,24 +73,24 @@ func buildResponsesRequestBody(
 	applyOpenAIResponsesReasoningParams(payload, input.Options)
 	applyOpenAIResponsesTextParams(payload, input.Options, adapter == portllm.AdapterOpenAIResponses)
 	webSearchTools := []map[string]any{}
-	if toolsEnabled && modelParamBool(input.Options, "web_search") && adapter == portllm.AdapterOpenAIResponses {
+	if request.ToolsEnabled && modelParamBool(input.Options, "web_search") && adapter == portllm.AdapterOpenAIResponses {
 		webSearchTools = append(webSearchTools, map[string]any{"type": "web_search"})
 	}
-	nativeTools := append([]map[string]any{}, providerTools...)
+	nativeTools := append([]map[string]any{}, request.ProviderTools...)
 	nativeTools = append(nativeTools, webSearchTools...)
 	applyOpenAIPromptCacheRequestFields(payload, promptCache)
-	appendToolDeclarations(payload, providerTools, webSearchTools, buildOpenAITools(toolDefinitions, false))
+	appendToolDeclarations(payload, request.ProviderTools, webSearchTools, buildOpenAITools(request.ToolDefinitions, false))
 	// 有状态会话：提供 previous_response_id 时服务端续接存储的历史，
 	// input 仅包含本轮新消息，避免全量重传。
 	if prevID := strings.TrimSpace(input.PreviousResponseID); !input.Ephemeral && prevID != "" {
 		payload["previous_response_id"] = prevID
 	}
-	if streamOptions := responsesStreamOptions(providerStreamOptions); stream && len(streamOptions) > 0 {
+	if streamOptions := responsesStreamOptions(request.ProviderStreamOptions); request.Stream && len(streamOptions) > 0 {
 		payload["stream_options"] = streamOptions
 	}
 	applyProviderOptions(payload, input.Options, responsesProtectedProviderOptionKeys(adapter, strings.TrimSpace(input.Instructions) != "")...)
 	if supportsResponsesIncludeDefaults(adapter) {
-		defaultIncludes := responsesDefaultIncludeValues(adapter, stream, nativeTools)
+		defaultIncludes := responsesDefaultIncludeValues(adapter, request.Stream, nativeTools)
 		appendResponseInclude(payload, responseIncludeValues(input.Options, defaultIncludes...)...)
 	} else {
 		appendResponseInclude(payload, responseIncludeValues(input.Options)...)

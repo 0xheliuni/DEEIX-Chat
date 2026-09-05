@@ -263,14 +263,18 @@ return 1
 `)
 
 var completeGenerationStreamScript = redis.NewScript(`
-if redis.call("GET", KEYS[1]) ~= ARGV[1] or redis.call("GET", KEYS[2]) ~= ARGV[2] then
+if redis.call("GET", KEYS[2]) ~= ARGV[2] or redis.call("GET", KEYS[4]) ~= ARGV[4] then
+	return 0
+end
+local current_execution = redis.call("GET", KEYS[1])
+if current_execution and current_execution ~= ARGV[1] then
 	return 0
 end
 redis.call("DEL", KEYS[1])
 redis.call("ZREM", KEYS[3], ARGV[3])
-for index = 2, 11 do
+	for index = 2, 11 do
 	if index ~= 3 then
-		redis.call("PEXPIRE", KEYS[index], ARGV[4])
+		redis.call("PEXPIRE", KEYS[index], ARGV[5])
 	end
 end
 return 1
@@ -882,7 +886,7 @@ func (c *conversationCache) CompleteGenerationStream(ctx context.Context, lease 
 		generationStreamTextSeqKey(lease.RunID),
 		generationStreamUpstreamThinkContentKey(lease.RunID),
 		generationStreamUpstreamThinkMetaKey(lease.RunID),
-	}, lease.ExecutionID, owner, lease.RunID, retention.Milliseconds()).Int()
+	}, lease.ExecutionID, owner, lease.RunID, lease.ConversationPublicID, retention.Milliseconds()).Int()
 	if err != nil {
 		return false, err
 	}

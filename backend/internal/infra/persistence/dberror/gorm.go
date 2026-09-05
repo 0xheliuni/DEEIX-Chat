@@ -2,9 +2,9 @@ package dberror
 
 import (
 	"errors"
-	"strings"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	sqlite3 "github.com/mattn/go-sqlite3"
 	"gorm.io/gorm"
 )
 
@@ -29,10 +29,16 @@ func IsUniqueConstraint(err error) bool {
 	if errors.As(err, &stateErr) && stateErr.SQLState() == "23505" {
 		return true
 	}
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "duplicate key") ||
-		strings.Contains(msg, "unique constraint") ||
-		strings.Contains(msg, "unique constraint failed")
+	var sqliteErr sqlite3.Error
+	if !errors.As(err, &sqliteErr) || sqliteErr.Code != sqlite3.ErrConstraint {
+		return false
+	}
+	switch sqliteErr.ExtendedCode {
+	case sqlite3.ErrConstraintUnique, sqlite3.ErrConstraintPrimaryKey, sqlite3.ErrConstraintRowID:
+		return true
+	default:
+		return false
+	}
 }
 
 // Translate 将通用数据库错误映射为仓储契约错误。

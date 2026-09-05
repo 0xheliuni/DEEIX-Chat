@@ -7,10 +7,10 @@ import (
 )
 
 func TestBuildResponsesRequestBodyEnforcesEphemeralRequest(t *testing.T) {
-	payload := buildResponsesRequestBody(
-		portllm.AdapterOpenAIResponses,
-		"gpt-test",
-		portllm.GenerateInput{
+	payload := buildResponsesRequestBody(responsesRequestInput{
+		Adapter: portllm.AdapterOpenAIResponses,
+		Model:   "gpt-test",
+		Generate: portllm.GenerateInput{
 			Messages:            []portllm.Message{{Role: "user", Content: "hello"}},
 			PromptCacheKey:      "cache_should_not_be_sent",
 			PreviousResponseID:  "resp_should_not_be_sent",
@@ -24,13 +24,8 @@ func TestBuildResponsesRequestBodyEnforcesEphemeralRequest(t *testing.T) {
 				},
 			},
 		},
-		nil,
-		nil,
-		nil,
-		false,
-		nil,
-		true,
-	)
+		Stream: true,
+	})
 
 	if store, ok := payload["store"].(bool); !ok || store {
 		t.Fatalf("store = %#v, want false", payload["store"])

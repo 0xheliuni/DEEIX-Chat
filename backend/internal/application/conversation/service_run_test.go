@@ -23,6 +23,7 @@ type conversationRunClaimRepositoryStub struct {
 	claimErr error
 
 	conversation      model.Conversation
+	pairCreateErr     error
 	pairCreateCalls   int
 	branchCreateCalls int
 }
@@ -54,6 +55,13 @@ func (r *conversationRunClaimRepositoryStub) ListLatestBranchPreviewMessages(con
 
 func (r *conversationRunClaimRepositoryStub) CreateMessagePairWithUserAttachments(context.Context, *model.Message, *model.Message, []model.Attachment) error {
 	r.pairCreateCalls++
+	return r.pairCreateErr
+}
+
+func (r *conversationRunClaimRepositoryStub) UpdateConversationRun(_ context.Context, run *model.Run) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.runs[run.RunID] = *run
 	return nil
 }
 
@@ -231,5 +239,35 @@ func TestGenerationEntrypointsRejectDuplicateRunBeforeSideEffects(t *testing.T) 
 				t.Fatalf("duplicate run reached route/upstream: route=%d upstream=%d", routeResolver.resolveCalls, gateway.generateCalls)
 			}
 		})
+	}
+}
+
+func TestSendMessageEarlyFailureDoesNotPanicBeforeTraceRecorder(t *testing.T) {
+	want := errors.New("message persistence failed")
+	repo := &conversationRunClaimRepositoryStub{
+		runs:          make(map[string]model.Run),
+		conversation:  model.Conversation{ID: 11, UserID: 7, PublicID: "conversation-11", Model: "chat-model"},
+		pairCreateErr: want,
+	}
+	service := &Service{
+		cfg:    config.NewRuntime(config.Config{MaxMessageFiles: 10}),
+		repo:   repo,
+		logger: zap.NewNop(),
+	}
+
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			t.Fatalf("SendMessage panicked before trace recorder initialization: %v", recovered)
+		}
+	}()
+	_, err := service.SendMessage(context.Background(), SendMessageInput{
+		UserID:         7,
+		ConversationID: 11,
+		Content:        "hello",
+		ClientRunID:    "run_pair_failure",
+		BranchReason:   "default",
+	})
+	if !errors.Is(err, want) {
+		t.Fatalf("SendMessage error = %v, want %v", err, want)
 	}
 }

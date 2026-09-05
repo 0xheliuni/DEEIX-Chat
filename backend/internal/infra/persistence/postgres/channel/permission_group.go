@@ -771,9 +771,8 @@ func (r *Repo) GetUserModelGroupRateMultiplierPercent(ctx context.Context, userI
 		}
 		if len(modelGroupIDs) == 0 {
 			return 100, nil
-		} else {
-			groupIDs = intersectGroupIDLists(userGroupIDs, modelGroupIDs)
 		}
+		groupIDs = intersectGroupIDLists(userGroupIDs, modelGroupIDs)
 	}
 	return r.minGroupRateMultiplierPercent(ctx, groupIDs)
 }

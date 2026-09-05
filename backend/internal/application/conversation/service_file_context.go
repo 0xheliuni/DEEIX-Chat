@@ -246,7 +246,7 @@ func shouldUseRAGForAttachment(item AttachmentInput, fileMode string, cfg config
 func canRetrieveAttachment(item AttachmentInput, ragAvailable bool) bool {
 	return ragAvailable &&
 		strings.TrimSpace(item.FileID) != "" &&
-		!item.RagOptOut &&
+		!item.RAGOptOut &&
 		strings.EqualFold(strings.TrimSpace(item.EmbedStatus), "ready")
 }
 
@@ -296,7 +296,7 @@ func (s *Service) resolveKnowledgeBaseRAGFiles(
 	ready := make([]model.FileObject, 0, len(files))
 	seen := make(map[uint]struct{}, len(files))
 	for _, file := range files {
-		if file.ID == 0 || !file.ProcessingReady || file.RagOptOut || !strings.EqualFold(strings.TrimSpace(file.EmbedStatus), "ready") || file.ChunkCount <= 0 {
+		if file.ID == 0 || !file.ProcessingReady || file.RAGOptOut || !strings.EqualFold(strings.TrimSpace(file.EmbedStatus), "ready") || file.ChunkCount <= 0 {
 			continue
 		}
 		if _, exists := seen[file.ID]; exists {

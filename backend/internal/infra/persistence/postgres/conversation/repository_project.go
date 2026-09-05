@@ -167,8 +167,7 @@ func (r *Repo) DeleteConversationProjectByPublicID(
 	ctx context.Context,
 	userID uint,
 	publicID string,
-	deleteConversations bool,
-	deleteFiles bool,
+	options repository.DeleteConversationProjectOptions,
 ) ([]string, error) {
 	normalizedPublicID := strings.TrimSpace(publicID)
 	cleanupFileIDs := make([]string, 0)
@@ -178,9 +177,9 @@ func (r *Repo) DeleteConversationProjectByPublicID(
 			return dberror.Translate(err)
 		}
 		// 项目删除与会话归属处理必须保持原子性，避免项目删除后留下不可见的项目引用。
-		if deleteConversations {
+		if options.DeleteConversations {
 			conversationIDs := make([]uint, 0)
-			if deleteFiles {
+			if options.DeleteFiles {
 				if err := tx.Model(&models.Conversation{}).
 					Where("user_id = ? AND project_id = ?", userID, project.ID).
 					Pluck("id", &conversationIDs).Error; err != nil {
@@ -192,7 +191,7 @@ func (r *Repo) DeleteConversationProjectByPublicID(
 				Delete(&models.Conversation{}).Error; err != nil {
 				return dberror.Translate(err)
 			}
-			if deleteFiles {
+			if options.DeleteFiles {
 				fileIDs, err := listConversationFileCleanupCandidates(tx, userID, conversationIDs)
 				if err != nil {
 					return err

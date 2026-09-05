@@ -2492,8 +2492,8 @@ func (r *Repo) RenameFileObjectByID(ctx context.Context, userID uint, fileID str
 	return &result, nil
 }
 
-// UpdateFileObjectRagOptOut 更新文件 RAG 检索开关。
-func (r *Repo) UpdateFileObjectRagOptOut(ctx context.Context, userID uint, fileID string, ragOptOut bool) (*domainconversation.FileObject, error) {
+// UpdateFileObjectRAGOptOut 更新文件 RAG 检索开关。
+func (r *Repo) UpdateFileObjectRAGOptOut(ctx context.Context, userID uint, fileID string, ragOptOut bool) (*domainconversation.FileObject, error) {
 	var item models.FileObject
 	if err := r.db.WithContext(ctx).
 		Where("user_id = ? AND status = ? AND file_id = ?", userID, "active", fileID).
@@ -2503,7 +2503,7 @@ func (r *Repo) UpdateFileObjectRagOptOut(ctx context.Context, userID uint, fileI
 		}
 		return nil, dberror.Translate(err)
 	}
-	item.RagOptOut = ragOptOut
+	item.RAGOptOut = ragOptOut
 	if err := r.db.WithContext(ctx).Save(&item).Error; err != nil {
 		return nil, dberror.Translate(err)
 	}
@@ -4426,7 +4426,7 @@ func toFileObjectDomain(item models.FileObject) domainconversation.FileObject {
 		ProcessingPayloadJSON:  item.ProcessingPayloadJSON,
 		ProcessingStartedAt:    item.ProcessingStartedAt,
 		ProcessingCompletedAt:  item.ProcessingCompletedAt,
-		RagOptOut:              item.RagOptOut,
+		RAGOptOut:              item.RAGOptOut,
 		CreatedAt:              item.CreatedAt,
 		UpdatedAt:              item.UpdatedAt,
 	}
@@ -4482,7 +4482,7 @@ func toFileObjectModel(item *domainconversation.FileObject) models.FileObject {
 		ProcessingPayloadJSON:  item.ProcessingPayloadJSON,
 		ProcessingStartedAt:    item.ProcessingStartedAt,
 		ProcessingCompletedAt:  item.ProcessingCompletedAt,
-		RagOptOut:              item.RagOptOut,
+		RAGOptOut:              item.RAGOptOut,
 	}
 }
 

@@ -26,6 +26,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// LoginOptions describes the authentication methods enabled for the login UI.
 type LoginOptions struct {
 	UsernameEnabled              bool
 	EmailEnabled                 bool
@@ -38,12 +39,14 @@ type LoginOptions struct {
 	Providers                    []IdentityProviderView
 }
 
+// ProviderAuthBridgeOptions describes native OAuth handoff availability.
 type ProviderAuthBridgeOptions struct {
 	Enabled         bool
 	ProtocolVersion int
 	CallbackBaseURL string
 }
 
+// IdentityProviderView is the safe, user-facing view of an identity provider.
 type IdentityProviderView struct {
 	PublicID            string
 	Type                string
@@ -70,6 +73,7 @@ type IdentityProviderView struct {
 	UpdatedAt           time.Time
 }
 
+// UserIdentityView describes an identity linked to a user account.
 type UserIdentityView struct {
 	ID                  uint
 	ProviderID          uint
@@ -84,6 +88,7 @@ type UserIdentityView struct {
 	LastLoginAt         *time.Time
 }
 
+// UpsertIdentityProviderInput contains administrator-managed provider settings.
 type UpsertIdentityProviderInput struct {
 	ActorRole           string
 	Type                string
@@ -182,6 +187,7 @@ type providerOAuthState struct {
 	ExpiresAt     int64  `json:"expiresAt"`
 }
 
+// GetLoginOptions returns the authentication methods and providers available to the client.
 func (s *Service) GetLoginOptions(ctx context.Context) (*LoginOptions, error) {
 	cfg := s.cfg.Snapshot()
 	providerViews := []IdentityProviderView{}
@@ -205,6 +211,7 @@ func (s *Service) GetLoginOptions(ctx context.Context) (*LoginOptions, error) {
 	}, nil
 }
 
+// ListIdentityProviders returns configured identity providers for administration.
 func (s *Service) ListIdentityProviders(ctx context.Context) ([]IdentityProviderView, error) {
 	providers, err := s.repo.ListIdentityProviders(ctx, true)
 	if err != nil {
@@ -213,6 +220,7 @@ func (s *Service) ListIdentityProviders(ctx context.Context) ([]IdentityProvider
 	return toProviderViews(providers, true), nil
 }
 
+// CreateIdentityProvider validates and persists a new identity provider.
 func (s *Service) CreateIdentityProvider(ctx context.Context, input UpsertIdentityProviderInput) (*IdentityProviderView, error) {
 	provider, err := s.normalizeProviderInput(input, nil)
 	if err != nil {
@@ -227,6 +235,7 @@ func (s *Service) CreateIdentityProvider(ctx context.Context, input UpsertIdenti
 	return &view, nil
 }
 
+// UpdateIdentityProvider validates and persists changes to an identity provider.
 func (s *Service) UpdateIdentityProvider(ctx context.Context, publicID string, input UpsertIdentityProviderInput) (*IdentityProviderView, error) {
 	current, err := s.repo.GetIdentityProviderByPublicID(ctx, publicID)
 	if err != nil {
@@ -245,6 +254,7 @@ func (s *Service) UpdateIdentityProvider(ctx context.Context, publicID string, i
 	return &view, nil
 }
 
+// DeleteIdentityProvider removes an identity provider when its dependencies allow it.
 func (s *Service) DeleteIdentityProvider(ctx context.Context, publicID string, force bool) error {
 	if err := s.repo.DeleteIdentityProvider(ctx, publicID, force); err != nil {
 		var dependentErr *repository.IdentityProviderDeleteConflictError
@@ -259,10 +269,12 @@ func (s *Service) DeleteIdentityProvider(ctx context.Context, publicID string, f
 	return nil
 }
 
+// HasActiveSuperAdminIdentity reports whether a superadmin identity provider is active.
 func (s *Service) HasActiveSuperAdminIdentity(ctx context.Context) (bool, error) {
 	return s.repo.HasActiveSuperAdminIdentity(ctx)
 }
 
+// ListCurrentUserIdentities returns the identities linked to a user account.
 func (s *Service) ListCurrentUserIdentities(ctx context.Context, userID uint) ([]UserIdentityView, error) {
 	identities, err := s.repo.ListUserIdentitiesByUserID(ctx, userID)
 	if err != nil {
@@ -296,6 +308,7 @@ func (s *Service) ListCurrentUserIdentities(ctx context.Context, userID uint) ([
 	return results, nil
 }
 
+// UnlinkCurrentUserIdentity removes a linked identity after login-safety checks.
 func (s *Service) UnlinkCurrentUserIdentity(ctx context.Context, userID uint, identityID uint) error {
 	if err := s.ensureIdentityUnlinkAllowed(ctx, userID, identityID); err != nil {
 		return err
@@ -335,6 +348,7 @@ func (s *Service) ensureIdentityUnlinkAllowed(ctx context.Context, userID uint, 
 	return nil
 }
 
+// ReorderIdentityProviders persists the administrator-selected provider order.
 func (s *Service) ReorderIdentityProviders(ctx context.Context, publicIDs []string) error {
 	normalizedIDs := make([]string, 0, len(publicIDs))
 	seen := make(map[string]struct{}, len(publicIDs))
@@ -352,6 +366,7 @@ func (s *Service) ReorderIdentityProviders(ctx context.Context, publicIDs []stri
 	return s.repo.UpdateIdentityProviderSortOrders(ctx, normalizedIDs)
 }
 
+// CompleteProviderLogin exchanges a provider callback for an application session.
 func (s *Service) CompleteProviderLogin(ctx context.Context, input CompleteProviderLoginInput) (*LoginResult, error) {
 	if !s.cfg.Snapshot().ThirdPartyLoginEnabled {
 		return nil, ErrThirdPartyLoginDisabled
@@ -497,6 +512,7 @@ func (s *Service) completeProviderLoginForUser(
 	return result, nil
 }
 
+// CompleteProviderBind links a provider identity to the authenticated user.
 func (s *Service) CompleteProviderBind(ctx context.Context, input CompleteProviderBindInput) (*UserIdentityView, error) {
 	if input.UserID == 0 {
 		return nil, ErrUnauthorized
@@ -892,6 +908,7 @@ func buildProviderAuthURL(provider domainuser.IdentityProvider, authURL string, 
 	return parsed.String(), nil
 }
 
+// BuildProviderAuthURL builds a validated provider authorization URL for the web flow.
 func (s *Service) BuildProviderAuthURL(ctx context.Context, slug string, redirectURI string, nextPath string, codeChallenge string, intent string) (string, error) {
 	if !s.cfg.Snapshot().ThirdPartyLoginEnabled {
 		return "", ErrThirdPartyLoginDisabled
