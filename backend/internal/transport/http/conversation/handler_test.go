@@ -11,7 +11,7 @@ import (
 
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
@@ -41,23 +41,6 @@ func TestBillingStreamErrorPayloadCarriesResultWhenPresent(t *testing.T) {
 	}
 	if _, ok := streamErrorPayloadWithResult(appbilling.ErrUsageBalanceInsufficient, nil)["data"]; ok {
 		t.Fatal("billing error payload must not carry data without a result")
-	}
-}
-
-func TestMessagePageParamsAllowsRestoreWindow(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("GET", "/messages?page=1&page_size=1000", nil)
-
-	_, pageSize := messagePageParams(c)
-	if pageSize != 1000 {
-		t.Fatalf("messagePageParams page size = %d, want 1000", pageSize)
-	}
-
-	_, normalPageSize := pageParams(c)
-	if normalPageSize != maxHTTPPageSize {
-		t.Fatalf("pageParams page size = %d, want %d", normalPageSize, maxHTTPPageSize)
 	}
 }
 

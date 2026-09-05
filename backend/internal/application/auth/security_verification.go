@@ -69,28 +69,6 @@ func (s *Service) resolveSecurityVerificationMethods(ctx context.Context, item *
 	return methods, nil
 }
 
-func (s *Service) resolveSecurityVerificationMethod(ctx context.Context, item *domainuser.User) (SecurityVerificationMethod, error) {
-	methods, err := s.resolveSecurityVerificationMethods(ctx, item)
-	if err != nil {
-		return SecurityVerificationMethodNone, err
-	}
-	if len(methods) == 0 {
-		return SecurityVerificationMethodNone, nil
-	}
-	return methods[0], nil
-}
-
-func (s *Service) verifySecurityCode(
-	ctx context.Context,
-	item *domainuser.User,
-	purpose string,
-	target string,
-	code string,
-	now time.Time,
-) error {
-	return s.verifySecurityCodeWithMethod(ctx, item, "", purpose, target, code, now)
-}
-
 func (s *Service) verifySecurityCodeWithMethod(
 	ctx context.Context,
 	item *domainuser.User,

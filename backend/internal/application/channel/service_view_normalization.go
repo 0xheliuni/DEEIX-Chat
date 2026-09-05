@@ -136,7 +136,7 @@ func toUpstreamModelView(item repository.ChannelUpstreamModelListRow) UpstreamMo
 }
 
 func toModelUpstreamSourceView(item repository.ChannelModelSourceRow) ModelUpstreamSourceView {
-	vendor := normalizeUpstreamModelVendor(item.UpstreamModelVendor, item.UpstreamModelName, item.UpstreamName, item.BaseURL)
+	vendor := normalizeModelVendor(item.UpstreamModelVendor, item.UpstreamModelName, item.UpstreamName, item.BaseURL)
 	return ModelUpstreamSourceView{
 		ID:                     item.ID,
 		UpstreamID:             item.UpstreamID,
@@ -167,24 +167,6 @@ func toModelUpstreamSourceView(item repository.ChannelModelSourceRow) ModelUpstr
 // ---------------------------------------------------------------------------
 // 规范化辅助
 // ---------------------------------------------------------------------------
-
-func normalizePage(page int, pageSize int) (int, int) {
-	if page <= 0 {
-		page = 1
-	}
-	if pageSize <= 0 {
-		pageSize = 20
-	}
-	const maxPageSize = 1000
-	if pageSize > maxPageSize {
-		pageSize = maxPageSize
-	}
-	offset := (page - 1) * pageSize
-	if offset < 0 {
-		offset = 0
-	}
-	return offset, pageSize
-}
 
 func normalizeStatus(raw string) string {
 	v := strings.TrimSpace(raw)
@@ -395,16 +377,6 @@ func canonicalVendorKey(raw string) string {
 }
 
 func normalizeModelVendor(raw string, candidates ...string) string {
-	if canonical := canonicalVendorKey(raw); canonical != "" {
-		return canonical
-	}
-	if detected := detectModelVendor(candidates...); detected != "" {
-		return detected
-	}
-	return "unknown"
-}
-
-func normalizeUpstreamModelVendor(raw string, candidates ...string) string {
 	if canonical := canonicalVendorKey(raw); canonical != "" {
 		return canonical
 	}
@@ -722,18 +694,6 @@ func generateBindingCode() string {
 	return "upm_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 }
 
-// defaultUpstreamProtocol 返回默认的上游通信协议。
-func defaultUpstreamProtocol() string {
-	return llm.AdapterOpenAIChatCompletions
-}
-
-func formatOptionalTime(t *time.Time) string {
-	if t == nil || t.IsZero() {
-		return ""
-	}
-	return t.Format(time.RFC3339)
-}
-
 // ---------------------------------------------------------------------------
 // JSON 与字符串工具
 // ---------------------------------------------------------------------------
@@ -785,12 +745,4 @@ func mergeIntoJSONMap(raw string, target map[string]interface{}) {
 		}
 		target[key] = parsed[rawKey]
 	}
-}
-
-func truncateMessage(message string, limit int) string {
-	v := strings.TrimSpace(message)
-	if limit <= 0 || len([]rune(v)) <= limit {
-		return v
-	}
-	return string([]rune(v)[:limit])
 }

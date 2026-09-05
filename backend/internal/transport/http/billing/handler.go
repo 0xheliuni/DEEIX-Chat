@@ -11,6 +11,7 @@ import (
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	appsettings "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/settings"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
@@ -65,14 +66,14 @@ func NewHandler(
 
 func (h *Handler) recordAudit(c *gin.Context, userID uint, action string, resource string, resourceID string, detail interface{}) {
 	h.service.RecordAudit(c.Request.Context(), appbilling.AuditInput{
-		UserID:     userID,
-		RequestID:  middleware.MustRequestID(c),
-		Action:     action,
-		Resource:   resource,
-		ResourceID: resourceID,
-		ClientIP:   c.ClientIP(),
-		UserAgent:  c.Request.UserAgent(),
-		Detail:     detail,
+		ActorUserID: userID,
+		RequestID:   middleware.MustRequestID(c),
+		Action:      action,
+		Resource:    resource,
+		ResourceID:  resourceID,
+		IP:          c.ClientIP(),
+		UserAgent:   c.Request.UserAgent(),
+		Detail:      detail,
 	})
 }
 
@@ -395,7 +396,7 @@ func (h *Handler) UpdateBillingAccountBalance(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/billing/redemption-codes [get]
 func (h *Handler) ListRedemptionCodes(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	items, total, err := h.service.ListRedemptionCodes(c.Request.Context(), appbilling.RedemptionCodeListInput{
 		Mode:         c.Query("mode"),
 		Status:       c.Query("status"),
@@ -862,7 +863,7 @@ func (h *Handler) Subscribe(c *gin.Context) {
 // @Router /billing/usage [get]
 func (h *Handler) ListUsage(c *gin.Context) {
 	userID := middleware.MustUserID(c)
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	filter := appbilling.UsageListFilter{
 		Query:  c.Query("query"),
 		Status: c.Query("status"),
@@ -992,7 +993,7 @@ func (h *Handler) ListDailyUsage(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/billing/model-prices [get]
 func (h *Handler) ListModelPricing(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	items, total, err := h.service.ListModelPricing(
 		c.Request.Context(),
 		c.Query("q"),
@@ -1061,26 +1062,4 @@ func (h *Handler) UpsertModelPricing(c *gin.Context) {
 	response.Success(c, ModelPricingDataResponse{
 		ModelPricing: toModelPricingResponse(*item),
 	})
-}
-
-func pageParams(c *gin.Context) (int, int) {
-	page := 1
-	pageSize := 20
-	const maxPageSize = 1000
-
-	if raw := c.Query("page"); raw != "" {
-		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
-			page = parsed
-		}
-	}
-	if raw := c.Query("page_size"); raw != "" {
-		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
-			if parsed > maxPageSize {
-				parsed = maxPageSize
-			}
-			pageSize = parsed
-		}
-	}
-
-	return page, pageSize
 }

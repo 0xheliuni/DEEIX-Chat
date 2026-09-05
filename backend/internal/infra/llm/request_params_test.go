@@ -1,10 +1,14 @@
 package llm
 
-import "testing"
+import (
+	"testing"
+
+	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
+)
 
 func TestBuildOpenAIChatCompletionsMinimalStreamRequestIncludesUsage(t *testing.T) {
-	payload := mustBuildRequestBody(t, AdapterOpenAIChatCompletions, "gpt-5", EndpointChatCompletions, GenerateInput{
-		Messages: []Message{{Role: "user", Content: "hello"}},
+	payload := mustBuildRequestBody(t, portllm.AdapterOpenAIChatCompletions, "gpt-5", portllm.EndpointChatCompletions, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "hello"}},
 	}, true)
 
 	expectedKeys := map[string]struct{}{
@@ -21,8 +25,8 @@ func TestBuildOpenAIChatCompletionsMinimalStreamRequestIncludesUsage(t *testing.
 }
 
 func TestBuildOpenAIResponsesMinimalRequestHasOnlyProtocolDefaults(t *testing.T) {
-	payload := mustBuildRequestBody(t, AdapterOpenAIResponses, "gpt-5", EndpointResponses, GenerateInput{
-		Messages: []Message{{Role: "user", Content: "hello"}},
+	payload := mustBuildRequestBody(t, portllm.AdapterOpenAIResponses, "gpt-5", portllm.EndpointResponses, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "hello"}},
 	}, true)
 
 	expectedKeys := map[string]struct{}{
@@ -39,8 +43,8 @@ func TestBuildOpenAIResponsesMinimalRequestHasOnlyProtocolDefaults(t *testing.T)
 }
 
 func TestBuildOpenAIResponsesBackgroundRequestSetsStore(t *testing.T) {
-	payload := mustBuildRequestBody(t, AdapterOpenAIResponses, "gpt-5", EndpointResponses, GenerateInput{
-		Messages:            []Message{{Role: "user", Content: "hello"}},
+	payload := mustBuildRequestBody(t, portllm.AdapterOpenAIResponses, "gpt-5", portllm.EndpointResponses, portllm.GenerateInput{
+		Messages:            []portllm.Message{{Role: "user", Content: "hello"}},
 		ResponsesBackground: true,
 	}, true)
 
@@ -50,8 +54,8 @@ func TestBuildOpenAIResponsesBackgroundRequestSetsStore(t *testing.T) {
 }
 
 func TestBuildOpenAIResponsesBackgroundIgnoresProviderOverride(t *testing.T) {
-	payload := mustBuildRequestBody(t, AdapterOpenAIResponses, "gpt-5", EndpointResponses, GenerateInput{
-		Messages:            []Message{{Role: "user", Content: "hello"}},
+	payload := mustBuildRequestBody(t, portllm.AdapterOpenAIResponses, "gpt-5", portllm.EndpointResponses, portllm.GenerateInput{
+		Messages:            []portllm.Message{{Role: "user", Content: "hello"}},
 		ResponsesBackground: true,
 		Options: map[string]interface{}{
 			"background": false,
@@ -65,10 +69,10 @@ func TestBuildOpenAIResponsesBackgroundIgnoresProviderOverride(t *testing.T) {
 }
 
 func TestOpenAIResponsesCreatedEventEmitsResponseID(t *testing.T) {
-	result := &GenerateOutput{}
+	result := &portllm.GenerateOutput{}
 	var got string
 	err := applyResponsesStreamEvent(
-		AdapterOpenAIResponses,
+		portllm.AdapterOpenAIResponses,
 		"response.created",
 		map[string]interface{}{
 			"type": "response.created",
@@ -79,7 +83,7 @@ func TestOpenAIResponsesCreatedEventEmitsResponseID(t *testing.T) {
 		},
 		"",
 		result,
-		func(event GenerateStreamEvent) error {
+		func(event portllm.GenerateStreamEvent) error {
 			got = event.ResponseID
 			return nil
 		},
@@ -96,15 +100,15 @@ func TestOpenAIResponsesCreatedEventEmitsResponseID(t *testing.T) {
 }
 
 func TestBuildOpenAIResponsesUsesOutputTextForAssistantHistory(t *testing.T) {
-	payload := mustBuildRequestBody(t, AdapterOpenAIResponses, "gpt-5", EndpointResponses, GenerateInput{
-		Messages: []Message{
+	payload := mustBuildRequestBody(t, portllm.AdapterOpenAIResponses, "gpt-5", portllm.EndpointResponses, portllm.GenerateInput{
+		Messages: []portllm.Message{
 			{Role: "system", Content: "follow the rules"},
 			{Role: "user", Content: "hello"},
 			{Role: "assistant", Content: "hi there"},
 			{
 				Role: "assistant",
-				Parts: []ContentPart{
-					{Kind: ContentPartText, Text: "part answer"},
+				Parts: []portllm.ContentPart{
+					{Kind: portllm.ContentPartText, Text: "part answer"},
 				},
 			},
 			{Role: "user", Content: "next"},
@@ -128,8 +132,8 @@ func TestBuildOpenAIResponsesUsesOutputTextForAssistantHistory(t *testing.T) {
 }
 
 func TestBuildOpenRouterResponsesAddsRequiredHistoryMessageFields(t *testing.T) {
-	payload := mustBuildRequestBody(t, AdapterOpenRouterResponses, "openai/gpt-oss-120b:free", EndpointResponses, GenerateInput{
-		Messages: []Message{
+	payload := mustBuildRequestBody(t, portllm.AdapterOpenRouterResponses, "openai/gpt-oss-120b:free", portllm.EndpointResponses, portllm.GenerateInput{
+		Messages: []portllm.Message{
 			{Role: "user", Content: "你好"},
 			{Role: "assistant", Content: "你好！有什么我可以帮忙的吗？"},
 			{Role: "user", Content: "你是谁？"},
@@ -160,8 +164,8 @@ func TestBuildOpenRouterResponsesAddsRequiredHistoryMessageFields(t *testing.T) 
 }
 
 func TestBuildOpenAIResponsesPlaylistHistoryMatchesOfficialContentTypes(t *testing.T) {
-	payload := mustBuildRequestBody(t, AdapterOpenAIResponses, "gpt-5.5", EndpointResponses, GenerateInput{
-		Messages: []Message{
+	payload := mustBuildRequestBody(t, portllm.AdapterOpenAIResponses, "gpt-5.5", portllm.EndpointResponses, portllm.GenerateInput{
+		Messages: []portllm.Message{
 			{Role: "user", Content: "这是我最近听的歌，你根据文件告诉我不同歌手的占比"},
 			{Role: "assistant", Content: "根据你文件里的 11 首歌，我按“歌手参与次数”统计。"},
 			{Role: "user", Content: "<ctx>\n<files>\n<file name=\"My_FreeText_Playlist_Missing.csv\">Track name\tArtist name\n\t天后 (Live) - 薛之谦</file>\n</files>\n</ctx>\n\n<q>推荐一些流行的哥</q>"},
@@ -192,8 +196,8 @@ func TestBuildOpenAIResponsesPlaylistHistoryMatchesOfficialContentTypes(t *testi
 }
 
 func TestBuildAnthropicMinimalRequestHasOnlyRequiredDefaults(t *testing.T) {
-	payload := mustBuildAnthropicRequestBody(t, "claude-sonnet-4", GenerateInput{
-		Messages: []Message{{Role: "user", Content: "hello"}},
+	payload := mustBuildAnthropicRequestBody(t, "claude-sonnet-4", portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "hello"}},
 	}, true)
 
 	expectedKeys := map[string]struct{}{
@@ -214,8 +218,8 @@ func TestBuildAnthropicMinimalRequestHasOnlyRequiredDefaults(t *testing.T) {
 }
 
 func TestBuildGeminiMinimalRequestHasOnlyProtocolDefaults(t *testing.T) {
-	payload := mustBuildGeminiRequestBody(t, GenerateInput{
-		Messages: []Message{{Role: "user", Content: "hello"}},
+	payload := mustBuildGeminiRequestBody(t, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "hello"}},
 	})
 
 	expectedKeys := map[string]struct{}{
@@ -245,8 +249,8 @@ func mapKeys(items map[string]struct{}) []string {
 }
 
 func TestBuildOpenAIChatCompletionsRequestBodyDoesNotForwardPromptCacheRetention(t *testing.T) {
-	payload := mustBuildRequestBody(t, AdapterOpenAIChatCompletions, "gpt-5", EndpointChatCompletions, GenerateInput{
-		Messages: []Message{{Role: "user", Content: "hello"}},
+	payload := mustBuildRequestBody(t, portllm.AdapterOpenAIChatCompletions, "gpt-5", portllm.EndpointChatCompletions, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "hello"}},
 		Options: map[string]interface{}{
 			"max_output_tokens":      2048,
 			"prompt_cache_retention": "24h",
@@ -292,11 +296,11 @@ func TestBuildOpenAIChatCompletionsRequestBodyDoesNotForwardPromptCacheRetention
 }
 
 func TestBuildOpenAIChatCompletionsUsesConfiguredGPT56PromptCachePrefix(t *testing.T) {
-	payload := mustBuildRequestBody(t, AdapterOpenAIChatCompletions, "gpt-5.6-luna", EndpointChatCompletions, GenerateInput{
+	payload := mustBuildRequestBody(t, portllm.AdapterOpenAIChatCompletions, "gpt-5.6-luna", portllm.EndpointChatCompletions, portllm.GenerateInput{
 		PromptCacheKey: "session-123",
-		Messages: []Message{
-			{Role: "system", Content: "stable policy", CacheControl: &CacheControl{Type: "ephemeral"}},
-			{Role: "user", Content: "historical question", CacheControl: &CacheControl{Type: "ephemeral"}},
+		Messages: []portllm.Message{
+			{Role: "system", Content: "stable policy", CacheControl: &portllm.CacheControl{Type: "ephemeral"}},
+			{Role: "user", Content: "historical question", CacheControl: &portllm.CacheControl{Type: "ephemeral"}},
 			{Role: "assistant", Content: "historical answer"},
 			{Role: "user", Content: "dynamic rag context"},
 		},
@@ -334,10 +338,10 @@ func TestBuildOpenAIChatCompletionsUsesConfiguredGPT56PromptCachePrefix(t *testi
 }
 
 func TestBuildOpenAIResponsesKeepsImplicitCachingWithoutExplicitOptions(t *testing.T) {
-	payload := mustBuildRequestBody(t, AdapterOpenAIResponses, "gpt-5.6", EndpointResponses, GenerateInput{
+	payload := mustBuildRequestBody(t, portllm.AdapterOpenAIResponses, "gpt-5.6", portllm.EndpointResponses, portllm.GenerateInput{
 		PromptCacheKey: "session-implicit",
-		Messages: []Message{
-			{Role: "system", Content: "stable policy", CacheControl: &CacheControl{Type: "ephemeral"}},
+		Messages: []portllm.Message{
+			{Role: "system", Content: "stable policy", CacheControl: &portllm.CacheControl{Type: "ephemeral"}},
 			{Role: "user", Content: "hello"},
 		},
 	}, false)
@@ -358,8 +362,8 @@ func TestBuildOpenAIResponsesKeepsImplicitCachingWithoutExplicitOptions(t *testi
 }
 
 func TestBuildOpenAIChatCompletionsProviderOptionsMergeAndProtectSystemFields(t *testing.T) {
-	payload := mustBuildRequestBody(t, AdapterOpenAIChatCompletions, "gpt-5", EndpointChatCompletions, GenerateInput{
-		Messages: []Message{{Role: "user", Content: "hello"}},
+	payload := mustBuildRequestBody(t, portllm.AdapterOpenAIChatCompletions, "gpt-5", portllm.EndpointChatCompletions, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "hello"}},
 		Options: map[string]interface{}{
 			"service_tier": "priority",
 			"metadata": map[string]interface{}{
@@ -392,8 +396,8 @@ func TestBuildOpenAIChatCompletionsProviderOptionsMergeAndProtectSystemFields(t 
 }
 
 func TestBuildOpenAIChatCompletionsStructuredOutputsAndVerbosity(t *testing.T) {
-	payload := mustBuildRequestBody(t, AdapterOpenAIChatCompletions, "gpt-5.1", EndpointChatCompletions, GenerateInput{
-		Messages: []Message{{Role: "developer", Content: "Return valid JSON."}, {Role: "user", Content: "hello"}},
+	payload := mustBuildRequestBody(t, portllm.AdapterOpenAIChatCompletions, "gpt-5.1", portllm.EndpointChatCompletions, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "developer", Content: "Return valid JSON."}, {Role: "user", Content: "hello"}},
 		Options: map[string]interface{}{
 			"verbosity": "low",
 			"response_format": map[string]interface{}{
@@ -426,8 +430,8 @@ func TestBuildOpenAIChatCompletionsStructuredOutputsAndVerbosity(t *testing.T) {
 }
 
 func TestBuildOpenAIChatCompletionsNativeToolOptions(t *testing.T) {
-	payload := mustBuildRequestBody(t, AdapterOpenAIChatCompletions, "mimo-v2.5-pro", EndpointChatCompletions, GenerateInput{
-		Messages: []Message{{Role: "user", Content: "please introduce Jun Lei"}},
+	payload := mustBuildRequestBody(t, portllm.AdapterOpenAIChatCompletions, "mimo-v2.5-pro", portllm.EndpointChatCompletions, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "please introduce Jun Lei"}},
 		Options: map[string]interface{}{
 			"tools": []interface{}{
 				map[string]interface{}{
@@ -476,8 +480,8 @@ func TestBuildOpenAIChatCompletionsNativeToolOptions(t *testing.T) {
 }
 
 func TestBuildOpenAIResponsesRequestBodyWebSearchDoesNotForwardPromptCacheRetention(t *testing.T) {
-	payload := mustBuildRequestBody(t, AdapterOpenAIResponses, "gpt-5", EndpointResponses, GenerateInput{
-		Messages: []Message{{Role: "user", Content: "hello"}},
+	payload := mustBuildRequestBody(t, portllm.AdapterOpenAIResponses, "gpt-5", portllm.EndpointResponses, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "hello"}},
 		Options: map[string]interface{}{
 			"max_output_tokens":      2048,
 			"prompt_cache_retention": "in-memory",
@@ -523,11 +527,11 @@ func TestBuildOpenAIResponsesRequestBodyWebSearchDoesNotForwardPromptCacheRetent
 }
 
 func TestBuildOpenAIResponsesUsesConfiguredExplicitPromptCache(t *testing.T) {
-	payload := mustBuildRequestBody(t, AdapterOpenAIResponses, "future-openai-model", EndpointResponses, GenerateInput{
+	payload := mustBuildRequestBody(t, portllm.AdapterOpenAIResponses, "future-openai-model", portllm.EndpointResponses, portllm.GenerateInput{
 		PromptCacheKey: "session-456",
-		Messages: []Message{
-			{Role: "system", Content: "stable policy", CacheControl: &CacheControl{Type: "ephemeral"}},
-			{Role: "user", Content: "historical question", CacheControl: &CacheControl{Type: "ephemeral"}},
+		Messages: []portllm.Message{
+			{Role: "system", Content: "stable policy", CacheControl: &portllm.CacheControl{Type: "ephemeral"}},
+			{Role: "user", Content: "historical question", CacheControl: &portllm.CacheControl{Type: "ephemeral"}},
 			{Role: "assistant", Content: "historical answer"},
 			{Role: "user", Content: "dynamic rag context"},
 		},
@@ -570,21 +574,21 @@ func TestBuildOpenAIRequestsPreserveAllExplicitPromptCacheBreakpoints(t *testing
 		endpoint string
 		field    string
 	}{
-		{name: "responses", adapter: AdapterOpenAIResponses, endpoint: EndpointResponses, field: "input"},
-		{name: "chat completions", adapter: AdapterOpenAIChatCompletions, endpoint: EndpointChatCompletions, field: "messages"},
+		{name: "responses", adapter: portllm.AdapterOpenAIResponses, endpoint: portllm.EndpointResponses, field: "input"},
+		{name: "chat completions", adapter: portllm.AdapterOpenAIChatCompletions, endpoint: portllm.EndpointChatCompletions, field: "messages"},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			messages := make([]Message, 0, 6)
+			messages := make([]portllm.Message, 0, 6)
 			for index := 0; index < 6; index++ {
-				messages = append(messages, Message{
+				messages = append(messages, portllm.Message{
 					Role:         "system",
 					Content:      "stable",
-					CacheControl: &CacheControl{Type: "ephemeral"},
+					CacheControl: &portllm.CacheControl{Type: "ephemeral"},
 				})
 			}
-			payload := mustBuildRequestBody(t, test.adapter, "gpt-5.6", test.endpoint, GenerateInput{
+			payload := mustBuildRequestBody(t, test.adapter, "gpt-5.6", test.endpoint, portllm.GenerateInput{
 				PromptCacheKey: "session-789",
 				Messages:       messages,
 				Options: map[string]interface{}{
@@ -608,8 +612,8 @@ func TestBuildOpenAIRequestsPreserveAllExplicitPromptCacheBreakpoints(t *testing
 }
 
 func TestBuildOpenAIResponsesRequestBodyMergesIncludeReasoningAndStructuredText(t *testing.T) {
-	payload := mustBuildRequestBody(t, AdapterOpenAIResponses, "gpt-5", EndpointResponses, GenerateInput{
-		Messages: []Message{{Role: "user", Content: "return json"}},
+	payload := mustBuildRequestBody(t, portllm.AdapterOpenAIResponses, "gpt-5", portllm.EndpointResponses, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "return json"}},
 		Options: map[string]interface{}{
 			"include":           []interface{}{"file_search_call.results"},
 			"reasoning_effort":  "medium",
@@ -645,10 +649,10 @@ func TestBuildOpenAIResponsesRequestBodyMergesIncludeReasoningAndStructuredText(
 }
 
 func TestBuildOpenAIResponsesNestedProviderOptionsMergeAndOfficialFields(t *testing.T) {
-	payload := mustBuildRequestBody(t, AdapterOpenAIResponses, "gpt-5", EndpointResponses, GenerateInput{
+	payload := mustBuildRequestBody(t, portllm.AdapterOpenAIResponses, "gpt-5", portllm.EndpointResponses, portllm.GenerateInput{
 		RequestID:      "req-123",
 		ConversationID: 42,
-		Messages:       []Message{{Role: "user", Content: "hello"}},
+		Messages:       []portllm.Message{{Role: "user", Content: "hello"}},
 		Options: map[string]interface{}{
 			"verbosity": "low",
 			"text": map[string]interface{}{
@@ -704,8 +708,8 @@ func TestBuildOpenAIResponsesNestedProviderOptionsMergeAndOfficialFields(t *test
 }
 
 func TestBuildOpenAIResponsesUsesManagedInstructions(t *testing.T) {
-	payload := mustBuildRequestBody(t, AdapterOpenAIResponses, "gpt-5", EndpointResponses, GenerateInput{
-		Messages:     []Message{{Role: "user", Content: "hello"}},
+	payload := mustBuildRequestBody(t, portllm.AdapterOpenAIResponses, "gpt-5", portllm.EndpointResponses, portllm.GenerateInput{
+		Messages:     []portllm.Message{{Role: "user", Content: "hello"}},
 		Instructions: "managed developer instructions",
 		Options: map[string]interface{}{
 			"instructions": "provider override",
@@ -728,10 +732,10 @@ func TestBuildOpenAIResponsesUsesManagedInstructions(t *testing.T) {
 }
 
 func TestBuildXAIResponsesOmitsUnsupportedSystemMetadata(t *testing.T) {
-	payload := mustBuildRequestBody(t, AdapterXAIResponses, "grok-4.3", EndpointResponses, GenerateInput{
+	payload := mustBuildRequestBody(t, portllm.AdapterXAIResponses, "grok-4.3", portllm.EndpointResponses, portllm.GenerateInput{
 		RequestID:      "req-123",
 		ConversationID: 42,
-		Messages:       []Message{{Role: "user", Content: "上海今天的天气"}},
+		Messages:       []portllm.Message{{Role: "user", Content: "上海今天的天气"}},
 		Options: map[string]interface{}{
 			"metadata":     map[string]interface{}{"user_tag": "debug"},
 			"instructions": "custom instructions",
@@ -762,8 +766,8 @@ func TestBuildXAIResponsesOmitsUnsupportedSystemMetadata(t *testing.T) {
 }
 
 func TestBuildXAIResponsesWebSearchRequestHasNoExtraIncludes(t *testing.T) {
-	payload := mustBuildRequestBody(t, AdapterXAIResponses, "grok-4.3", EndpointResponses, GenerateInput{
-		Messages: []Message{{Role: "user", Content: "今日新闻？"}},
+	payload := mustBuildRequestBody(t, portllm.AdapterXAIResponses, "grok-4.3", portllm.EndpointResponses, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "今日新闻？"}},
 		Options: map[string]interface{}{
 			"tools": []interface{}{
 				map[string]interface{}{"type": "web_search"},
@@ -795,8 +799,8 @@ func TestBuildXAIResponsesWebSearchRequestHasNoExtraIncludes(t *testing.T) {
 }
 
 func TestBuildXAIResponsesIncludesSupportedNativeToolOutputs(t *testing.T) {
-	payload := mustBuildRequestBody(t, AdapterXAIResponses, "grok-4.3", EndpointResponses, GenerateInput{
-		Messages: []Message{{Role: "user", Content: "搜索新闻"}},
+	payload := mustBuildRequestBody(t, portllm.AdapterXAIResponses, "grok-4.3", portllm.EndpointResponses, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "搜索新闻"}},
 		Options: map[string]interface{}{
 			"include": []interface{}{"custom.include"},
 			"tools": []interface{}{
@@ -836,8 +840,8 @@ func TestBuildAnthropicRequestBodyWebSearchAndPromptCache(t *testing.T) {
 	for i := range longSystem {
 		longSystem[i] = 'a'
 	}
-	payload := mustBuildAnthropicRequestBody(t, "claude-sonnet-4", GenerateInput{
-		Messages: []Message{
+	payload := mustBuildAnthropicRequestBody(t, "claude-sonnet-4", portllm.GenerateInput{
+		Messages: []portllm.Message{
 			{Role: "system", Content: string(longSystem)},
 			{Role: "user", Content: "hello"},
 		},
@@ -893,8 +897,8 @@ func TestBuildAnthropicRequestBodyPromptCacheDisabled(t *testing.T) {
 	for i := range longSystem {
 		longSystem[i] = 'a'
 	}
-	payload := mustBuildAnthropicRequestBody(t, "claude-sonnet-4", GenerateInput{
-		Messages: []Message{
+	payload := mustBuildAnthropicRequestBody(t, "claude-sonnet-4", portllm.GenerateInput{
+		Messages: []portllm.Message{
 			{Role: "system", Content: string(longSystem)},
 			{Role: "user", Content: "hello"},
 		},
@@ -913,8 +917,8 @@ func TestBuildAnthropicRequestBodyPromptCacheDisabled(t *testing.T) {
 }
 
 func TestBuildAnthropicRequestBodyFastMode(t *testing.T) {
-	payload := mustBuildAnthropicRequestBody(t, "claude-opus-4-6", GenerateInput{
-		Messages: []Message{{Role: "user", Content: "hello"}},
+	payload := mustBuildAnthropicRequestBody(t, "claude-opus-4-6", portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "hello"}},
 		Options: map[string]interface{}{
 			"speed": "fast",
 		},
@@ -926,8 +930,8 @@ func TestBuildAnthropicRequestBodyFastMode(t *testing.T) {
 }
 
 func TestBuildAnthropicRequestBodyPromptCacheEnabledByDefault(t *testing.T) {
-	payload := mustBuildAnthropicRequestBody(t, "claude-sonnet-4", GenerateInput{
-		Messages: []Message{
+	payload := mustBuildAnthropicRequestBody(t, "claude-sonnet-4", portllm.GenerateInput{
+		Messages: []portllm.Message{
 			{Role: "system", Content: "short system"},
 			{Role: "user", Content: "hello"},
 		},
@@ -940,9 +944,9 @@ func TestBuildAnthropicRequestBodyPromptCacheEnabledByDefault(t *testing.T) {
 }
 
 func TestBuildAnthropicRequestBodySystemBlockCacheControl(t *testing.T) {
-	payload := mustBuildAnthropicRequestBody(t, "claude-sonnet-4", GenerateInput{
-		Messages: []Message{
-			{Role: "system", Content: "stable file context", CacheControl: &CacheControl{Type: "ephemeral"}},
+	payload := mustBuildAnthropicRequestBody(t, "claude-sonnet-4", portllm.GenerateInput{
+		Messages: []portllm.Message{
+			{Role: "system", Content: "stable file context", CacheControl: &portllm.CacheControl{Type: "ephemeral"}},
 			{Role: "user", Content: "<ctx><rag>dynamic</rag></ctx><q>hello</q>"},
 		},
 		Options: map[string]interface{}{
@@ -968,8 +972,8 @@ func TestBuildAnthropicRequestBodyOpenWebUIAliases(t *testing.T) {
 	for i := range longSystem {
 		longSystem[i] = 'a'
 	}
-	payload := mustBuildAnthropicRequestBody(t, "claude-sonnet-4-6", GenerateInput{
-		Messages: []Message{
+	payload := mustBuildAnthropicRequestBody(t, "claude-sonnet-4-6", portllm.GenerateInput{
+		Messages: []portllm.Message{
 			{Role: "system", Content: string(longSystem)},
 			{Role: "user", Content: "hello"},
 		},
@@ -1005,8 +1009,8 @@ func TestBuildAnthropicRequestBodyOpenWebUIAliases(t *testing.T) {
 }
 
 func TestBuildAnthropicRequestBodyAliasOverridesOfficialThinking(t *testing.T) {
-	payload := mustBuildAnthropicRequestBody(t, "claude-sonnet-4-6", GenerateInput{
-		Messages: []Message{{Role: "user", Content: "hello"}},
+	payload := mustBuildAnthropicRequestBody(t, "claude-sonnet-4-6", portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "hello"}},
 		Options: map[string]interface{}{
 			"thinking":         map[string]interface{}{"type": "disabled", "display": "summarized"},
 			"enable_thinking":  true,
@@ -1027,8 +1031,8 @@ func TestBuildAnthropicRequestBodyAliasOverridesOfficialThinking(t *testing.T) {
 }
 
 func TestBuildAnthropicRequestBodyStructuredOutputThinkingAndToolChoice(t *testing.T) {
-	payload := mustBuildAnthropicRequestBody(t, "claude-sonnet-4-5", GenerateInput{
-		Messages: []Message{{Role: "user", Content: "return json"}},
+	payload := mustBuildAnthropicRequestBody(t, "claude-sonnet-4-5", portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "return json"}},
 		Options: map[string]interface{}{
 			"max_output_tokens": 4096,
 			"thinking": map[string]interface{}{
@@ -1062,8 +1066,8 @@ func TestBuildAnthropicRequestBodyStructuredOutputThinkingAndToolChoice(t *testi
 }
 
 func TestBuildGeminiRequestBodyWebSearch(t *testing.T) {
-	payload := mustBuildGeminiRequestBody(t, GenerateInput{
-		Messages: []Message{{Role: "user", Content: "hello"}},
+	payload := mustBuildGeminiRequestBody(t, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "hello"}},
 		Options: map[string]interface{}{
 			"max_output_tokens": 2048,
 			"temperature":       0.4,
@@ -1108,8 +1112,8 @@ func TestBuildGeminiRequestBodyWebSearch(t *testing.T) {
 }
 
 func TestBuildGeminiRequestBodyStructuredOutputAndGenerationConfig(t *testing.T) {
-	payload := mustBuildGeminiRequestBody(t, GenerateInput{
-		Messages: []Message{{Role: "user", Content: "hello"}},
+	payload := mustBuildGeminiRequestBody(t, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "hello"}},
 		Options: map[string]interface{}{
 			"max_completion_tokens": 1024,
 			"candidate_count":       2,
@@ -1168,8 +1172,8 @@ func TestBuildGeminiRequestBodyStructuredOutputAndGenerationConfig(t *testing.T)
 }
 
 func TestBuildGeminiRequestBodyMapsNativeGenerationConfigAliases(t *testing.T) {
-	payload := mustBuildGeminiRequestBody(t, GenerateInput{
-		Messages: []Message{{Role: "user", Content: "hello"}},
+	payload := mustBuildGeminiRequestBody(t, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "hello"}},
 		Options: map[string]interface{}{
 			"maxOutputTokens":  2048,
 			"topP":             0.8,
@@ -1209,8 +1213,8 @@ func TestBuildGeminiRequestBodyMapsNativeGenerationConfigAliases(t *testing.T) {
 }
 
 func TestBuildGeminiRequestBodyRootAliasesAndThinkingConfig(t *testing.T) {
-	payload := mustBuildGeminiRequestBody(t, GenerateInput{
-		Messages: []Message{{Role: "user", Content: "hello"}},
+	payload := mustBuildGeminiRequestBody(t, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "hello"}},
 		Options: map[string]interface{}{
 			"tool_config": map[string]interface{}{
 				"functionCallingConfig": map[string]interface{}{"mode": "ANY"},
@@ -1252,8 +1256,8 @@ func TestBuildGeminiRequestBodyRootAliasesAndThinkingConfig(t *testing.T) {
 }
 
 func TestBuildGeminiRequestBodyAllowsNestedGenerationConfig(t *testing.T) {
-	payload := mustBuildGeminiRequestBody(t, GenerateInput{
-		Messages: []Message{{Role: "user", Content: "hello"}},
+	payload := mustBuildGeminiRequestBody(t, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "hello"}},
 		Options: map[string]interface{}{
 			"generationConfig": map[string]interface{}{
 				"candidateCount": float64(2),
@@ -1290,8 +1294,8 @@ func TestBuildGeminiRequestBodyAllowsNestedGenerationConfig(t *testing.T) {
 // preserve_thinking 是阿里百炼的私有顶层入参，由会话层按厂商自动补发。
 // 这里确认它原样落到请求体顶层，且不会被 stream_options 的复制逻辑顺带吞进去。
 func TestBuildOpenAIChatCompletionsPassesPreserveThinking(t *testing.T) {
-	payload := mustBuildRequestBody(t, AdapterOpenAIChatCompletions, "qwen3.6-plus", EndpointChatCompletions, GenerateInput{
-		Messages: []Message{
+	payload := mustBuildRequestBody(t, portllm.AdapterOpenAIChatCompletions, "qwen3.6-plus", portllm.EndpointChatCompletions, portllm.GenerateInput{
+		Messages: []portllm.Message{
 			{Role: "user", Content: "hello"},
 			{Role: "assistant", Content: "hi", ReasoningContent: "thinking"},
 			{Role: "user", Content: "again"},

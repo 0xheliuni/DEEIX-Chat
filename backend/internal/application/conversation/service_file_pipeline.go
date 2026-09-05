@@ -12,6 +12,7 @@ import (
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -257,9 +258,7 @@ func (s *Service) hydrateAttachmentsForSend(
 	// 多文件并行等待：每个文件独立 WaitUntilReady，总耗时 = max(单个文件) 而非 sum。
 	// 本轮图片会作为 image part 直传；历史图片仅在 OCR 开启时等待提取文本。
 	items := make([]AttachmentInput, len(attachments))
-	for i, att := range attachments {
-		items[i] = att // 预置，图片/空 FileID 直接保留
-	}
+	copy(items, attachments)
 
 	// mu 保护 onEvent 的并发调用（onEvent 非 goroutine-safe）。
 	var mu sync.Mutex
@@ -345,7 +344,7 @@ func canUseAttachmentFullContext(att AttachmentInput, cfg config.Config) bool {
 	if cfg.FileFullContextMaxBytes > 0 && int64(len([]byte(text))) > cfg.FileFullContextMaxBytes {
 		return false
 	}
-	if cfg.FileFullContextMaxTokens > 0 && estimateTokens(text) > int64(cfg.FileFullContextMaxTokens) {
+	if cfg.FileFullContextMaxTokens > 0 && tokenestimate.Estimate(text) > int64(cfg.FileFullContextMaxTokens) {
 		return false
 	}
 	if att.FileCategory == fileCategoryPDF && cfg.FileFullContextPDFMaxPages > 0 && att.PageCount > cfg.FileFullContextPDFMaxPages {

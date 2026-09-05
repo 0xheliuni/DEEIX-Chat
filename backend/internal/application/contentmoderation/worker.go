@@ -3,6 +3,7 @@ package contentmoderation
 import (
 	"context"
 	"errors"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"strings"
 	"time"
 
@@ -139,7 +140,7 @@ func (s *Service) enqueue(task *moderationTask) error {
 	if s.queuedCount >= limit {
 		s.workerMu.Unlock()
 		if task.Coord != nil {
-			bg, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			bg, cancel := context.WithTimeout(task.Coord.ctx, 5*time.Second)
 			s.recordFailedOpen(bg, task.Coord.meta, task.Direction, task.Modality, domaincm.ErrorCodeQueueFull, 0)
 			s.bumpDailyStat(bg, task.Direction, task.Modality, domaincm.ResultFailedOpen, "", 1, contentItemCount(task), 0, 1, 0)
 			cancel()
@@ -155,7 +156,7 @@ func (s *Service) enqueue(task *moderationTask) error {
 	default:
 		s.workerMu.Unlock()
 		if task.Coord != nil {
-			bg, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			bg, cancel := context.WithTimeout(task.Coord.ctx, 5*time.Second)
 			s.recordFailedOpen(bg, task.Coord.meta, task.Direction, task.Modality, domaincm.ErrorCodeQueueFull, 0)
 			s.bumpDailyStat(bg, task.Direction, task.Modality, domaincm.ResultFailedOpen, "", 1, contentItemCount(task), 0, 1, 0)
 			cancel()
@@ -171,10 +172,13 @@ func (s *Service) executeTask(parent context.Context, task *moderationTask) {
 	if timeout <= 0 {
 		timeout = 10 * time.Second
 	}
-	// Parent may be cancelled; moderation work and persistence use a detached budget.
-	workParent := context.WithoutCancel(parent)
-	ctx, cancel := context.WithTimeout(workParent, timeout)
-	defer cancel()
+	runCtx, cancelRun := context.WithCancel(task.Coord.ctx)
+	stopWorkerCancellation := context.AfterFunc(parent, cancelRun)
+	defer func() {
+		stopWorkerCancellation()
+		cancelRun()
+	}()
+	providerCtx, cancelProvider := context.WithTimeout(runCtx, timeout)
 
 	selected := task.Selected
 	if len(selected) == 0 {
@@ -198,16 +202,17 @@ func (s *Service) executeTask(parent context.Context, task *moderationTask) {
 				}
 				images = append(images, ProviderImage{Data: image.Data, MimeType: image.MimeType})
 			}
-			resp, err = s.provider.ModerateImages(ctx, providerConfig, images, selected, task.Modality)
+			resp, err = s.provider.ModerateImages(providerCtx, providerConfig, images, selected, task.Modality)
 		default:
-			resp, err = s.provider.ModerateText(ctx, providerConfig, task.Text, selected, task.Modality)
+			resp, err = s.provider.ModerateText(providerCtx, providerConfig, task.Text, selected, task.Modality)
 		}
 	}
+	cancelProvider()
 	latency := time.Since(started).Milliseconds()
 	// Start a fresh persistence budget only after the upstream request finishes.
 	// Slow moderation requests must not consume the time reserved for recording
 	// their result and statistics.
-	persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(parent), 10*time.Second)
+	persistCtx, persistCancel := context.WithTimeout(runCtx, 10*time.Second)
 	defer persistCancel()
 
 	if err != nil {
@@ -255,7 +260,7 @@ func (s *Service) executeTask(parent context.Context, task *moderationTask) {
 		LatencyMS:  latency,
 	})
 	if lateBlock != nil {
-		s.handleLateBlock(task.Coord.meta, *lateBlock)
+		s.handleLateBlock(runCtx, task.Coord.meta, *lateBlock)
 	}
 }
 
@@ -490,7 +495,7 @@ func (s *Service) recordHit(ctx context.Context, task *moderationTask, eval HitE
 						imageMeta = append(imageMeta, domaincm.IsolatedImageMeta{
 							Index:        i,
 							SHA256:       sha,
-							MimeType:     firstNonEmpty(img.MimeType, "image/png"),
+							MimeType:     textutil.FirstNonEmpty(img.MimeType, "image/png"),
 							SizeBytes:    int64(len(data)),
 							StoragePath:  path,
 							SourceFileID: img.FileID,
@@ -572,13 +577,4 @@ func truncate(value string, max int) string {
 		return value
 	}
 	return value[:max]
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if strings.TrimSpace(v) != "" {
-			return strings.TrimSpace(v)
-		}
-	}
-	return ""
 }

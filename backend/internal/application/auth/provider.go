@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"net/url"
 	"regexp"
 	"strings"
@@ -382,7 +383,7 @@ func (s *Service) resolveProviderLoginCode(
 	if err != nil {
 		return nil, "", err
 	}
-	displayName := firstNonEmpty(claimString(profile, provider.NameField), email, subject)
+	displayName := textutil.FirstNonEmpty(claimString(profile, provider.NameField), email, subject)
 	avatarURL := claimString(profile, provider.AvatarField)
 	emailVerified := resolveProviderEmailVerified(profile, provider)
 	userItem, err := s.resolveProviderUser(ctx, provider, subject, email, displayName, avatarURL, emailVerified, string(profileJSON), intent)
@@ -507,7 +508,7 @@ func (s *Service) CompleteProviderBind(
 	if err != nil {
 		return nil, err
 	}
-	providerDisplayName := firstNonEmpty(claimString(profile, provider.NameField), normalizedEmail, subject)
+	providerDisplayName := textutil.FirstNonEmpty(claimString(profile, provider.NameField), normalizedEmail, subject)
 	emailVerified := resolveProviderEmailVerified(profile, *provider)
 	now := time.Now()
 
@@ -644,11 +645,11 @@ func (s *Service) normalizeProviderInput(input UpsertIdentityProviderInput, curr
 		Scopes:              scopes,
 		PKCEEnabled:         true,
 		DefaultRole:         defaultRole,
-		SubjectField:        firstNonEmpty(strings.TrimSpace(input.SubjectField), "sub"),
-		EmailField:          firstNonEmpty(strings.TrimSpace(input.EmailField), "email"),
-		EmailVerifiedField:  firstNonEmpty(strings.TrimSpace(input.EmailVerifiedField), "email_verified"),
-		NameField:           firstNonEmpty(strings.TrimSpace(input.NameField), "name"),
-		AvatarField:         firstNonEmpty(strings.TrimSpace(input.AvatarField), "picture"),
+		SubjectField:        textutil.FirstNonEmpty(strings.TrimSpace(input.SubjectField), "sub"),
+		EmailField:          textutil.FirstNonEmpty(strings.TrimSpace(input.EmailField), "email"),
+		EmailVerifiedField:  textutil.FirstNonEmpty(strings.TrimSpace(input.EmailVerifiedField), "email_verified"),
+		NameField:           textutil.FirstNonEmpty(strings.TrimSpace(input.NameField), "name"),
+		AvatarField:         textutil.FirstNonEmpty(strings.TrimSpace(input.AvatarField), "picture"),
 		SortOrder:           100,
 	}
 	if provider.RegistrationEnabled && !provider.LoginEnabled {
@@ -815,15 +816,6 @@ func normalizeProviderIntent(value string) string {
 	default:
 		return providerIntentLogin
 	}
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
 }
 
 func boolValue(value *bool, fallback bool) bool {
@@ -1107,9 +1099,9 @@ func (s *Service) resolveProviderEndpoints(ctx context.Context, provider domainu
 	if err != nil {
 		return "", "", "", err
 	}
-	resolvedAuthURL := firstNonEmpty(authURL, metadata.AuthorizationEndpoint)
-	resolvedTokenURL := firstNonEmpty(tokenURL, metadata.TokenEndpoint)
-	resolvedUserInfoURL := firstNonEmpty(userInfoURL, metadata.UserInfoEndpoint)
+	resolvedAuthURL := textutil.FirstNonEmpty(authURL, metadata.AuthorizationEndpoint)
+	resolvedTokenURL := textutil.FirstNonEmpty(tokenURL, metadata.TokenEndpoint)
+	resolvedUserInfoURL := textutil.FirstNonEmpty(userInfoURL, metadata.UserInfoEndpoint)
 	if err = validateIdentityProviderEndpoints(domainuser.IdentityProvider{
 		AuthURL:     resolvedAuthURL,
 		TokenURL:    resolvedTokenURL,
@@ -1221,11 +1213,11 @@ func (s *Service) resolveProviderUser(ctx context.Context, provider domainuser.I
 	userItem := &domainuser.User{
 		PublicID:        conv.NormalizePublicID(uuid.NewString()),
 		Username:        providerUsername(provider.Slug, subject),
-		DisplayName:     userapp.NormalizeGeneratedDisplayName(firstNonEmpty(displayName, provider.Name+" 用户")),
+		DisplayName:     userapp.NormalizeGeneratedDisplayName(textutil.FirstNonEmpty(displayName, provider.Name+" 用户")),
 		AvatarURL:       strings.TrimSpace(avatarURL),
 		Email:           normalizedEmail,
 		EmailSource:     emailSource,
-		Role:            firstNonEmpty(provider.DefaultRole, domainuser.RoleUser),
+		Role:            textutil.FirstNonEmpty(provider.DefaultRole, domainuser.RoleUser),
 		Status:          domainuser.StatusActive,
 		Timezone:        "Etc/UTC",
 		Locale:          "en-US",

@@ -289,20 +289,6 @@ type UpstreamHealthResponse struct {
 	LastSuccessAt string `json:"lastSuccessAt"`
 }
 
-func toUpstreamHealthResponse(v appchannel.UpstreamHealthView) UpstreamHealthResponse {
-	return UpstreamHealthResponse{
-		UpstreamID:    v.UpstreamID,
-		UpstreamName:  v.UpstreamName,
-		Status:        v.Status,
-		FailureCount:  v.FailureCount,
-		CircuitOpen:   v.CircuitOpen,
-		CircuitUntil:  v.CircuitUntil,
-		LastError:     v.LastError,
-		LastFailureAt: v.LastFailureAt,
-		LastSuccessAt: v.LastSuccessAt,
-	}
-}
-
 // ModelProbeResponse 模型连通性测试响应 DTO。
 type ModelProbeResponse struct {
 	Success            bool                     `json:"success"`

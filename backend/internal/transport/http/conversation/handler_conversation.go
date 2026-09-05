@@ -10,6 +10,7 @@ import (
 	"time"
 
 	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
@@ -78,11 +79,11 @@ func (h *Handler) CreateConversation(c *gin.Context) {
 // ListConversations 查询会话。
 func (h *Handler) ListConversations(c *gin.Context) {
 	userID := middleware.MustUserID(c)
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	statusFilter := normalizeConversationStatusFilter(c.Query("status"))
 	starredFilter := normalizeConversationStarredFilter(c.Query("starred"))
 	shareFilter := normalizeConversationShareFilter(c.Query("share"))
-	projectFilter := normalizeConversationProjectQuery(c.Query("project"))
+	projectFilter := c.Query("project")
 	searchQuery := c.Query("q")
 
 	items, total, err := h.service.ListConversations(c.Request.Context(), userID, page, pageSize, statusFilter, starredFilter, shareFilter, projectFilter, searchQuery)
@@ -114,7 +115,7 @@ func (h *Handler) ListConversations(c *gin.Context) {
 // SearchConversations 搜索会话。
 func (h *Handler) SearchConversations(c *gin.Context) {
 	userID := middleware.MustUserID(c)
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	searchQuery := strings.TrimSpace(c.Query("q"))
 	if len([]rune(searchQuery)) > maxConversationSearchQueryRunes {
 		response.ErrorWithCode(c, http.StatusBadRequest, response.CodeRequestInvalidQuery)

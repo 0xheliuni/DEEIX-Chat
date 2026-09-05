@@ -16,9 +16,12 @@ import (
 	appupload "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/upload"
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/traceid"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -53,22 +56,13 @@ type MediaVideoInput struct {
 }
 
 // StreamMediaVideo 执行视频生成任务并把结果保存为文件对象。
-func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (*SendMessageResult, error) {
+func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (result *SendMessageResult, retErr error) {
 	if s.routeResolver == nil || s.llmClient == nil {
 		return nil, ErrModelRouteNotConfigured
 	}
-	ctx = context.WithoutCancel(ctx)
-
 	runID := normalizeRunID(input.ClientRunID)
 	if runID == "" {
 		runID = "run_" + normalizePublicID(uuid.NewString())
-	}
-	existingRuns, err := s.repo.ListConversationRunsByRunIDs(ctx, input.UserID, input.ConversationID, []string{runID})
-	if err != nil {
-		return nil, err
-	}
-	if len(existingRuns) > 0 {
-		return nil, ErrDuplicateMessageGenerationRun
 	}
 	startedAt := time.Now()
 	conversation, err := s.repo.GetConversationByUser(ctx, input.ConversationID, input.UserID)
@@ -102,6 +96,84 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 	if platformModelName == "" {
 		return nil, ErrModelRouteNotConfigured
 	}
+	videoEndpoint := llm.EndpointVideoGenerations
+	if taskType == MediaVideoTaskExtension {
+		videoEndpoint = llm.EndpointVideoExtensions
+	}
+	run := &model.Run{
+		RunID:              runID,
+		RequestID:          strings.TrimSpace(input.RequestID),
+		UserID:             input.UserID,
+		ConversationID:     input.ConversationID,
+		TaskType:           routeTaskType,
+		Endpoint:           videoEndpoint,
+		Provider:           strings.TrimSpace(conversation.Provider),
+		RequestedModelName: platformModelName,
+		Status:             "running",
+		StartedAt:          startedAt,
+	}
+	if err = s.claimConversationRun(ctx, run); err != nil {
+		return nil, err
+	}
+	var moderationCoord *appcm.RunCoordinator
+	var userMessage *model.Message
+	var assistantMessage *model.Message
+	defer func() {
+		if retErr != nil && moderationCoord != nil {
+			if result == nil && userMessage != nil && assistantMessage != nil {
+				result = &SendMessageResult{
+					UserMessage:      *userMessage,
+					AssistantMessage: *assistantMessage,
+					Billable:         false,
+					StartedAt:        startedAt,
+				}
+			}
+			moderationCtx, cancelModeration := background.WithTimeout(ctx, moderationFinalizationTimeout)
+			s.completeModerationAfterFailure(moderationCtx, moderationCoord, result)
+			cancelModeration()
+		}
+		endedAt := time.Now()
+		run.EndedAt = &endedAt
+		run.TotalLatencyMS = endedAt.Sub(startedAt).Milliseconds()
+		switch {
+		case result != nil && result.IsModerationBlocked():
+			applyBlockedRunFields(run, result)
+		case retErr == nil:
+			run.Status = "success"
+			if result != nil {
+				applyModerationRunState(run, result)
+			}
+		case errors.Is(retErr, ErrMessageGenerationCanceled):
+			run.Status = "canceled"
+			run.ErrorCode = classifyRunErrorCode(retErr)
+			run.ErrorMessage = textutil.TruncateTrimmed(messageErrorSummary(retErr), 255)
+			if result != nil {
+				applyModerationRunState(run, result)
+			}
+		default:
+			run.Status = "error"
+			run.ErrorCode = classifyRunErrorCode(retErr)
+			run.ErrorMessage = textutil.TruncateTrimmed(messageErrorSummary(retErr), 255)
+			if result != nil {
+				applyModerationRunState(run, result)
+			}
+		}
+		persistCtx, cancelPersist := background.WithTimeout(ctx, 5*time.Second)
+		defer cancelPersist()
+		if err := s.repo.UpdateConversationRun(persistCtx, run); err != nil && s.logger != nil {
+			s.logger.Error("update_video_conversation_run_failed",
+				zap.String("trace_id", traceid.FromContext(ctx)),
+				zap.String("run_id", run.RunID),
+				zap.Error(err),
+			)
+		}
+	}()
+	cancelCtx, cancel := context.WithCancel(ctx)
+	ctx = cancelCtx
+	if err = s.generationStreams.register(ctx, runID, input.UserID, conversation.PublicID, cancel); err != nil {
+		return nil, err
+	}
+
 	route, err := s.routeResolver.ResolveRoute(ctx, channel.ResolveRouteInput{
 		PlatformModelName: platformModelName,
 		TaskType:          routeTaskType,
@@ -119,7 +191,17 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 	if taskType == MediaVideoTaskExtension && llm.NormalizeAdapter(route.Protocol) != llm.AdapterXAIVideoExtensions {
 		return nil, ErrMediaRouteProtocolMismatch
 	}
-	videoEndpoint := llm.DefaultEndpointForAdapter(route.Protocol)
+	videoEndpoint = llm.DefaultEndpointForAdapter(route.Protocol)
+	run.Endpoint = videoEndpoint
+	run.ProviderProtocol = route.Protocol
+	run.UpstreamID = route.UpstreamID
+	run.UpstreamModelID = route.UpstreamModelID
+	run.UpstreamName = route.UpstreamName
+	run.PlatformModelName = route.PlatformModelName
+	run.RoutedBindingCode = route.BindingCode
+	run.ModelVendor = route.ModelVendor
+	run.ModelIcon = route.ModelIcon
+	run.UpstreamModelName = route.UpstreamModel
 	if err = s.ensureUsageBudgetCoversEstimate(ctx, input.UsageAuthorization, route, input.Options, usageBudgetEstimate{
 		CallCount:       1,
 		DurationSeconds: mediaDurationSecondsFromOptions(withDefaultMediaVideoDuration(input.Options, route.Protocol)),
@@ -129,6 +211,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 	if strings.TrimSpace(conversation.Model) != strings.TrimSpace(route.PlatformModelName) {
 		conversation.Model = strings.TrimSpace(route.PlatformModelName)
 		conversation.Provider = inferProvider(conversation.Model)
+		run.Provider = conversation.Provider
 		if err = s.repo.UpdateConversationModel(ctx, input.ConversationID, conversation.Model, conversation.Provider); err != nil {
 			return nil, err
 		}
@@ -138,82 +221,6 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 		return nil, err
 	}
 	attachmentsJSON := marshalAttachmentSnapshots(resolvedAttachments)
-
-	run := &model.Run{
-		RunID:              runID,
-		RequestID:          strings.TrimSpace(input.RequestID),
-		UserID:             input.UserID,
-		ConversationID:     input.ConversationID,
-		TaskType:           routeTaskType,
-		Endpoint:           videoEndpoint,
-		Provider:           strings.TrimSpace(conversation.Provider),
-		ProviderProtocol:   route.Protocol,
-		UpstreamID:         route.UpstreamID,
-		UpstreamModelID:    route.UpstreamModelID,
-		UpstreamName:       route.UpstreamName,
-		RequestedModelName: platformModelName,
-		PlatformModelName:  route.PlatformModelName,
-		RoutedBindingCode:  route.BindingCode,
-		ModelVendor:        route.ModelVendor,
-		ModelIcon:          route.ModelIcon,
-		UpstreamModelName:  route.UpstreamModel,
-		Status:             "error",
-		StartedAt:          startedAt,
-	}
-	var retErr error
-	var moderationCoord *appcm.RunCoordinator
-	var result *SendMessageResult
-	var userMessage *model.Message
-	var assistantMessage *model.Message
-	defer func() {
-		if retErr != nil && moderationCoord != nil {
-			if result == nil && userMessage != nil && assistantMessage != nil {
-				result = &SendMessageResult{
-					UserMessage:      *userMessage,
-					AssistantMessage: *assistantMessage,
-					Billable:         false,
-					StartedAt:        startedAt,
-				}
-			}
-			s.completeModerationAfterFailure(context.WithoutCancel(ctx), moderationCoord, result)
-		}
-		endedAt := time.Now()
-		run.EndedAt = &endedAt
-		run.TotalLatencyMS = endedAt.Sub(startedAt).Milliseconds()
-		switch {
-		case result != nil && result.IsModerationBlocked():
-			applyBlockedRunFields(run, result)
-		case retErr == nil:
-			run.Status = "success"
-			if result != nil {
-				applyModerationRunState(run, result)
-			}
-		case errors.Is(retErr, ErrMessageGenerationCanceled):
-			run.Status = "canceled"
-			run.ErrorCode = classifyRunErrorCode(retErr)
-			run.ErrorMessage = truncateError(messageErrorSummary(retErr), 255)
-			if result != nil {
-				applyModerationRunState(run, result)
-			}
-		default:
-			run.Status = "error"
-			run.ErrorCode = classifyRunErrorCode(retErr)
-			run.ErrorMessage = truncateError(messageErrorSummary(retErr), 255)
-			if result != nil {
-				applyModerationRunState(run, result)
-			}
-		}
-		if err := s.repo.UpsertConversationRun(context.WithoutCancel(ctx), run); err != nil && s.logger != nil {
-			s.logger.Error("upsert_video_conversation_run_failed",
-				zap.String("trace_id", traceid.FromContext(ctx)),
-				zap.String("run_id", run.RunID),
-				zap.Error(err),
-			)
-		}
-	}()
-	cancelCtx, cancel := context.WithCancel(ctx)
-	ctx = cancelCtx
-	s.generationStreams.register(ctx, runID, input.UserID, conversation.PublicID, cancel)
 
 	assistantMessage = &model.Message{
 		ConversationID: input.ConversationID,
@@ -250,8 +257,8 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 			Content:         strings.TrimSpace(input.Prompt),
 			BranchReason:    normalizedBranchReason,
 			SourceMessageID: branchState.SourceMessageID,
-			TokenUsage:      estimateTokens(input.Prompt),
-			InputTokens:     estimateTokens(input.Prompt),
+			TokenUsage:      tokenestimate.Estimate(input.Prompt),
+			InputTokens:     tokenestimate.Estimate(input.Prompt),
 			Status:          "success",
 			Attachments:     attachmentsJSON,
 		}
@@ -288,7 +295,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 		ClientRunID:        runID,
 		OnEvent:            input.OnEvent,
 		UsageAuthorization: input.UsageAuthorization,
-	}, runID, userMessage, assistantMessage, run)
+	}, runID, userMessage, assistantMessage)
 	emitMediaEvent(input.OnEvent, "queued", "video task queued", "video")
 
 	cfg := s.cfg.Snapshot()
@@ -383,13 +390,13 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 		}
 		s.routeResolver.MarkRouteFailure(ctx, route, err)
 		retErr = wrapUpstreamRequestError(err)
-		_ = s.repo.UpdateMessageState(ctx, assistantMessage.ID, "error", classifyRunErrorCode(retErr), truncateError(messageErrorSummary(retErr), 255))
+		_ = s.repo.UpdateMessageState(ctx, assistantMessage.ID, "error", classifyRunErrorCode(retErr), textutil.TruncateTrimmed(messageErrorSummary(retErr), 255))
 		return nil, retErr
 	}
 	s.routeResolver.MarkRouteSuccess(ctx, route)
 	if output == nil || len(output.GeneratedVideos) == 0 {
 		retErr = ErrUpstreamEmptyResponse
-		_ = s.repo.UpdateMessageState(ctx, assistantMessage.ID, "error", classifyRunErrorCode(retErr), truncateError(messageErrorSummary(retErr), 255))
+		_ = s.repo.UpdateMessageState(ctx, assistantMessage.ID, "error", classifyRunErrorCode(retErr), textutil.TruncateTrimmed(messageErrorSummary(retErr), 255))
 		return buildFailureResult(retErr, mediaOutputUsage(output)), retErr
 	}
 	videoDurations, generatedDurationSeconds := resolveGeneratedVideoDurations(output.GeneratedVideos, durationSeconds)
@@ -418,7 +425,7 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 		})
 		if uploadErr != nil {
 			retErr = uploadErr
-			_ = s.repo.UpdateMessageState(ctx, assistantMessage.ID, "error", classifyRunErrorCode(retErr), truncateError(messageErrorSummary(retErr), 255))
+			_ = s.repo.UpdateMessageState(ctx, assistantMessage.ID, "error", classifyRunErrorCode(retErr), textutil.TruncateTrimmed(messageErrorSummary(retErr), 255))
 			return buildFailureResult(uploadErr, output.Usage), uploadErr
 		}
 		file := uploadResult.File

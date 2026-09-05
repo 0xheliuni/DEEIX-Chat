@@ -31,14 +31,14 @@ func NewHandler(service *appauth.Service) *Handler {
 
 func (h *Handler) recordAudit(c *gin.Context, userID uint, action string, resource string, resourceID string, detail interface{}) {
 	h.service.RecordAudit(c.Request.Context(), appauth.AuditInput{
-		UserID:     userID,
-		RequestID:  middleware.MustRequestID(c),
-		Action:     action,
-		Resource:   resource,
-		ResourceID: resourceID,
-		ClientIP:   c.ClientIP(),
-		UserAgent:  c.Request.UserAgent(),
-		Detail:     detail,
+		ActorUserID: userID,
+		RequestID:   middleware.MustRequestID(c),
+		Action:      action,
+		Resource:    resource,
+		ResourceID:  resourceID,
+		IP:          c.ClientIP(),
+		UserAgent:   c.Request.UserAgent(),
+		Detail:      detail,
 	})
 }
 
@@ -717,14 +717,14 @@ func (h *Handler) Login(c *gin.Context) {
 
 	if !result.TwoFactorRequired {
 		h.service.RecordAudit(c.Request.Context(), appauth.AuditInput{
-			UserID:     result.User.ID,
-			RequestID:  middleware.MustRequestID(c),
-			Action:     "login",
-			Resource:   "user",
-			ResourceID: req.Username,
-			ClientIP:   auditCtx.ClientIP,
-			UserAgent:  auditCtx.UserAgent,
-			Detail:     map[string]string{"event": "user_login"},
+			ActorUserID: result.User.ID,
+			RequestID:   middleware.MustRequestID(c),
+			Action:      "login",
+			Resource:    "user",
+			ResourceID:  req.Username,
+			IP:          auditCtx.ClientIP,
+			UserAgent:   auditCtx.UserAgent,
+			Detail:      map[string]string{"event": "user_login"},
 		})
 	}
 

@@ -11,6 +11,7 @@ import (
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainknowledgebase "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/knowledgebase"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 )
 
 const (
@@ -235,7 +236,7 @@ func shouldUseRAGForAttachment(item AttachmentInput, fileMode string, cfg config
 		}
 		if cfg.ContextTokenBudgetEnabled {
 			budget := domainchannel.EffectiveContextBudgetFromCapabilitiesWithFallback(capabilityModelName, capabilitiesJSON, cfg.ContextWindowFallbackTokens)
-			fileTokens := int(estimateTokens(item.ExtractedText))
+			fileTokens := int(tokenestimate.Estimate(item.ExtractedText))
 			return budget > 0 && fileTokens > budget*2/5
 		}
 		return false

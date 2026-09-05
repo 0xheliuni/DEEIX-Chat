@@ -20,8 +20,10 @@ import (
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/conv"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/filetype"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/objectstore"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -42,7 +44,6 @@ type ErrorSet struct {
 	StorageQuotaExceeded error
 	FileTooLarge         error
 	MIMEBlocked          error
-	EmbeddingUnavailable error
 	DangerousMIMEType    error
 }
 
@@ -115,11 +116,6 @@ type FileContentResult struct {
 	ModTime     time.Time
 }
 
-// NewService 创建上传服务。
-func NewService(cfg config.Config, repo repository.UploadRepository, logger *zap.Logger, hooks Hooks, errors ErrorSet, extractorVersion string) *Service {
-	return NewServiceWithRuntime(config.NewRuntime(cfg), repo, logger, hooks, errors, extractorVersion)
-}
-
 // NewServiceWithRuntime 创建使用运行时配置容器的上传服务。
 func NewServiceWithRuntime(cfg *config.Runtime, repo repository.UploadRepository, logger *zap.Logger, hooks Hooks, errors ErrorSet, extractorVersion string) *Service {
 	return &Service{
@@ -129,7 +125,6 @@ func NewServiceWithRuntime(cfg *config.Runtime, repo repository.UploadRepository
 		hooks:            hooks,
 		errors:           errors,
 		extractorVersion: strings.TrimSpace(extractorVersion),
-		storeProvider:    appstorage.NewRuntimeProvider(cfg, nil),
 		uploadGates:      make(map[string]*uploadContentGate),
 	}
 }
@@ -142,15 +137,13 @@ func (s *Service) SetObjectStoreProvider(provider appstorage.Provider) {
 }
 
 func (s *Service) openObjectStore(ctx context.Context) (objectstore.Store, error) {
-	if s.storeProvider == nil {
-		s.storeProvider = appstorage.NewRuntimeProvider(s.cfg, nil)
+	if s == nil || s.storeProvider == nil {
+		return nil, appstorage.ErrProviderNotConfigured
 	}
 	return s.storeProvider.Open(ctx)
 }
 
 const (
-	defaultPageSize            = 20
-	maxPageSize                = 1000
 	embeddingTimeoutStaleAfter = 6 * time.Minute
 )
 
@@ -164,7 +157,7 @@ func (s *Service) ListFiles(
 	filterKind string,
 	sortBy string,
 ) (*ListFilesResult, error) {
-	offset, limit := normalizePage(page, pageSize)
+	offset, limit := pagination.Offset(page, pageSize)
 	_, _ = s.repo.MarkTimedOutFileEmbeddingsFailed(
 		ctx,
 		userID,
@@ -184,23 +177,6 @@ func (s *Service) ListFiles(
 		Total: total,
 		Quota: *quota,
 	}, nil
-}
-
-func normalizePage(page int, pageSize int) (int, int) {
-	if page <= 0 {
-		page = 1
-	}
-	if pageSize <= 0 {
-		pageSize = defaultPageSize
-	}
-	if pageSize > maxPageSize {
-		pageSize = maxPageSize
-	}
-	offset := (page - 1) * pageSize
-	if offset < 0 {
-		offset = 0
-	}
-	return offset, pageSize
 }
 
 // UploadFile 上传文件并扣减用户配额。
@@ -740,10 +716,6 @@ func (s *Service) errMIMEBlocked() error {
 	return pickError(s.errors.MIMEBlocked, "mime blocked")
 }
 
-func (s *Service) errEmbeddingUnavailable() error {
-	return pickError(s.errors.EmbeddingUnavailable, "embedding unavailable")
-}
-
 func (s *Service) errDangerousMIMEType() error {
 	return pickError(s.errors.DangerousMIMEType, "dangerous file type not allowed")
 }
@@ -811,7 +783,7 @@ func normalizeDetectedMIME(detected string, fileName string) string {
 	case "webm":
 		return "video/webm"
 	}
-	if ext != "" && isTextMIMEForEmbed("", "sample."+ext) {
+	if ext != "" && filetype.IsText("", "sample."+ext) {
 		return "text/plain"
 	}
 	if value == "application/zip" {
@@ -886,7 +858,7 @@ func inferFileCategory(mimeType string, fileName string) string {
 		return fileCategoryPresentation
 	case strings.Contains(mimeType, "spreadsheetml") || strings.Contains(mimeType, "ms-excel") || mimeType == "text/csv" || ext == "xlsx" || ext == "xls" || ext == "csv":
 		return fileCategoryExcel
-	case isTextMIMEForEmbed(mimeType, fileName):
+	case filetype.IsText(mimeType, fileName):
 		return fileCategoryText
 	default:
 		return fileCategoryUnknown
@@ -929,15 +901,6 @@ func fileCategoryRequiresProcessing(category string) bool {
 	}
 }
 
-func supportsRAG(category string) bool {
-	switch category {
-	case fileCategoryPDF, fileCategoryWord, fileCategoryPresentation, fileCategoryExcel, fileCategoryText, fileCategoryImage:
-		return true
-	default:
-		return false
-	}
-}
-
 func isDangerousMIME(mimeType string) bool {
 	normalized := strings.ToLower(strings.TrimSpace(mimeType))
 	if normalized == "" {
@@ -948,29 +911,6 @@ func isDangerousMIME(mimeType string) bool {
 	}
 	_, blocked := dangerousMIMETypes[normalized]
 	return blocked
-}
-
-func isTextMIMEForEmbed(mimeType, fileName string) bool {
-	m := strings.ToLower(strings.TrimSpace(mimeType))
-	if strings.HasPrefix(m, "text/") {
-		return true
-	}
-	switch m {
-	case "application/json", "application/xml", "application/javascript", "application/typescript",
-		"application/yaml", "application/x-yaml", "application/toml":
-		return true
-	}
-	if idx := strings.LastIndex(fileName, "."); idx >= 0 {
-		ext := strings.ToLower(fileName[idx+1:])
-		switch ext {
-		case "txt", "md", "markdown", "csv", "json", "xml", "html", "htm",
-			"css", "js", "ts", "jsx", "tsx", "py", "go", "rs", "java",
-			"c", "cpp", "h", "hpp", "cs", "rb", "php", "swift", "kt",
-			"sh", "bash", "zsh", "yaml", "yml", "toml", "ini", "conf", "sql":
-			return true
-		}
-	}
-	return false
 }
 
 func saveUploadedFile(

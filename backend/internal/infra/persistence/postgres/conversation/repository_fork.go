@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
 	models "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/toolresult"
@@ -103,7 +104,7 @@ func (r *Repo) CreateForkedConversation(ctx context.Context, input repository.Cr
 		return cloneForkedDisplayTraces(tx, target.UserID, input.SourceConversationID, createdConversation.ID, targetMessageIDs)
 	})
 	if err != nil {
-		return translateError(err)
+		return dberror.Translate(err)
 	}
 
 	*input.Conversation = toConversationDomain(createdConversation)

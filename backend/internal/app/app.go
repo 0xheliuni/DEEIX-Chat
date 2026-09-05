@@ -107,6 +107,8 @@ type App struct {
 	embeddingClient        *embedding.Client
 	mediaArtifactClient    *mediaartifact.Client
 	moderationClient       *moderationclient.Client
+	conversationService    *conversation.Service
+	tracingShutdown        platformtracing.ShutdownFunc
 	backgroundCancel       context.CancelFunc
 	// shutdown 是进程关停排空信号：翻转就绪探针并断开订阅型长连接。
 	shutdown *lifecycle.Shutdown
@@ -153,7 +155,7 @@ func NewApp() (*App, error) {
 	}
 	runtimeCfg := config.NewRuntime(cfg)
 
-	if err := platformtracing.Init(context.Background(), platformtracing.Config{
+	tracingShutdown, err := platformtracing.Init(context.Background(), platformtracing.Config{
 		ServiceName:  cfg.AppName,
 		Enabled:      cfg.OTelEnabled,
 		Endpoint:     cfg.OTelExporterOTLPEndpoint,
@@ -161,9 +163,19 @@ func NewApp() (*App, error) {
 		Insecure:     cfg.OTelExporterOTLPInsecure,
 		Protocol:     cfg.OTelExporterOTLPProtocol,
 		SamplingRate: cfg.OTelSamplingRate,
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, fmt.Errorf("init tracing: %w", err)
 	}
+	keepTracing := false
+	defer func() {
+		if keepTracing {
+			return
+		}
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = tracingShutdown(shutdownCtx)
+	}()
 
 	log, err := platformlogger.New(cfg.Env)
 	if err != nil {
@@ -228,11 +240,10 @@ func NewApp() (*App, error) {
 	paymentCheckoutService := billing.NewPaymentCheckoutService(stripepayment.New(cfg.StrictOutboundPolicy()), epaypayment.New())
 	billingHandler := billinghttp.NewHandler(billingService, settingsService, runtimeCfg, officialPricingService, paymentCheckoutService, log)
 	billingModule := billinghttp.NewModule(billingHandler)
-	// 组合根绑定对象存储默认工厂；application 侧未显式注入工厂的 provider 均使用该实现。
-	appstorage.RegisterDefaultFactory(objectstore.New)
+	// 对象存储工厂由组合根显式注入，避免服务实例依赖进程级可变状态。
 	objectStoreProvider := appstorage.NewRuntimeProvider(runtimeCfg, objectstore.New)
-	// 组合根注册抽取引擎工厂；具体客户端构造为 nil 时必须返回 nil 接口，避免 typed-nil 绕过判空。
-	extraction.RegisterEngineFactories(extraction.EngineFactories{
+	// 抽取引擎工厂由组合根显式注入；具体客户端构造为 nil 时必须返回 nil 接口，避免 typed-nil 绕过判空。
+	extractionFactories := extraction.EngineFactories{
 		NewTika: func(cfg config.Config) extraction.DocumentExtractor {
 			if client := extractengines.NewTika(cfg); client != nil {
 				return client
@@ -258,7 +269,7 @@ func NewApp() (*App, error) {
 			return nil
 		},
 		Builtin: extractengines.Builtin{},
-	})
+	}
 	geoResolver := geoip.New(runtimeCfg.Snapshot())
 	// GeoIP 关闭时 geoip.New 返回 nil 指针，必须转成 nil 接口再注入，避免 typed-nil 绕过判空。
 	var authGeoResolver auth.GeoResolver
@@ -318,7 +329,7 @@ func NewApp() (*App, error) {
 	mcpRepo := mcprepo.NewRepo(db)
 	embedClient := embedding.New(trustedOutboundPolicy)
 	compactService := compact.NewServiceWithRuntime(runtimeCfg, conversationRepo, log)
-	extractionService := extraction.NewServiceWithRuntime(runtimeCfg)
+	extractionService := extraction.NewServiceWithRuntime(runtimeCfg, extractionFactories)
 	extractionService.SetObjectStoreProvider(objectStoreProvider)
 	embeddingService := appembedding.NewServiceWithRuntime(runtimeCfg, conversationRepo, extractionService, embedClient, log)
 	memoryService.SetEmbeddingProvider(embeddingService)
@@ -470,7 +481,7 @@ func NewApp() (*App, error) {
 	contentModerationService.StartBackgroundWorkers(backgroundCtx)
 	channelService.StartModelIconAssetCleanup(backgroundCtx)
 
-	return &App{
+	app := &App{
 		cfg:                    runtimeCfg.Snapshot(),
 		engine:                 engine,
 		logger:                 log,
@@ -483,9 +494,13 @@ func NewApp() (*App, error) {
 		embeddingClient:        embedClient,
 		mediaArtifactClient:    mediaArtifactClient,
 		moderationClient:       moderationClient,
+		conversationService:    conversationService,
+		tracingShutdown:        tracingShutdown,
 		backgroundCancel:       backgroundCancel,
 		shutdown:               shutdownSignal,
-	}, nil
+	}
+	keepTracing = true
+	return app, nil
 }
 
 // Run 启动 HTTP 服务并支持优雅停机。
@@ -566,6 +581,9 @@ func (a *App) Close() {
 	if a.backgroundCancel != nil {
 		a.backgroundCancel()
 	}
+	if a.conversationService != nil {
+		a.conversationService.Close()
+	}
 	if a.redis != nil {
 		_ = a.redis.Close()
 	}
@@ -597,6 +615,8 @@ func (a *App) Close() {
 	}
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	platformtracing.Shutdown(shutdownCtx)
+	if a.tracingShutdown != nil {
+		_ = a.tracingShutdown(shutdownCtx)
+	}
 	a.logger.Sync() //nolint:errcheck
 }

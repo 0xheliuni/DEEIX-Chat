@@ -61,7 +61,7 @@ func TestUsageSessionZeroValueIsSafe(t *testing.T) {
 
 func TestStartUsageAuthorizationRenewalStopIsIdempotentAndWaitsForExit(t *testing.T) {
 	service := &Service{}
-	stop := service.startUsageAuthorizationRenewal(&domainbilling.UsageAuthorization{
+	stop := service.startUsageAuthorizationRenewal(context.Background(), &domainbilling.UsageAuthorization{
 		Mode:        "reserved",
 		RefNo:       "ref-1",
 		Reservation: &domainbilling.UsageBalanceReservation{UserID: 7, RefNo: "ref-1"},
@@ -78,7 +78,7 @@ func TestStartUsageAuthorizationRenewalStopIsIdempotentAndWaitsForExit(t *testin
 		t.Fatal("stopping renewal twice must return promptly")
 	}
 
-	if noop := service.startUsageAuthorizationRenewal(&domainbilling.UsageAuthorization{Mode: "self"}); noop == nil {
+	if noop := service.startUsageAuthorizationRenewal(context.Background(), &domainbilling.UsageAuthorization{Mode: "self"}); noop == nil {
 		t.Fatal("authorizations without reservation must still return a stop function")
 	}
 }

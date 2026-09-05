@@ -118,7 +118,7 @@ func TestUsagePricingKeyMapsObservedToolUsage(t *testing.T) {
 	if !ok || key != "xai.collections_search" {
 		t.Fatalf("expected xAI collections search price key, got key=%q ok=%v", key, ok)
 	}
-	price, ok := UsagePriceByKey(key)
+	price, ok := UsagePriceByKeyWithOverrides(key, nil)
 	if !ok || price.NanousdPerCall != priceUSD00025Nanousd {
 		t.Fatalf("expected xAI collections search price, got %#v ok=%v", price, ok)
 	}
@@ -143,7 +143,7 @@ func TestUsagePricingKeyMapsObservedToolUsage(t *testing.T) {
 
 func TestPricingOverridesApplyToDisplayAndUsagePricing(t *testing.T) {
 	raw := `{"xai.web_search":{"priceNanousd":123000000,"unit":"call","priceLabel":"","billable":true}}`
-	items := PricingDefinitionsWithOverrides(raw)
+	items := PricingDefinitionsWithOverridesFromDefinitions(raw, Definitions())
 	var found PricingDefinition
 	for _, item := range items {
 		if item.ToolKey == "xai.web_search" {
@@ -247,7 +247,7 @@ func TestModelCapabilityNativeToolsExtendPricingAndUsageCatalog(t *testing.T) {
 
 func TestZeroDefaultPricingCanBeCustomizedPerCall(t *testing.T) {
 	raw := `{"openai.shell":{"priceNanousd":1000000,"unit":"search","priceLabel":"notMetered","billable":false}}`
-	items := PricingDefinitionsWithOverrides(raw)
+	items := PricingDefinitionsWithOverridesFromDefinitions(raw, Definitions())
 	var found PricingDefinition
 	for _, item := range items {
 		if item.ToolKey == "openai.shell" {
@@ -275,10 +275,10 @@ func TestPricingOverridesRejectUnknownKeys(t *testing.T) {
 }
 
 func TestPricingOverridesUseDefaults(t *testing.T) {
-	if !PricingOverridesUseDefaults(DefaultPricingJSON()) {
+	if !PricingOverridesUseDefaultsForDefinitions(DefaultPricingJSON(), Definitions()) {
 		t.Fatal("expected default pricing JSON to be treated as provider defaults")
 	}
-	if PricingOverridesUseDefaults(`{"google.google_search":{"priceNanousd":1000000,"unit":"call","priceLabel":"","billable":true}}`) {
+	if PricingOverridesUseDefaultsForDefinitions(`{"google.google_search":{"priceNanousd":1000000,"unit":"call","priceLabel":"","billable":true}}`, Definitions()) {
 		t.Fatal("expected customized Google search price to differ from defaults")
 	}
 }

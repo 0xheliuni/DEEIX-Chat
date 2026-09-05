@@ -9,11 +9,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
+
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 	"go.uber.org/zap"
 )
 
@@ -83,13 +86,13 @@ func (p conversationMetadataGenerationPlan) shouldRun() bool {
 	return p.replaceTitle || p.generateLabels
 }
 
-func (s *Service) maybeGenerateConversationMetadataAsync(conversation model.Conversation, userMsg model.Message) {
+func (s *Service) maybeGenerateConversationMetadataAsync(ctx context.Context, conversation model.Conversation, userMsg model.Message) {
 	if !shouldAutoReplaceConversationTitle(conversation.Title) && !conversationLabelsEligibleForAutoGeneration(conversation) {
 		return
 	}
 
 	background.Go(s.logger, "conversation_metadata_generation", func() {
-		asyncCtx, cancel := context.WithTimeout(context.Background(), conversationMetadataGenerationTimeout)
+		asyncCtx, cancel := background.WithTimeout(ctx, conversationMetadataGenerationTimeout)
 		defer cancel()
 		plan := s.resolveConversationMetadataGenerationPlan(asyncCtx, conversation)
 		if !plan.shouldRun() {
@@ -350,7 +353,7 @@ func buildConversationTitleMessages(messages []model.Message) string {
 			continue
 		}
 
-		blockTokens := estimateTokens(block)
+		blockTokens := tokenestimate.Estimate(block)
 		if blockTokens > remainingTokens {
 			if len(blocks) == 0 {
 				blocks = append(blocks, truncateByEstimatedTokens(block, conversationMetadataMessageMaxTokens))
@@ -560,7 +563,7 @@ func parseGeneratedConversationTitle(raw string) string {
 	if len(match) == 0 {
 		return ""
 	}
-	return firstNonEmptyString(match[1], match[2], match[3])
+	return textutil.FirstNonEmpty(match[1], match[2], match[3])
 }
 
 func parseGeneratedConversationLabels(raw string) []string {
@@ -628,7 +631,7 @@ func parseMetadataStringList(value string) []string {
 	if len(matches) > 0 {
 		result := make([]string, 0, len(matches))
 		for _, match := range matches {
-			item := firstNonEmptyString(match[1], match[2])
+			item := textutil.FirstNonEmpty(match[1], match[2])
 			if item = strings.TrimSpace(item); item != "" {
 				result = append(result, item)
 			}
@@ -806,19 +809,19 @@ func conversationLabelsEmpty(labelsJSON string) bool {
 }
 
 func truncateByEstimatedTokens(text string, maxTokens int64) string {
-	if maxTokens <= 0 || estimateTokens(text) <= maxTokens {
+	if maxTokens <= 0 || tokenestimate.Estimate(text) <= maxTokens {
 		return text
 	}
 	suffix := "\n...[truncated]"
 	runes := []rune(text)
-	keep := int(float64(len(runes)) * float64(maxTokens) / float64(estimateTokens(text)))
+	keep := int(float64(len(runes)) * float64(maxTokens) / float64(tokenestimate.Estimate(text)))
 	if keep < 1 {
 		keep = 1
 	}
 	if keep > len(runes) {
 		keep = len(runes)
 	}
-	for keep > 1 && estimateTokens(string(runes[:keep])+suffix) > maxTokens {
+	for keep > 1 && tokenestimate.Estimate(string(runes[:keep])+suffix) > maxTokens {
 		keep -= 128
 		if keep < 1 {
 			keep = 1

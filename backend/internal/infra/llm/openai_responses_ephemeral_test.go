@@ -1,13 +1,17 @@
 package llm
 
-import "testing"
+import (
+	"testing"
+
+	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
+)
 
 func TestBuildResponsesRequestBodyEnforcesEphemeralRequest(t *testing.T) {
 	payload := buildResponsesRequestBody(
-		AdapterOpenAIResponses,
+		portllm.AdapterOpenAIResponses,
 		"gpt-test",
-		GenerateInput{
-			Messages:            []Message{{Role: "user", Content: "hello"}},
+		portllm.GenerateInput{
+			Messages:            []portllm.Message{{Role: "user", Content: "hello"}},
 			PromptCacheKey:      "cache_should_not_be_sent",
 			PreviousResponseID:  "resp_should_not_be_sent",
 			ResponsesBackground: true,
@@ -46,9 +50,9 @@ func TestBuildResponsesRequestBodyEnforcesEphemeralRequest(t *testing.T) {
 }
 
 func TestBuildAnthropicRequestBodyDisablesEphemeralPromptCache(t *testing.T) {
-	cacheControl := &CacheControl{Type: "ephemeral", TTL: "1h"}
-	payload, err := buildAnthropicRequestBody("claude-test", GenerateInput{
-		Messages:  []Message{{Role: "system", Content: "system", CacheControl: cacheControl}, {Role: "user", Content: "hello"}},
+	cacheControl := &portllm.CacheControl{Type: "ephemeral", TTL: "1h"}
+	payload, err := buildAnthropicRequestBody("claude-test", portllm.GenerateInput{
+		Messages:  []portllm.Message{{Role: "system", Content: "system", CacheControl: cacheControl}, {Role: "user", Content: "hello"}},
 		Ephemeral: true,
 		Options: map[string]interface{}{
 			"cache_control": map[string]interface{}{"type": "ephemeral", "ttl": "1h"},

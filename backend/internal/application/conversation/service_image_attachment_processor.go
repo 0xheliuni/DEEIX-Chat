@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"io"
 	"strings"
 	"time"
@@ -12,7 +13,6 @@ import (
 	appstorage "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/objectstorage"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/mcp"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/objectstore"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/toolresult"
 )
@@ -76,7 +76,7 @@ func (s *Service) processImageAttachments(
 	cfg := s.cfg.Snapshot()
 	storeProvider := s.storeProvider
 	if storeProvider == nil {
-		storeProvider = appstorage.NewRuntimeProvider(config.NewRuntime(cfg), nil)
+		return result, fmt.Errorf("%w: open object storage: %w", ErrImageAttachmentProcessingFailed, appstorage.ErrProviderNotConfigured)
 	}
 	store, err := storeProvider.Open(ctx)
 	if err != nil {
@@ -175,7 +175,7 @@ func (s *Service) processImageAttachments(
 		analysis = contextArtifactExcerpt(analysis, analysisCharLimit)
 		result.Analyses = append(result.Analyses, imageAttachmentAnalysis{
 			FileID:   strings.TrimSpace(attachment.FileID),
-			FileName: firstNonEmptyString(attachment.FileName, attachment.FileID),
+			FileName: textutil.FirstNonEmpty(attachment.FileName, attachment.FileID),
 			ToolName: processor.displayName,
 			Content:  analysis,
 		})
@@ -241,7 +241,7 @@ func prepareImageAttachmentForProcessor(
 	if maxDimension <= 0 {
 		maxDimension = 1024
 	}
-	mimeType := resolveImageMimeType(firstNonEmptyString(attachment.DetectedMIME, attachment.MimeType))
+	mimeType := resolveImageMimeType(textutil.FirstNonEmpty(attachment.DetectedMIME, attachment.MimeType))
 	resized, actualMIME := resizeImageIfNeeded(data, mimeType, maxDimension)
 	return preparedImageAttachment{data: resized, mimeType: actualMIME}, nil
 }
@@ -249,7 +249,7 @@ func prepareImageAttachmentForProcessor(
 func currentImageAttachments(attachments []AttachmentInput) []AttachmentInput {
 	result := make([]AttachmentInput, 0)
 	for _, attachment := range attachments {
-		mimeType := firstNonEmptyString(attachment.DetectedMIME, attachment.MimeType)
+		mimeType := textutil.FirstNonEmpty(attachment.DetectedMIME, attachment.MimeType)
 		if attachment.Current && normalizeAttachmentKind(attachment.Kind, mimeType) == "image" {
 			result = append(result, attachment)
 		}
@@ -319,7 +319,7 @@ func withoutCurrentImageAttachments(plan conversationFileContextPlan) conversati
 	filter := func(items []AttachmentInput) []AttachmentInput {
 		result := make([]AttachmentInput, 0, len(items))
 		for _, item := range items {
-			mimeType := firstNonEmptyString(item.DetectedMIME, item.MimeType)
+			mimeType := textutil.FirstNonEmpty(item.DetectedMIME, item.MimeType)
 			if item.Current && normalizeAttachmentKind(item.Kind, mimeType) == "image" {
 				continue
 			}

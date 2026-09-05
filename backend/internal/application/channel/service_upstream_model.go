@@ -9,6 +9,7 @@ import (
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 )
 
 // ---------------------------------------------------------------------------
@@ -29,7 +30,7 @@ func (s *Service) ListUpstreamModels(ctx context.Context, upstreamID uint, page 
 	if _, err := s.repo.GetUpstreamByID(ctx, upstreamID); err != nil {
 		return nil, 0, err
 	}
-	offset, limit := normalizePage(page, pageSize)
+	offset, limit := pagination.Offset(page, pageSize)
 	items, total, err := s.repo.ListUpstreamModels(ctx, upstreamID, repository.ListChannelUpstreamModelsInput{
 		Offset:         offset,
 		Limit:          limit,
@@ -102,7 +103,7 @@ func (s *Service) UpsertUpstreamModel(ctx context.Context, upstreamID uint, inpu
 			platformModel.KindsJSON = kindsJSON
 		}
 
-		upstreamModelVendor := normalizeUpstreamModelVendor("", upstreamModelName, upstream.Name, upstream.BaseURL)
+		upstreamModelVendor := normalizeModelVendor("", upstreamModelName, upstream.Name, upstream.BaseURL)
 		upstreamModelIcon := normalizeModelIcon("", upstreamModelVendor, upstreamModelName)
 		upstreamModelSource := "manual"
 		if input.CatalogSource != nil {
@@ -327,7 +328,7 @@ func ensureUpstreamCatalogModel(
 		Source:            normalizeSource(source),
 		RawJSON:           "{}",
 	}
-	item.Vendor = normalizeUpstreamModelVendor(vendor, upstreamModelName)
+	item.Vendor = normalizeModelVendor(vendor, upstreamModelName)
 	item.Icon = normalizeModelIcon(icon, item.Vendor, upstreamModelName)
 	if err := repo.CreateUpstreamModel(ctx, item); err != nil {
 		if errors.Is(err, repository.ErrDuplicate) {

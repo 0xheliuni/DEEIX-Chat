@@ -179,7 +179,7 @@ func TestStreamTemporaryChatSendsRequestScopedImageWithoutPersistence(t *testing
 		}},
 		llmClient:  gateway,
 		uploadSvc:  appupload.NewServiceWithRuntime(runtimeCfg, nil, nil, appupload.Hooks{}, appupload.ErrorSet{}, ""),
-		extractSvc: extraction.NewServiceWithRuntime(runtimeCfg),
+		extractSvc: extraction.NewServiceWithRuntime(runtimeCfg, extraction.EngineFactories{}),
 	}
 	var imageData bytes.Buffer
 	sourceImage := image.NewNRGBA(image.Rect(0, 0, 1, 1))
@@ -214,8 +214,6 @@ func TestStreamTemporaryChatSendsRequestScopedImageWithoutPersistence(t *testing
 }
 
 func TestStreamTemporaryChatExtractsDocumentAndReleasesUploadSourceBeforeGeneration(t *testing.T) {
-	extraction.RegisterEngineFactories(extraction.EngineFactories{Builtin: temporaryBuiltinParserStub{}})
-	t.Cleanup(func() { extraction.RegisterEngineFactories(extraction.EngineFactories{}) })
 	released := false
 	gateway := &temporaryLLMGatewayStub{
 		onGenerateStream: func(input llm.GenerateInput) {
@@ -245,7 +243,7 @@ func TestStreamTemporaryChatExtractsDocumentAndReleasesUploadSourceBeforeGenerat
 		}},
 		llmClient:  gateway,
 		uploadSvc:  appupload.NewServiceWithRuntime(runtimeCfg, nil, nil, appupload.Hooks{}, appupload.ErrorSet{}, ""),
-		extractSvc: extraction.NewServiceWithRuntime(runtimeCfg),
+		extractSvc: extraction.NewServiceWithRuntime(runtimeCfg, extraction.EngineFactories{Builtin: temporaryBuiltinParserStub{}}),
 	}
 
 	if _, err := service.StreamTemporaryChat(t.Context(), TemporaryChatInput{

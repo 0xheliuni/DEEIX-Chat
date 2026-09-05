@@ -12,6 +12,7 @@ import (
 
 	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
@@ -102,25 +103,6 @@ func (h *Handler) parseSendMessageInput(c *gin.Context) (appconversation.SendMes
 	return input, conversation, &req, nil
 }
 
-// sendMessageBillingInput 构造请求级计费上下文；运行结果由 UsageSession.Finish 补入。
-func sendMessageBillingInput(
-	userID uint,
-	conversation *model.Conversation,
-	req *SendMessageRequest,
-) appconversation.SendMessageBillingInput {
-	input := appconversation.SendMessageBillingInput{
-		UserID:            userID,
-		PlatformModelName: strings.TrimSpace(req.Model),
-		ClientRunID:       strings.TrimSpace(req.ClientRunID),
-	}
-	if conversation != nil {
-		input.ConversationID = conversation.ID
-		input.ConversationModel = conversation.Model
-		input.Conversation = conversation
-	}
-	return input
-}
-
 // beginUsageSession 在写入响应头前预留预算并启动续租；失败时已写出 HTTP 错误响应。
 func (h *Handler) beginUsageSession(c *gin.Context, input appconversation.SendMessageBillingInput) (*appconversation.UsageSession, bool) {
 	session, err := h.service.BeginUsageSession(c.Request.Context(), input)
@@ -174,15 +156,20 @@ func (h *Handler) recordStreamSendMessageAuditAsync(
 	result *appconversation.SendMessageResult,
 	action string,
 ) {
+	requestCtx := c.Request.Context()
 	bgUserID := middleware.MustUserID(c)
 	bgRequestID := middleware.MustRequestID(c)
 	bgClientIP := c.ClientIP()
 	bgUserAgent := c.Request.UserAgent()
-	go h.recordSendMessageAuditCtx(
-		context.Background(),
-		bgUserID, bgRequestID, bgClientIP, bgUserAgent,
-		conversation, req, result, action,
-	)
+	go func() {
+		auditCtx, cancel := background.WithTimeout(requestCtx, asyncAuditTimeout)
+		defer cancel()
+		h.recordSendMessageAuditCtx(
+			auditCtx,
+			bgUserID, bgRequestID, bgClientIP, bgUserAgent,
+			conversation, req, result, action,
+		)
+	}()
 }
 
 // recordSendMessageAuditCtx 接受显式参数，可在 goroutine 中安全调用（不依赖 gin.Context）。
@@ -238,7 +225,12 @@ func (h *Handler) SendMessage(c *gin.Context) {
 	if err != nil {
 		return
 	}
-	session, ok := h.beginMessageUsageSession(c, input, sendMessageBillingInput(middleware.MustUserID(c), conversation, req))
+	session, ok := h.beginMessageUsageSession(c, input, buildBillingInput(billingRequestInput{
+		UserID:            middleware.MustUserID(c),
+		Conversation:      conversation,
+		PlatformModelName: req.Model,
+		ClientRunID:       req.ClientRunID,
+	}))
 	if !ok {
 		return
 	}
@@ -278,12 +270,26 @@ func (h *Handler) StreamMessage(c *gin.Context) {
 	if err != nil {
 		return
 	}
-	session, ok := h.beginMessageUsageSession(c, input, sendMessageBillingInput(middleware.MustUserID(c), conversation, req))
+	session, ok := h.beginMessageUsageSession(c, input, buildBillingInput(billingRequestInput{
+		UserID:            middleware.MustUserID(c),
+		Conversation:      conversation,
+		PlatformModelName: req.Model,
+		ClientRunID:       req.ClientRunID,
+	}))
 	if !ok {
 		return
 	}
 	defer session.Close()
 	input.UsageAuthorization = session.Authorization()
+	generationCtx, releaseLifecycle, ok := h.service.AcquireMessageGenerationLifecycle(
+		background.Detach(c.Request.Context()),
+	)
+	if !ok {
+		_ = session.Finish(c.Request.Context(), nil)
+		response.ErrorWithCode(c, http.StatusServiceUnavailable, response.CodeServiceUnavailable)
+		return
+	}
+	defer releaseLifecycle()
 
 	c.Header("Content-Type", "application/x-ndjson; charset=utf-8")
 	c.Header("Cache-Control", "no-cache, no-transform")
@@ -292,8 +298,7 @@ func (h *Handler) StreamMessage(c *gin.Context) {
 	c.Status(http.StatusOK)
 
 	var clientDisconnected atomic.Bool
-	flushStreamEvent := func(payload map[string]interface{}) error {
-		payload = h.service.PublishMessageGenerationEvent(input.ClientRunID, payload)
+	writeStreamEvent := func(payload map[string]interface{}) error {
 		if clientDisconnected.Load() {
 			return nil
 		}
@@ -303,39 +308,44 @@ func (h *Handler) StreamMessage(c *gin.Context) {
 		}
 		if _, writeErr := c.Writer.Write(append(encoded, '\n')); writeErr != nil {
 			clientDisconnected.Store(true)
-			return writeErr
+			return nil
 		}
 		c.Writer.Flush()
 		return nil
 	}
-
-	// 有附件时先推送文件处理事件，提升用户体验感知。
-	if len(req.FileIDs) > 0 {
-		_ = flushStreamEvent(map[string]interface{}{
-			"type":    "file_proc",
-			"message": "正在处理附件…",
-		})
+	flushStreamEvent := func(payload map[string]interface{}) (bool, error) {
+		payload, owned := h.service.PublishMessageGenerationEvent(generationCtx, input.ClientRunID, payload)
+		if !owned {
+			return false, nil
+		}
+		return true, writeStreamEvent(payload)
 	}
 
 	// 将中间事件（含 moderation_*）通过 NDJSON 推送给客户端。
 	input.OnEvent = func(eventType string, payload map[string]interface{}) error {
-		_ = flushStreamEvent(normalizeStreamEventPayload(eventType, payload))
-		return nil
+		owned, flushErr := flushStreamEvent(normalizeStreamEventPayload(eventType, payload))
+		if !owned {
+			return appconversation.ErrMessageGenerationInterrupted
+		}
+		return flushErr
 	}
 
-	result, err := h.service.StreamMessage(c.Request.Context(), input, func(delta string) error {
-		_ = flushStreamEvent(map[string]interface{}{
+	defer h.service.FinishMessageGeneration(generationCtx, input.ClientRunID)
+	result, err := h.service.StreamMessage(generationCtx, input, func(delta string) error {
+		owned, flushErr := flushStreamEvent(map[string]interface{}{
 			"type":  "delta",
 			"delta": delta,
 		})
-		return nil
+		if !owned {
+			return appconversation.ErrMessageGenerationInterrupted
+		}
+		return flushErr
 	})
-	defer h.service.FinishMessageGeneration(input.ClientRunID)
 
 	if err == nil && result != nil && result.IsModerationBlocked() {
 		// Guarantee a terminal event even if live OnEvent path missed emit.
 		if !result.ModerationTerminalEmitted() {
-			_ = flushStreamEvent(moderationBlockedStreamPayload(result, session.Authorization()))
+			_, _ = flushStreamEvent(moderationBlockedStreamPayload(result, session.Authorization()))
 		}
 		// 终态事件已发出，结算/释放失败由应用层记日志并标记对账，不能再向流推送第二个终态事件。
 		_ = session.Finish(c.Request.Context(), result)
@@ -343,17 +353,23 @@ func (h *Handler) StreamMessage(c *gin.Context) {
 		return
 	}
 	if billingErr := session.Finish(c.Request.Context(), result); billingErr != nil {
-		_ = flushStreamEvent(streamErrorPayloadWithResult(billingErr, result))
+		payload := streamErrorPayloadWithResult(billingErr, result)
+		if owned, _ := flushStreamEvent(payload); !owned {
+			_ = writeStreamEvent(payload)
+		}
 		return
 	}
 	if err != nil {
-		_ = flushStreamEvent(streamErrorPayloadWithResult(err, result))
+		payload := streamErrorPayloadWithResult(err, result)
+		if owned, _ := flushStreamEvent(payload); !owned {
+			_ = writeStreamEvent(payload)
+		}
 		if result != nil {
 			h.recordStreamSendMessageAuditAsync(c, conversation, req, result, "stream_message")
 		}
 		return
 	}
-	_ = flushStreamEvent(map[string]interface{}{
+	_, _ = flushStreamEvent(map[string]interface{}{
 		"type": "completed",
 		"data": toSendMessageResponse(result),
 	})

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"strings"
 	"time"
 
@@ -56,7 +57,7 @@ func (s *Service) Probe(ctx context.Context, actorRole string) (*ProbeResponse, 
 			out.Text.Error = probeErrorMessage(ErrModerationInvalidResp)
 		} else {
 			out.Text.Valid = true
-			out.Text.Model = firstNonEmpty(resp.Model, cfg.Model)
+			out.Text.Model = textutil.FirstNonEmpty(resp.Model, cfg.Model)
 		}
 	}
 
@@ -92,7 +93,7 @@ func (s *Service) Probe(ctx context.Context, actorRole string) (*ProbeResponse, 
 				out.Image.Error = "moderation response missing image category_applied_input_types"
 			} else {
 				out.Image.Valid = true
-				out.Image.Model = firstNonEmpty(resp.Model, cfg.Model)
+				out.Image.Model = textutil.FirstNonEmpty(resp.Model, cfg.Model)
 			}
 		}
 	}

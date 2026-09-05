@@ -6,6 +6,7 @@ import (
 	"time"
 
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
 	models "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
@@ -24,7 +25,7 @@ func (r *Repo) CreateContextArtifacts(ctx context.Context, items []domainconvers
 		entities = append(entities, toContextArtifactModel(item))
 	}
 	if err := r.db.WithContext(ctx).Create(&entities).Error; err != nil {
-		return translateError(err)
+		return dberror.Translate(err)
 	}
 	for index := range items {
 		items[index] = toContextArtifactDomain(entities[index])
@@ -39,7 +40,7 @@ func (r *Repo) GetContextArtifactByIDForUser(ctx context.Context, userID uint, a
 		Where("record_type = ? AND id = ? AND user_id = ?", chatContextRecordArtifact, artifactID, userID).
 		Where("expires_at IS NULL OR expires_at > ?", time.Now()).
 		First(&item).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	result := toContextArtifactDomain(item)
 	return &result, nil
@@ -85,7 +86,7 @@ func (r *Repo) ListRecentContextArtifacts(ctx context.Context, filter repository
 	}
 	items := make([]models.ChatContextRecord, 0)
 	if err := query.Find(&items).Error; err != nil {
-		return nil, translateError(err)
+		return nil, dberror.Translate(err)
 	}
 	return toContextArtifactDomains(items), nil
 }
@@ -105,7 +106,7 @@ func (r *Repo) DeleteExpiredContextArtifacts(ctx context.Context, before time.Ti
 		Order("expires_at ASC").
 		Limit(limit).
 		Pluck("id", &ids).Error; err != nil {
-		return 0, translateError(err)
+		return 0, dberror.Translate(err)
 	}
 	if len(ids) == 0 {
 		return 0, nil
@@ -115,7 +116,7 @@ func (r *Repo) DeleteExpiredContextArtifacts(ctx context.Context, before time.Ti
 		Where("id IN ?", ids).
 		Delete(&models.ChatContextRecord{})
 	if result.Error != nil {
-		return 0, translateError(result.Error)
+		return 0, dberror.Translate(result.Error)
 	}
 	return result.RowsAffected, nil
 }

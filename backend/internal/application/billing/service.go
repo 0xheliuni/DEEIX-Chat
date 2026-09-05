@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"math"
 	"sort"
 	"strconv"
@@ -17,11 +18,10 @@ import (
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/nativetool"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 )
 
 const (
-	defaultPageSize            = 20
-	maxPageSize                = 1000
 	defaultMonthlyUsageMonths  = 12
 	maxMonthlyUsageMonths      = 24
 	defaultDailyUsageDays      = 30
@@ -509,9 +509,9 @@ func (s *Service) ListBillingAccountSnapshots(ctx context.Context, userIDs []uin
 	for _, account := range accounts {
 		results[account.UserID] = UserBillingAccountSnapshot{
 			UserID:         account.UserID,
-			Currency:       firstNonEmpty(account.Currency, "USD"),
+			Currency:       textutil.FirstNonEmpty(account.Currency, "USD"),
 			BalanceNanousd: account.BalanceNanousd,
-			Status:         firstNonEmpty(account.Status, "active"),
+			Status:         textutil.FirstNonEmpty(account.Status, "active"),
 		}
 	}
 	return results, nil
@@ -636,9 +636,9 @@ func (s *Service) ListCurrentSubscriptionSnapshots(
 		results[userID] = UserSubscriptionSnapshot{
 			UserID:            userID,
 			PlanID:            &planID,
-			PlanName:          firstNonEmpty(planName, strings.ToUpper(planCode)),
-			Tier:              firstNonEmpty(planCode, "free"),
-			Status:            firstNonEmpty(status, "free"),
+			PlanName:          textutil.FirstNonEmpty(planName, strings.ToUpper(planCode)),
+			Tier:              textutil.FirstNonEmpty(planCode, "free"),
+			Status:            textutil.FirstNonEmpty(status, "free"),
 			ExpiresAt:         expiresAt,
 			PermissionGroupID: permGroupID,
 		}
@@ -1085,7 +1085,7 @@ func (s *Service) UpdatePlan(ctx context.Context, planID uint, input PlanUpdateI
 	plan := &domainbilling.Plan{
 		ID:                  current.ID,
 		Code:                current.Code,
-		Name:                firstNonEmpty(input.Name, current.Name),
+		Name:                textutil.FirstNonEmpty(input.Name, current.Name),
 		Description:         strings.TrimSpace(input.Description),
 		FeatureJSON:         current.FeatureJSON,
 		PeriodCreditNanousd: clampNonNegative(input.PeriodCreditNanousd),
@@ -1096,7 +1096,7 @@ func (s *Service) UpdatePlan(ctx context.Context, planID uint, input PlanUpdateI
 	price := &domainbilling.Price{
 		PlanID:          current.ID,
 		Code:            current.Code + "-default",
-		BillingInterval: normalizeInterval(input.BillingInterval),
+		BillingInterval: domainbilling.NormalizeInterval(input.BillingInterval),
 		Currency:        "USD",
 		AmountCents:     clampNonNegative(input.AmountCents),
 		IsActive:        true,
@@ -1265,7 +1265,7 @@ func (s *Service) AuthorizeUsage(ctx context.Context, userID uint, platformModel
 	if pricing.IsFree {
 		return authorization, nil
 	}
-	if normalizePricingMode(pricing.PricingMode) == domainbilling.PricingModeDuration {
+	if domainbilling.NormalizePricingMode(pricing.PricingMode) == domainbilling.PricingModeDuration {
 		if s.modelPricingCatalog == nil {
 			return nil, ErrModelPricingRequired
 		}
@@ -1386,7 +1386,7 @@ func (s *Service) EstimateUsageNanousd(ctx context.Context, userID uint, input U
 	}
 	rateMultiplier = composeGroupRatePercent(rateMultiplier, groupRatePercent)
 
-	switch normalizePricingMode(pricing.PricingMode) {
+	switch domainbilling.NormalizePricingMode(pricing.PricingMode) {
 	case domainbilling.PricingModeCall:
 		callCount := input.CallCount
 		if callCount <= 0 {
@@ -1756,7 +1756,7 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 		// 授权后价格被删除时必须进入待核对流程，不能把已发生的上游用量静默记为 0。
 		return nil, ErrModelPricingRequired
 	}
-	if mode != "self" && !input.ServiceOnly && pricing != nil && !pricing.IsFree && normalizePricingMode(pricing.PricingMode) == domainbilling.PricingModeDuration {
+	if mode != "self" && !input.ServiceOnly && pricing != nil && !pricing.IsFree && domainbilling.NormalizePricingMode(pricing.PricingMode) == domainbilling.PricingModeDuration {
 		if !input.DurationBillable || input.DurationSeconds <= 0 {
 			// 请求开始后的模型能力或结果状态发生变化时，宁可进入待核对流程，也不能静默记成零费用。
 			return nil, ErrModelPricingRequired
@@ -1786,7 +1786,7 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 	isFreeModel := pricing != nil && pricing.IsFree
 	if pricing != nil {
 		currency = pricing.Currency
-		pricingMode = normalizePricingMode(pricing.PricingMode)
+		pricingMode = domainbilling.NormalizePricingMode(pricing.PricingMode)
 		tieredPricingJSON = strings.TrimSpace(pricing.TieredPricingJSON)
 	}
 	if !input.ServiceOnly && mode != "self" && pricing != nil && !pricing.IsFree {
@@ -2069,7 +2069,7 @@ func monthBounds(now time.Time) (time.Time, time.Time) {
 
 // ListModelPricing 分页查询模型单价，并补充平台模型身份。
 func (s *Service) ListModelPricing(ctx context.Context, query string, page int, pageSize int) ([]ModelPricingView, int64, error) {
-	offset, limit := normalizePage(page, pageSize)
+	offset, limit := pagination.Offset(page, pageSize)
 	if s.modelPricingCatalog == nil {
 		items, total, err := s.repo.ListModelPricing(ctx, query, offset, limit)
 		if err != nil {
@@ -2150,9 +2150,9 @@ func clonePublicModelPricingMap(input map[string]PublicModelPricing) map[string]
 }
 
 func toPublicModelPricing(item domainbilling.ModelPricing) PublicModelPricing {
-	mode := normalizePricingMode(item.PricingMode)
+	mode := domainbilling.NormalizePricingMode(item.PricingMode)
 	result := PublicModelPricing{
-		Currency:                firstNonEmpty(item.Currency, "USD"),
+		Currency:                textutil.FirstNonEmpty(item.Currency, "USD"),
 		IsFree:                  item.IsFree,
 		Mode:                    mode,
 		InputUSDPerMTokens:      nanousdToUSD(item.InputNanousdPerMTokens),
@@ -2214,7 +2214,7 @@ func (s *Service) UpsertModelPricing(ctx context.Context, input ModelPricingInpu
 		}
 		return nil, err
 	}
-	pricingMode := normalizePricingMode(input.PricingMode)
+	pricingMode := domainbilling.NormalizePricingMode(input.PricingMode)
 	if pricingMode == domainbilling.PricingModeDuration {
 		if s.modelPricingCatalog == nil {
 			return nil, ErrInvalidModelPricing
@@ -2424,7 +2424,7 @@ func (s *Service) buildUsageServiceItem(ctx context.Context, input ServiceUsageI
 	if pricing.IsFree {
 		return item, nil
 	}
-	item.PricingMode = normalizePricingMode(pricing.PricingMode)
+	item.PricingMode = domainbilling.NormalizePricingMode(pricing.PricingMode)
 	switch item.PricingMode {
 	case domainbilling.PricingModeCall:
 		item.CallNanousdPerCall = applyRateMultiplier(pricing.CallNanousdPerCall, rateMultiplier)
@@ -2517,7 +2517,7 @@ func (s *Service) buildUsageServiceItem(ctx context.Context, input ServiceUsageI
 
 // ListUsage 分页查询账本。
 func (s *Service) ListUsage(ctx context.Context, userID uint, page int, pageSize int, filter UsageListFilter) ([]domainbilling.UsageLedger, int64, error) {
-	offset, limit := normalizePage(page, pageSize)
+	offset, limit := pagination.Offset(page, pageSize)
 	return s.repo.ListUsageByUser(ctx, userID, repository.UsageListFilter{
 		Query:  filter.Query,
 		Status: filter.Status,
@@ -2527,7 +2527,7 @@ func (s *Service) ListUsage(ctx context.Context, userID uint, page int, pageSize
 
 // ListUsageLogs 分页查询管理员调用日志。
 func (s *Service) ListUsageLogs(ctx context.Context, page int, pageSize int, filter UsageLogListFilter) ([]domainbilling.UsageLedger, int64, error) {
-	offset, limit := normalizePage(page, pageSize)
+	offset, limit := pagination.Offset(page, pageSize)
 	return s.repo.ListUsageLogs(ctx, repository.UsageLogListFilter{
 		Query:             filter.Query,
 		PlatformModelName: filter.PlatformModelName,
@@ -2645,7 +2645,7 @@ func fillUsageStatisticsTrend(
 
 // ListPaymentOrders 分页查询管理员支付订单记录。
 func (s *Service) ListPaymentOrders(ctx context.Context, page int, pageSize int, filter PaymentOrderListFilter) ([]domainbilling.PaymentOrder, int64, error) {
-	offset, limit := normalizePage(page, pageSize)
+	offset, limit := pagination.Offset(page, pageSize)
 	return s.repo.ListPaymentOrders(ctx, repository.PaymentOrderListFilter{
 		Query:       filter.Query,
 		OrderType:   filter.OrderType,
@@ -2656,23 +2656,6 @@ func (s *Service) ListPaymentOrders(ctx context.Context, page int, pageSize int,
 		CreatedTo:   filter.CreatedTo,
 		Sort:        filter.Sort,
 	}, offset, limit)
-}
-
-func normalizePage(page int, pageSize int) (int, int) {
-	if page <= 0 {
-		page = 1
-	}
-	if pageSize <= 0 {
-		pageSize = defaultPageSize
-	}
-	if pageSize > maxPageSize {
-		pageSize = maxPageSize
-	}
-	offset := (page - 1) * pageSize
-	if offset < 0 {
-		offset = 0
-	}
-	return offset, pageSize
 }
 
 // ListMonthlyUsage 查询用户月度用量聚合。
@@ -3256,26 +3239,6 @@ func parseTieredPricingTiers(raw string) ([]tieredPricingTier, error) {
 	return config.Tiers, nil
 }
 
-func normalizePricingMode(value string) string {
-	switch strings.TrimSpace(value) {
-	case domainbilling.PricingModeCall:
-		return domainbilling.PricingModeCall
-	case domainbilling.PricingModeDuration:
-		return domainbilling.PricingModeDuration
-	case domainbilling.PricingModeTiered:
-		return domainbilling.PricingModeTiered
-	default:
-		return domainbilling.PricingModeToken
-	}
-}
-
-func centsToNanousd(value int64) int64 {
-	if value <= 0 {
-		return 0
-	}
-	return value * 10000000
-}
-
 func usdToNanousd(value float64) int64 {
 	if value <= 0 {
 		return 0
@@ -3604,26 +3567,6 @@ func normalizeUsageCountMap(items map[string]int64) map[string]int64 {
 		return map[string]int64{}
 	}
 	return result
-}
-
-func normalizeInterval(value string) string {
-	switch strings.TrimSpace(value) {
-	case domainbilling.IntervalYear:
-		return domainbilling.IntervalYear
-	case domainbilling.IntervalLifetime:
-		return domainbilling.IntervalLifetime
-	default:
-		return domainbilling.IntervalMonth
-	}
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }
 
 func generateOrderNo() (string, error) {

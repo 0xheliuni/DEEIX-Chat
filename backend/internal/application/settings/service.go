@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	appaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/audit"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/extraction"
 	domainsettings "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/settings"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
@@ -30,7 +31,7 @@ type vectorStoreAvailabilityService interface {
 }
 
 type auditWriter interface {
-	Write(ctx context.Context, requestID string, actorUserID uint, action string, resource string, resourceID string, ip string, userAgent string, detail interface{})
+	Write(ctx context.Context, input appaudit.WriteInput)
 }
 
 // NewService 创建服务。
@@ -66,17 +67,15 @@ func (s *Service) RecordAudit(ctx context.Context, input AuditInput) {
 	if s.auditWriter == nil {
 		return
 	}
-	s.auditWriter.Write(
-		ctx,
-		strings.TrimSpace(input.RequestID),
-		input.UserID,
-		strings.TrimSpace(input.Action),
-		"system_settings",
-		"",
-		strings.TrimSpace(input.ClientIP),
-		strings.TrimSpace(input.UserAgent),
-		input.Detail,
-	)
+	s.auditWriter.Write(ctx, appaudit.WriteInput{
+		RequestID:   input.RequestID,
+		ActorUserID: input.UserID,
+		Action:      input.Action,
+		Resource:    "system_settings",
+		IP:          input.ClientIP,
+		UserAgent:   input.UserAgent,
+		Detail:      input.Detail,
+	})
 }
 
 // Seed 将注册表中的默认配置写入数据库（仅插入不存在的 key），并清理已废弃的配置项。

@@ -119,11 +119,6 @@ func openAIPromptCacheMessageNonempty(message llm.Message) bool {
 	return false
 }
 
-func supportsOpenAIPromptCacheRoute(route *channel.ResolvedRoute) bool {
-	_, supported := resolveOpenAIPromptCacheRouteConfig(route)
-	return supported
-}
-
 func resolveOpenAIPromptCacheRouteConfig(route *channel.ResolvedRoute) (openAIPromptCacheCapabilityConfig, bool) {
 	if route == nil {
 		return openAIPromptCacheCapabilityConfig{}, false

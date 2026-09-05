@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
 	"strings"
+	"time"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
@@ -76,51 +76,18 @@ func NewHandler(
 
 func (h *Handler) recordAudit(c *gin.Context, action string, resource string, resourceID string, detail interface{}) {
 	h.service.RecordAudit(c.Request.Context(), appconversation.AuditInput{
-		UserID:     middleware.MustUserID(c),
-		RequestID:  middleware.MustRequestID(c),
-		Action:     action,
-		Resource:   resource,
-		ResourceID: resourceID,
-		ClientIP:   c.ClientIP(),
-		UserAgent:  c.Request.UserAgent(),
-		Detail:     detail,
+		ActorUserID: middleware.MustUserID(c),
+		RequestID:   middleware.MustRequestID(c),
+		Action:      action,
+		Resource:    resource,
+		ResourceID:  resourceID,
+		IP:          c.ClientIP(),
+		UserAgent:   c.Request.UserAgent(),
+		Detail:      detail,
 	})
 }
 
-const (
-	defaultHTTPPageSize = 20
-	maxHTTPPageSize     = 1000
-	maxMessagePageSize  = 1000
-)
-
-func pageParams(c *gin.Context) (int, int) {
-	return pageParamsWithMax(c, maxHTTPPageSize)
-}
-
-func messagePageParams(c *gin.Context) (int, int) {
-	return pageParamsWithMax(c, maxMessagePageSize)
-}
-
-func pageParamsWithMax(c *gin.Context, maxPageSize int) (int, int) {
-	page := 1
-	pageSize := defaultHTTPPageSize
-
-	if raw := c.Query("page"); raw != "" {
-		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
-			page = parsed
-		}
-	}
-	if raw := c.Query("page_size"); raw != "" {
-		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
-			if maxPageSize > 0 && parsed > maxPageSize {
-				parsed = maxPageSize
-			}
-			pageSize = parsed
-		}
-	}
-
-	return page, pageSize
-}
+const asyncAuditTimeout = 5 * time.Second
 
 // sendMessageErrorStatuses 是消息发送、媒体生成与临时对话路径上哨兵错误到 HTTP 状态码的映射。
 // 错误码与对外文案由哨兵自身（apperr）声明，这里只决定传输语义；HTTP 响应与 NDJSON 终态事件共用。
@@ -305,18 +272,6 @@ func normalizeConversationShareFilter(value string) string {
 		return "unshared"
 	default:
 		return "all"
-	}
-}
-
-func normalizeConversationProjectQuery(value string) string {
-	normalized := strings.TrimSpace(value)
-	switch normalized {
-	case "", "all":
-		return "all"
-	case "unassigned":
-		return "unassigned"
-	default:
-		return normalized
 	}
 }
 

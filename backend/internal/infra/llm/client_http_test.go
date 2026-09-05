@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 	"github.com/google/uuid"
 )
@@ -108,8 +109,8 @@ func TestListModelsFallsBackToOpenAICompatibleModels(t *testing.T) {
 	}))
 	defer server.Close()
 
-	items, err := NewClient(security.NewStrictOutboundPolicy(true)).ListModels(context.Background(), RouteConfig{
-		Protocol: AdapterAnthropicMessages,
+	items, err := NewClient(security.NewStrictOutboundPolicy(true)).ListModels(context.Background(), portllm.RouteConfig{
+		Protocol: portllm.AdapterAnthropicMessages,
 		BaseURL:  server.URL,
 		APIKey:   "test-key",
 	})
@@ -161,7 +162,7 @@ func TestListModelsAnthropicFetchesEveryPage(t *testing.T) {
 	}))
 	defer server.Close()
 
-	items, err := NewClient(security.NewStrictOutboundPolicy(true)).listModelsAnthropic(t.Context(), RouteConfig{
+	items, err := NewClient(security.NewStrictOutboundPolicy(true)).listModelsAnthropic(t.Context(), portllm.RouteConfig{
 		BaseURL: server.URL,
 		APIKey:  "test-key",
 	})
@@ -202,7 +203,7 @@ func TestListModelsGeminiFetchesEveryPage(t *testing.T) {
 	}))
 	defer server.Close()
 
-	items, err := NewClient(security.NewStrictOutboundPolicy(true)).listModelsGemini(t.Context(), RouteConfig{
+	items, err := NewClient(security.NewStrictOutboundPolicy(true)).listModelsGemini(t.Context(), portllm.RouteConfig{
 		BaseURL: server.URL,
 		APIKey:  "test-key",
 	})
@@ -258,8 +259,8 @@ func TestListModelsFallsBackToOpenAICompatibleModelsForGemini(t *testing.T) {
 	}))
 	defer server.Close()
 
-	items, err := newTestClient().ListModels(context.Background(), RouteConfig{
-		Protocol: AdapterGoogleGenerateContent,
+	items, err := newTestClient().ListModels(context.Background(), portllm.RouteConfig{
+		Protocol: portllm.AdapterGoogleGenerateContent,
 		BaseURL:  server.URL,
 		APIKey:   "test-key",
 	})
@@ -275,8 +276,8 @@ func TestListModelsFallsBackToOpenAICompatibleModelsForGemini(t *testing.T) {
 }
 
 func TestListModelsDoesNotFallbackForOpenRouterBaseURL(t *testing.T) {
-	if shouldFallbackToOpenAICompatibleModels(RouteConfig{
-		Protocol: AdapterGoogleGenerateContent,
+	if shouldFallbackToOpenAICompatibleModels(portllm.RouteConfig{
+		Protocol: portllm.AdapterGoogleGenerateContent,
 		BaseURL:  "https://openrouter.ai/api/v1",
 	}) {
 		t.Fatal("expected openrouter base URL to keep its own models directory")
@@ -285,7 +286,7 @@ func TestListModelsDoesNotFallbackForOpenRouterBaseURL(t *testing.T) {
 
 func TestSetOpenRouterAttributionHeaders(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "https://openrouter.ai/api/v1/chat/completions", nil)
-	setOpenRouterAttributionHeaders(req, RouteConfig{
+	setOpenRouterAttributionHeaders(req, portllm.RouteConfig{
 		BaseURL:            "https://openrouter.ai/api/v1",
 		AttributionReferer: "https://app.example.com/",
 		AttributionTitle:   "Example App",
@@ -307,7 +308,7 @@ func TestSetOpenRouterAttributionHeaders(t *testing.T) {
 
 func TestSetOpenRouterAttributionHeadersSkipsNonOpenRouterBaseURL(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "https://api.example.com/v1/chat/completions", nil)
-	setOpenRouterAttributionHeaders(req, RouteConfig{
+	setOpenRouterAttributionHeaders(req, portllm.RouteConfig{
 		BaseURL:            "https://api.example.com/v1",
 		AttributionReferer: "https://app.example.com",
 		AttributionTitle:   "Example App",
@@ -323,7 +324,7 @@ func TestSetOpenRouterAttributionHeadersSkipsNonOpenRouterBaseURL(t *testing.T) 
 
 func TestSetOpenRouterAttributionHeadersRespectsConfiguredHeaders(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "https://openrouter.ai/api/v1/chat/completions", nil)
-	setOpenRouterAttributionHeaders(req, RouteConfig{
+	setOpenRouterAttributionHeaders(req, portllm.RouteConfig{
 		BaseURL:            "https://openrouter.ai/api/v1",
 		HeadersJSON:        `{"HTTP-Referer":"https://custom.example.com","X-Title":"Custom App"}`,
 		AttributionReferer: "https://app.example.com",
@@ -351,7 +352,7 @@ func TestSetAdditionalHeadersExpandsConversationIdentityTemplates(t *testing.T) 
 		"X-Conversation-Id":"${DEEIX_CONVERSATION_ID}",
 		"X-Session-Id":"session:${DEEIX_SESSION_ID}",
 		"X-Static":"fixed"
-	}`, &GenerateInput{
+	}`, &portllm.GenerateInput{
 		ConversationPublicID:   "conversation-1",
 		ConversationSessionKey: "session-1",
 	})
@@ -372,7 +373,7 @@ func TestSetAdditionalHeadersExpandsRequestIdentityTemplates(t *testing.T) {
 		"X-Request-Id":"${DEEIX_REQUEST_ID}",
 		"X-Client-Request-Id":"${DEEIX_UPSTREAM_REQUEST_ID}"
 	}`
-	input := &GenerateInput{
+	input := &portllm.GenerateInput{
 		RequestID:            "request-1",
 		ConversationPublicID: "conversation-1",
 	}
@@ -401,7 +402,7 @@ func TestSetAdditionalHeadersOmitsDynamicTemplatesForAuxiliaryTasks(t *testing.T
 		"X-Request-Id":"${DEEIX_REQUEST_ID}",
 		"X-Client-Request-Id":"${DEEIX_UPSTREAM_REQUEST_ID}",
 		"X-Static":"fixed"
-	}`, &GenerateInput{RequestID: "request-1"})
+	}`, &portllm.GenerateInput{RequestID: "request-1"})
 
 	if got := req.Header.Get("X-Request-Id"); got != "" {
 		t.Fatalf("expected request ID header to be omitted outside conversation generation, got %q", got)
@@ -443,11 +444,11 @@ func TestSetAdditionalHeadersOmitsDynamicTemplatesWithoutContext(t *testing.T) {
 
 func TestProviderRequestBuildersExpandConversationIdentityHeaders(t *testing.T) {
 	client := newTestClient()
-	input := &GenerateInput{
+	input := &portllm.GenerateInput{
 		ConversationPublicID:   "conversation-1",
 		ConversationSessionKey: "session-1",
 	}
-	route := RouteConfig{HeadersJSON: `{
+	route := portllm.RouteConfig{HeadersJSON: `{
 		"X-Conversation-Id":"${DEEIX_CONVERSATION_ID}",
 		"X-Session-Id":"${DEEIX_SESSION_ID}"
 	}`}
@@ -488,14 +489,14 @@ func TestOpenAIGenerationExpandsConversationIdentityHeader(t *testing.T) {
 	}))
 	defer server.Close()
 
-	output, err := newTestClient().Generate(t.Context(), RouteConfig{
-		Protocol:      AdapterOpenAIChatCompletions,
+	output, err := newTestClient().Generate(t.Context(), portllm.RouteConfig{
+		Protocol:      portllm.AdapterOpenAIChatCompletions,
 		BaseURL:       server.URL,
 		UpstreamModel: "test-model",
 		HeadersJSON:   `{"X-Conversation-Id":"${DEEIX_CONVERSATION_ID}"}`,
-	}, GenerateInput{
+	}, portllm.GenerateInput{
 		ConversationPublicID: "conversation-1",
-		Messages:             []Message{{Role: "user", Content: "hello"}},
+		Messages:             []portllm.Message{{Role: "user", Content: "hello"}},
 	})
 	if err != nil {
 		t.Fatalf("generate: %v", err)
@@ -531,12 +532,12 @@ func TestOpenAIChatCompletionsStreamRetriesWhenAutoUsageOptionIsRejected(t *test
 	}))
 	defer server.Close()
 
-	output, err := newTestClient().GenerateStream(context.Background(), RouteConfig{
-		Protocol:      AdapterOpenAIChatCompletions,
+	output, err := newTestClient().GenerateStream(context.Background(), portllm.RouteConfig{
+		Protocol:      portllm.AdapterOpenAIChatCompletions,
 		BaseURL:       server.URL,
 		UpstreamModel: "gpt-compatible",
-	}, GenerateInput{
-		Messages: []Message{{Role: "user", Content: "hello"}},
+	}, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "hello"}},
 	}, nil)
 	if err != nil {
 		t.Fatalf("generate stream: %v", err)
@@ -557,12 +558,12 @@ func TestGenerateMarksSuccessfulHTTPParseFailureAsAccepted(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := newTestClient().Generate(t.Context(), RouteConfig{
-		Protocol:      AdapterOpenAIChatCompletions,
+	_, err := newTestClient().Generate(t.Context(), portllm.RouteConfig{
+		Protocol:      portllm.AdapterOpenAIChatCompletions,
 		BaseURL:       server.URL,
 		UpstreamModel: "test-model",
-	}, GenerateInput{Messages: []Message{{Role: "user", Content: "hello"}}})
-	if err == nil || !RequestWasAccepted(err) {
+	}, portllm.GenerateInput{Messages: []portllm.Message{{Role: "user", Content: "hello"}}})
+	if err == nil || !portllm.RequestWasAccepted(err) {
 		t.Fatalf("expected accepted parse error, got %v", err)
 	}
 }
@@ -583,12 +584,12 @@ func TestGenerateMarksConnectionDropAfterRequestWriteAsAccepted(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := newTestClient().Generate(t.Context(), RouteConfig{
-		Protocol:      AdapterOpenAIChatCompletions,
+	_, err := newTestClient().Generate(t.Context(), portllm.RouteConfig{
+		Protocol:      portllm.AdapterOpenAIChatCompletions,
 		BaseURL:       server.URL,
 		UpstreamModel: "test-model",
-	}, GenerateInput{Messages: []Message{{Role: "user", Content: "hello"}}})
-	if err == nil || !RequestWasAccepted(err) {
+	}, portllm.GenerateInput{Messages: []portllm.Message{{Role: "user", Content: "hello"}}})
+	if err == nil || !portllm.RequestWasAccepted(err) {
 		t.Fatalf("expected post-write connection drop to be treated as accepted, got %v", err)
 	}
 }
@@ -601,12 +602,12 @@ func TestGenerateStreamMarksSuccessfulHTTPStreamFailureAsAccepted(t *testing.T) 
 	}))
 	defer server.Close()
 
-	_, err := newTestClient().GenerateStream(t.Context(), RouteConfig{
-		Protocol:      AdapterOpenAIChatCompletions,
+	_, err := newTestClient().GenerateStream(t.Context(), portllm.RouteConfig{
+		Protocol:      portllm.AdapterOpenAIChatCompletions,
 		BaseURL:       server.URL,
 		UpstreamModel: "test-model",
-	}, GenerateInput{Messages: []Message{{Role: "user", Content: "hello"}}}, nil)
-	if err == nil || !RequestWasAccepted(err) {
+	}, portllm.GenerateInput{Messages: []portllm.Message{{Role: "user", Content: "hello"}}}, nil)
+	if err == nil || !portllm.RequestWasAccepted(err) {
 		t.Fatalf("expected accepted stream error, got %v", err)
 	}
 }
@@ -620,20 +621,20 @@ func TestGenerateStreamPreservesBackgroundResponseIDBeforeAcceptedFailure(t *tes
 	defer server.Close()
 
 	responseID := ""
-	_, err := newTestClient().GenerateStream(t.Context(), RouteConfig{
-		Protocol:      AdapterOpenAIResponses,
+	_, err := newTestClient().GenerateStream(t.Context(), portllm.RouteConfig{
+		Protocol:      portllm.AdapterOpenAIResponses,
 		BaseURL:       server.URL,
 		UpstreamModel: "test-model",
-	}, GenerateInput{
-		Messages:            []Message{{Role: "user", Content: "hello"}},
+	}, portllm.GenerateInput{
+		Messages:            []portllm.Message{{Role: "user", Content: "hello"}},
 		ResponsesBackground: true,
-	}, func(event GenerateStreamEvent) error {
+	}, func(event portllm.GenerateStreamEvent) error {
 		if event.ResponseID != "" {
 			responseID = event.ResponseID
 		}
 		return nil
 	})
-	if err == nil || !RequestWasAccepted(err) {
+	if err == nil || !portllm.RequestWasAccepted(err) {
 		t.Fatalf("expected accepted background stream error, got %v", err)
 	}
 	if responseID != "resp_background" {
@@ -657,7 +658,7 @@ func TestDoGenerationRequestMarksPostWriteFailureAsAccepted(t *testing.T) {
 	}
 
 	_, err = doGenerationRequest(client.Do, req)
-	if !errors.Is(err, errAfterWrite) || !RequestWasAccepted(err) {
+	if !errors.Is(err, errAfterWrite) || !portllm.RequestWasAccepted(err) {
 		t.Fatalf("expected ambiguous post-write failure, got %v", err)
 	}
 }
@@ -673,7 +674,7 @@ func TestDoGenerationRequestKeepsPreWriteFailureRetryable(t *testing.T) {
 	}
 
 	_, err = doGenerationRequest(client.Do, req)
-	if !errors.Is(err, errBeforeWrite) || RequestWasAccepted(err) {
+	if !errors.Is(err, errBeforeWrite) || portllm.RequestWasAccepted(err) {
 		t.Fatalf("expected retryable pre-write failure, got %v", err)
 	}
 }

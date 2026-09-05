@@ -5,15 +5,15 @@ import (
 	"errors"
 	"io"
 	"mime"
-	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
-	"unicode"
 
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -35,11 +35,6 @@ type avatarContentOpener interface {
 type avatarFileValidator interface {
 	ValidateImageFile(ctx context.Context, userID uint, fileID string) error
 }
-
-const (
-	defaultPageSize = 20
-	maxPageSize     = 1000
-)
 
 // NewService 创建服务。
 func NewService(repo repository.UserRepository) *Service {
@@ -137,7 +132,7 @@ func (s *Service) OpenAvatarContent(ctx context.Context, publicID string) (*Avat
 
 // ListUsers 分页查询用户列表。
 func (s *Service) ListUsers(ctx context.Context, page int, pageSize int, filter repository.UserListFilter) ([]domainuser.User, int64, error) {
-	offset, limit := normalizePage(page, pageSize)
+	offset, limit := pagination.Offset(page, pageSize)
 	return s.repo.ListUsers(ctx, offset, limit, filter)
 }
 
@@ -160,23 +155,6 @@ func (s *Service) ListLatestSessionActivityByUserIDs(ctx context.Context, userID
 		return map[uint]time.Time{}, nil
 	}
 	return s.repo.ListLatestSessionActivityByUserIDs(ctx, userIDs)
-}
-
-func normalizePage(page int, pageSize int) (int, int) {
-	if page <= 0 {
-		page = 1
-	}
-	if pageSize <= 0 {
-		pageSize = defaultPageSize
-	}
-	if pageSize > maxPageSize {
-		pageSize = maxPageSize
-	}
-	offset := (page - 1) * pageSize
-	if offset < 0 {
-		offset = 0
-	}
-	return offset, pageSize
 }
 
 // CountSuperAdmins 统计超级管理员数量。
@@ -237,8 +215,8 @@ func (s *Service) CreateUser(
 	now := time.Now()
 
 	normalizedAvatarURL := strings.TrimSpace(avatarURL)
-	if err = validateAvatarURL(normalizedAvatarURL); err != nil {
-		return nil, err
+	if !domainuser.IsValidAvatarURL(normalizedAvatarURL) {
+		return nil, ErrInvalidAvatarURL
 	}
 	if _, ok := domainuser.ParseFileAvatarURL(normalizedAvatarURL); ok {
 		return nil, ErrInvalidAvatarURL
@@ -369,8 +347,8 @@ func (s *Service) UpdateFields(ctx context.Context, userID uint, input repositor
 	avatarFileReferenceRequested := false
 	if input.AvatarURL != nil {
 		normalizedAvatarURL := strings.TrimSpace(*input.AvatarURL)
-		if err := validateAvatarURL(normalizedAvatarURL); err != nil {
-			return nil, err
+		if !domainuser.IsValidAvatarURL(normalizedAvatarURL) {
+			return nil, ErrInvalidAvatarURL
 		}
 		if fileID, ok := domainuser.ParseFileAvatarURL(normalizedAvatarURL); ok {
 			avatarFileReferenceRequested = true
@@ -441,7 +419,7 @@ func (s *Service) ListAuthEvents(
 	page int,
 	pageSize int,
 ) ([]domainuser.AuthEvent, int64, error) {
-	offset, limit := normalizePage(page, pageSize)
+	offset, limit := pagination.Offset(page, pageSize)
 
 	return s.repo.ListAuthEvents(
 		ctx,
@@ -482,27 +460,6 @@ func normalizePublicID(raw string) string {
 	return strings.ReplaceAll(raw, "-", "")
 }
 
-func validateAvatarURL(raw string) error {
-	if raw == "" || strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, "generated:github:") {
-		return nil
-	}
-	if strings.HasPrefix(raw, "file:") {
-		if _, ok := domainuser.ParseFileAvatarURL(raw); !ok {
-			return ErrInvalidAvatarURL
-		}
-		return nil
-	}
-
-	parsed, err := url.Parse(raw)
-	if err != nil {
-		return ErrInvalidAvatarURL
-	}
-	if (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
-		return ErrInvalidAvatarURL
-	}
-	return nil
-}
-
 func normalizeLocale(raw string) (string, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -516,7 +473,7 @@ func normalizeLocale(raw string) (string, error) {
 	}
 
 	languagePart := strings.ToLower(parts[0])
-	if len(languagePart) < 2 || len(languagePart) > 3 || !isAlpha(languagePart) {
+	if len(languagePart) < 2 || len(languagePart) > 3 || !textutil.IsASCIIAlpha(languagePart) {
 		return "", ErrInvalidLocale
 	}
 
@@ -525,18 +482,9 @@ func normalizeLocale(raw string) (string, error) {
 	}
 
 	regionPart := strings.ToUpper(parts[1])
-	if len(regionPart) != 2 || !isAlpha(regionPart) {
+	if len(regionPart) != 2 || !textutil.IsASCIIAlpha(regionPart) {
 		return "", ErrInvalidLocale
 	}
 
 	return languagePart + "-" + regionPart, nil
-}
-
-func isAlpha(value string) bool {
-	for _, r := range value {
-		if !unicode.IsLetter(r) || r > unicode.MaxASCII {
-			return false
-		}
-	}
-	return true
 }

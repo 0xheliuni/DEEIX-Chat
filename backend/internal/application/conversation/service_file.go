@@ -35,7 +35,7 @@ func (s *Service) cloneOrTriggerEmbedding(ctx context.Context, source *model.Fil
 			)
 		}
 	}
-	s.embeddingSvc.MaybeTrigger(*target)
+	s.embeddingSvc.MaybeTrigger(ctx, *target)
 }
 
 // GetFileExtract 读取当前用户文件的提取文本产物。

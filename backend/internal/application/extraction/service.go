@@ -22,8 +22,6 @@ import (
 // ErrInvalidStoredFilePath 表示存储路径非法。
 var ErrInvalidStoredFilePath = errors.New("invalid stored file path")
 
-const defaultStorageRootDir = "./storage"
-
 const (
 	EngineBuiltin      = "builtin"
 	EngineTika         = "tika"
@@ -49,6 +47,7 @@ const defaultMinerUFileTypes = "pdf,word,presentation"
 type Service struct {
 	cfg           *config.Runtime
 	storeProvider appstorage.Provider
+	factories     EngineFactories
 }
 
 type engine interface {
@@ -77,7 +76,7 @@ type BuiltinParser interface {
 	DetectPDFPageCount(absolutePath string) int
 }
 
-// EngineFactories 由组合根注册，按配置创建各抽取引擎客户端。
+// EngineFactories 由组合根注入，按配置创建各抽取引擎客户端。
 // 工厂在引擎不可用（未配置、提供方未知）时必须返回 nil 接口。
 type EngineFactories struct {
 	NewTika    func(cfg config.Config) DocumentExtractor
@@ -85,13 +84,6 @@ type EngineFactories struct {
 	NewMinerU  func(cfg config.Config) DocumentExtractor
 	NewOCR     func(provider string, cfg config.Config) OCRExtractor
 	Builtin    BuiltinParser
-}
-
-var engineFactories EngineFactories
-
-// RegisterEngineFactories 注册抽取引擎工厂，组合根在启动时调用。
-func RegisterEngineFactories(factories EngineFactories) {
-	engineFactories = factories
 }
 
 // ExtractInput 表示单个已存储文件的提取输入。
@@ -113,14 +105,12 @@ type Result struct {
 	OCRPages  []extractport.PageText
 }
 
-// NewService 创建提取服务。
-func NewService(cfg config.Config) *Service {
-	return NewServiceWithRuntime(config.NewRuntime(cfg))
-}
-
-// NewServiceWithRuntime 创建使用运行时配置容器的提取服务。
-func NewServiceWithRuntime(cfg *config.Runtime) *Service {
-	return &Service{cfg: cfg, storeProvider: appstorage.NewRuntimeProvider(cfg, nil)}
+// NewServiceWithRuntime 创建使用运行时配置容器和显式引擎工厂的提取服务。
+func NewServiceWithRuntime(cfg *config.Runtime, factories EngineFactories) *Service {
+	return &Service{
+		cfg:       cfg,
+		factories: factories,
+	}
 }
 
 // SetObjectStoreProvider 注入对象存储 provider。
@@ -131,8 +121,8 @@ func (s *Service) SetObjectStoreProvider(provider appstorage.Provider) {
 }
 
 func (s *Service) openObjectStore(ctx context.Context) (objectstore.Store, error) {
-	if s.storeProvider == nil {
-		s.storeProvider = appstorage.NewRuntimeProvider(s.cfg, nil)
+	if s == nil || s.storeProvider == nil {
+		return nil, appstorage.ErrProviderNotConfigured
 	}
 	return s.storeProvider.Open(ctx)
 }
@@ -181,7 +171,7 @@ func (s *Service) extractLocalFile(ctx context.Context, input ExtractInput, absP
 
 	pageCount := 0
 	if input.File.FileCategory == "pdf" {
-		pageCount = detectPDFPageCount(absPath)
+		pageCount = s.detectPDFPageCount(absPath)
 	}
 	if input.File.FileCategory == "image" {
 		if !input.ImageOCREnabled {
@@ -194,7 +184,7 @@ func (s *Service) extractLocalFile(ctx context.Context, input ExtractInput, absP
 	primary := s.resolvePrimaryEngine()
 	if primary != nil && !primary.Supports(input.File) {
 		if _, ok := primary.(documentParserEngine); ok {
-			primary = builtinEngine{}
+			primary = builtinEngine{parser: s.factories.Builtin}
 		}
 	}
 	if input.File.FileCategory == "pdf" {
@@ -206,7 +196,7 @@ func (s *Service) extractLocalFile(ctx context.Context, input ExtractInput, absP
 	var pdfPageProbe extractport.PDFTextResult
 	var pdfPageProbeErr error
 	if input.File.FileCategory == "pdf" && input.PDFOCRFallbackEnabled {
-		pdfPageProbe, pdfPageProbeErr = extractPDFPagesNative(absPath, input.PDFMaxPages)
+		pdfPageProbe, pdfPageProbeErr = s.extractPDFPagesNative(absPath, input.PDFMaxPages)
 	}
 	if primary != nil && primary.Supports(input.File) {
 		result, extractErr := primary.Extract(ctx, input)
@@ -308,13 +298,6 @@ func (s *Service) ReadExtractedText(ctx context.Context, relativePath string) (s
 	return sanitizeExtractedText(string(data)), nil
 }
 
-func (s *Service) snapshot() config.Config {
-	if s == nil || s.cfg == nil {
-		return config.Config{StorageRootDir: defaultStorageRootDir}
-	}
-	return s.cfg.Snapshot()
-}
-
 func (s *Service) resolvePrimaryEngine() engine {
 	snapshot := config.Config{}
 	if s != nil && s.cfg != nil {
@@ -323,10 +306,10 @@ func (s *Service) resolvePrimaryEngine() engine {
 
 	switch normalizeEngine(snapshot.ExtractEngine) {
 	case EngineTika:
-		if engineFactories.NewTika == nil {
+		if s.factories.NewTika == nil {
 			return nil
 		}
-		client := engineFactories.NewTika(snapshot)
+		client := s.factories.NewTika(snapshot)
 		if client != nil {
 			return tikaEngine{client: client}
 		}
@@ -336,7 +319,7 @@ func (s *Service) resolvePrimaryEngine() engine {
 			name:     EngineDocling,
 			supports: supportsPDFDocumentParser,
 			extract: func(ctx context.Context, input ExtractInput) (string, error) {
-				client := resolveDocumentExtractor(engineFactories.NewDocling, snapshot)
+				client := resolveDocumentExtractor(s.factories.NewDocling, snapshot)
 				if client == nil {
 					return "", fmt.Errorf("docling_unavailable")
 				}
@@ -354,7 +337,7 @@ func (s *Service) resolvePrimaryEngine() engine {
 				return supportsMinerUFile(file, snapshot.ExtractMinerUSource, snapshot.ExtractMinerUFileTypes)
 			},
 			extract: func(ctx context.Context, input ExtractInput) (string, error) {
-				client := resolveDocumentExtractor(engineFactories.NewMinerU, snapshot)
+				client := resolveDocumentExtractor(s.factories.NewMinerU, snapshot)
 				if client == nil {
 					return "", fmt.Errorf("mineru_unavailable")
 				}
@@ -365,7 +348,7 @@ func (s *Service) resolvePrimaryEngine() engine {
 			},
 		}
 	default:
-		return builtinEngine{}
+		return builtinEngine{parser: s.factories.Builtin}
 	}
 }
 
@@ -376,18 +359,18 @@ func resolveDocumentExtractor(factory func(cfg config.Config) DocumentExtractor,
 	return factory(snapshot)
 }
 
-func detectPDFPageCount(absPath string) int {
-	if engineFactories.Builtin == nil {
+func (s *Service) detectPDFPageCount(absPath string) int {
+	if s.factories.Builtin == nil {
 		return 0
 	}
-	return engineFactories.Builtin.DetectPDFPageCount(absPath)
+	return s.factories.Builtin.DetectPDFPageCount(absPath)
 }
 
-func extractPDFPagesNative(absPath string, maxPages int) (extractport.PDFTextResult, error) {
-	if engineFactories.Builtin == nil {
+func (s *Service) extractPDFPagesNative(absPath string, maxPages int) (extractport.PDFTextResult, error) {
+	if s.factories.Builtin == nil {
 		return extractport.PDFTextResult{}, errors.New("builtin_unavailable")
 	}
-	return engineFactories.Builtin.ExtractPDFPages(absPath, maxPages)
+	return s.factories.Builtin.ExtractPDFPages(absPath, maxPages)
 }
 
 func normalizeEngine(raw string) string {
@@ -550,7 +533,7 @@ func sanitizeExtractedText(text string) string {
 }
 
 func (s *Service) extractWithOCRFallback(ctx context.Context, input ExtractInput, pageCount int) (Result, error) {
-	native, err := extractPDFPagesNative(input.File.StoragePath, input.PDFMaxPages)
+	native, err := s.extractPDFPagesNative(input.File.StoragePath, input.PDFMaxPages)
 	if err != nil {
 		return s.extractWithOCRPageRanges(ctx, input, pageCount, nil)
 	}
@@ -562,7 +545,7 @@ func (s *Service) extractImageWithOCR(ctx context.Context, input ExtractInput) (
 	if s != nil && s.cfg != nil {
 		snapshot = s.cfg.Snapshot()
 	}
-	item := resolveOCREngine(snapshot, input.OCREngine)
+	item := s.resolveOCREngine(snapshot, input.OCREngine)
 	if !item.Supports(input.File) {
 		return Result{Engine: ocrEngineName(item.provider), OCRUsed: true}, NewOCRError(item.provider, "ocr_unavailable", nil)
 	}
@@ -581,7 +564,7 @@ func (s *Service) extractWithOCRPageRanges(ctx context.Context, input ExtractInp
 	if s != nil && s.cfg != nil {
 		snapshot = s.cfg.Snapshot()
 	}
-	item := resolveOCREngine(snapshot, input.OCREngine)
+	item := s.resolveOCREngine(snapshot, input.OCREngine)
 	if !item.Supports(input.File) {
 		return Result{PageCount: pageCount, Engine: ocrEngineName(item.provider), OCRUsed: true}, NewOCRError(item.provider, "ocr_unavailable", nil)
 	}
@@ -609,7 +592,9 @@ func primaryEngineName(item engine) string {
 	}
 }
 
-type builtinEngine struct{}
+type builtinEngine struct {
+	parser BuiltinParser
+}
 
 func (builtinEngine) Name() string {
 	return "builtin"
@@ -624,8 +609,8 @@ func (builtinEngine) Supports(file domainconversation.FileObject) bool {
 	}
 }
 
-func (builtinEngine) Extract(ctx context.Context, input ExtractInput) (Result, error) {
-	parser := engineFactories.Builtin
+func (e builtinEngine) Extract(ctx context.Context, input ExtractInput) (Result, error) {
+	parser := e.parser
 	if parser == nil {
 		return Result{}, errors.New("builtin_unavailable")
 	}
@@ -692,7 +677,7 @@ func (e tikaEngine) Supports(file domainconversation.FileObject) bool {
 
 func (e tikaEngine) Extract(ctx context.Context, input ExtractInput) (Result, error) {
 	if e.client == nil {
-		return Result{}, NewError("tika_disabled", errors.New("Tika is disabled"))
+		return Result{}, NewError("tika_disabled", errors.New("tika is disabled"))
 	}
 	text, err := e.client.ExtractText(ctx, extractport.DocumentRequest{
 		AbsolutePath: input.File.StoragePath,
@@ -748,10 +733,6 @@ type ocrEngine struct {
 	client   OCRExtractor
 }
 
-func (e ocrEngine) Name() string {
-	return ocrEngineName(e.provider)
-}
-
 func (e ocrEngine) Supports(file domainconversation.FileObject) bool {
 	return e.client != nil && (file.FileCategory == "pdf" || file.FileCategory == "image")
 }
@@ -782,12 +763,12 @@ func (e ocrEngine) Extract(ctx context.Context, input ExtractInput) (Result, err
 	}, nil
 }
 
-func resolveOCREngine(snapshot config.Config, mode string) ocrEngine {
+func (s *Service) resolveOCREngine(snapshot config.Config, mode string) ocrEngine {
 	mode = normalizeOCREngine(mode)
-	if engineFactories.NewOCR == nil {
+	if s.factories.NewOCR == nil {
 		return ocrEngine{provider: mode}
 	}
-	return ocrEngine{provider: mode, client: engineFactories.NewOCR(mode, snapshot)}
+	return ocrEngine{provider: mode, client: s.factories.NewOCR(mode, snapshot)}
 }
 
 func ocrEngineName(engine string) string {
@@ -812,7 +793,7 @@ func ocrEngineName(engine string) string {
 }
 
 func (s *Service) extractBuiltinPDF(ctx context.Context, input ExtractInput, pageCount int) (Result, error) {
-	native, err := extractPDFPagesNative(input.File.StoragePath, input.PDFMaxPages)
+	native, err := s.extractPDFPagesNative(input.File.StoragePath, input.PDFMaxPages)
 	if err != nil {
 		if input.PDFOCRFallbackEnabled {
 			return s.extractWithOCRPageRanges(ctx, input, pageCount, nil)

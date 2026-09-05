@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
 func TestParseGeminiResponseReasoningAndCitations(t *testing.T) {
@@ -49,7 +51,7 @@ func TestParseGeminiResponseReasoningAndCitations(t *testing.T) {
 }
 
 func TestApplyGeminiStreamChunkStoresReasoningAndCitations(t *testing.T) {
-	result := &GenerateOutput{ToolCalls: make([]ToolCall, 0)}
+	result := &portllm.GenerateOutput{ToolCalls: make([]portllm.ToolCall, 0)}
 	var reasoningText string
 	err := applyGeminiStreamChunk(mustDecodeObject(t, `{
 		"responseId": "gemini-stream-1",
@@ -68,7 +70,7 @@ func TestApplyGeminiStreamChunkStoresReasoningAndCitations(t *testing.T) {
 				}
 			}
 		]
-	}`), result, func(event GenerateStreamEvent) error {
+	}`), result, func(event portllm.GenerateStreamEvent) error {
 		if event.Reasoning != nil {
 			reasoningText += event.Reasoning.Text
 		}
@@ -114,8 +116,8 @@ func TestParseGeminiResponseCapturesFunctionCallThoughtSignature(t *testing.T) {
 }
 
 func TestBuildGeminiImageGenerationRequestBody(t *testing.T) {
-	payload, err := buildGeminiImageGenerationRequestBody("gemini-3.1-flash-image", GenerateInput{
-		Messages: []Message{
+	payload, err := buildGeminiImageGenerationRequestBody("gemini-3.1-flash-image", portllm.GenerateInput{
+		Messages: []portllm.Message{
 			{Role: "system", Content: "ignore"},
 			{Role: "user", Content: "A clean product render"},
 		},
@@ -156,8 +158,8 @@ func TestBuildGeminiImageGenerationRequestBody(t *testing.T) {
 }
 
 func TestBuildGeminiImageGenerationRequestBodySupportsResponseModalitiesAndTools(t *testing.T) {
-	payload, err := buildGeminiImageGenerationRequestBody("gemini-3-pro-image", GenerateInput{
-		Messages: []Message{{Role: "user", Content: "A clean product render"}},
+	payload, err := buildGeminiImageGenerationRequestBody("gemini-3-pro-image", portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "A clean product render"}},
 		Options: map[string]interface{}{
 			"generationConfig": map[string]interface{}{
 				"responseModalities": "IMAGE",
@@ -182,8 +184,8 @@ func TestBuildGeminiImageGenerationRequestBodySupportsResponseModalitiesAndTools
 }
 
 func TestBuildGeminiImageGenerationRequestBodyPreservesGoogleImageSearchOptions(t *testing.T) {
-	payload, err := buildGeminiImageGenerationRequestBody("gemini-3-pro-image", GenerateInput{
-		Messages: []Message{{Role: "user", Content: "Find current product imagery"}},
+	payload, err := buildGeminiImageGenerationRequestBody("gemini-3-pro-image", portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "Find current product imagery"}},
 		Options: map[string]interface{}{
 			"tools": []interface{}{
 				map[string]interface{}{
@@ -323,8 +325,8 @@ func TestParseGeminiResponseCapturesCodeExecutionServerToolTrace(t *testing.T) {
 }
 
 func TestApplyGeminiStreamChunkEmitsServerToolTrace(t *testing.T) {
-	result := &GenerateOutput{ToolCalls: make([]ToolCall, 0)}
-	events := make([]ToolCall, 0)
+	result := &portllm.GenerateOutput{ToolCalls: make([]portllm.ToolCall, 0)}
+	events := make([]portllm.ToolCall, 0)
 	err := applyGeminiStreamChunk(mustDecodeObject(t, `{
 		"responseId": "gemini-stream-tool-1",
 		"candidates": [{
@@ -335,7 +337,7 @@ func TestApplyGeminiStreamChunkEmitsServerToolTrace(t *testing.T) {
 				]
 			}
 		}]
-	}`), result, func(event GenerateStreamEvent) error {
+	}`), result, func(event portllm.GenerateStreamEvent) error {
 		if event.ServerToolCall != nil {
 			events = append(events, *event.ServerToolCall)
 		}
@@ -353,8 +355,8 @@ func TestApplyGeminiStreamChunkEmitsServerToolTrace(t *testing.T) {
 }
 
 func TestApplyGeminiStreamChunkEmitsExplicitServerToolInvocation(t *testing.T) {
-	result := &GenerateOutput{ToolCalls: make([]ToolCall, 0)}
-	events := make([]ToolCall, 0)
+	result := &portllm.GenerateOutput{ToolCalls: make([]portllm.ToolCall, 0)}
+	events := make([]portllm.ToolCall, 0)
 	err := applyGeminiStreamChunk(mustDecodeObject(t, `{
 		"responseId": "gemini-stream-tool-2",
 		"candidates": [{
@@ -365,7 +367,7 @@ func TestApplyGeminiStreamChunkEmitsExplicitServerToolInvocation(t *testing.T) {
 				"input": {"query": "SpaceX stock price"}
 			}]
 		}]
-	}`), result, func(event GenerateStreamEvent) error {
+	}`), result, func(event portllm.GenerateStreamEvent) error {
 		if event.ServerToolCall != nil {
 			events = append(events, *event.ServerToolCall)
 		}
@@ -383,7 +385,7 @@ func TestApplyGeminiStreamChunkEmitsExplicitServerToolInvocation(t *testing.T) {
 }
 
 func TestApplyGeminiStreamChunkKeepsMultipleCodeExecutionTraces(t *testing.T) {
-	result := &GenerateOutput{ToolCalls: make([]ToolCall, 0)}
+	result := &portllm.GenerateOutput{ToolCalls: make([]portllm.ToolCall, 0)}
 	chunks := []string{
 		`{"candidates":[{"content":{"parts":[{"executableCode":{"language":"PYTHON","code":"print(1)"}}]}}]}`,
 		`{"candidates":[{"content":{"parts":[{"codeExecutionResult":{"outcome":"OUTCOME_OK","output":"1\n"}}]}}]}`,
@@ -410,8 +412,8 @@ func TestApplyGeminiStreamChunkKeepsMultipleCodeExecutionTraces(t *testing.T) {
 }
 
 func TestBuildGeminiImageGenerationRequestBodyDropsUnsupportedImageSize(t *testing.T) {
-	payload, err := buildGeminiImageGenerationRequestBody("gemini-2.5-flash-image", GenerateInput{
-		Messages: []Message{{Role: "user", Content: "A clean product render"}},
+	payload, err := buildGeminiImageGenerationRequestBody("gemini-2.5-flash-image", portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "A clean product render"}},
 		Options: map[string]interface{}{
 			"aspectRatio": "1:1",
 			"imageSize":   "1K",
@@ -436,13 +438,13 @@ func TestBuildGeminiImageGenerationRequestBodyDropsUnsupportedImageSize(t *testi
 }
 
 func TestBuildGeminiImageGenerationRequestBodyIncludesInlineImages(t *testing.T) {
-	payload, err := buildGeminiImageGenerationRequestBody("gemini-3.1-flash-image", GenerateInput{
-		Messages: []Message{
+	payload, err := buildGeminiImageGenerationRequestBody("gemini-3.1-flash-image", portllm.GenerateInput{
+		Messages: []portllm.Message{
 			{
 				Role: "user",
-				Parts: []ContentPart{
-					{Kind: ContentPartText, Text: "Replace the background"},
-					{Kind: ContentPartImage, MimeType: "image/png", Data: []byte("source")},
+				Parts: []portllm.ContentPart{
+					{Kind: portllm.ContentPartText, Text: "Replace the background"},
+					{Kind: portllm.ContentPartImage, MimeType: "image/png", Data: []byte("source")},
 				},
 			},
 		},
@@ -539,16 +541,16 @@ func TestGeminiImageGenerationStream(t *testing.T) {
 	}))
 	defer server.Close()
 
-	var usageEvents []Usage
-	output, err := newTestClient().GenerateStream(context.Background(), RouteConfig{
-		Protocol:      AdapterGoogleImageGeneration,
+	var usageEvents []portllm.Usage
+	output, err := newTestClient().GenerateStream(context.Background(), portllm.RouteConfig{
+		Protocol:      portllm.AdapterGoogleImageGeneration,
 		BaseURL:       server.URL,
 		APIKey:        "gemini-key",
 		UpstreamModel: "nano-banana-pro",
-	}, GenerateInput{
-		Messages: []Message{{Role: "user", Content: "A clean product render"}},
-	}, func(event GenerateStreamEvent) error {
-		if event.Usage != (Usage{}) {
+	}, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "A clean product render"}},
+	}, func(event portllm.GenerateStreamEvent) error {
+		if event.Usage != (portllm.Usage{}) {
 			usageEvents = append(usageEvents, event.Usage)
 		}
 		return nil
@@ -575,7 +577,7 @@ func TestGeminiImageGenerationStream(t *testing.T) {
 
 func TestParseGeminiErrorProvidesUnauthorizedFallback(t *testing.T) {
 	err := parseGeminiError(http.StatusUnauthorized, nil, nil)
-	var upstreamErr *UpstreamError
+	var upstreamErr *portllm.UpstreamError
 	if !errors.As(err, &upstreamErr) {
 		t.Fatalf("expected upstream error, got %v", err)
 	}

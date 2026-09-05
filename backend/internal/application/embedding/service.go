@@ -12,10 +12,12 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/extraction"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/filetype"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/embeddingutil"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 	"go.uber.org/zap"
 )
 
@@ -136,16 +138,8 @@ type EmbeddingClient interface {
 	CallAPI(ctx context.Context, apiBase, apiKey, model string, texts []string, dimensions int, timeoutSeconds int) ([][]float32, error)
 }
 
-// NewService 创建 embedding 服务。
-func NewService(cfg config.Config, repo repository.EmbeddingRepository, extractSvc *extraction.Service, embedClient EmbeddingClient, logger *zap.Logger) *Service {
-	return NewServiceWithRuntime(config.NewRuntime(cfg), repo, extractSvc, embedClient, logger)
-}
-
 // NewServiceWithRuntime 创建使用运行时配置容器的 embedding 服务。
 func NewServiceWithRuntime(cfg *config.Runtime, repo repository.EmbeddingRepository, extractSvc *extraction.Service, embedClient EmbeddingClient, logger *zap.Logger) *Service {
-	if extractSvc == nil {
-		extractSvc = extraction.NewServiceWithRuntime(cfg)
-	}
 	return &Service{
 		cfg:         cfg,
 		repo:        repo,
@@ -254,14 +248,23 @@ func canEmbedFile(cfg config.Config, fileObj domainconversation.FileObject) bool
 }
 
 // MaybeTrigger 在满足条件时异步触发 embedding。
-func (s *Service) MaybeTrigger(fileObj domainconversation.FileObject) {
+func (s *Service) MaybeTrigger(ctx context.Context, fileObj domainconversation.FileObject) {
 	if !s.ShouldTrigger(fileObj) {
 		return
 	}
-	if available, _, _ := s.indexingAvailable(context.Background(), s.snapshot()); !available {
-		return
-	}
-	s.Trigger(fileObj)
+	background.Go(s.logger, "embedding_process_file", func() {
+		ctx, cancel := background.WithTimeout(ctx, 5*time.Minute)
+		defer cancel()
+		if available, _, _ := s.indexingAvailable(ctx, s.snapshot()); !available {
+			return
+		}
+		if err := s.ProcessFile(ctx, fileObj); err != nil && s.logger != nil {
+			s.logger.Warn("embedding_failed",
+				zap.String("file_id", fileObj.FileID),
+				zap.Error(err),
+			)
+		}
+	})
 }
 
 // PlanFiles 校验当前用户指定文件并生成向量化任务计划。
@@ -459,20 +462,6 @@ func embeddingAvailabilityError(reason string, cause error) error {
 	return ErrEmbeddingServiceUnavailable
 }
 
-// Trigger 异步触发 embedding。
-func (s *Service) Trigger(fileObj domainconversation.FileObject) {
-	background.Go(s.logger, "embedding_process_file", func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancel()
-		if err := s.ProcessFile(ctx, fileObj); err != nil && s.logger != nil {
-			s.logger.Warn("embedding_failed",
-				zap.String("file_id", fileObj.FileID),
-				zap.Error(err),
-			)
-		}
-	})
-}
-
 // ProcessFile 执行 embedding 完整流程。
 func (s *Service) ProcessFile(ctx context.Context, fileObj domainconversation.FileObject) error {
 	cfg := s.snapshot()
@@ -533,7 +522,7 @@ func (s *Service) processClaimedFile(ctx context.Context, fileObj domainconversa
 			UserID:             fileObj.UserID,
 			ChunkIndex:         i,
 			Content:            chunk,
-			TokenCount:         int(estimateTokens(chunk)),
+			TokenCount:         int(tokenestimate.Estimate(chunk)),
 			EmbeddingSignature: embeddingSignature,
 			CreatedAt:          now,
 		})
@@ -600,7 +589,7 @@ func (s *Service) updateFileObjectEmbedStatus(ctx context.Context, userID uint, 
 	writeCtx := ctx
 	if writeCtx == nil || writeCtx.Err() != nil {
 		var cancel context.CancelFunc
-		writeCtx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+		writeCtx, cancel = background.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
 	}
 	_, err := s.repo.UpdateFileObjectEmbedStatus(writeCtx, userID, fileID, embeddingSignature, status, ErrorSummary(embedErr))
@@ -943,7 +932,7 @@ func supportsEmbeddingSource(fileObj domainconversation.FileObject, cfg config.C
 	}
 	mime := strings.ToLower(strings.TrimSpace(fileObj.MimeType))
 	name := strings.TrimSpace(fileObj.FileName)
-	return isTextMIMEForEmbed(mime, name) || isPDFMIME(mime, name) || isWordMIME(mime, name) || isPresentationMIME(mime, name) || isExcelMIME(mime, name)
+	return filetype.IsText(mime, name) || isPDFMIME(mime, name) || isWordMIME(mime, name) || isPresentationMIME(mime, name) || isExcelMIME(mime, name)
 }
 
 // l2Normalize 对向量做 L2 归一化（除以欧氏模长），返回单位向量。
@@ -964,41 +953,6 @@ func l2Normalize(vector []float32) []float32 {
 	return result
 }
 
-func truncateError(message string, limit int) string {
-	value := strings.TrimSpace(message)
-	if limit <= 0 || len([]rune(value)) <= limit {
-		return value
-	}
-	runes := []rune(value)
-	return string(runes[:limit])
-}
-
-func estimateTokens(content string) int64 {
-	if len(content) == 0 {
-		return 0
-	}
-	var cjk, other int64
-	for _, r := range content {
-		if isCJKRune(r) {
-			cjk++
-		} else {
-			other++
-		}
-	}
-	tokens := (cjk*2+2)/3 + (other+3)/4
-	if tokens == 0 {
-		return 1
-	}
-	return tokens
-}
-
-func isCJKRune(r rune) bool {
-	return (r >= 0x2E80 && r <= 0x9FFF) ||
-		(r >= 0xAC00 && r <= 0xD7AF) ||
-		(r >= 0xF900 && r <= 0xFAFF) ||
-		(r >= 0x20000 && r <= 0x2A6DF)
-}
-
 func isPDFMIME(mimeType, fileName string) bool {
 	m := strings.ToLower(strings.TrimSpace(mimeType))
 	if m == "application/pdf" {
@@ -1006,29 +960,6 @@ func isPDFMIME(mimeType, fileName string) bool {
 	}
 	if idx := strings.LastIndex(fileName, "."); idx >= 0 {
 		return strings.ToLower(fileName[idx+1:]) == "pdf"
-	}
-	return false
-}
-
-func isTextMIMEForEmbed(mimeType, fileName string) bool {
-	m := strings.ToLower(strings.TrimSpace(mimeType))
-	if strings.HasPrefix(m, "text/") {
-		return true
-	}
-	switch m {
-	case "application/json", "application/xml", "application/javascript", "application/typescript",
-		"application/yaml", "application/x-yaml", "application/toml":
-		return true
-	}
-	if idx := strings.LastIndex(fileName, "."); idx >= 0 {
-		ext := strings.ToLower(fileName[idx+1:])
-		switch ext {
-		case "txt", "md", "markdown", "csv", "json", "xml", "html", "htm",
-			"css", "js", "ts", "jsx", "tsx", "py", "go", "rs", "java",
-			"c", "cpp", "h", "hpp", "cs", "rb", "php", "swift", "kt",
-			"sh", "bash", "zsh", "yaml", "yml", "toml", "ini", "conf", "sql":
-			return true
-		}
 	}
 	return false
 }

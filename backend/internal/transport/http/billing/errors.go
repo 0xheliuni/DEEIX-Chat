@@ -17,7 +17,6 @@ var (
 	errPaymentNotificationMismatch = apperr.New("payment.notification_mismatch", "payment notification does not match the order")
 	errPaymentProviderUnavailable  = apperr.New("payment.provider_unavailable", "payment provider is unavailable")
 	errPlatformModelNameRequired   = apperr.New("llm.platform_model_name_required", "platform model name is required")
-	errRedemptionCodeNotFound      = apperr.New("redemption_code.not_found", "redemption code not found")
 	errSettingsServiceUnavailable  = apperr.New("settings.service_unavailable", "settings service unavailable")
 	errStripeWebhookNotConfigured  = apperr.New("payment.webhook_not_configured", "stripe webhook is not configured")
 	errUpstreamServiceUnavailable  = apperr.New("upstream.unavailable", "upstream service unavailable")

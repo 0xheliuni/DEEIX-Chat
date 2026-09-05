@@ -8,7 +8,9 @@ import (
 	"time"
 
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/traceid"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 	"go.uber.org/zap"
 )
@@ -65,7 +67,7 @@ func (s *Service) finalizeGeneratedMediaArtifactFailure(
 	if s.isCanceledMediaGeneration(ctx, runID, err) {
 		status = "canceled"
 		var cancel context.CancelFunc
-		persistCtx, cancel = context.WithTimeout(context.WithoutCancel(ctx), generatedMediaArtifactFinalizeTimeout)
+		persistCtx, cancel = background.WithTimeout(ctx, generatedMediaArtifactFinalizeTimeout)
 		defer cancel()
 		finalErr = ErrMessageGenerationCanceled
 	} else if errors.Is(err, ErrGeneratedMediaArtifactUnavailable) {
@@ -77,7 +79,7 @@ func (s *Service) finalizeGeneratedMediaArtifactFailure(
 			assistantMessageID,
 			status,
 			classifyRunErrorCode(finalErr),
-			truncateError(messageErrorSummary(finalErr), 255),
+			textutil.TruncateTrimmed(messageErrorSummary(finalErr), 255),
 		)
 	}
 	return finalErr

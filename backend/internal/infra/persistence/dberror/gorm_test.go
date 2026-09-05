@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/gorm"
 )
 
@@ -55,6 +56,32 @@ func TestIsUniqueConstraint(t *testing.T) {
 
 			if got := IsUniqueConstraint(tt.err); got != tt.want {
 				t.Fatalf("IsUniqueConstraint() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTranslate(t *testing.T) {
+	t.Parallel()
+
+	other := errors.New("connection refused")
+	tests := []struct {
+		name string
+		err  error
+		want error
+	}{
+		{name: "nil", err: nil, want: nil},
+		{name: "record not found", err: gorm.ErrRecordNotFound, want: repository.ErrNotFound},
+		{name: "duplicate", err: gorm.ErrDuplicatedKey, want: repository.ErrDuplicate},
+		{name: "other", err: other, want: other},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if got := Translate(test.err); got != test.want {
+				t.Fatalf("Translate(%v) = %v, want %v", test.err, got, test.want)
 			}
 		})
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -290,51 +291,51 @@ func TestRegisterWithEmailDoesNotRequireTurnstileWhenEmailVerificationEnabled(t 
 	}
 }
 
-func TestResolveSecurityVerificationMethod(t *testing.T) {
+func TestResolveSecurityVerificationMethods(t *testing.T) {
 	now := time.Now()
 	cases := []struct {
 		name              string
 		emailVerification bool
 		user              *domainuser.User
 		twoFactor         *domainuser.UserTwoFactor
-		want              SecurityVerificationMethod
+		want              []SecurityVerificationMethod
 	}{
 		{
 			name:              "enabled two factor wins",
 			emailVerification: true,
 			user:              &domainuser.User{ID: 1, Email: "user@example.com", EmailVerifiedAt: &now},
 			twoFactor:         &domainuser.UserTwoFactor{UserID: 1, TOTPEnabled: true, TOTPSecretEncrypted: "secret"},
-			want:              SecurityVerificationMethodTwoFactor,
+			want:              []SecurityVerificationMethod{SecurityVerificationMethodTwoFactor, SecurityVerificationMethodEmail},
 		},
 		{
 			name:              "verified email when no two factor",
 			emailVerification: true,
 			user:              &domainuser.User{ID: 1, Email: "user@example.com", EmailVerifiedAt: &now},
-			want:              SecurityVerificationMethodEmail,
+			want:              []SecurityVerificationMethod{SecurityVerificationMethodEmail},
 		},
 		{
 			name:              "unverified email is not a verification method",
 			emailVerification: true,
 			user:              &domainuser.User{ID: 1, Email: "user@example.com"},
-			want:              SecurityVerificationMethodNone,
+			want:              []SecurityVerificationMethod{SecurityVerificationMethodNone},
 		},
 		{
 			name:              "email verification disabled",
 			emailVerification: false,
 			user:              &domainuser.User{ID: 1, Email: "user@example.com", EmailVerifiedAt: &now},
-			want:              SecurityVerificationMethodNone,
+			want:              []SecurityVerificationMethod{SecurityVerificationMethodNone},
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			service := newTestService(config.Config{EmailVerificationEnabled: tc.emailVerification}, &securityVerificationRepo{user: tc.user, twoFactor: tc.twoFactor}, nil)
-			got, err := service.resolveSecurityVerificationMethod(context.Background(), tc.user)
+			got, err := service.resolveSecurityVerificationMethods(context.Background(), tc.user)
 			if err != nil {
-				t.Fatalf("resolveSecurityVerificationMethod() error = %v", err)
+				t.Fatalf("resolveSecurityVerificationMethods() error = %v", err)
 			}
-			if got != tc.want {
-				t.Fatalf("resolveSecurityVerificationMethod() = %q, want %q", got, tc.want)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("resolveSecurityVerificationMethods() = %q, want %q", got, tc.want)
 			}
 		})
 	}

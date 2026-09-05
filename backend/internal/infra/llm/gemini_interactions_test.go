@@ -8,36 +8,38 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
 func TestGeminiInteractionsAdapterDefaults(t *testing.T) {
-	if got := DefaultEndpointForAdapter(AdapterGeminiInteractions); got != EndpointInteractions {
+	if got := portllm.DefaultEndpointForAdapter(portllm.AdapterGeminiInteractions); got != portllm.EndpointInteractions {
 		t.Fatalf("expected interactions endpoint, got %q", got)
 	}
-	if !IsVideoGenerationAdapter(AdapterGeminiInteractions) {
+	if !portllm.IsVideoGenerationAdapter(portllm.AdapterGeminiInteractions) {
 		t.Fatal("expected Gemini Interactions to be a video generation adapter")
 	}
-	if !SupportsStreamingAdapter(AdapterGeminiInteractions) {
+	if !portllm.SupportsStreamingAdapter(portllm.AdapterGeminiInteractions) {
 		t.Fatal("Gemini Interactions should support official streaming")
 	}
-	if !IsImageGenerationAdapter(AdapterGeminiInteractions) {
+	if !portllm.IsImageGenerationAdapter(portllm.AdapterGeminiInteractions) {
 		t.Fatal("Gemini Interactions should support image generation")
 	}
-	if !IsImageEditAdapter(AdapterGeminiInteractions) {
+	if !portllm.IsImageEditAdapter(portllm.AdapterGeminiInteractions) {
 		t.Fatal("Gemini Interactions should support image editing")
 	}
 }
 
 func TestBuildGeminiInteractionRequestBody(t *testing.T) {
-	payload, err := buildGeminiInteractionRequestBody(RouteConfig{
-		Endpoint:      EndpointInteractions,
+	payload, err := buildGeminiInteractionRequestBody(portllm.RouteConfig{
+		Endpoint:      portllm.EndpointInteractions,
 		UpstreamModel: "gemini-omni-flash-preview",
-	}, GenerateInput{
-		Messages: []Message{{
+	}, portllm.GenerateInput{
+		Messages: []portllm.Message{{
 			Role: "user",
-			Parts: []ContentPart{
-				{Kind: ContentPartText, Text: "A short cinematic product video"},
-				{Kind: ContentPartImage, MimeType: "image/png", Data: []byte("image-bytes")},
+			Parts: []portllm.ContentPart{
+				{Kind: portllm.ContentPartText, Text: "A short cinematic product video"},
+				{Kind: portllm.ContentPartImage, MimeType: "image/png", Data: []byte("image-bytes")},
 			},
 		}},
 		Options: map[string]interface{}{
@@ -85,10 +87,10 @@ func TestBuildGeminiInteractionRequestBody(t *testing.T) {
 }
 
 func TestBuildGeminiInteractionRequestBodyRequiresModel(t *testing.T) {
-	_, err := buildGeminiInteractionRequestBody(RouteConfig{
-		Endpoint: EndpointInteractions,
-	}, GenerateInput{
-		Messages: []Message{{Role: "user", Content: "Hello"}},
+	_, err := buildGeminiInteractionRequestBody(portllm.RouteConfig{
+		Endpoint: portllm.EndpointInteractions,
+	}, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "Hello"}},
 	})
 	if err == nil {
 		t.Fatal("expected empty Interactions model to be rejected")
@@ -96,16 +98,16 @@ func TestBuildGeminiInteractionRequestBodyRequiresModel(t *testing.T) {
 }
 
 func TestBuildGeminiInteractionRequestBodySupportsUniversalOptionsAndTools(t *testing.T) {
-	payload, err := buildGeminiInteractionRequestBody(RouteConfig{
-		Endpoint:      EndpointInteractions,
+	payload, err := buildGeminiInteractionRequestBody(portllm.RouteConfig{
+		Endpoint:      portllm.EndpointInteractions,
 		UpstreamModel: "gemini-3-flash-preview",
-	}, GenerateInput{
-		Messages: []Message{
+	}, portllm.GenerateInput{
+		Messages: []portllm.Message{
 			{Role: "user", Content: "Create a short answer and an image."},
 			{
 				Role:    "assistant",
 				Content: "I need the weather first.",
-				ToolCalls: []ToolCall{{
+				ToolCalls: []portllm.ToolCall{{
 					ToolCallID:    "call_weather",
 					ToolName:      "get_weather",
 					ArgumentsJSON: `{"location":"Paris"}`,
@@ -113,7 +115,7 @@ func TestBuildGeminiInteractionRequestBodySupportsUniversalOptionsAndTools(t *te
 			},
 			{
 				Role: "tool",
-				ToolResults: []ToolResult{{
+				ToolResults: []portllm.ToolResult{{
 					ToolCallID: "call_weather",
 					ToolName:   "get_weather",
 					OutputJSON: `{"temperature":"20C"}`,
@@ -121,7 +123,7 @@ func TestBuildGeminiInteractionRequestBodySupportsUniversalOptionsAndTools(t *te
 			},
 			{Role: "user", Content: "Use that result."},
 		},
-		Tools: []ToolDefinition{{
+		Tools: []portllm.ToolDefinition{{
 			Name:        "get_weather",
 			Description: "Gets weather for a location.",
 			InputSchema: json.RawMessage(`{
@@ -207,8 +209,8 @@ func TestBuildGeminiInteractionRequestBodySupportsUniversalOptionsAndTools(t *te
 }
 
 func TestBuildGeminiInteractionRequestBodyMergesNativeAndFunctionTools(t *testing.T) {
-	input := GenerateInput{
-		Messages: []Message{{Role: "user", Content: "Research and calculate."}},
+	input := portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "Research and calculate."}},
 		Options: map[string]interface{}{
 			"tools": []interface{}{
 				map[string]interface{}{"type": "google_search"},
@@ -216,14 +218,14 @@ func TestBuildGeminiInteractionRequestBodyMergesNativeAndFunctionTools(t *testin
 				map[string]interface{}{"type": "url_context"},
 			},
 		},
-		Tools: []ToolDefinition{{
+		Tools: []portllm.ToolDefinition{{
 			Name:        "get_weather",
 			Description: "Gets weather.",
 			InputSchema: json.RawMessage(`{"type":"object"}`),
 		}},
 	}
-	payload, err := buildGeminiInteractionRequestBody(RouteConfig{
-		Endpoint:      EndpointInteractions,
+	payload, err := buildGeminiInteractionRequestBody(portllm.RouteConfig{
+		Endpoint:      portllm.EndpointInteractions,
 		UpstreamModel: "gemini-3.5-flash",
 	}, input)
 	if err != nil {
@@ -244,8 +246,8 @@ func TestBuildGeminiInteractionRequestBodyMergesNativeAndFunctionTools(t *testin
 	}
 
 	input.DisableTools = true
-	disabledPayload, err := buildGeminiInteractionRequestBody(RouteConfig{
-		Endpoint:      EndpointInteractions,
+	disabledPayload, err := buildGeminiInteractionRequestBody(portllm.RouteConfig{
+		Endpoint:      portllm.EndpointInteractions,
 		UpstreamModel: "gemini-3.5-flash",
 	}, input)
 	if err != nil {
@@ -257,12 +259,12 @@ func TestBuildGeminiInteractionRequestBodyMergesNativeAndFunctionTools(t *testin
 }
 
 func TestBuildGeminiInteractionToolsPreservesJSONSchemaReferences(t *testing.T) {
-	payload, err := buildGeminiInteractionRequestBody(RouteConfig{
-		Endpoint:      EndpointInteractions,
+	payload, err := buildGeminiInteractionRequestBody(portllm.RouteConfig{
+		Endpoint:      portllm.EndpointInteractions,
 		UpstreamModel: "gemini-3-flash-preview",
-	}, GenerateInput{
-		Messages: []Message{{Role: "user", Content: "Run the workflow."}},
-		Tools: []ToolDefinition{{
+	}, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "Run the workflow."}},
+		Tools: []portllm.ToolDefinition{{
 			Name:        "run_workflow",
 			Description: "Runs a workflow.",
 			InputSchema: json.RawMessage(`{
@@ -303,11 +305,11 @@ func TestBuildGeminiInteractionToolsPreservesJSONSchemaReferences(t *testing.T) 
 }
 
 func TestBuildGeminiInteractionRequestBodyAcceptsTypedResponseFormatList(t *testing.T) {
-	payload, err := buildGeminiInteractionRequestBody(RouteConfig{
-		Endpoint:      EndpointInteractions,
+	payload, err := buildGeminiInteractionRequestBody(portllm.RouteConfig{
+		Endpoint:      portllm.EndpointInteractions,
 		UpstreamModel: "gemini-3-flash-preview",
-	}, GenerateInput{
-		Messages: []Message{{Role: "user", Content: "Return text and image."}},
+	}, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "Return text and image."}},
 		Options: map[string]interface{}{
 			"response_format": []map[string]interface{}{
 				{"type": "text"},
@@ -329,11 +331,11 @@ func TestBuildGeminiInteractionRequestBodyAcceptsTypedResponseFormatList(t *test
 }
 
 func TestBuildGeminiInteractionRequestBodyNormalizesVideoOptions(t *testing.T) {
-	payload, err := buildGeminiInteractionRequestBody(RouteConfig{
-		Endpoint:      EndpointInteractions,
+	payload, err := buildGeminiInteractionRequestBody(portllm.RouteConfig{
+		Endpoint:      portllm.EndpointInteractions,
 		UpstreamModel: "gemini-omni-flash-preview",
-	}, GenerateInput{
-		Messages: []Message{{Role: "user", Content: "Edit this video."}},
+	}, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "Edit this video."}},
 		Options: map[string]interface{}{
 			"response_format": map[string]interface{}{"type": "video", "aspect_ratio": "1:1"},
 			"generation_config": map[string]interface{}{
@@ -355,12 +357,12 @@ func TestBuildGeminiInteractionRequestBodyNormalizesVideoOptions(t *testing.T) {
 }
 
 func TestBuildGeminiInteractionRequestBodyUsesConversationSteps(t *testing.T) {
-	payload, err := buildGeminiInteractionRequestBody(RouteConfig{
-		Endpoint:      EndpointInteractions,
+	payload, err := buildGeminiInteractionRequestBody(portllm.RouteConfig{
+		Endpoint:      portllm.EndpointInteractions,
 		UpstreamModel: "gemini-3.5-flash",
-	}, GenerateInput{
+	}, portllm.GenerateInput{
 		Instructions: "Be concise.",
-		Messages: []Message{
+		Messages: []portllm.Message{
 			{Role: "user", Content: "Hello"},
 			{Role: "assistant", Content: "Hi"},
 			{Role: "user", Content: "Reply with OK."},
@@ -566,10 +568,10 @@ func TestParseGeminiInteractionOutputExtractsNativeToolTracesAndUsage(t *testing
 }
 
 func TestApplyGeminiInteractionStreamEventMergesNativeToolDeltas(t *testing.T) {
-	result := &GenerateOutput{}
+	result := &portllm.GenerateOutput{}
 	streamState := newGeminiInteractionStreamState()
-	events := make([]ToolCall, 0)
-	onEvent := func(event GenerateStreamEvent) error {
+	events := make([]portllm.ToolCall, 0)
+	onEvent := func(event portllm.GenerateStreamEvent) error {
 		if event.ServerToolCall != nil {
 			events = append(events, *event.ServerToolCall)
 		}
@@ -608,7 +610,7 @@ func TestApplyGeminiInteractionStreamEventMergesNativeToolDeltas(t *testing.T) {
 }
 
 func TestApplyGeminiInteractionStreamEventPreservesInt64StepIndex(t *testing.T) {
-	result := &GenerateOutput{}
+	result := &portllm.GenerateOutput{}
 	streamState := newGeminiInteractionStreamState()
 	chunks := []string{
 		`{"event_type":"step.start","index":"9223372036854775807","step":{"type":"google_search_call","arguments":{"queries":["Gemini"]}}}`,
@@ -628,15 +630,15 @@ func TestApplyGeminiInteractionStreamEventPreservesInt64StepIndex(t *testing.T) 
 }
 
 func TestApplyGeminiInteractionStreamEventCapturesThoughtSummaryAndMetadataUsage(t *testing.T) {
-	result := &GenerateOutput{}
+	result := &portllm.GenerateOutput{}
 	streamState := newGeminiInteractionStreamState()
-	reasoningEvents := make([]ReasoningDelta, 0)
-	usageEvents := make([]Usage, 0)
-	onEvent := func(event GenerateStreamEvent) error {
+	reasoningEvents := make([]portllm.ReasoningDelta, 0)
+	usageEvents := make([]portllm.Usage, 0)
+	onEvent := func(event portllm.GenerateStreamEvent) error {
 		if event.Reasoning != nil {
 			reasoningEvents = append(reasoningEvents, *event.Reasoning)
 		}
-		if event.Usage != (Usage{}) {
+		if event.Usage != (portllm.Usage{}) {
 			usageEvents = append(usageEvents, event.Usage)
 		}
 		return nil
@@ -715,12 +717,12 @@ func TestGenerateGeminiInteractionPostsInteractionsRequest(t *testing.T) {
 	}))
 	defer server.Close()
 
-	output, err := newTestClient().generateGeminiInteraction(context.Background(), RouteConfig{
+	output, err := newTestClient().generateGeminiInteraction(context.Background(), portllm.RouteConfig{
 		BaseURL:       server.URL,
 		APIKey:        "test-key",
 		UpstreamModel: "gemini-omni-flash-preview",
-	}, GenerateInput{
-		Messages: []Message{{Role: "user", Content: "Make a short video"}},
+	}, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "Make a short video"}},
 		Options:  map[string]interface{}{"response_format": map[string]interface{}{"type": "video"}},
 	})
 	if err != nil {
@@ -795,25 +797,25 @@ data: [DONE]
 	defer server.Close()
 
 	var deltas []string
-	var reasoningDeltas []ReasoningDelta
-	var usageEvents []Usage
-	var serverToolEvents []ToolCall
-	var imageEvents []GenerateStreamEvent
-	output, err := newTestClient().GenerateStream(context.Background(), RouteConfig{
-		Protocol:      AdapterGeminiInteractions,
+	var reasoningDeltas []portllm.ReasoningDelta
+	var usageEvents []portllm.Usage
+	var serverToolEvents []portllm.ToolCall
+	var imageEvents []portllm.GenerateStreamEvent
+	output, err := newTestClient().GenerateStream(context.Background(), portllm.RouteConfig{
+		Protocol:      portllm.AdapterGeminiInteractions,
 		BaseURL:       server.URL,
 		APIKey:        "test-key",
 		UpstreamModel: "gemini-3.5-flash",
-	}, GenerateInput{
-		Messages: []Message{{Role: "user", Content: "How does AI work?"}},
-	}, func(event GenerateStreamEvent) error {
+	}, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "How does AI work?"}},
+	}, func(event portllm.GenerateStreamEvent) error {
 		if event.Delta != "" {
 			deltas = append(deltas, event.Delta)
 		}
 		if event.Reasoning != nil {
 			reasoningDeltas = append(reasoningDeltas, *event.Reasoning)
 		}
-		if event.Usage != (Usage{}) {
+		if event.Usage != (portllm.Usage{}) {
 			usageEvents = append(usageEvents, event.Usage)
 		}
 		if event.ServerToolCall != nil {
@@ -942,7 +944,7 @@ func TestParseGeminiInteractionOutputExtractsOfficialServerToolSteps(t *testing.
 }
 
 func TestGeminiInteractionStreamToolCallKeepsStepStartArgumentsWithoutDeltas(t *testing.T) {
-	result := &GenerateOutput{}
+	result := &portllm.GenerateOutput{}
 	state := &geminiInteractionStreamState{}
 	updateGeminiInteractionStreamToolCall(result, state, map[string]interface{}{
 		"index": float64(0),
@@ -962,7 +964,7 @@ func TestGeminiInteractionStreamToolCallKeepsStepStartArgumentsWithoutDeltas(t *
 }
 
 func TestNewGeminiRequestUsesOnlyGoogleAPIKeyForOfficialHost(t *testing.T) {
-	req, err := newTestClient().newGeminiRequest(context.Background(), http.MethodPost, "https://generativelanguage.googleapis.com/v1beta/interactions", nil, RouteConfig{
+	req, err := newTestClient().newGeminiRequest(context.Background(), http.MethodPost, "https://generativelanguage.googleapis.com/v1beta/interactions", nil, portllm.RouteConfig{
 		APIKey: "test-key",
 	}, nil)
 	if err != nil {

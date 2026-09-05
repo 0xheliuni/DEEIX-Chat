@@ -109,10 +109,6 @@ func (s *Service) ListServers(ctx context.Context) ([]domainmcp.Server, error) {
 	return s.repo.ListServers(ctx)
 }
 
-func (s *Service) GetServer(ctx context.Context, serverID uint) (*domainmcp.Server, error) {
-	return s.repo.GetServer(ctx, serverID)
-}
-
 func (s *Service) CreateServer(ctx context.Context, input ServerInput) (*domainmcp.Server, error) {
 	normalized, err := s.normalizeServerInput(input, true)
 	if err != nil {

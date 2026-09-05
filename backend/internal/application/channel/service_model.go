@@ -14,6 +14,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/channelconfig"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/nativetool"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"go.uber.org/zap"
 )
 
@@ -37,7 +38,7 @@ type ListModelsInput struct {
 
 // ListModels 分页查询模型目录。
 func (s *Service) ListModels(ctx context.Context, page int, pageSize int, input ListModelsInput) ([]ModelView, int64, error) {
-	offset, limit := normalizePage(page, pageSize)
+	offset, limit := pagination.Offset(page, pageSize)
 	items, total, err := s.repo.ListModels(ctx, repository.ListChannelModelsInput{
 		Offset:        offset,
 		Limit:         limit,
@@ -718,7 +719,7 @@ func (s *Service) ListModelUpstreamSources(ctx context.Context, modelID uint, pa
 	if err != nil {
 		return nil, 0, err
 	}
-	offset, limit := normalizePage(page, pageSize)
+	offset, limit := pagination.Offset(page, pageSize)
 	items, total, err := s.repo.ListModelUpstreamSources(ctx, modelItem.PlatformModelName, offset, limit)
 	if err != nil {
 		return nil, 0, err

@@ -7,8 +7,10 @@ import (
 
 	appskill "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/skill"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/queryparam"
 	"github.com/gin-gonic/gin"
 )
 
@@ -38,7 +40,7 @@ func NewHandler(service *appskill.Service) *Handler {
 // @Failure 500 {object} ErrorDoc
 // @Router /skills [get]
 func (h *Handler) ListVisibleSkills(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	rawIDs := c.QueryArray("id")
 	if len(rawIDs) > config.MaxMCPSelectedToolsPerMessage {
 		response.ErrorWithCode(c, http.StatusBadRequest, "skill.too_many_ids")
@@ -112,10 +114,10 @@ func (h *Handler) GetVisibleSkill(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /skills/mine [get]
 func (h *Handler) ListMySkills(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	items, total, err := h.service.ListMine(c.Request.Context(), middleware.MustUserID(c), appskill.ListInput{
 		Query:    c.Query("q"),
-		Enabled:  boolQuery(c, "enabled"),
+		Enabled:  queryparam.OptionalBool(c.Query("enabled")),
 		Page:     page,
 		PageSize: pageSize,
 	})
@@ -222,10 +224,10 @@ func (h *Handler) DeleteMySkill(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/skills [get]
 func (h *Handler) ListAdminSkills(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	items, total, err := h.service.ListAdminBuiltin(c.Request.Context(), appskill.ListInput{
 		Query:    c.Query("q"),
-		Enabled:  boolQuery(c, "enabled"),
+		Enabled:  queryparam.OptionalBool(c.Query("enabled")),
 		Page:     page,
 		PageSize: pageSize,
 	})
@@ -351,38 +353,6 @@ func idParam(c *gin.Context) (uint, bool) {
 		return 0, false
 	}
 	return uint(id), true
-}
-
-func boolQuery(c *gin.Context, key string) *bool {
-	raw := c.Query(key)
-	if raw == "" {
-		return nil
-	}
-	parsed, err := strconv.ParseBool(raw)
-	if err != nil {
-		return nil
-	}
-	return &parsed
-}
-
-func pageParams(c *gin.Context) (int, int) {
-	page := 1
-	pageSize := 20
-	const maxPageSize = 1000
-	if raw := c.Query("page"); raw != "" {
-		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
-			page = parsed
-		}
-	}
-	if raw := c.Query("page_size"); raw != "" {
-		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
-			pageSize = parsed
-		}
-	}
-	if pageSize > maxPageSize {
-		pageSize = maxPageSize
-	}
-	return page, pageSize
 }
 
 func auditInput(c *gin.Context, action string, resourceID uint, detail interface{}) appskill.AuditInput {

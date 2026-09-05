@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/gorm"
 )
 
@@ -32,4 +33,18 @@ func IsUniqueConstraint(err error) bool {
 	return strings.Contains(msg, "duplicate key") ||
 		strings.Contains(msg, "unique constraint") ||
 		strings.Contains(msg, "unique constraint failed")
+}
+
+// Translate 将通用数据库错误映射为仓储契约错误。
+func Translate(err error) error {
+	if err == nil {
+		return nil
+	}
+	if IsRecordNotFound(err) {
+		return repository.ErrNotFound
+	}
+	if IsUniqueConstraint(err) {
+		return repository.ErrDuplicate
+	}
+	return err
 }

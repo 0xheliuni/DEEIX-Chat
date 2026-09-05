@@ -8,6 +8,8 @@ import (
 	"time"
 
 	domaincm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/contentmoderation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"go.uber.org/zap"
 )
 
@@ -49,6 +51,7 @@ type LiveEmitter func(eventType string, payload map[string]interface{})
 // RunCoordinator tracks moderation tasks for a single chat/media run.
 type RunCoordinator struct {
 	service  *Service
+	ctx      context.Context
 	meta     RunMeta
 	cfg      runtimeConfig
 	liveEmit LiveEmitter
@@ -67,9 +70,10 @@ type RunCoordinator struct {
 	outputEnqueued bool
 }
 
-func newRunCoordinator(service *Service, meta RunMeta, cfg runtimeConfig) *RunCoordinator {
+func newRunCoordinator(ctx context.Context, service *Service, meta RunMeta, cfg runtimeConfig) *RunCoordinator {
 	return &RunCoordinator{
 		service: service,
+		ctx:     background.Detach(ctx),
 		meta:    meta,
 		cfg:     cfg,
 		allDone: make(chan struct{}),
@@ -299,7 +303,7 @@ func (c *RunCoordinator) updateRunState(state, eventID, categoriesJSON string) {
 	if c == nil || c.meta.Ephemeral || c.service == nil || c.service.repo == nil {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := background.WithTimeout(c.ctx, 5*time.Second)
 	defer cancel()
 	if err := c.service.repo.UpdateRunModeration(ctx, c.meta.RunID, state, eventID, categoriesJSON); err != nil {
 		c.service.logWarn("content_moderation_update_run_state_failed", zap.String("run_id", c.meta.RunID), zap.String("state", state), zap.Error(err))
@@ -333,7 +337,7 @@ func (c *RunCoordinator) recordSurfaceFailure(direction, modality, fileID string
 			zap.Error(surfaceErr),
 		)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := background.WithTimeout(c.ctx, 5*time.Second)
 	defer cancel()
 	c.service.recordFailedOpen(ctx, c.meta, direction, modality, domaincm.ErrorCodeServiceError, 0)
 	c.service.bumpDailyStat(ctx, direction, modality, domaincm.ResultFailedOpen, "", 1, 1, 0, 1, 0)
@@ -374,7 +378,7 @@ func (c *RunCoordinator) enqueueOutputImages(images []OutputImageSource) {
 			continue
 		}
 		seen[sha] = struct{}{}
-		img.MimeType = firstNonEmpty(img.MimeType, "image/png")
+		img.MimeType = textutil.FirstNonEmpty(img.MimeType, "image/png")
 		raw = append(raw, img)
 	}
 	if len(raw) == 0 {
@@ -461,7 +465,7 @@ func (c *RunCoordinator) onTaskResult(task *moderationTask, result taskResult) *
 	if cancelInput {
 		c.cancelOnce.Do(func() {
 			if c.service.cancelRun != nil {
-				c.service.cancelRun(c.meta.RunID)
+				c.service.cancelRun(c.ctx, c.meta.RunID)
 			}
 		})
 	}
@@ -528,7 +532,7 @@ func (c *RunCoordinator) applyBlock(info BlockInfo) (bool, error) {
 		return c.notifyBlocked(info), nil
 	}
 	// Client disconnect cancels the request context; persistence must survive that.
-	persistCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	persistCtx, cancel := background.WithTimeout(c.ctx, 15*time.Second)
 	defer cancel()
 	includeUser := info.Direction == domaincm.DirectionInput
 	categoriesJSON := mustJSON(info.Categories)
@@ -543,13 +547,13 @@ func (c *RunCoordinator) applyBlock(info BlockInfo) (bool, error) {
 		return false, err
 	}
 	c.service.removePendingBlock(c.meta.RunID)
-	c.service.deleteBlockedOutputFiles(fileIDs)
+	c.service.deleteBlockedOutputFiles(c.ctx, fileIDs)
 	return c.notifyBlocked(info), nil
 }
 
 func (c *RunCoordinator) notifyBlocked(info BlockInfo) bool {
 	if c.service.onBlocked != nil {
-		c.service.onBlocked(c.meta.RunID, info)
+		c.service.onBlocked(c.ctx, c.meta.RunID, info)
 	}
 	c.emit("moderation_blocked", map[string]interface{}{
 		"type":       "moderation_blocked",
@@ -573,7 +577,7 @@ func (c *RunCoordinator) emit(eventType string, payload map[string]interface{}) 
 		return
 	}
 	if c.service != nil && c.service.emitEvent != nil {
-		c.service.emitEvent(c.meta.RunID, eventType, payload)
+		c.service.emitEvent(c.ctx, c.meta.RunID, eventType, payload)
 	}
 }
 

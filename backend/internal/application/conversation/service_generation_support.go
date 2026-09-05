@@ -13,6 +13,8 @@ import (
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -32,7 +34,7 @@ func (s *Service) embedMessagePair(ctx context.Context, conversationID uint, use
 			Role:           "user",
 			ChunkIndex:     0,
 			Content:        userMsg.Content,
-			TokenCount:     int(estimateTokens(userMsg.Content)),
+			TokenCount:     int(tokenestimate.Estimate(userMsg.Content)),
 		})
 		texts = append(texts, userMsg.Content)
 	}
@@ -44,7 +46,7 @@ func (s *Service) embedMessagePair(ctx context.Context, conversationID uint, use
 			Role:           "assistant",
 			ChunkIndex:     0,
 			Content:        assistantMsg.Content,
-			TokenCount:     int(estimateTokens(assistantMsg.Content)),
+			TokenCount:     int(tokenestimate.Estimate(assistantMsg.Content)),
 		})
 		texts = append(texts, assistantMsg.Content)
 	}
@@ -233,7 +235,7 @@ func (s *Service) recordBasicServiceUsage(
 	if s.billingSvc == nil || userID == 0 || conversationID == 0 || strings.TrimSpace(platformModelName) == "" {
 		return nil
 	}
-	billingCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	billingCtx, cancel := background.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	// 基础服务常与主对话共享系统前缀，提示词全部命中缓存时非缓存输入为 0 是合法观测值，
 	// 只有上游完全没上报输入侧用量才用预估补齐。
@@ -243,7 +245,7 @@ func (s *Service) recordBasicServiceUsage(
 	}
 	outputTokens := usage.OutputTokens
 	if outputTokens <= 0 {
-		outputTokens = estimateTokens(fallbackOutput)
+		outputTokens = tokenestimate.Estimate(fallbackOutput)
 	}
 	item := appbilling.ServiceUsageInput{
 		ServiceCode:        strings.TrimSpace(serviceCode),

@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	appaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/audit"
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	appcompact "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/compact"
@@ -81,7 +82,7 @@ type mcpToolCaller interface {
 }
 
 type auditWriter interface {
-	Write(ctx context.Context, requestID string, actorUserID uint, action string, resource string, resourceID string, ip string, userAgent string, detail interface{})
+	Write(ctx context.Context, input appaudit.WriteInput)
 }
 
 // generatedMediaDownloader 定义会话用例所需的最小媒体下载端口，避免应用层感知 HTTP 细节。
@@ -296,7 +297,6 @@ func NewServiceWithRuntime(
 		uploadSvc:         uploadSvc,
 		extractSvc:        extractSvc,
 		ragSvc:            ragSvc,
-		storeProvider:     appstorage.NewRuntimeProvider(cfg, nil),
 		logger:            logger,
 		generationStreams: newGenerationStreamRegistry(cache, defaultGenerationStreamOptions()),
 		imageContextCache: defaultPreparedConversationImageCache(),
@@ -304,6 +304,14 @@ func NewServiceWithRuntime(
 	// 注入 LLM 语义压缩回调（在 svc 完全初始化后绑定）
 	svc.compactSvc.SetLLMSummarizer(svc.callCompactLLM)
 	return svc
+}
+
+// Close 停止接收新流式生成，取消活动生成，并等待请求收尾与常驻事件读取器退出。
+func (s *Service) Close() {
+	if s == nil || s.generationStreams == nil {
+		return
+	}
+	s.generationStreams.close()
 }
 
 // UploadErrorSet 让上传服务返回会话域的文件错误哨兵，HTTP 层因此沿用同一套文件错误映射。
@@ -316,7 +324,6 @@ func UploadErrorSet() appupload.ErrorSet {
 		StorageQuotaExceeded: ErrStorageQuotaExceeded,
 		FileTooLarge:         ErrFileTooLarge,
 		MIMEBlocked:          ErrMIMEBlocked,
-		EmbeddingUnavailable: ErrEmbeddingUnavailable,
 		DangerousMIMEType:    ErrDangerousMIMEType,
 	}
 }

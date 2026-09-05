@@ -1,6 +1,10 @@
 package llm
 
-import "strings"
+import (
+	"strings"
+
+	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
+)
 
 const (
 	openAIPromptCacheModeExplicit = "explicit"
@@ -13,7 +17,7 @@ type openAIPromptCacheConfig struct {
 	Explicit bool
 }
 
-func resolveOpenAIPromptCacheConfig(adapter string, input GenerateInput) openAIPromptCacheConfig {
+func resolveOpenAIPromptCacheConfig(adapter string, input portllm.GenerateInput) openAIPromptCacheConfig {
 	config := openAIPromptCacheConfig{}
 	if input.Ephemeral || !isOpenAITextAdapter(adapter) {
 		return config
@@ -25,8 +29,8 @@ func resolveOpenAIPromptCacheConfig(adapter string, input GenerateInput) openAIP
 }
 
 func isOpenAITextAdapter(adapter string) bool {
-	adapter = NormalizeAdapter(adapter)
-	return adapter == AdapterOpenAIResponses || adapter == AdapterOpenAIChatCompletions
+	adapter = portllm.NormalizeAdapter(adapter)
+	return adapter == portllm.AdapterOpenAIResponses || adapter == portllm.AdapterOpenAIChatCompletions
 }
 
 func normalizedOpenAIPromptCacheOptions(options map[string]interface{}) map[string]interface{} {
@@ -57,7 +61,7 @@ func applyOpenAIPromptCacheRequestFields(payload map[string]interface{}, config 
 	}
 }
 
-func appendOpenAIPromptCacheBreakpoint(block map[string]interface{}, hint *CacheControl, config *openAIPromptCacheConfig) bool {
+func appendOpenAIPromptCacheBreakpoint(block map[string]interface{}, hint *portllm.CacheControl, config *openAIPromptCacheConfig) bool {
 	if block == nil || hint == nil || config == nil || !config.Explicit ||
 		!openAIContentBlockSupportsPromptCacheBreakpoint(block) {
 		return false

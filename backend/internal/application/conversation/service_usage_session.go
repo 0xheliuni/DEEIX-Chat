@@ -6,6 +6,7 @@ import (
 	"time"
 
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"go.uber.org/zap"
 )
 
@@ -41,7 +42,7 @@ func (s *Service) BeginUsageSession(ctx context.Context, input SendMessageBillin
 		service:       s,
 		input:         input,
 		authorization: authorization,
-		stopRenewal:   s.startUsageAuthorizationRenewal(authorization),
+		stopRenewal:   s.startUsageAuthorizationRenewal(ctx, authorization),
 	}, nil
 }
 
@@ -59,9 +60,6 @@ func (u *UsageSession) Authorization() *domainbilling.UsageAuthorization {
 func (u *UsageSession) Finish(ctx context.Context, result *SendMessageResult) error {
 	if u == nil || !u.markFinished() {
 		return nil
-	}
-	if ctx == nil {
-		ctx = context.Background()
 	}
 	if u.stopRenewal != nil {
 		u.stopRenewal()
@@ -96,7 +94,7 @@ func (u *UsageSession) settle(ctx context.Context, result *SendMessageResult) er
 	if u.service == nil || result == nil {
 		return nil
 	}
-	settleCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), usageSessionSettleTimeout)
+	settleCtx, cancel := background.WithTimeout(ctx, usageSessionSettleTimeout)
 	defer cancel()
 	input := u.input
 	input.Result = result
@@ -113,7 +111,7 @@ func (u *UsageSession) release(ctx context.Context) error {
 	if u.service == nil {
 		return nil
 	}
-	releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), usageSessionReleaseTimeout)
+	releaseCtx, cancel := background.WithTimeout(ctx, usageSessionReleaseTimeout)
 	defer cancel()
 	if err := u.service.ReleaseSendMessageUsageAuthorization(releaseCtx, u.authorization); err != nil {
 		u.logFailure("usage_session_release_failed", err)
@@ -140,7 +138,7 @@ func (u *UsageSession) logFailure(event string, err error) {
 
 // startUsageAuthorizationRenewal 为长时间运行的付费调用持续刷新预算租约。
 // 返回的停止函数幂等，且会等待正在进行的续租结束，保证结算与续租不会并发改写同一预留。
-func (s *Service) startUsageAuthorizationRenewal(authorization *domainbilling.UsageAuthorization) func() {
+func (s *Service) startUsageAuthorizationRenewal(parent context.Context, authorization *domainbilling.UsageAuthorization) func() {
 	if authorization == nil || authorization.Reservation == nil {
 		return func() {}
 	}
@@ -153,7 +151,7 @@ func (s *Service) startUsageAuthorizationRenewal(authorization *domainbilling.Us
 		for {
 			select {
 			case <-ticker.C:
-				ctx, cancel := context.WithTimeout(context.Background(), usageSessionReleaseTimeout)
+				ctx, cancel := background.WithTimeout(parent, usageSessionReleaseTimeout)
 				err := s.RenewSendMessageUsageAuthorization(ctx, authorization)
 				cancel()
 				if err != nil && s.logger != nil {

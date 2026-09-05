@@ -2,6 +2,7 @@ package conversation
 
 import (
 	"encoding/json"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"strings"
 	"time"
 
@@ -1053,10 +1054,6 @@ func toMessageBillingCostResponse(m model.Message) *MessageBillingCostResponse {
 	}
 }
 
-func toMessageResponse(m model.Message) MessageResponse {
-	return toMessageResponseWithRun(m, model.Run{})
-}
-
 // toMessageResponseWithRun 将消息和同 run 的模型快照合并成前端展示 DTO。
 func toMessageResponseWithRun(m model.Message, run model.Run) MessageResponse {
 	return toMessageResponseWithRunAndFallback(m, run, "")
@@ -1194,7 +1191,7 @@ func toMessageResponseWithRunAndFallbackAdmin(m model.Message, run model.Run, fa
 	if !strings.EqualFold(strings.TrimSpace(m.Status), "blocked") {
 		return resp
 	}
-	eventID := strings.TrimSpace(firstNonEmptyString(m.ModerationEventID, run.ModerationEventID))
+	eventID := strings.TrimSpace(textutil.FirstNonEmpty(m.ModerationEventID, run.ModerationEventID))
 	placeholder := "[blocked by content moderation"
 	if eventID != "" {
 		placeholder += "; event " + eventID
@@ -1212,15 +1209,6 @@ func toMessageResponseWithRunAndFallbackAdmin(m model.Message, run model.Run, fa
 		}
 	}
 	return resp
-}
-
-func firstNonEmptyString(values ...string) string {
-	for _, v := range values {
-		if strings.TrimSpace(v) != "" {
-			return strings.TrimSpace(v)
-		}
-	}
-	return ""
 }
 
 // ---------- Send Message ----------

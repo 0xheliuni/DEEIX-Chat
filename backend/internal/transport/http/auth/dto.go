@@ -783,11 +783,6 @@ func toUpsertIdentityProviderInput(req UpsertIdentityProviderRequest, actorRole 
 	}
 }
 
-// toMeResponse 将 MeResult 映射为响应 DTO。
-func toMeResponse(d *appauth.MeResult) MeResponse {
-	return MeResponse{User: toUserResponse(d.User)}
-}
-
 // toActiveSessionResponse 将 ActiveSessionResult 映射为响应 DTO。
 func toActiveSessionResponse(d appauth.ActiveSessionResult) ActiveSessionResponse {
 	return ActiveSessionResponse{

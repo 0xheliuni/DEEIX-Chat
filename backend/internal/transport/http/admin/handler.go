@@ -19,6 +19,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/user"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainknowledgebase "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/knowledgebase"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	conversationhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
@@ -72,7 +73,7 @@ func (h *Handler) SetConversationExporter(exporter conversationExporter) {
 // @Router /admin/users [get]
 // ListUsers 列出用户。
 func (h *Handler) ListUsers(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	items, total, err := h.service.ListUsers(c.Request.Context(), page, pageSize, appadmin.UserListFilter{
 		Query:              c.Query("q"),
 		SubscriptionStatus: c.Query("subscription_status"),
@@ -336,7 +337,7 @@ func (h *Handler) PatchUser(c *gin.Context) {
 // @Router /admin/audit-logs [get]
 // ListAuditLogs 查询审计日志。
 func (h *Handler) ListAuditLogs(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	actorUserID, ok := parseOptionalUintQuery(c, "actor_user_id")
 	if !ok {
 		return
@@ -488,7 +489,7 @@ func (h *Handler) CleanupConversationRuns(c *gin.Context) {
 // @Router /admin/call-logs [get]
 // ListUsageLogs 查询模型调用日志。
 func (h *Handler) ListUsageLogs(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	userID, ok := parseOptionalUintQuery(c, "user_id")
 	if !ok {
 		return
@@ -668,7 +669,7 @@ func (h *Handler) GetUsageStatistics(c *gin.Context) {
 // @Router /admin/payment-orders [get]
 // ListPaymentOrders 查询支付订单记录。
 func (h *Handler) ListPaymentOrders(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	userID, ok := parseOptionalUintQuery(c, "user_id")
 	if !ok {
 		return
@@ -729,7 +730,7 @@ func (h *Handler) ListPaymentOrders(c *gin.Context) {
 // @Router /admin/redemptions [get]
 // ListRedemptions 查询兑换码兑换记录。
 func (h *Handler) ListRedemptions(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	codeID, ok := parseOptionalUintQuery(c, "code_id")
 	if !ok {
 		return
@@ -795,7 +796,7 @@ func (h *Handler) ListRedemptions(c *gin.Context) {
 // @Router /admin/conversation-events [get]
 // ListConversationEvents 查询对话事件。
 func (h *Handler) ListConversationEvents(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	userID, ok := parseOptionalUintQuery(c, "user_id")
 	if !ok {
 		return
@@ -893,7 +894,7 @@ func (h *Handler) GetConversationEvent(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/system-events [get]
 func (h *Handler) ListSystemEvents(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	createdFrom, ok := parseOptionalTimeQuery(c, "created_from")
 	if !ok {
 		return
@@ -1251,7 +1252,7 @@ func (h *Handler) ListUserAuthEvents(c *gin.Context) {
 		userID = uint(parsedID)
 	}
 
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	items, total, err := h.service.ListUserAuthEventsByAdmin(
 		c.Request.Context(),
 		userID,
@@ -1356,26 +1357,4 @@ func (h *Handler) ExportConversations(c *gin.Context) {
 	}
 
 	writeManifest(true, "")
-}
-
-func pageParams(c *gin.Context) (int, int) {
-	page := 1
-	pageSize := 20
-	const maxPageSize = 1000
-
-	if raw := c.Query("page"); raw != "" {
-		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
-			page = parsed
-		}
-	}
-	if raw := c.Query("page_size"); raw != "" {
-		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
-			if parsed > maxPageSize {
-				parsed = maxPageSize
-			}
-			pageSize = parsed
-		}
-	}
-
-	return page, pageSize
 }

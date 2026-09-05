@@ -60,16 +60,6 @@ type UsagePrice struct {
 	NanousdPerCall int64
 }
 
-var protocolOrder = []string{
-	"openai_chat_completions",
-	"openai_responses",
-	"anthropic_messages",
-	"xai_responses",
-	"gemini_generate_content",
-	"gemini_interactions",
-	"google_image_generation",
-}
-
 var definitions = []Definition{
 	{
 		Protocol:       "openai_chat_completions",
@@ -448,40 +438,12 @@ func Definitions() []Definition {
 	return result
 }
 
-// DefinitionsByProtocol 返回指定协议下的官方原生工具定义。
-func DefinitionsByProtocol(protocol string) []Definition {
-	protocol = strings.TrimSpace(protocol)
-	result := make([]Definition, 0)
-	for _, definition := range definitions {
-		if definition.Protocol == protocol {
-			result = append(result, cloneDefinition(definition))
-		}
-	}
-	return result
-}
-
-// Protocols 返回有原生工具定义的协议主键。
-func Protocols() []string {
-	return append([]string(nil), protocolOrder...)
-}
-
 // Find 返回指定协议和类型的官方原生工具定义。
 func Find(protocol string, toolType string) (Definition, bool) {
 	protocol = strings.TrimSpace(protocol)
 	toolType = strings.TrimSpace(toolType)
 	for _, definition := range definitions {
 		if definition.Protocol == protocol && definition.Type == toolType {
-			return cloneDefinition(definition), true
-		}
-	}
-	return Definition{}, false
-}
-
-// FindByKey 返回指定官方原生工具 key 的第一个目录定义。
-func FindByKey(key string) (Definition, bool) {
-	key = strings.TrimSpace(key)
-	for _, definition := range definitions {
-		if definition.Key == key {
 			return cloneDefinition(definition), true
 		}
 	}
@@ -519,22 +481,6 @@ func PayloadFromOption(protocol string, raw map[string]interface{}) (Definition,
 		return Definition{}, nil, false
 	}
 	return definition, buildPayload(definition, raw), true
-}
-
-// PayloadFromKey 识别指定官方原生工具 key，并返回可发送给上游的规范化 payload。
-func PayloadFromKey(key string, raw map[string]interface{}) (Definition, map[string]interface{}, bool) {
-	key = strings.TrimSpace(key)
-	for _, definition := range definitions {
-		if definition.Key != key {
-			continue
-		}
-		matched, payload, ok := PayloadFromOption(definition.Protocol, raw)
-		if !ok {
-			continue
-		}
-		return matched, payload, true
-	}
-	return Definition{}, nil, false
 }
 
 // CanonicalPayload 按官方原生工具定义生成可发送给上游的规范 payload。
@@ -606,11 +552,6 @@ func PricingDefinitionsFromDefinitions(items []Definition) []PricingDefinition {
 		})
 	}
 	return result
-}
-
-// PricingDefinitionsWithOverrides 返回应用管理员覆盖后的原生工具计费展示目录。
-func PricingDefinitionsWithOverrides(raw string) []PricingDefinition {
-	return PricingDefinitionsWithOverridesFromDefinitions(raw, Definitions())
 }
 
 // PricingDefinitionsWithOverridesFromDefinitions 返回指定目录应用管理员覆盖后的原生工具计费展示目录。
@@ -828,11 +769,6 @@ func PricingOverridesFromDefinitions(items []PricingDefinition) map[string]Prici
 	return result
 }
 
-// PricingOverridesJSON 将覆盖配置规范化为稳定 JSON。
-func PricingOverridesJSON(overrides map[string]PricingOverride) (string, error) {
-	return PricingOverridesJSONForDefinitions(overrides, Definitions())
-}
-
 // PricingOverridesJSONForDefinitions 将指定目录下的覆盖配置规范化为稳定 JSON。
 func PricingOverridesJSONForDefinitions(overrides map[string]PricingOverride, definitions []Definition) (string, error) {
 	normalized, err := normalizePricingOverrides(overrides, definitions)
@@ -862,11 +798,6 @@ func ParsePricingOverridesJSONForDefinitions(raw string, definitions []Definitio
 		return nil, fmt.Errorf("native tool pricing must be a JSON object: %w", err)
 	}
 	return normalizePricingOverrides(parsed, definitions)
-}
-
-// PricingOverridesUseDefaults 判断配置是否等同于内置默认价格。
-func PricingOverridesUseDefaults(raw string) bool {
-	return PricingOverridesUseDefaultsForDefinitions(raw, Definitions())
 }
 
 // PricingOverridesUseDefaultsForDefinitions 判断配置是否等同于指定目录默认价格。
@@ -947,12 +878,6 @@ func UsagePricingKey(protocol string, toolName string) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-// UsagePriceByKey 返回可计费原生工具项的按次价格。
-func UsagePriceByKey(key string) (UsagePrice, bool) {
-	price, ok := usagePricesByKey[strings.TrimSpace(key)]
-	return price, ok
 }
 
 // UsagePriceByKeyWithOverrides 返回应用管理员覆盖后的可计费原生工具按次价格。

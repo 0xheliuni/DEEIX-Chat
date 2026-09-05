@@ -7,6 +7,7 @@ import (
 	"time"
 
 	appannouncement "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/announcement"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
@@ -127,7 +128,7 @@ func (h *Handler) CloseAnnouncement(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/announcements [get]
 func (h *Handler) ListAdminAnnouncements(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	var pinned *bool
 	if raw := c.Query("pinned"); raw != "" {
 		if parsed, err := strconv.ParseBool(raw); err == nil {
@@ -255,24 +256,4 @@ func writeAnnouncementError(c *gin.Context, err error) {
 		return
 	}
 	response.InternalError(c)
-}
-
-func pageParams(c *gin.Context) (int, int) {
-	page := 1
-	pageSize := 20
-	const maxPageSize = 1000
-	if raw := c.Query("page"); raw != "" {
-		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
-			page = parsed
-		}
-	}
-	if raw := c.Query("page_size"); raw != "" {
-		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
-			pageSize = parsed
-		}
-	}
-	if pageSize > maxPageSize {
-		pageSize = maxPageSize
-	}
-	return page, pageSize
 }

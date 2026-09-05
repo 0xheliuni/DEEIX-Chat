@@ -571,7 +571,7 @@ func syncedUpstreamModel(
 		"id":       name,
 		"owned_by": strings.TrimSpace(item.OwnedBy),
 	})
-	vendor := normalizeUpstreamModelVendor(item.OwnedBy, name, upstream.Name, upstream.BaseURL)
+	vendor := normalizeModelVendor(item.OwnedBy, name, upstream.Name, upstream.BaseURL)
 	return &domainchannel.UpstreamModel{
 		UpstreamID:        upstream.ID,
 		BindingCode:       bindingCode,

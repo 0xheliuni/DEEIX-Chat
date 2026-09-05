@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	appaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/audit"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 )
@@ -28,17 +29,7 @@ var (
 )
 
 type auditWriter interface {
-	Write(
-		ctx context.Context,
-		requestID string,
-		actorUserID uint,
-		action string,
-		resource string,
-		resourceID string,
-		ip string,
-		userAgent string,
-		detail interface{},
-	)
+	Write(ctx context.Context, input appaudit.WriteInput)
 }
 
 // Input 描述一次管理员日志清理请求。
@@ -103,21 +94,20 @@ func (s *Service) Cleanup(ctx context.Context, input Input) (*Result, error) {
 	}
 
 	if s.auditWriter != nil {
-		s.auditWriter.Write(
-			ctx,
-			input.RequestID,
-			input.ActorUserID,
-			"admin_cleanup_logs",
-			"logs",
-			logType,
-			input.IP,
-			input.UserAgent,
-			map[string]interface{}{
+		s.auditWriter.Write(ctx, appaudit.WriteInput{
+			RequestID:   input.RequestID,
+			ActorUserID: input.ActorUserID,
+			Action:      "admin_cleanup_logs",
+			Resource:    "logs",
+			ResourceID:  logType,
+			IP:          input.IP,
+			UserAgent:   input.UserAgent,
+			Detail: map[string]interface{}{
 				"type":          logType,
 				"before":        input.Before.Format(time.RFC3339),
 				"deleted_count": deletedCount,
 			},
-		)
+		})
 	}
 
 	return &Result{
@@ -138,21 +128,20 @@ func (s *Service) CleanupConversationRuns(ctx context.Context, input Conversatio
 		return nil, err
 	}
 	if s.auditWriter != nil {
-		s.auditWriter.Write(
-			ctx,
-			input.RequestID,
-			input.ActorUserID,
-			"admin_cleanup_conversation_runs",
-			"conversation_events",
-			"batch",
-			input.IP,
-			input.UserAgent,
-			map[string]interface{}{
+		s.auditWriter.Write(ctx, appaudit.WriteInput{
+			RequestID:   input.RequestID,
+			ActorUserID: input.ActorUserID,
+			Action:      "admin_cleanup_conversation_runs",
+			Resource:    "conversation_events",
+			ResourceID:  "batch",
+			IP:          input.IP,
+			UserAgent:   input.UserAgent,
+			Detail: map[string]interface{}{
 				"run_ids":       runIDs,
 				"run_count":     len(runIDs),
 				"deleted_count": deletedCount,
 			},
-		)
+		})
 	}
 	return &ConversationRunResult{RunCount: len(runIDs), DeletedCount: deletedCount}, nil
 }

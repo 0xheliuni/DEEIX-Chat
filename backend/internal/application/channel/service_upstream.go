@@ -14,6 +14,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/secretbox"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
@@ -31,7 +32,7 @@ type ListUpstreamsInput struct {
 
 // ListUpstreams 分页查询上游列表。
 func (s *Service) ListUpstreams(ctx context.Context, page int, pageSize int, input ListUpstreamsInput) ([]UpstreamView, int64, error) {
-	offset, limit := normalizePage(page, pageSize)
+	offset, limit := pagination.Offset(page, pageSize)
 	if strings.TrimSpace(input.Status) == "circuit" {
 		if s.cache == nil || !s.loadBreakerDefaults(ctx).Enabled {
 			return []UpstreamView{}, 0, nil
@@ -333,6 +334,7 @@ func (s *Service) DeleteUpstream(ctx context.Context, upstreamID uint) error {
 	if err := s.repo.DeleteUpstreamCascade(ctx, upstreamID); err != nil {
 		return err
 	}
+	s.localAPIKeyCounters.Delete(upstreamID)
 	s.InvalidateModelCatalog()
 	return nil
 }
@@ -532,10 +534,6 @@ func maskAPIKeyViews(raw string, secret string) []UpstreamAPIKeyView {
 		})
 	}
 	return results
-}
-
-func deleteAPIKeysByIDs(raw string, ids []string, secret string) (string, error) {
-	return updateAPIKeysByIDs(raw, ids, nil, secret)
 }
 
 func updateAPIKeysByIDs(raw string, ids []string, addRaw *string, secret string) (string, error) {

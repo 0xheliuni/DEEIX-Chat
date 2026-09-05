@@ -4,20 +4,22 @@ import (
 	"context"
 	"errors"
 	"strings"
+
+	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
 // generateChatCompletionsStreamWithAutoUsageFallback 只在首个可观察事件之前兼容不支持
 // stream_options.include_usage 的上游；一旦调用方收到事件，禁止重试以避免重复输出。
 func (c *Client) generateChatCompletionsStreamWithAutoUsageFallback(
 	ctx context.Context,
-	route RouteConfig,
-	input GenerateInput,
-	onEvent func(GenerateStreamEvent) error,
-) (*GenerateOutput, error) {
+	route portllm.RouteConfig,
+	input portllm.GenerateInput,
+	onEvent func(portllm.GenerateStreamEvent) error,
+) (*portllm.GenerateOutput, error) {
 	emitted := false
 	attemptEvent := onEvent
 	if onEvent != nil {
-		attemptEvent = func(event GenerateStreamEvent) error {
+		attemptEvent = func(event portllm.GenerateStreamEvent) error {
 			emitted = true
 			return onEvent(event)
 		}
@@ -35,7 +37,7 @@ func shouldRetryChatCompletionsWithoutAutoStreamUsage(options map[string]interfa
 	if chatCompletionsStreamUsageExplicit(options) {
 		return false
 	}
-	var upstreamErr *UpstreamError
+	var upstreamErr *portllm.UpstreamError
 	if !errors.As(err, &upstreamErr) {
 		return false
 	}

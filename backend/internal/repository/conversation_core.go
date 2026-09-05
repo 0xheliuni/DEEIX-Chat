@@ -131,11 +131,10 @@ type MessageFeedbackRepository interface {
 // ConversationTraceRepository 封装附件、运行轨迹与工具调用能力。
 type ConversationTraceRepository interface {
 	CreateAttachments(ctx context.Context, items []domainconversation.Attachment) error
+	// CreateConversationRun 原子占用全局唯一的 run ID；重复 ID 返回 ErrDuplicate。
 	CreateConversationRun(ctx context.Context, item *domainconversation.Run) error
-	// EnsureConversationRun inserts a mid-flight run row if absent (moderation / recovery).
-	EnsureConversationRun(ctx context.Context, item *domainconversation.Run) error
-	// UpsertConversationRun creates or updates the final run snapshot by run_id.
-	UpsertConversationRun(ctx context.Context, item *domainconversation.Run) error
+	// UpdateConversationRun 更新已占用的运行快照，且不允许转移运行归属。
+	UpdateConversationRun(ctx context.Context, item *domainconversation.Run) error
 	UpsertConversationMessageTrace(ctx context.Context, item *domainconversation.MessageTrace) error
 	ListConversationMessageTracesByMessageIDs(ctx context.Context, messageIDs []uint) ([]domainconversation.MessageTrace, error)
 	UpsertConversationMessageTraceEvent(ctx context.Context, item *domainconversation.MessageTraceEventRow) error

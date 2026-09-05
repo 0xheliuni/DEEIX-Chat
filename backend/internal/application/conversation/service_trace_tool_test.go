@@ -11,6 +11,7 @@ import (
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/toolresult"
 )
 
@@ -311,7 +312,7 @@ func TestBuildToolTracePresentationExtractsBoundedPlainText(t *testing.T) {
 	if presentation == nil {
 		t.Fatal("expected readable plain-text presentation")
 	}
-	textTokens := estimateTokens(presentation.Text)
+	textTokens := tokenestimate.Estimate(presentation.Text)
 	if textTokens <= int64(toolTraceLegacyOutputPreviewMaxChars/4) {
 		t.Fatalf("expected presentation to retain more than the compact preview, got %d tokens", textTokens)
 	}
@@ -1383,7 +1384,7 @@ func TestBudgetToolOutputForModelTruncatesByTokenBudget(t *testing.T) {
 	if !strings.Contains(got, "HEAD") || !strings.Contains(got, "TAIL") {
 		t.Fatalf("expected token budget to preserve head and tail, got %q", got)
 	}
-	if tokens := estimateTokens(got); tokens > 800 {
+	if tokens := tokenestimate.Estimate(got); tokens > 800 {
 		t.Fatalf("expected result within token budget, got %d tokens", tokens)
 	}
 }
@@ -1394,7 +1395,7 @@ func TestBudgetToolOutputForModelTruncatesCJKWithinTokenBudget(t *testing.T) {
 	if !strings.Contains(got, "开头") || !strings.Contains(got, "结尾") {
 		t.Fatalf("expected CJK result to preserve head and tail")
 	}
-	if tokens := estimateTokens(got); tokens > 500 {
+	if tokens := tokenestimate.Estimate(got); tokens > 500 {
 		t.Fatalf("expected CJK result within token budget, got %d tokens", tokens)
 	}
 }

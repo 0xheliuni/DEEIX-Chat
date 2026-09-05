@@ -28,16 +28,10 @@ const (
 
 // translateError 将 gorm 底层错误统一映射为仓储语义错误。
 func translateError(err error) error {
-	if err == nil {
-		return nil
-	}
-	if dberror.IsRecordNotFound(err) {
-		return repository.ErrNotFound
-	}
 	if dberror.IsUniqueConstraint(err) {
 		return translateUniqueConstraint(err)
 	}
-	return err
+	return dberror.Translate(err)
 }
 
 func translateUniqueConstraint(err error) error {
@@ -51,8 +45,6 @@ func translateUniqueConstraint(err error) error {
 		return repository.ErrDuplicate
 	}
 }
-
-const defaultFreePlanCode = "free"
 
 // Repo 封装用户数据访问。
 type Repo struct {

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	appaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/audit"
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
@@ -231,7 +232,7 @@ func (s *Service) RecordSendMessageBilling(
 		return nil, nil
 	}
 	if s.billingSvc == nil {
-		s.runPostBillingTasks(input)
+		s.runPostBillingTasks(ctx, input)
 		return nil, nil
 	}
 	var usageLedger *domainbilling.UsageLedger
@@ -257,12 +258,12 @@ func (s *Service) RecordSendMessageBilling(
 		s.discardPostBillingCompaction(input.Result)
 		return nil, err
 	}
-	s.runPostBillingTasks(input)
+	s.runPostBillingTasks(ctx, input)
 	return usageLedger, nil
 }
 
 // scheduleConversationMetadataAfterBilling 仅在主调用完成计费后安排标题与标签生成。
-func (s *Service) scheduleConversationMetadataAfterBilling(input SendMessageBillingInput) {
+func (s *Service) scheduleConversationMetadataAfterBilling(ctx context.Context, input SendMessageBillingInput) {
 	if input.Conversation == nil || input.Result == nil || input.Result.MetadataRefreshHint != conversationMetadataRefreshPending {
 		return
 	}
@@ -273,7 +274,7 @@ func (s *Service) scheduleConversationMetadataAfterBilling(input SendMessageBill
 	if platformModelName := strings.TrimSpace(input.Result.PlatformModelName); platformModelName != "" {
 		conversation.Model = platformModelName
 	}
-	s.maybeGenerateConversationMetadataAsync(conversation, input.Result.UserMessage)
+	s.maybeGenerateConversationMetadataAsync(ctx, conversation, input.Result.UserMessage)
 }
 
 // markUsageAuthorizationForReconciliation 将已产生上游费用的结算失败转为保守阻断状态。
@@ -366,21 +367,20 @@ func (s *Service) RecordSendMessageAudit(ctx context.Context, input SendMessageA
 		return
 	}
 	imageCount, fileCount := countAttachmentKinds(input.Result.UserMessage.Attachments)
-	s.auditWriter.Write(
-		ctx,
-		strings.TrimSpace(input.RequestID),
-		input.UserID,
-		strings.TrimSpace(input.Action),
-		"conversation",
-		strconv.FormatUint(uint64(input.ConversationID), 10),
-		strings.TrimSpace(input.ClientIP),
-		strings.TrimSpace(input.UserAgent),
-		map[string]interface{}{
+	s.auditWriter.Write(ctx, appaudit.WriteInput{
+		RequestID:   input.RequestID,
+		ActorUserID: input.UserID,
+		Action:      input.Action,
+		Resource:    "conversation",
+		ResourceID:  strconv.FormatUint(uint64(input.ConversationID), 10),
+		IP:          input.ClientIP,
+		UserAgent:   input.UserAgent,
+		Detail: map[string]interface{}{
 			"content_type": strings.TrimSpace(input.ContentType),
 			"attachments":  imageCount + fileCount,
 			"file_ids":     len(input.FileIDs),
 		},
-	)
+	})
 }
 
 // buildSendMessageUsageLedger 根据请求开始时的授权快照构建主调用账本。

@@ -1,7 +1,6 @@
 package conversation
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -13,6 +12,7 @@ import (
 	"sync"
 
 	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
@@ -76,6 +76,13 @@ func (h *Handler) StreamTemporaryChatMessage(c *gin.Context) {
 	}
 	defer session.Close()
 	input.UsageAuthorization = session.Authorization()
+	generationCtx, releaseLifecycle, ok := h.service.AcquireMessageGenerationLifecycle(c.Request.Context())
+	if !ok {
+		_ = session.Finish(c.Request.Context(), nil)
+		response.ErrorWithCode(c, http.StatusServiceUnavailable, response.CodeServiceUnavailable)
+		return
+	}
+	defer releaseLifecycle()
 
 	c.Header("Content-Type", "application/x-ndjson; charset=utf-8")
 	c.Header("Cache-Control", "no-store, no-cache, no-transform")
@@ -99,7 +106,7 @@ func (h *Handler) StreamTemporaryChatMessage(c *gin.Context) {
 		return writeEvent(normalizeStreamEventPayload(eventType, payload))
 	}
 
-	result, streamErr := h.service.StreamTemporaryChat(c.Request.Context(), input, func(delta string) error {
+	result, streamErr := h.service.StreamTemporaryChat(generationCtx, input, func(delta string) error {
 		return writeEvent(map[string]interface{}{"type": "delta", "delta": delta})
 	})
 	clientConnected := func() bool { return c.Request.Context().Err() == nil }
@@ -257,6 +264,7 @@ func writeTemporaryChatBindError(c *gin.Context, err error) {
 }
 
 func (h *Handler) recordTemporaryChatAuditAsync(c *gin.Context, req TemporaryChatMessageRequest, attachmentCount int, status string) {
+	requestCtx := c.Request.Context()
 	userID := middleware.MustUserID(c)
 	requestID := middleware.MustRequestID(c)
 	clientIP := c.ClientIP()
@@ -267,25 +275,29 @@ func (h *Handler) recordTemporaryChatAuditAsync(c *gin.Context, req TemporaryCha
 	for _, item := range req.Messages {
 		characterCount += len([]rune(item.Content))
 	}
-	go h.service.RecordAudit(context.Background(), appconversation.AuditInput{
-		UserID:     userID,
-		RequestID:  requestID,
-		Action:     "temporary_chat.stream_message",
-		Resource:   "temporary_chat",
-		ResourceID: resourceID,
-		ClientIP:   clientIP,
-		UserAgent:  userAgent,
-		Detail: map[string]interface{}{
-			"status":               strings.TrimSpace(status),
-			"message_count":        messageCount,
-			"character_count":      characterCount,
-			"selected_tool_count":  len(req.SelectedToolIDs),
-			"selected_skill_count": len(req.SkillIDs),
-			"knowledge_base_count": len(req.KnowledgeBaseIDs),
-			"attachment_count":     attachmentCount,
-			"content_stored":       false,
-		},
-	})
+	go func() {
+		auditCtx, cancel := background.WithTimeout(requestCtx, asyncAuditTimeout)
+		defer cancel()
+		h.service.RecordAudit(auditCtx, appconversation.AuditInput{
+			ActorUserID: userID,
+			RequestID:   requestID,
+			Action:      "temporary_chat.stream_message",
+			Resource:    "temporary_chat",
+			ResourceID:  resourceID,
+			IP:          clientIP,
+			UserAgent:   userAgent,
+			Detail: map[string]interface{}{
+				"status":               strings.TrimSpace(status),
+				"message_count":        messageCount,
+				"character_count":      characterCount,
+				"selected_tool_count":  len(req.SelectedToolIDs),
+				"selected_skill_count": len(req.SkillIDs),
+				"knowledge_base_count": len(req.KnowledgeBaseIDs),
+				"attachment_count":     attachmentCount,
+				"content_stored":       false,
+			},
+		})
+	}()
 }
 
 func temporaryChatSessionHash(sessionID string) string {

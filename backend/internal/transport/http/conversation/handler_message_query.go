@@ -8,6 +8,7 @@ import (
 
 	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
@@ -162,7 +163,7 @@ func (h *Handler) ListMessages(c *gin.Context) {
 		return
 	}
 
-	page, pageSize := messagePageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	var beforeID uint
 	if rawBeforeID := strings.TrimSpace(c.Query("before_id")); rawBeforeID != "" {
 		parsed, parseErr := strconv.ParseUint(rawBeforeID, 10, strconv.IntSize)
@@ -200,7 +201,7 @@ func (h *Handler) ListMessages(c *gin.Context) {
 		return
 	}
 	runModels := map[string]model.Run{}
-	runIDs := collectMessageRunIDs(items)
+	runIDs := model.CollectMessageRunIDs(items)
 	if len(runIDs) > 0 {
 		runs, runErr := h.service.ListConversationRunsByRunIDs(c.Request.Context(), userID, conversation.ID, runIDs)
 		if runErr != nil {
@@ -261,24 +262,6 @@ func (h *Handler) ListConversationPreviewMessages(c *gin.Context) {
 	response.Success(c, results)
 }
 
-// collectMessageRunIDs 提取消息列表中的运行 ID，并保持首次出现顺序。
-func collectMessageRunIDs(items []model.Message) []string {
-	seen := make(map[string]struct{}, len(items))
-	runIDs := make([]string, 0, len(items))
-	for _, item := range items {
-		runID := strings.TrimSpace(item.RunID)
-		if runID == "" {
-			continue
-		}
-		if _, ok := seen[runID]; ok {
-			continue
-		}
-		seen[runID] = struct{}{}
-		runIDs = append(runIDs, runID)
-	}
-	return runIDs
-}
-
 // ListConversationRuns godoc
 // @Summary 查询会话运行日志
 // @Description 查询会话内模型调用运行日志（tokens/时长/错误）
@@ -303,7 +286,7 @@ func (h *Handler) ListConversationRuns(c *gin.Context) {
 		return
 	}
 
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	conversation, err := h.service.GetConversationByPublicID(c.Request.Context(), userID, publicID)
 	if err != nil {
 		if errors.Is(err, appconversation.ErrConversationNotFound) {

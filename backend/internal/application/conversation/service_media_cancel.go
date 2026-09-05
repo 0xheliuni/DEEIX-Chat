@@ -9,11 +9,16 @@ import (
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 )
 
-const defaultXAIVideoDurationSeconds int64 = 6
+const (
+	defaultXAIVideoDurationSeconds   int64 = 6
+	mediaCancellationFinalizeTimeout       = 5 * time.Second
+)
 
 type canceledMediaGenerationInput struct {
 	Context             context.Context
@@ -72,7 +77,7 @@ func buildFailedMediaBillingResult(input failedMediaBillingResultInput) *SendMes
 		assistantMessage.Status = "canceled"
 	}
 	assistantMessage.ErrorCode = classifyRunErrorCode(input.Failure)
-	assistantMessage.ErrorMessage = truncateError(messageErrorSummary(input.Failure), 255)
+	assistantMessage.ErrorMessage = textutil.TruncateTrimmed(messageErrorSummary(input.Failure), 255)
 
 	return &SendMessageResult{
 		UserMessage:        userMessage,
@@ -100,14 +105,15 @@ func (s *Service) completeCanceledMediaGeneration(input canceledMediaGenerationI
 	if input.Context == nil || input.UserMessage == nil || input.AssistantMessage == nil {
 		return nil, ErrMessageGenerationCanceled
 	}
-	persistCtx := context.WithoutCancel(input.Context)
+	persistCtx, cancel := background.WithTimeout(input.Context, mediaCancellationFinalizeTimeout)
+	defer cancel()
 	latencyMS := time.Since(input.StartedAt).Milliseconds()
 	if latencyMS < 0 {
 		latencyMS = 0
 	}
 	inputTokens := estimateGenerateInputTokens(input.GenerateInput)
 	errorCode := classifyRunErrorCode(ErrMessageGenerationCanceled)
-	errorMessage := truncateError(ErrMessageGenerationCanceled.Error(), 255)
+	errorMessage := textutil.TruncateTrimmed(ErrMessageGenerationCanceled.Error(), 255)
 
 	if input.ReuseUserMessage {
 		if err := s.repo.CompleteAssistantMessageWithGeneratedAttachments(

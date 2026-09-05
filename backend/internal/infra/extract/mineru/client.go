@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	extractinfra "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extract"
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
 	extractport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/extract"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
@@ -135,7 +136,7 @@ func probeEndpoint(ctx context.Context, baseURL string, authToken string, httpCl
 	if err != nil {
 		return false, "服务地址格式不正确。"
 	}
-	applyAuthHeaders(req, authToken)
+	extractinfra.ApplyAuthHeaders(req, authToken)
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
@@ -167,7 +168,7 @@ func probeCloudEndpoint(ctx context.Context, baseURL string, authToken string, h
 	if err != nil {
 		return false, "服务地址格式不正确。"
 	}
-	applyAuthHeaders(req, authToken)
+	extractinfra.ApplyAuthHeaders(req, authToken)
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
@@ -207,7 +208,7 @@ func probeSelfHostedEndpoint(ctx context.Context, baseURL string, authToken stri
 			cancel()
 			return false, "服务地址格式不正确。"
 		}
-		applyAuthHeaders(req, authToken)
+		extractinfra.ApplyAuthHeaders(req, authToken)
 
 		resp, err := httpClient.Do(req)
 		cancel()
@@ -286,18 +287,18 @@ func (c *Client) extractTextSelfHosted(ctx context.Context, req Request) (string
 	}
 	httpReq.Header.Set("Content-Type", contentType)
 	httpReq.Header.Set("Accept", "application/json")
-	applyAuthHeaders(httpReq, c.authToken)
+	extractinfra.ApplyAuthHeaders(httpReq, c.authToken)
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		_ = bodyReader.Close()
-		if writeErr := awaitMultipartWriteError(writeErrCh); writeErr != nil {
+		if writeErr := extractinfra.AwaitMultipartWriteError(writeErrCh); writeErr != nil {
 			return "", writeErr
 		}
 		return "", fmt.Errorf("mineru_unavailable")
 	}
 	defer resp.Body.Close()
-	if writeErr := awaitMultipartWriteError(writeErrCh); writeErr != nil {
+	if writeErr := extractinfra.AwaitMultipartWriteError(writeErrCh); writeErr != nil {
 		return "", writeErr
 	}
 
@@ -317,9 +318,9 @@ func (c *Client) extractTextSelfHosted(ctx context.Context, req Request) (string
 		return "", errMinerUInvalidResponse
 	}
 
-	text := normalizeText(parsed.firstMarkdown())
+	text := extractinfra.NormalizeText(parsed.firstMarkdown())
 	if text == "" {
-		return "", fmt.Errorf(errMinerUEmptyContent)
+		return "", errors.New(errMinerUEmptyContent)
 	}
 	return text, nil
 }
@@ -354,7 +355,7 @@ func (c *Client) createBatch(ctx context.Context, req Request) (string, string, 
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "application/json")
-	applyAuthHeaders(httpReq, c.authToken)
+	extractinfra.ApplyAuthHeaders(httpReq, c.authToken)
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -418,7 +419,7 @@ func (c *Client) pollBatch(ctx context.Context, batchID string) (string, error) 
 			return "", err
 		}
 		httpReq.Header.Set("Accept", "application/json")
-		applyAuthHeaders(httpReq, c.authToken)
+		extractinfra.ApplyAuthHeaders(httpReq, c.authToken)
 
 		resp, err := c.httpClient.Do(httpReq)
 		if err != nil {
@@ -521,26 +522,13 @@ func (c *Client) downloadResult(ctx context.Context, zipURL string) (string, err
 		if readErr != nil {
 			continue
 		}
-		text := normalizeText(string(content))
+		text := extractinfra.NormalizeText(string(content))
 		if text != "" {
 			return text, nil
 		}
 	}
 
-	return "", fmt.Errorf(errMinerUEmptyContent)
-}
-
-func normalizeText(raw string) string {
-	lines := strings.Split(raw, "\n")
-	result := make([]string, 0, len(lines))
-	for _, line := range lines {
-		value := strings.TrimSpace(line)
-		if value == "" {
-			continue
-		}
-		result = append(result, value)
-	}
-	return strings.Join(result, "\n")
+	return "", errors.New(errMinerUEmptyContent)
 }
 
 func normalizeSource(raw string) string {
@@ -561,19 +549,6 @@ func shouldFallback(err error) bool {
 	}
 	var httpErr *httpError
 	return errors.As(err, &httpErr) && httpErr != nil && httpErr.statusCode == http.StatusNotFound
-}
-
-func applyAuthHeaders(req *http.Request, authToken string) {
-	if req == nil {
-		return
-	}
-	token := strings.TrimSpace(authToken)
-	if token == "" {
-		return
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("X-API-Key", token)
-	req.Header.Set("token", token)
 }
 
 func resolveHTTPTimeout(raw int, fallback time.Duration) time.Duration {
@@ -645,18 +620,6 @@ func buildSelfHostedMultipartBody(file *os.File, fileName string) (io.ReadCloser
 	}()
 
 	return bodyReader, writer.FormDataContentType(), errCh
-}
-
-func awaitMultipartWriteError(errCh <-chan error) error {
-	if errCh == nil {
-		return nil
-	}
-	for err := range errCh {
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 type batchCreateResponse struct {

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	appchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
@@ -74,7 +75,7 @@ func (h *Handler) UploadModelIconAsset(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/llm/icon-assets [get]
 func (h *Handler) ListModelIconAssets(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	items, total, err := h.service.ListModelIconAssets(c.Request.Context(), page, pageSize)
 	if err != nil {
 		response.InternalError(c)
@@ -183,7 +184,7 @@ func (h *Handler) GetModelIconAsset(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/llm/model-vendors [get]
 func (h *Handler) ListModelVendors(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	items, total, err := h.service.ListModelVendors(c.Request.Context(), page, pageSize, c.Query("q"))
 	if err != nil {
 		response.InternalError(c)
@@ -304,7 +305,7 @@ func (h *Handler) DeleteModelVendor(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/llm/model-display-groups [get]
 func (h *Handler) ListModelDisplayGroups(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	items, total, err := h.service.ListModelDisplayGroups(c.Request.Context(), page, pageSize, c.Query("q"))
 	if err != nil {
 		response.InternalError(c)

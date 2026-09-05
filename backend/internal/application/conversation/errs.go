@@ -104,7 +104,7 @@ var (
 	// ErrModelAccessDenied 当前用户无权使用此模型。
 	ErrModelAccessDenied = apperr.NewMasked("llm.model_access_denied", "you do not have access to this model", "model access denied by group policy")
 	// ErrUpstreamRequestFailed 上游请求失败。对外错误码与文案取决于上游错误特征，由 transport 按 MessageErrorCode /
-	// MessageErrorSummary 逐次判定，因此不在这里声明。
+	// messageErrorSummary 逐次判定，因此不在这里声明。
 	ErrUpstreamRequestFailed = errors.New("upstream request failed")
 	// ErrGeneratedMediaArtifactUnavailable 上游已完成媒体生成，但结果制品暂时无法获取或校验。
 	ErrGeneratedMediaArtifactUnavailable = apperr.New(MessageErrorCodeMediaArtifactUnavailable, "generated media artifact is temporarily unavailable")

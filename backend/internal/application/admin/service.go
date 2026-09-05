@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
 	auditapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/audit"
 	authapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/auth"
@@ -22,6 +21,7 @@ import (
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainsystemevent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/systemevent"
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
@@ -74,17 +74,7 @@ type userService interface {
 }
 
 type auditService interface {
-	Write(
-		ctx context.Context,
-		requestID string,
-		actorUserID uint,
-		action string,
-		resource string,
-		resourceID string,
-		ip string,
-		userAgent string,
-		detail interface{},
-	)
+	Write(ctx context.Context, input auditapp.WriteInput)
 	List(ctx context.Context, page int, pageSize int, filter auditapp.ListFilter) ([]domainaudit.Log, int64, error)
 }
 
@@ -587,17 +577,16 @@ func (s *Service) WriteAdminCreateUserAudit(
 	ip string,
 	userAgent string,
 ) {
-	s.auditService.Write(
-		ctx,
-		requestID,
-		actorUserID,
-		"admin_create_user",
-		"user",
-		strconv.FormatUint(uint64(createdUserID), 10),
-		ip,
-		userAgent,
-		map[string]string{"username": username},
-	)
+	s.auditService.Write(ctx, auditapp.WriteInput{
+		RequestID:   requestID,
+		ActorUserID: actorUserID,
+		Action:      "admin_create_user",
+		Resource:    "user",
+		ResourceID:  strconv.FormatUint(uint64(createdUserID), 10),
+		IP:          ip,
+		UserAgent:   userAgent,
+		Detail:      map[string]string{"username": username},
+	})
 }
 
 // RevokeUserSessionsByAdmin 吊销指定用户全部会话。
@@ -625,17 +614,16 @@ func (s *Service) RevokeUserSessionsByAdmin(
 		return err
 	}
 
-	s.auditService.Write(
-		ctx,
-		requestID,
-		actorUserID,
-		"admin_revoke_user_sessions",
-		"user",
-		strconv.FormatUint(uint64(targetUserID), 10),
-		ip,
-		userAgent,
-		map[string]string{"target_user_id": strconv.FormatUint(uint64(targetUserID), 10)},
-	)
+	s.auditService.Write(ctx, auditapp.WriteInput{
+		RequestID:   requestID,
+		ActorUserID: actorUserID,
+		Action:      "admin_revoke_user_sessions",
+		Resource:    "user",
+		ResourceID:  strconv.FormatUint(uint64(targetUserID), 10),
+		IP:          ip,
+		UserAgent:   userAgent,
+		Detail:      map[string]string{"target_user_id": strconv.FormatUint(uint64(targetUserID), 10)},
+	})
 
 	return nil
 }
@@ -690,21 +678,20 @@ func (s *Service) UpdateUserStatusByAdmin(
 		return nil, err
 	}
 
-	s.auditService.Write(
-		ctx,
-		requestID,
-		actorUserID,
-		"admin_update_user_status",
-		"user",
-		strconv.FormatUint(uint64(targetUserID), 10),
-		ip,
-		userAgent,
-		map[string]string{
+	s.auditService.Write(ctx, auditapp.WriteInput{
+		RequestID:   requestID,
+		ActorUserID: actorUserID,
+		Action:      "admin_update_user_status",
+		Resource:    "user",
+		ResourceID:  strconv.FormatUint(uint64(targetUserID), 10),
+		IP:          ip,
+		UserAgent:   userAgent,
+		Detail: map[string]string{
 			"from_status": targetUser.Status,
 			"to_status":   nextStatus,
 			"reason":      strings.TrimSpace(reason),
 		},
-	)
+	})
 
 	return updatedUser, nil
 }
@@ -1023,17 +1010,16 @@ func (s *Service) PatchUserByAdmin(
 	if reason := strings.TrimSpace(req.Reason); reason != "" {
 		auditDetail["reason"] = reason
 	}
-	s.auditService.Write(
-		ctx,
-		requestID,
-		actorUserID,
-		"admin_patch_user",
-		"user",
-		strconv.FormatUint(uint64(targetUserID), 10),
-		ip,
-		userAgent,
-		auditDetail,
-	)
+	s.auditService.Write(ctx, auditapp.WriteInput{
+		RequestID:   requestID,
+		ActorUserID: actorUserID,
+		Action:      "admin_patch_user",
+		Resource:    "user",
+		ResourceID:  strconv.FormatUint(uint64(targetUserID), 10),
+		IP:          ip,
+		UserAgent:   userAgent,
+		Detail:      auditDetail,
+	})
 
 	return s.userService.GetByID(ctx, targetUserID)
 }
@@ -1051,7 +1037,7 @@ func normalizeAdminLocale(raw string) (string, error) {
 	}
 
 	languagePart := strings.ToLower(parts[0])
-	if len(languagePart) < 2 || len(languagePart) > 3 || !isASCIIAlpha(languagePart) {
+	if len(languagePart) < 2 || len(languagePart) > 3 || !textutil.IsASCIIAlpha(languagePart) {
 		return "", ErrInvalidUserLocale
 	}
 
@@ -1060,20 +1046,11 @@ func normalizeAdminLocale(raw string) (string, error) {
 	}
 
 	regionPart := strings.ToUpper(parts[1])
-	if len(regionPart) != 2 || !isASCIIAlpha(regionPart) {
+	if len(regionPart) != 2 || !textutil.IsASCIIAlpha(regionPart) {
 		return "", ErrInvalidUserLocale
 	}
 
 	return languagePart + "-" + regionPart, nil
-}
-
-func isASCIIAlpha(value string) bool {
-	for _, r := range value {
-		if !unicode.IsLetter(r) || r > unicode.MaxASCII {
-			return false
-		}
-	}
-	return true
 }
 
 // ResetUserPasswordByAdmin 重置用户密码并吊销全部会话。
@@ -1129,19 +1106,18 @@ func (s *Service) ResetUserPasswordByAdmin(
 		detailJSON,
 	)
 
-	s.auditService.Write(
-		ctx,
-		requestID,
-		actorUserID,
-		"admin_reset_user_password",
-		"user",
-		strconv.FormatUint(uint64(targetUserID), 10),
-		ip,
-		userAgent,
-		map[string]string{
+	s.auditService.Write(ctx, auditapp.WriteInput{
+		RequestID:   requestID,
+		ActorUserID: actorUserID,
+		Action:      "admin_reset_user_password",
+		Resource:    "user",
+		ResourceID:  strconv.FormatUint(uint64(targetUserID), 10),
+		IP:          ip,
+		UserAgent:   userAgent,
+		Detail: map[string]string{
 			"must_reset_password": strconv.FormatBool(mustResetPassword),
 		},
-	)
+	})
 
 	return nil
 }
@@ -1177,17 +1153,16 @@ func (s *Service) ResetUserTwoFactorByAdmin(
 	if err = s.userService.RevokeAllSessions(ctx, targetUserID, "admin_reset_2fa"); err != nil {
 		return err
 	}
-	s.auditService.Write(
-		ctx,
-		requestID,
-		actorUserID,
-		"admin_reset_user_2fa",
-		"user",
-		strconv.FormatUint(uint64(targetUserID), 10),
-		ip,
-		userAgent,
-		map[string]string{"target_user_id": strconv.FormatUint(uint64(targetUserID), 10)},
-	)
+	s.auditService.Write(ctx, auditapp.WriteInput{
+		RequestID:   requestID,
+		ActorUserID: actorUserID,
+		Action:      "admin_reset_user_2fa",
+		Resource:    "user",
+		ResourceID:  strconv.FormatUint(uint64(targetUserID), 10),
+		IP:          ip,
+		UserAgent:   userAgent,
+		Detail:      map[string]string{"target_user_id": strconv.FormatUint(uint64(targetUserID), 10)},
+	})
 	return nil
 }
 
@@ -1222,21 +1197,20 @@ func (s *Service) DeleteUserByAdmin(
 		return err
 	}
 
-	s.auditService.Write(
-		ctx,
-		requestID,
-		actorUserID,
-		"admin_delete_user",
-		"user",
-		strconv.FormatUint(uint64(targetUserID), 10),
-		ip,
-		userAgent,
-		map[string]string{
+	s.auditService.Write(ctx, auditapp.WriteInput{
+		RequestID:   requestID,
+		ActorUserID: actorUserID,
+		Action:      "admin_delete_user",
+		Resource:    "user",
+		ResourceID:  strconv.FormatUint(uint64(targetUserID), 10),
+		IP:          ip,
+		UserAgent:   userAgent,
+		Detail: map[string]string{
 			"target_user_id": strconv.FormatUint(uint64(targetUserID), 10),
 			"username":       targetUser.Username,
 			"public_id":      targetUser.PublicID,
 		},
-	)
+	})
 
 	return nil
 }
@@ -1255,5 +1229,14 @@ func (s *Service) ListUserAuthEventsByAdmin(
 
 // WriteAuditLog 写通用审计日志。
 func (s *Service) WriteAuditLog(ctx context.Context, requestID string, actorUserID uint, action string, resource string, resourceID string, ip string, userAgent string, detail interface{}) {
-	s.auditService.Write(ctx, requestID, actorUserID, action, resource, resourceID, ip, userAgent, detail)
+	s.auditService.Write(ctx, auditapp.WriteInput{
+		RequestID:   requestID,
+		ActorUserID: actorUserID,
+		Action:      action,
+		Resource:    resource,
+		ResourceID:  resourceID,
+		IP:          ip,
+		UserAgent:   userAgent,
+		Detail:      detail,
+	})
 }

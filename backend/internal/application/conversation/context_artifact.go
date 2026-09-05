@@ -12,8 +12,10 @@ import (
 
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainmemory "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/memory"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/traceid"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 	"go.uber.org/zap"
 )
 
@@ -231,7 +233,7 @@ func buildPromptContextArtifacts(input promptContextArtifactInput) []domainconve
 			SourceTitle:    strings.TrimSpace(chunk.FileName),
 			Content:        contextArtifactExcerpt(content, contextArtifactExcerptChars),
 			ContentHash:    contextArtifactHash(domainconversation.ContextArtifactFileRAGChunk, sourceID, content),
-			TokenEstimate:  estimateTokens(content),
+			TokenEstimate:  tokenestimate.Estimate(content),
 			Score:          float64(chunk.Score),
 			MetadataJSON: contextArtifactMetadata(map[string]interface{}{
 				"query":       strings.TrimSpace(input.Query),
@@ -260,7 +262,7 @@ func buildPromptContextArtifacts(input promptContextArtifactInput) []domainconve
 			SourceTitle:    strings.TrimSpace(file.FileName),
 			Content:        contextArtifactExcerpt(content, contextArtifactExcerptChars),
 			ContentHash:    contextArtifactHash(domainconversation.ContextArtifactFileRAGFallback, sourceID, content),
-			TokenEstimate:  estimateTokens(content),
+			TokenEstimate:  tokenestimate.Estimate(content),
 			MetadataJSON: contextArtifactMetadata(map[string]interface{}{
 				"query":          strings.TrimSpace(input.Query),
 				"reason":         strings.TrimSpace(fallback.Reason),
@@ -290,10 +292,10 @@ func buildPromptContextArtifacts(input promptContextArtifactInput) []domainconve
 			Kind:           domainconversation.ContextArtifactUserMemory,
 			SourceType:     "user_memory",
 			SourceID:       key,
-			SourceTitle:    firstNonEmptyString(scope, key),
+			SourceTitle:    textutil.FirstNonEmpty(scope, key),
 			Content:        contextArtifactExcerpt(content, contextArtifactExcerptChars),
 			ContentHash:    contextArtifactHash(domainconversation.ContextArtifactUserMemory, key, content),
-			TokenEstimate:  estimateTokens(content),
+			TokenEstimate:  tokenestimate.Estimate(content),
 			Score:          1,
 			MetadataJSON: contextArtifactMetadata(map[string]interface{}{
 				"memory_key": strings.TrimSpace(memory.MemoryKey),
@@ -320,7 +322,7 @@ func buildPromptContextArtifacts(input promptContextArtifactInput) []domainconve
 			SourceTitle:    chunk.Role,
 			Content:        contextArtifactExcerpt(content, contextArtifactExcerptChars),
 			ContentHash:    contextArtifactHash(domainconversation.ContextArtifactSemanticRecall, sourceID, content),
-			TokenEstimate:  estimateTokens(content),
+			TokenEstimate:  tokenestimate.Estimate(content),
 			Score:          chunk.Similarity,
 			MetadataJSON: contextArtifactMetadata(map[string]interface{}{
 				"source_message_id": chunk.MessageID,
@@ -358,7 +360,7 @@ func buildToolContextArtifacts(input toolContextArtifactInput) []domainconversat
 			SourceTitle:    strings.TrimSpace(row.ToolName),
 			Content:        content,
 			ContentHash:    contextArtifactHash(kind, sourceID, rawContent),
-			TokenEstimate:  estimateTokens(content),
+			TokenEstimate:  tokenestimate.Estimate(content),
 			Score:          1,
 			MetadataJSON: contextArtifactMetadata(map[string]interface{}{
 				"tool_call_id": strings.TrimSpace(row.ToolCallID),
@@ -391,13 +393,13 @@ func buildSnapshotContextArtifact(input snapshotContextArtifactInput) *domaincon
 	content := strings.TrimSpace(input.Snapshot.SummaryText)
 	tokenEstimate := input.Snapshot.SummaryTokens
 	if tokenEstimate <= 0 {
-		tokenEstimate = estimateTokens(content)
+		tokenEstimate = tokenestimate.Estimate(content)
 	}
 	return &domainconversation.ContextArtifact{
 		ConversationID: input.ConversationID,
 		MessageID:      input.MessageID,
 		UserID:         input.UserID,
-		RunID:          firstNonEmptyString(input.Snapshot.RunID, input.RunID),
+		RunID:          textutil.FirstNonEmpty(input.Snapshot.RunID, input.RunID),
 		Kind:           domainconversation.ContextArtifactSummary,
 		SourceType:     "context_snapshot",
 		SourceID:       sourceID,
@@ -465,8 +467,8 @@ func selectHistoricalContextArtifacts(input historicalContextArtifactInput) []do
 	var usedTokens int64
 	for _, candidate := range scored {
 		item := candidate.item
-		content := compactSnippet(strings.TrimSpace(item.Content), 500)
-		tokenEstimate := estimateTokens(content)
+		content := textutil.CompactSnippet(strings.TrimSpace(item.Content), 500)
+		tokenEstimate := tokenestimate.Estimate(content)
 		if item.TokenEstimate > 0 && item.TokenEstimate < tokenEstimate {
 			tokenEstimate = item.TokenEstimate
 		}
@@ -565,9 +567,9 @@ func toolArtifactContent(row domainconversation.ToolCall) string {
 	}
 	switch strings.TrimSpace(row.Status) {
 	case "error", "failed":
-		return firstNonEmptyString(row.ErrorJSON, row.OutputJSON)
+		return textutil.FirstNonEmpty(row.ErrorJSON, row.OutputJSON)
 	default:
-		return firstNonEmptyString(row.OutputJSON, row.ErrorJSON)
+		return textutil.FirstNonEmpty(row.OutputJSON, row.ErrorJSON)
 	}
 }
 

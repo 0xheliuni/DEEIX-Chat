@@ -86,7 +86,8 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 	if err := engine.SetTrustedProxies(snapshot.TrustedProxyList()); err != nil {
 		return nil, fmt.Errorf("set trusted proxies: %w", err)
 	}
-	if err := middleware.ConfigureTrustedProxyHeaders(snapshot.TrustedProxyList()); err != nil {
+	trustedProxyHeaders, err := middleware.TrustedProxyHeaders(snapshot.TrustedProxyList())
+	if err != nil {
 		return nil, fmt.Errorf("configure trusted proxy headers: %w", err)
 	}
 	engine.Use(gin.CustomRecovery(func(c *gin.Context, recovered interface{}) {
@@ -100,6 +101,7 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 		return req.URL.Path != "/healthz"
 	})))
 	engine.Use(middleware.RequestID())
+	engine.Use(trustedProxyHeaders)
 	engine.Use(middleware.AccessLog(log))
 	engine.Use(middleware.SecurityHeaders())
 	engine.Use(middleware.CORS(snapshot.CORSAllowOrigin))

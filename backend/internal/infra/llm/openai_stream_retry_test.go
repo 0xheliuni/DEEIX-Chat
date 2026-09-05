@@ -7,14 +7,16 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
 func TestOpenAIChatCompletionsStreamDoesNotRetryAfterEventEmission(t *testing.T) {
-	testChatCompletionsStreamDoesNotRetryAfterEventEmission(t, AdapterOpenAIChatCompletions)
+	testChatCompletionsStreamDoesNotRetryAfterEventEmission(t, portllm.AdapterOpenAIChatCompletions)
 }
 
 func TestOpenRouterChatCompletionsStreamDoesNotRetryAfterEventEmission(t *testing.T) {
-	testChatCompletionsStreamDoesNotRetryAfterEventEmission(t, AdapterOpenRouterChat)
+	testChatCompletionsStreamDoesNotRetryAfterEventEmission(t, portllm.AdapterOpenRouterChat)
 }
 
 func testChatCompletionsStreamDoesNotRetryAfterEventEmission(t *testing.T, protocol string) {
@@ -29,13 +31,13 @@ func testChatCompletionsStreamDoesNotRetryAfterEventEmission(t *testing.T, proto
 	defer server.Close()
 
 	var deltas strings.Builder
-	_, err := newTestClient().GenerateStream(context.Background(), RouteConfig{
+	_, err := newTestClient().GenerateStream(context.Background(), portllm.RouteConfig{
 		Protocol:      protocol,
 		BaseURL:       server.URL,
 		UpstreamModel: "gpt-compatible",
-	}, GenerateInput{
-		Messages: []Message{{Role: "user", Content: "hello"}},
-	}, func(event GenerateStreamEvent) error {
+	}, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "hello"}},
+	}, func(event portllm.GenerateStreamEvent) error {
 		deltas.WriteString(event.Delta)
 		return nil
 	})
@@ -68,17 +70,17 @@ func TestOpenAIResponsesStreamDoesNotRetryPromptCacheErrors(t *testing.T) {
 	defer server.Close()
 
 	var deltas strings.Builder
-	_, err := newTestClient().GenerateStream(context.Background(), RouteConfig{
-		Protocol:      AdapterOpenAIResponses,
+	_, err := newTestClient().GenerateStream(context.Background(), portllm.RouteConfig{
+		Protocol:      portllm.AdapterOpenAIResponses,
 		BaseURL:       server.URL,
 		UpstreamModel: "gpt-5.6-relay",
-	}, GenerateInput{
+	}, portllm.GenerateInput{
 		PromptCacheKey: "session-1",
-		Messages:       []Message{{Role: "user", Content: "hello"}},
+		Messages:       []portllm.Message{{Role: "user", Content: "hello"}},
 		Options: map[string]interface{}{
 			"prompt_cache_options": map[string]interface{}{"mode": "explicit"},
 		},
-	}, func(event GenerateStreamEvent) error {
+	}, func(event portllm.GenerateStreamEvent) error {
 		deltas.WriteString(event.Delta)
 		return nil
 	})

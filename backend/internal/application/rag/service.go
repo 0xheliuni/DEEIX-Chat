@@ -14,6 +14,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/embeddingutil"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 )
 
 // Service 封装 RAG 检索能力。
@@ -65,11 +66,6 @@ const ragCacheVersion = "v3"
 const ragInitialPerFileLimit = 2
 
 const ragDiversityMinScoreRatio float32 = 0.75
-
-// NewService 创建服务。
-func NewService(cfg config.Config, repo repository.RAGRepository, cache repository.RAGCacheRepository, embedClient EmbeddingClient) *Service {
-	return NewServiceWithRuntime(config.NewRuntime(cfg), repo, cache, embedClient)
-}
 
 // NewServiceWithRuntime 创建使用运行时配置容器的服务。
 func NewServiceWithRuntime(cfg *config.Runtime, repo repository.RAGRepository, cache repository.RAGCacheRepository, embedClient EmbeddingClient) *Service {
@@ -389,7 +385,7 @@ func ragChunkTokenEstimate(candidate domainconversation.FileChunkSearchResult) i
 	if candidate.TokenCount > 0 {
 		return int64(candidate.TokenCount)
 	}
-	return estimateTokens(candidate.Content)
+	return tokenestimate.Estimate(candidate.Content)
 }
 
 func maxRAGChunkScore(chunks []domainconversation.RAGChunk) float32 {
@@ -461,32 +457,6 @@ func resolveEmbeddingUpstream(cfg config.Config) (string, string, error) {
 		return "", "", fmt.Errorf("file.embedding_host is required")
 	}
 	return strings.TrimRight(strings.TrimSpace(cfg.EmbeddingHost), "/"), strings.TrimSpace(cfg.EmbeddingKey), nil
-}
-
-func estimateTokens(content string) int64 {
-	if len(content) == 0 {
-		return 0
-	}
-	var cjk, other int64
-	for _, r := range content {
-		if isCJKRune(r) {
-			cjk++
-		} else {
-			other++
-		}
-	}
-	tokens := (cjk*2+2)/3 + (other+3)/4
-	if tokens == 0 {
-		return 1
-	}
-	return tokens
-}
-
-func isCJKRune(r rune) bool {
-	return (r >= 0x2E80 && r <= 0x9FFF) ||
-		(r >= 0xAC00 && r <= 0xD7AF) ||
-		(r >= 0xF900 && r <= 0xFAFF) ||
-		(r >= 0x20000 && r <= 0x2A6DF)
 }
 
 // hybridRetrieve 并行执行向量检索与 BM25 全文检索，使用 RRF（Reciprocal Rank Fusion）合并结果。

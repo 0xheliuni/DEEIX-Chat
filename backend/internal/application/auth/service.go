@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	appaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/audit"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
 	appstorage "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/objectstorage"
 	userapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/user"
@@ -70,7 +71,7 @@ type subscriptionResolver interface {
 }
 
 type auditWriter interface {
-	Write(ctx context.Context, requestID string, actorUserID uint, action string, resource string, resourceID string, ip string, userAgent string, detail interface{})
+	Write(ctx context.Context, input appaudit.WriteInput)
 }
 
 type avatarFileValidator interface {
@@ -89,7 +90,6 @@ func NewServiceWithRuntime(
 		repo:               repo,
 		geoResolver:        geoResolver,
 		providerHTTPClient: providerHTTPClient,
-		storeProvider:      appstorage.NewRuntimeProvider(cfg, nil),
 	}
 }
 
@@ -135,16 +135,7 @@ func (s *Service) SetAuditWriter(writer auditWriter) {
 }
 
 // AuditInput 描述认证域审计写入。
-type AuditInput struct {
-	UserID     uint
-	RequestID  string
-	Action     string
-	Resource   string
-	ResourceID string
-	ClientIP   string
-	UserAgent  string
-	Detail     interface{}
-}
+type AuditInput = appaudit.WriteInput
 
 // BootstrapSuperAdmin 表示首次启动时自动创建的超级管理员凭据。
 type BootstrapSuperAdmin struct {
@@ -157,17 +148,7 @@ func (s *Service) RecordAudit(ctx context.Context, input AuditInput) {
 	if s.auditWriter == nil {
 		return
 	}
-	s.auditWriter.Write(
-		ctx,
-		strings.TrimSpace(input.RequestID),
-		input.UserID,
-		strings.TrimSpace(input.Action),
-		strings.TrimSpace(input.Resource),
-		strings.TrimSpace(input.ResourceID),
-		strings.TrimSpace(input.ClientIP),
-		strings.TrimSpace(input.UserAgent),
-		input.Detail,
-	)
+	s.auditWriter.Write(ctx, input)
 }
 
 func (s *Service) warn(message string, fields ...zap.Field) {
@@ -743,8 +724,8 @@ func (s *Service) UpdateProfile(ctx context.Context, userID uint, input UpdatePr
 
 	if input.AvatarURL != nil {
 		nextAvatarURL := strings.TrimSpace(*input.AvatarURL)
-		if err := validateAvatarURL(nextAvatarURL); err != nil {
-			return nil, err
+		if !domainuser.IsValidAvatarURL(nextAvatarURL) {
+			return nil, ErrInvalidAvatarURL
 		}
 		if fileID, ok := domainuser.ParseFileAvatarURL(nextAvatarURL); ok {
 			avatarFileReferenceRequested = true
@@ -1047,8 +1028,8 @@ func (s *Service) RequestAccountDeleteVerification(ctx context.Context, userID u
 
 // cleanupDeletedAccountFiles 从对象存储删除用户文件，返回删除失败的路径列表。
 func (s *Service) cleanupDeletedAccountFiles(ctx context.Context, storagePaths []string) []string {
-	if s.storeProvider == nil {
-		s.storeProvider = appstorage.NewRuntimeProvider(s.cfg, nil)
+	if s == nil || s.storeProvider == nil {
+		return append([]string(nil), storagePaths...)
 	}
 	store, err := s.storeProvider.Open(ctx)
 	if err != nil {
@@ -1603,26 +1584,4 @@ func normalizeEditableUsername(raw string) (string, error) {
 		return "", ErrInvalidUsername
 	}
 	return username, nil
-}
-
-// validateAvatarURL 校验头像 URL 合法性；空值、相对路径、generated: 前缀和 file: 引用均视为合法。
-func validateAvatarURL(raw string) error {
-	if raw == "" || strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, "generated:github:") {
-		return nil
-	}
-	if strings.HasPrefix(raw, "file:") {
-		if _, ok := domainuser.ParseFileAvatarURL(raw); !ok {
-			return ErrInvalidAvatarURL
-		}
-		return nil
-	}
-
-	parsed, err := url.Parse(raw)
-	if err != nil {
-		return ErrInvalidAvatarURL
-	}
-	if (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
-		return ErrInvalidAvatarURL
-	}
-	return nil
 }

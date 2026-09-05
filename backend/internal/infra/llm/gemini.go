@@ -27,6 +27,10 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
+
+	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
 const (
@@ -39,32 +43,32 @@ type geminiGenerateContentAdapter struct {
 	client *Client
 }
 
-func (a *geminiGenerateContentAdapter) Name() string { return AdapterGoogleGenerateContent }
+func (a *geminiGenerateContentAdapter) Name() string { return portllm.AdapterGoogleGenerateContent }
 
 func (a *geminiGenerateContentAdapter) Generate(
 	ctx context.Context,
-	route RouteConfig,
-	input GenerateInput,
-) (*GenerateOutput, error) {
+	route portllm.RouteConfig,
+	input portllm.GenerateInput,
+) (*portllm.GenerateOutput, error) {
 	return a.client.generateGemini(ctx, route, input)
 }
 
 func (a *geminiGenerateContentAdapter) GenerateStream(
 	ctx context.Context,
-	route RouteConfig,
-	input GenerateInput,
-	onEvent func(GenerateStreamEvent) error,
-) (*GenerateOutput, error) {
+	route portllm.RouteConfig,
+	input portllm.GenerateInput,
+	onEvent func(portllm.GenerateStreamEvent) error,
+) (*portllm.GenerateOutput, error) {
 	return a.client.generateGeminiStream(ctx, route, input, onEvent)
 }
 
-func (a *geminiGenerateContentAdapter) ListModels(ctx context.Context, route RouteConfig) ([]ModelItem, error) {
+func (a *geminiGenerateContentAdapter) ListModels(ctx context.Context, route portllm.RouteConfig) ([]portllm.ModelItem, error) {
 	return a.client.listModelsGemini(ctx, route)
 }
 
 // ── URL 构造 ───────────────────────────────────────────────────────────────────
 
-func geminiBaseURL(route RouteConfig) string {
+func geminiBaseURL(route portllm.RouteConfig) string {
 	base := strings.TrimRight(strings.TrimSpace(route.BaseURL), "/")
 	if base == "" {
 		return geminiDefaultAPIBase
@@ -116,7 +120,7 @@ func normalizeGeminiEndpointBaseURL(baseURL string) string {
 
 // buildGeminiRequestBody 构造 GenerateContentRequest。
 // system role 消息被提取为顶层 systemInstruction；其余消息映射为 contents。
-func buildGeminiRequestBody(input GenerateInput) (map[string]interface{}, error) {
+func buildGeminiRequestBody(input portllm.GenerateInput) (map[string]interface{}, error) {
 	messages := normalizeMessages(input.Messages)
 	providerTools, toolDefinitions, toolsEnabled, err := toolDeclarationsForInput(input)
 	if err != nil {
@@ -509,7 +513,7 @@ func firstGeminiStringListOption(options map[string]interface{}, aliases ...stri
 	return nil
 }
 
-func buildGeminiTools(tools []ToolDefinition) []map[string]interface{} {
+func buildGeminiTools(tools []portllm.ToolDefinition) []map[string]interface{} {
 	if len(tools) == 0 {
 		return nil
 	}
@@ -579,7 +583,7 @@ func toGeminiRole(role string) string {
 }
 
 // buildGeminiParts 将 Message 转换为 Gemini parts 数组。
-func buildGeminiParts(msg Message) []map[string]interface{} {
+func buildGeminiParts(msg portllm.Message) []map[string]interface{} {
 	if len(msg.Parts) == 0 && len(msg.ToolCalls) == 0 && len(msg.ToolResults) == 0 {
 		return []map[string]interface{}{{"text": msg.Content}}
 	}
@@ -590,7 +594,7 @@ func buildGeminiParts(msg Message) []map[string]interface{} {
 	}
 	for _, part := range msg.Parts {
 		switch part.Kind {
-		case ContentPartImage:
+		case portllm.ContentPartImage:
 			if len(part.Data) == 0 {
 				continue
 			}
@@ -656,8 +660,8 @@ func (c *Client) newGeminiRequest(
 	ctx context.Context,
 	method, requestURL string,
 	body io.Reader,
-	route RouteConfig,
-	input *GenerateInput,
+	route portllm.RouteConfig,
+	input *portllm.GenerateInput,
 ) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, method, requestURL, body)
 	if err != nil {
@@ -673,22 +677,22 @@ func (c *Client) newGeminiRequest(
 }
 
 // parseGeminiError 从 Gemini 错误响应中提取 error.message。
-func parseGeminiError(statusCode int, body []byte, debug *UpstreamDebugSnapshot) error {
+func parseGeminiError(statusCode int, body []byte, debug *portllm.UpstreamDebugSnapshot) error {
 	parsed := make(map[string]interface{})
 	if err := json.Unmarshal(body, &parsed); err == nil {
 		if msg := getStringFromPath(parsed, "error", "message"); msg != "" {
-			return &UpstreamError{StatusCode: statusCode, Message: msg, Body: string(body), Debug: debug}
+			return &portllm.UpstreamError{StatusCode: statusCode, Message: msg, Body: string(body), Debug: debug}
 		}
 	}
 	if statusCode == http.StatusUnauthorized {
-		return &UpstreamError{
+		return &portllm.UpstreamError{
 			StatusCode: statusCode,
 			Message:    "google authentication failed; check API key, upstream base URL, and custom auth headers",
 			Body:       string(body),
 			Debug:      debug,
 		}
 	}
-	return &UpstreamError{
+	return &portllm.UpstreamError{
 		StatusCode: statusCode,
 		Message:    fmt.Sprintf("upstream_status_%d", statusCode),
 		Body:       string(body),
@@ -700,9 +704,9 @@ func parseGeminiError(statusCode int, body []byte, debug *UpstreamDebugSnapshot)
 
 func (c *Client) generateGemini(
 	ctx context.Context,
-	route RouteConfig,
-	input GenerateInput,
-) (*GenerateOutput, error) {
+	route portllm.RouteConfig,
+	input portllm.GenerateInput,
+) (*portllm.GenerateOutput, error) {
 	base := geminiBaseURL(route)
 	requestURL := buildGeminiGenerateURL(base, route.UpstreamModel)
 
@@ -732,7 +736,7 @@ func (c *Client) generateGemini(
 	body, err := readUpstreamBody(resp.Body)
 	if err != nil {
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			return nil, MarkRequestAccepted(err)
+			return nil, portllm.MarkRequestAccepted(err)
 		}
 		return nil, err
 	}
@@ -743,21 +747,21 @@ func (c *Client) generateGemini(
 	debug := upstreamDebugSnapshot(req, payload, resp, body)
 	output, err := parseGeminiResponse(body)
 	if err != nil {
-		return nil, MarkRequestAccepted(attachUpstreamDebug(err, debug))
+		return nil, portllm.MarkRequestAccepted(attachUpstreamDebug(err, debug))
 	}
 	output.Debug = debug
 	return output, nil
 }
 
 // parseGeminiResponse 解析 GenerateContentResponse（非流式）。
-func parseGeminiResponse(body []byte) (*GenerateOutput, error) {
+func parseGeminiResponse(body []byte) (*portllm.GenerateOutput, error) {
 	parsed := make(map[string]interface{})
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return nil, err
 	}
 
 	text := extractGeminiText(parsed)
-	result := &GenerateOutput{
+	result := &portllm.GenerateOutput{
 		ResponseID:          strings.TrimSpace(getString(parsed["responseId"])),
 		Text:                text,
 		Reasoning:           extractGeminiReasoning(parsed),
@@ -789,10 +793,10 @@ func extractGeminiText(parsed map[string]interface{}) string {
 	return strings.Join(chunks, "")
 }
 
-func extractGeminiReasoning(parsed map[string]interface{}) *ReasoningOutput {
+func extractGeminiReasoning(parsed map[string]interface{}) *portllm.ReasoningOutput {
 	candidate := firstMapItem(asSlice(parsed["candidates"]))
 	content := asMap(candidate["content"])
-	result := &ReasoningOutput{}
+	result := &portllm.ReasoningOutput{}
 	for _, raw := range asSlice(content["parts"]) {
 		part := asMap(raw)
 		thought, ok := part["thought"].(bool)
@@ -811,10 +815,10 @@ func extractGeminiReasoning(parsed map[string]interface{}) *ReasoningOutput {
 }
 
 // parseGeminiUsage 解析 usageMetadata。
-func parseGeminiUsage(parsed map[string]interface{}) Usage {
+func parseGeminiUsage(parsed map[string]interface{}) portllm.Usage {
 	totalInputTokens := getInt64FromPath(parsed, "usageMetadata", "promptTokenCount")
 	cacheReadTokens := getInt64FromPath(parsed, "usageMetadata", "cachedContentTokenCount")
-	return Usage{
+	return portllm.Usage{
 		InputTokens:     nonCachedInputTokens(totalInputTokens, cacheReadTokens),
 		OutputTokens:    getInt64FromPath(parsed, "usageMetadata", "candidatesTokenCount"),
 		CacheReadTokens: cacheReadTokens,
@@ -824,11 +828,11 @@ func parseGeminiUsage(parsed map[string]interface{}) Usage {
 }
 
 // parseGeminiFunctionCalls 解析 candidates[0].content.parts 中的 functionCall。
-func parseGeminiFunctionCalls(parsed map[string]interface{}) []ToolCall {
+func parseGeminiFunctionCalls(parsed map[string]interface{}) []portllm.ToolCall {
 	candidate := firstMapItem(asSlice(parsed["candidates"]))
 	content := asMap(candidate["content"])
 
-	var result []ToolCall
+	var result []portllm.ToolCall
 	for _, raw := range asSlice(content["parts"]) {
 		part := asMap(raw)
 		fc := asMap(part["functionCall"])
@@ -839,7 +843,7 @@ func parseGeminiFunctionCalls(parsed map[string]interface{}) []ToolCall {
 		if arguments == "" {
 			arguments = "{}"
 		}
-		result = append(result, ToolCall{
+		result = append(result, portllm.ToolCall{
 			ToolType:         "function",
 			ToolName:         strings.TrimSpace(getString(fc["name"])),
 			ArgumentsJSON:    arguments,
@@ -848,16 +852,16 @@ func parseGeminiFunctionCalls(parsed map[string]interface{}) []ToolCall {
 		})
 	}
 	if result == nil {
-		return make([]ToolCall, 0)
+		return make([]portllm.ToolCall, 0)
 	}
 	return result
 }
 
-func parseGeminiServerToolCalls(parsed map[string]interface{}) []ToolCall {
+func parseGeminiServerToolCalls(parsed map[string]interface{}) []portllm.ToolCall {
 	if len(parsed) == 0 {
-		return make([]ToolCall, 0)
+		return make([]portllm.ToolCall, 0)
 	}
-	result := make([]ToolCall, 0)
+	result := make([]portllm.ToolCall, 0)
 	for _, call := range parseGeminiExplicitServerToolCalls(parsed, -1) {
 		appendUniqueToolCall(&result, call)
 	}
@@ -879,11 +883,11 @@ func parseGeminiServerToolCalls(parsed map[string]interface{}) []ToolCall {
 	return result
 }
 
-func parseGeminiExplicitServerToolCalls(payload map[string]interface{}, candidateIndex int) []ToolCall {
+func parseGeminiExplicitServerToolCalls(payload map[string]interface{}, candidateIndex int) []portllm.ToolCall {
 	if len(payload) == 0 {
 		return nil
 	}
-	result := make([]ToolCall, 0)
+	result := make([]portllm.ToolCall, 0)
 	keys := []string{
 		"serverSideToolInvocations",
 		"server_side_tool_invocations",
@@ -909,11 +913,11 @@ func parseGeminiExplicitServerToolCalls(payload map[string]interface{}, candidat
 	return result
 }
 
-func parseGeminiExplicitServerToolCall(item map[string]interface{}, candidateIndex int, itemIndex int) (ToolCall, bool) {
+func parseGeminiExplicitServerToolCall(item map[string]interface{}, candidateIndex int, itemIndex int) (portllm.ToolCall, bool) {
 	if len(item) == 0 {
-		return ToolCall{}, false
+		return portllm.ToolCall{}, false
 	}
-	name := firstNonEmptyString(
+	name := textutil.FirstNonEmpty(
 		getString(item["name"]),
 		getString(item["toolName"]),
 		getString(item["tool_name"]),
@@ -921,11 +925,11 @@ func parseGeminiExplicitServerToolCall(item map[string]interface{}, candidateInd
 	)
 	name = normalizeGeminiServerToolName(name)
 	if name == "" {
-		return ToolCall{}, false
+		return portllm.ToolCall{}, false
 	}
-	status := firstNonEmptyString(getString(item["status"]), "in_progress")
-	return ToolCall{
-		ToolCallID: firstNonEmptyString(
+	status := textutil.FirstNonEmpty(getString(item["status"]), "in_progress")
+	return portllm.ToolCall{
+		ToolCallID: textutil.FirstNonEmpty(
 			getString(item["id"]),
 			getString(item["callId"]),
 			getString(item["call_id"]),
@@ -933,9 +937,9 @@ func parseGeminiExplicitServerToolCall(item map[string]interface{}, candidateInd
 		),
 		ToolType:      name,
 		ToolName:      name,
-		ArgumentsJSON: firstNonEmptyString(normalizeJSONString(item["input"]), normalizeJSONString(item["args"]), normalizeJSONString(item["arguments"])),
+		ArgumentsJSON: textutil.FirstNonEmpty(normalizeJSONString(item["input"]), normalizeJSONString(item["args"]), normalizeJSONString(item["arguments"])),
 		Status:        normalizeGeminiExplicitServerToolStatus(status),
-		OutputJSON:    firstNonEmptyString(normalizeJSONString(item["output"]), normalizeJSONString(item["result"]), normalizeJSONString(item["response"])),
+		OutputJSON:    textutil.FirstNonEmpty(normalizeJSONString(item["output"]), normalizeJSONString(item["result"]), normalizeJSONString(item["response"])),
 		ErrorJSON:     normalizeJSONString(item["error"]),
 	}, true
 }
@@ -969,10 +973,10 @@ func normalizeGeminiExplicitServerToolStatus(status string) string {
 	}
 }
 
-func parseGeminiGoogleSearchServerToolCall(candidate map[string]interface{}, candidateIndex int) (ToolCall, bool) {
+func parseGeminiGoogleSearchServerToolCall(candidate map[string]interface{}, candidateIndex int) (portllm.ToolCall, bool) {
 	grounding := asMap(candidate["groundingMetadata"])
 	if !hasGeminiSearchGroundingMetadata(grounding) {
-		return ToolCall{}, false
+		return portllm.ToolCall{}, false
 	}
 	input := map[string]interface{}{}
 	if queries := asSlice(grounding["webSearchQueries"]); len(queries) > 0 {
@@ -985,7 +989,7 @@ func parseGeminiGoogleSearchServerToolCall(candidate map[string]interface{}, can
 		"search_entry_point": grounding["searchEntryPoint"],
 		"retrieval_metadata": grounding["retrievalMetadata"],
 	})
-	return ToolCall{
+	return portllm.ToolCall{
 		ToolCallID:    geminiServerToolCallID("google_search", candidateIndex, 0),
 		ToolType:      "google_search",
 		ToolName:      "google_search",
@@ -995,16 +999,16 @@ func parseGeminiGoogleSearchServerToolCall(candidate map[string]interface{}, can
 	}, true
 }
 
-func parseGeminiURLContextServerToolCall(candidate map[string]interface{}, candidateIndex int) (ToolCall, bool) {
+func parseGeminiURLContextServerToolCall(candidate map[string]interface{}, candidateIndex int) (portllm.ToolCall, bool) {
 	metadata := asMap(candidate["urlContextMetadata"])
 	urlMetadata := asSlice(metadata["urlMetadata"])
 	if len(urlMetadata) == 0 {
-		return ToolCall{}, false
+		return portllm.ToolCall{}, false
 	}
 	urls := make([]string, 0, len(urlMetadata))
 	for _, raw := range urlMetadata {
 		item := asMap(raw)
-		if uri := firstNonEmptyString(getString(item["retrievedUrl"]), getString(item["url"]), getString(item["uri"])); uri != "" {
+		if uri := textutil.FirstNonEmpty(getString(item["retrievedUrl"]), getString(item["url"]), getString(item["uri"])); uri != "" {
 			urls = append(urls, uri)
 		}
 	}
@@ -1015,7 +1019,7 @@ func parseGeminiURLContextServerToolCall(candidate map[string]interface{}, candi
 	output := compactGeminiServerToolPayload(map[string]interface{}{
 		"urls": geminiURLContextItems(urlMetadata),
 	})
-	return ToolCall{
+	return portllm.ToolCall{
 		ToolCallID:    geminiServerToolCallID("url_context", candidateIndex, 0),
 		ToolType:      "url_context",
 		ToolName:      "url_context",
@@ -1025,17 +1029,17 @@ func parseGeminiURLContextServerToolCall(candidate map[string]interface{}, candi
 	}, true
 }
 
-func parseGeminiCodeExecutionServerToolCalls(candidate map[string]interface{}, candidateIndex int) []ToolCall {
+func parseGeminiCodeExecutionServerToolCalls(candidate map[string]interface{}, candidateIndex int) []portllm.ToolCall {
 	content := asMap(candidate["content"])
 	parts := asSlice(content["parts"])
-	result := make([]ToolCall, 0)
+	result := make([]portllm.ToolCall, 0)
 	currentIndex := -1
 	for _, raw := range parts {
 		part := asMap(raw)
 		executableCode := asMap(part["executableCode"])
 		if len(executableCode) > 0 {
 			currentIndex++
-			result = append(result, ToolCall{
+			result = append(result, portllm.ToolCall{
 				ToolCallID:    geminiServerToolCallID("code_execution", candidateIndex, currentIndex),
 				ToolType:      "code_execution",
 				ToolName:      "code_execution",
@@ -1050,7 +1054,7 @@ func parseGeminiCodeExecutionServerToolCalls(candidate map[string]interface{}, c
 		}
 		if currentIndex < 0 {
 			currentIndex = 0
-			result = append(result, ToolCall{
+			result = append(result, portllm.ToolCall{
 				ToolCallID: geminiServerToolCallID("code_execution", candidateIndex, currentIndex),
 				ToolType:   "code_execution",
 				ToolName:   "code_execution",
@@ -1076,7 +1080,7 @@ func geminiGroundingSources(grounding map[string]interface{}) []map[string]inter
 		chunk := asMap(raw)
 		for _, key := range []string{"web", "retrievedContext"} {
 			source := asMap(chunk[key])
-			uri := firstNonEmptyString(getString(source["uri"]), getString(source["url"]))
+			uri := textutil.FirstNonEmpty(getString(source["uri"]), getString(source["url"]))
 			if uri == "" {
 				continue
 			}
@@ -1097,7 +1101,7 @@ func geminiURLContextItems(items []interface{}) []map[string]interface{} {
 	result := make([]map[string]interface{}, 0, len(items))
 	for _, raw := range items {
 		item := asMap(raw)
-		url := firstNonEmptyString(getString(item["retrievedUrl"]), getString(item["url"]), getString(item["uri"]))
+		url := textutil.FirstNonEmpty(getString(item["retrievedUrl"]), getString(item["url"]), getString(item["uri"]))
 		if url == "" {
 			continue
 		}
@@ -1169,7 +1173,7 @@ func parseGeminiCitations(parsed map[string]interface{}) []string {
 			chunk := asMap(raw)
 			for _, key := range []string{"web", "retrievedContext"} {
 				source := asMap(chunk[key])
-				if uri := firstNonEmptyString(getString(source["uri"]), getString(source["url"])); uri != "" {
+				if uri := textutil.FirstNonEmpty(getString(source["uri"]), getString(source["url"])); uri != "" {
 					citations = append(citations, uri)
 				}
 			}
@@ -1177,7 +1181,7 @@ func parseGeminiCitations(parsed map[string]interface{}) []string {
 		urlContext := asMap(candidate["urlContextMetadata"])
 		for _, raw := range asSlice(urlContext["urlMetadata"]) {
 			item := asMap(raw)
-			if uri := firstNonEmptyString(getString(item["retrievedUrl"]), getString(item["url"]), getString(item["uri"])); uri != "" {
+			if uri := textutil.FirstNonEmpty(getString(item["retrievedUrl"]), getString(item["url"]), getString(item["uri"])); uri != "" {
 				citations = append(citations, uri)
 			}
 		}
@@ -1229,10 +1233,10 @@ func hasGeminiSearchGroundingMetadata(grounding map[string]interface{}) bool {
 
 func (c *Client) generateGeminiStream(
 	ctx context.Context,
-	route RouteConfig,
-	input GenerateInput,
-	onEvent func(GenerateStreamEvent) error,
-) (*GenerateOutput, error) {
+	route portllm.RouteConfig,
+	input portllm.GenerateInput,
+	onEvent func(portllm.GenerateStreamEvent) error,
+) (*portllm.GenerateOutput, error) {
 	base := geminiBaseURL(route)
 	requestURL := buildGeminiStreamURL(base, route.UpstreamModel)
 
@@ -1269,14 +1273,14 @@ func (c *Client) generateGeminiStream(
 		return nil, parseGeminiError(resp.StatusCode, body, upstreamDebugSnapshot(req, payload, resp, body))
 	}
 
-	result := &GenerateOutput{
-		ToolCalls: make([]ToolCall, 0),
+	result := &portllm.GenerateOutput{
+		ToolCalls: make([]portllm.ToolCall, 0),
 	}
 
 	idleReader := newIdleTimeoutReader(resp.Body, resolveStreamIdleTimeout(route.StreamIdleTimeoutMS))
 	streamBody := newUpstreamBodyRecorder(idleReader)
 	if err = consumeGeminiStream(streamBody, result, onEvent); err != nil {
-		return nil, MarkRequestAccepted(attachUpstreamDebug(err, upstreamDebugSnapshot(req, payload, resp, streamErrorBody(streamBody, err))))
+		return nil, portllm.MarkRequestAccepted(attachUpstreamDebug(err, upstreamDebugSnapshot(req, payload, resp, streamErrorBody(streamBody, err))))
 	}
 	return result, nil
 }
@@ -1290,8 +1294,8 @@ func (c *Client) generateGeminiStream(
 //	data: {"candidates":[{"content":{"parts":[{"text":" world"}],"role":"model"}}],"usageMetadata":{...}}
 func consumeGeminiStream(
 	reader io.Reader,
-	result *GenerateOutput,
-	onEvent func(GenerateStreamEvent) error,
+	result *portllm.GenerateOutput,
+	onEvent func(portllm.GenerateStreamEvent) error,
 ) error {
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 0, 64*1024), maxUpstreamBodyBytes)
@@ -1339,8 +1343,8 @@ func consumeGeminiStream(
 // applyGeminiStreamChunk 将单个 GenerateContentResponse 片段合并到 result。
 func applyGeminiStreamChunk(
 	parsed map[string]interface{},
-	result *GenerateOutput,
-	onEvent func(GenerateStreamEvent) error,
+	result *portllm.GenerateOutput,
+	onEvent func(portllm.GenerateStreamEvent) error,
 ) error {
 	if responseID := strings.TrimSpace(getString(parsed["responseId"])); responseID != "" {
 		result.ResponseID = responseID
@@ -1350,7 +1354,7 @@ func applyGeminiStreamChunk(
 	for _, call := range parseGeminiServerToolCalls(parsed) {
 		merged := appendGeminiServerToolCall(result, call)
 		if onEvent != nil {
-			if err := onEvent(GenerateStreamEvent{
+			if err := onEvent(portllm.GenerateStreamEvent{
 				ServerToolCall: &merged,
 				ResponseID:     result.ResponseID,
 			}); err != nil {
@@ -1370,7 +1374,7 @@ func applyGeminiStreamChunk(
 			if think == "" {
 				continue
 			}
-			reasoning := &ReasoningDelta{
+			reasoning := &portllm.ReasoningDelta{
 				EventType: "google.generate_content",
 				Kind:      "content_text",
 				Text:      think,
@@ -1378,7 +1382,7 @@ func applyGeminiStreamChunk(
 			}
 			mergeReasoningDeltaOutput(&result.Reasoning, reasoning)
 			if onEvent != nil {
-				if err := onEvent(GenerateStreamEvent{
+				if err := onEvent(portllm.GenerateStreamEvent{
 					Reasoning:  reasoning,
 					ResponseID: result.ResponseID,
 				}); err != nil {
@@ -1393,7 +1397,7 @@ func applyGeminiStreamChunk(
 		}
 		result.Text += text
 		if onEvent != nil {
-			if err := onEvent(GenerateStreamEvent{
+			if err := onEvent(portllm.GenerateStreamEvent{
 				Delta:      text,
 				ResponseID: result.ResponseID,
 			}); err != nil {
@@ -1414,7 +1418,7 @@ func applyGeminiStreamChunk(
 		if arguments == "" {
 			arguments = "{}"
 		}
-		result.ToolCalls = append(result.ToolCalls, ToolCall{
+		result.ToolCalls = append(result.ToolCalls, portllm.ToolCall{
 			ToolType:         "function",
 			ToolName:         strings.TrimSpace(getString(fc["name"])),
 			ArgumentsJSON:    arguments,
@@ -1424,10 +1428,10 @@ func applyGeminiStreamChunk(
 	}
 
 	// usageMetadata（最后一帧携带完整统计）
-	if usage := parseGeminiUsage(parsed); usage != (Usage{}) {
+	if usage := parseGeminiUsage(parsed); usage != (portllm.Usage{}) {
 		result.Usage = usage
 		if onEvent != nil {
-			return onEvent(GenerateStreamEvent{
+			return onEvent(portllm.GenerateStreamEvent{
 				Usage:      usage,
 				ResponseID: result.ResponseID,
 			})
@@ -1437,7 +1441,7 @@ func applyGeminiStreamChunk(
 	return nil
 }
 
-func appendGeminiServerToolCall(result *GenerateOutput, call ToolCall) ToolCall {
+func appendGeminiServerToolCall(result *portllm.GenerateOutput, call portllm.ToolCall) portllm.ToolCall {
 	if result == nil {
 		return call
 	}
@@ -1451,7 +1455,7 @@ func appendGeminiServerToolCall(result *GenerateOutput, call ToolCall) ToolCall 
 	return call
 }
 
-func normalizeGeminiStreamServerToolCallID(existing []ToolCall, call ToolCall) ToolCall {
+func normalizeGeminiStreamServerToolCallID(existing []portllm.ToolCall, call portllm.ToolCall) portllm.ToolCall {
 	if strings.TrimSpace(call.ToolName) != "code_execution" && strings.TrimSpace(call.ToolType) != "code_execution" {
 		return call
 	}
@@ -1475,7 +1479,7 @@ func normalizeGeminiStreamServerToolCallID(existing []ToolCall, call ToolCall) T
 	return call
 }
 
-func latestGeminiPendingCodeExecution(items []ToolCall) (ToolCall, bool) {
+func latestGeminiPendingCodeExecution(items []portllm.ToolCall) (portllm.ToolCall, bool) {
 	for idx := len(items) - 1; idx >= 0; idx-- {
 		item := items[idx]
 		if strings.TrimSpace(item.ToolName) != "code_execution" && strings.TrimSpace(item.ToolType) != "code_execution" {
@@ -1485,10 +1489,10 @@ func latestGeminiPendingCodeExecution(items []ToolCall) (ToolCall, bool) {
 			return item, true
 		}
 	}
-	return ToolCall{}, false
+	return portllm.ToolCall{}, false
 }
 
-func countGeminiCodeExecutionCalls(items []ToolCall) int {
+func countGeminiCodeExecutionCalls(items []portllm.ToolCall) int {
 	count := 0
 	for _, item := range items {
 		if strings.TrimSpace(item.ToolName) == "code_execution" || strings.TrimSpace(item.ToolType) == "code_execution" {
@@ -1498,7 +1502,7 @@ func countGeminiCodeExecutionCalls(items []ToolCall) int {
 	return count
 }
 
-func applyGeminiStreamServerToolUsage(result *GenerateOutput) {
+func applyGeminiStreamServerToolUsage(result *portllm.GenerateOutput) {
 	if result == nil {
 		return
 	}
@@ -1534,14 +1538,14 @@ func mergeGeminiServerSideToolUsage(current map[string]int64, next map[string]in
 // listModelsGemini 调用 GET /v1beta/models。
 //
 // 响应：{"models":[{"name":"models/gemini-2.0-flash","displayName":"..."},...]}
-func (c *Client) listModelsGemini(ctx context.Context, route RouteConfig) ([]ModelItem, error) {
+func (c *Client) listModelsGemini(ctx context.Context, route portllm.RouteConfig) ([]portllm.ModelItem, error) {
 	base := geminiBaseURL(route)
 	baseRequestURL := buildGeminiModelsURL(base)
 
 	requestCtx, cancel := context.WithTimeout(ctx, resolveReadTimeout(route.ReadTimeoutMS))
 	defer cancel()
 
-	results := make([]ModelItem, 0)
+	results := make([]portllm.ModelItem, 0)
 	pageToken := ""
 	seenPageTokens := make(map[string]struct{})
 	for {
@@ -1588,7 +1592,7 @@ func (c *Client) listModelsGemini(ctx context.Context, route RouteConfig) ([]Mod
 			if id == "" {
 				continue
 			}
-			results = append(results, ModelItem{ID: id, OwnedBy: "google"})
+			results = append(results, portllm.ModelItem{ID: id, OwnedBy: "google"})
 		}
 		nextPageToken := strings.TrimSpace(parsed.NextPageToken)
 		if nextPageToken == "" {

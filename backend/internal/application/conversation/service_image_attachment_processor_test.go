@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
+	appstorage "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/objectstorage"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
@@ -23,6 +24,20 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
+
+func TestProcessImageAttachmentsRequiresObjectStoreProvider(t *testing.T) {
+	service := &Service{cfg: config.NewRuntime(config.Config{})}
+	_, err := service.processImageAttachments(t.Context(), imageAttachmentProcessingInput{
+		Attachments: []AttachmentInput{{FileID: "file-1", Kind: "image", StoragePath: "images/one.png", Current: true}},
+		Runtime: selectedToolRuntime{attachmentProcessor: &selectedAttachmentProcessor{
+			argument: "image",
+			encoding: domainmcp.AttachmentEncodingBase64,
+		}},
+	})
+	if !errors.Is(err, appstorage.ErrProviderNotConfigured) {
+		t.Fatalf("processImageAttachments() error = %v, want ErrProviderNotConfigured", err)
+	}
+}
 
 func TestProcessImageAttachmentsRoutesOnlyTextToMainModelContext(t *testing.T) {
 	var receivedImage string

@@ -610,7 +610,7 @@ func (h *Handler) handleTikaRuntimeAction(c *gin.Context, action func(ctx contex
 		response.ErrorFrom(c, http.StatusInternalServerError, errTikaRuntimeServiceUnavailable)
 		return
 	}
-	actionCtx, cancel := context.WithTimeout(context.Background(), runtimeActionTimeout)
+	actionCtx, cancel := context.WithTimeout(c.Request.Context(), runtimeActionTimeout)
 	defer cancel()
 	view, err := action(actionCtx)
 	if err != nil {
@@ -625,7 +625,7 @@ func (h *Handler) handleRapidOCRRuntimeAction(c *gin.Context, action func(ctx co
 		response.ErrorFrom(c, http.StatusInternalServerError, errRapidocrRuntimeServiceUnavailable)
 		return
 	}
-	actionCtx, cancel := context.WithTimeout(context.Background(), runtimeActionTimeout)
+	actionCtx, cancel := context.WithTimeout(c.Request.Context(), runtimeActionTimeout)
 	defer cancel()
 	view, err := action(actionCtx)
 	if err != nil {

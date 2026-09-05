@@ -8,7 +8,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"github.com/google/uuid"
 )
 
@@ -21,6 +23,7 @@ const (
 	generationStreamSubscriberBuffer = 128
 	generationStreamReadBlock        = 5 * time.Second
 	generationStreamMaxPayloadBytes  = 128 * 1024
+	generationStreamCleanupTimeout   = 5 * time.Second
 )
 
 type generationStreamOptions struct {
@@ -62,7 +65,7 @@ func (s *Service) CancelMessageGeneration(ctx context.Context, userID uint, runI
 	markCtx := ctx
 	var cancel context.CancelFunc
 	if markCtx == nil || markCtx.Err() != nil {
-		markCtx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+		markCtx, cancel = background.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
 	}
 	_, _ = s.repo.CancelPendingGenerationMessagesByRunID(
@@ -75,9 +78,9 @@ func (s *Service) CancelMessageGeneration(ctx context.Context, userID uint, runI
 	return true
 }
 
-// PublishMessageGenerationEvent 发布生成流事件，并返回带 seq 的实际载荷。
-func (s *Service) PublishMessageGenerationEvent(runID string, payload map[string]interface{}) map[string]interface{} {
-	return s.generationStreams.publish(context.Background(), normalizeRunID(runID), payload)
+// PublishMessageGenerationEvent 发布由当前请求生命周期持有的生成事件。
+func (s *Service) PublishMessageGenerationEvent(ctx context.Context, runID string, payload map[string]interface{}) (map[string]interface{}, bool) {
+	return s.generationStreams.publish(ctx, normalizeRunID(runID), payload)
 }
 
 // SubscribeMessageGeneration 订阅用户所属 run 的生成流，返回可回放事件和后续事件通道。
@@ -91,9 +94,23 @@ func (s *Service) SubscribeMessageGeneration(
 	return s.generationStreams.subscribe(ctx, userID, normalizeRunID(runID), afterSeq, includeSnapshots)
 }
 
-// FinishMessageGeneration 标记生成流结束，并在短期恢复窗口后释放事件缓存。
-func (s *Service) FinishMessageGeneration(runID string) {
-	s.generationStreams.finish(context.Background(), normalizeRunID(runID))
+// FinishMessageGeneration 标记当前请求持有的生成流结束，并在短期恢复窗口后释放事件缓存。
+func (s *Service) FinishMessageGeneration(ctx context.Context, runID string) {
+	if s == nil || s.generationStreams == nil {
+		return
+	}
+	cleanupCtx, cancel := background.WithTimeout(ctx, generationStreamCleanupTimeout)
+	defer cancel()
+	s.generationStreams.finish(cleanupCtx, normalizeRunID(runID))
+}
+
+// AcquireMessageGenerationLifecycle 获取流式消息请求的服务生命周期上下文与租约。
+// 调用方必须把返回上下文传入生成链路，并在请求完全收尾后释放租约。
+func (s *Service) AcquireMessageGenerationLifecycle(parent context.Context) (context.Context, func(), bool) {
+	if s == nil || s.generationStreams == nil {
+		return nil, nil, false
+	}
+	return s.generationStreams.acquireRun(parent)
 }
 
 // HasActiveMessageGeneration 判断该 run 是否仍持有活跃生成租约。
@@ -112,7 +129,7 @@ func (s *Service) MarkMessageGenerationInterrupted(ctx context.Context, userID u
 	markCtx := ctx
 	var cancel context.CancelFunc
 	if markCtx == nil || markCtx.Err() != nil {
-		markCtx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+		markCtx, cancel = background.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
 	}
 	_, _ = s.repo.InterruptPendingAssistantMessageByRunID(
@@ -150,19 +167,48 @@ type GenerationStreamEvent struct {
 }
 
 type activeGeneration struct {
-	userID          uint
-	conversationID  string
-	cancel          context.CancelFunc
-	leaseCancel     context.CancelFunc
-	maxRuntimeTimer *time.Timer
+	userID         uint
+	conversationID string
+	owner          *generationLifecycleOwner
+	baseCtx        context.Context
+	cancel         context.CancelFunc
+	workerCancel   context.CancelFunc
+	workerStart    chan struct{}
+	workerReady    chan struct{}
+	workerDone     chan struct{}
 }
+
+func (a *activeGeneration) lease(runID string) repository.GenerationStreamLease {
+	if a == nil || a.owner == nil {
+		return repository.GenerationStreamLease{}
+	}
+	return repository.GenerationStreamLease{
+		RunID:                runID,
+		ExecutionID:          a.owner.executionID,
+		UserID:               a.userID,
+		ConversationPublicID: a.conversationID,
+	}
+}
+
+type generationLifecycleOwner struct {
+	executionID string
+}
+
+type generationLifecycleOwnerContextKey struct{}
 
 type generationStreamRegistry struct {
 	mu                       sync.Mutex
 	active                   map[string]*activeGeneration
 	store                    repository.GenerationStreamCacheRepository
 	options                  generationStreamOptions
+	lifecycleCtx             context.Context
+	lifecycleCancel          context.CancelFunc
+	closeOnce                sync.Once
+	closed                   bool
+	registrationWG           sync.WaitGroup
+	activeWorkerWG           sync.WaitGroup
 	activeEventReaderStarted bool
+	activeEventReaderWG      sync.WaitGroup
 	activeSubscriberSeq      uint64
 	activeSubscribers        map[uint]map[uint64]chan ActiveMessageGenerationEvent
 }
@@ -186,114 +232,235 @@ func newGenerationStreamRegistry(store repository.GenerationStreamCacheRepositor
 	if options.SubscriberBuffer <= 0 {
 		options.SubscriberBuffer = generationStreamSubscriberBuffer
 	}
+	lifecycleCtx, lifecycleCancel := context.WithCancel(context.Background())
 	return &generationStreamRegistry{
 		active:            map[string]*activeGeneration{},
 		store:             store,
 		options:           options,
+		lifecycleCtx:      lifecycleCtx,
+		lifecycleCancel:   lifecycleCancel,
 		activeSubscribers: map[uint]map[uint64]chan ActiveMessageGenerationEvent{},
 	}
 }
 
-func (r *generationStreamRegistry) register(ctx context.Context, runID string, userID uint, conversationPublicID string, cancel context.CancelFunc) {
-	if runID == "" {
+func (r *generationStreamRegistry) acquireRun(parent context.Context) (context.Context, func(), bool) {
+	if r == nil {
+		return nil, nil, false
+	}
+	r.mu.Lock()
+	if r.closed {
+		r.mu.Unlock()
+		return nil, nil, false
+	}
+	lifecycleCtx := r.lifecycleCtx
+	r.mu.Unlock()
+
+	if parent == nil {
+		parent = context.Background()
+	}
+	owner := &generationLifecycleOwner{executionID: normalizePublicID(uuid.NewString())}
+	ownedCtx := context.WithValue(parent, generationLifecycleOwnerContextKey{}, owner)
+	runCtx, cancelRun := context.WithCancel(ownedCtx)
+	stopLifecycleCancellation := context.AfterFunc(lifecycleCtx, cancelRun)
+	var once sync.Once
+	release := func() {
+		once.Do(func() {
+			stopLifecycleCancellation()
+			cancelRun()
+		})
+	}
+	return runCtx, release, true
+}
+
+func (r *generationStreamRegistry) close() {
+	if r == nil {
+		return
+	}
+	r.closeOnce.Do(func() {
+		var activeGenerations []*activeGeneration
+		r.mu.Lock()
+		r.closed = true
+		r.lifecycleCancel()
+		activeGenerations = make([]*activeGeneration, 0, len(r.active))
+		for _, active := range r.active {
+			activeGenerations = append(activeGenerations, active)
+		}
+		r.mu.Unlock()
+		r.closeActiveSubscribers()
+		for _, active := range activeGenerations {
+			stopActiveWorker(active)
+			if active.cancel != nil {
+				active.cancel()
+			}
+		}
+		r.registrationWG.Wait()
+
+		r.mu.Lock()
+		orphanedGenerations := make(map[string]*activeGeneration, len(r.active))
+		for runID, active := range r.active {
+			orphanedGenerations[runID] = active
+			delete(r.active, runID)
+		}
+		r.mu.Unlock()
+		for runID, active := range orphanedGenerations {
+			stopActiveWorker(active)
+			cleanupCtx, cleanupCancel := background.WithTimeout(active.baseCtx, generationStreamCleanupTimeout)
+			completed := true
+			if r.store != nil {
+				completed, _ = r.store.CompleteGenerationStream(cleanupCtx, active.lease(runID), r.options.Retention)
+			}
+			if completed {
+				r.publishActiveEvent(cleanupCtx, active.userID, "finished", runID, active.conversationID)
+			}
+			cleanupCancel()
+		}
+		r.activeWorkerWG.Wait()
+		r.activeEventReaderWG.Wait()
+	})
+}
+
+func (r *generationStreamRegistry) register(ctx context.Context, runID string, userID uint, conversationPublicID string, cancel context.CancelFunc) error {
+	fail := func(err error) error {
 		if cancel != nil {
 			cancel()
 		}
-		return
+		return err
+	}
+	if r == nil || runID == "" {
+		return fail(context.Canceled)
 	}
 	conversationPublicID = normalizePublicID(conversationPublicID)
 	if userID == 0 || conversationPublicID == "" {
-		if cancel != nil {
-			cancel()
-		}
-		return
+		return fail(context.Canceled)
 	}
-	if r.store != nil {
-		_ = r.store.RegisterGenerationStream(ctx, runID, userID, conversationPublicID, r.options.ActiveTTL)
+	owner := generationLifecycleOwnerFromContext(ctx)
+	if owner == nil || strings.TrimSpace(owner.executionID) == "" {
+		return fail(context.Canceled)
 	}
-
-	var replaced *activeGeneration
 	r.mu.Lock()
-	replaced = r.active[runID]
-	active := &activeGeneration{userID: userID, conversationID: conversationPublicID, cancel: cancel}
-	active.leaseCancel = r.startActiveLease(runID, userID)
-	r.active[runID] = active
-	r.scheduleActiveExpiryLocked(runID, active)
+	if r.closed {
+		r.mu.Unlock()
+		return fail(context.Canceled)
+	}
+	r.registrationWG.Add(1)
 	r.mu.Unlock()
 
-	if replaced != nil {
-		stopActiveGeneration(replaced)
-		if replaced.cancel != nil {
-			replaced.cancel()
+	registrationCtx, cancelRegistration := context.WithCancel(ctx)
+	stopLifecycleCancellation := context.AfterFunc(r.lifecycleCtx, cancelRegistration)
+	defer func() {
+		stopLifecycleCancellation()
+		cancelRegistration()
+		r.registrationWG.Done()
+	}()
+	lease := repository.GenerationStreamLease{
+		RunID:                runID,
+		ExecutionID:          owner.executionID,
+		UserID:               userID,
+		ConversationPublicID: conversationPublicID,
+	}
+	if r.store != nil {
+		claimed, err := r.store.ClaimGenerationStream(
+			registrationCtx,
+			lease,
+			r.options.LeaseTTL,
+			r.options.ActiveTTL,
+		)
+		if err != nil {
+			cleanupCtx, cleanupCancel := background.WithTimeout(ctx, generationStreamCleanupTimeout)
+			_, _ = r.store.AbandonGenerationStream(cleanupCtx, lease)
+			cleanupCancel()
+			return fail(err)
 		}
-		if replaced.userID != userID || replaced.conversationID != conversationPublicID {
-			r.publishActiveEvent(context.Background(), replaced.userID, "finished", runID, replaced.conversationID)
+		if !claimed {
+			return fail(ErrDuplicateMessageGenerationRun)
 		}
 	}
-	r.publishActiveEvent(context.Background(), userID, "started", runID, conversationPublicID)
+
+	r.mu.Lock()
+	if r.closed {
+		r.mu.Unlock()
+		if r.store != nil {
+			cleanupCtx, cleanupCancel := background.WithTimeout(ctx, generationStreamCleanupTimeout)
+			_, _ = r.store.AbandonGenerationStream(cleanupCtx, lease)
+			cleanupCancel()
+		}
+		return fail(context.Canceled)
+	}
+	if existing := r.active[runID]; existing != nil {
+		r.mu.Unlock()
+		if r.store != nil && existing.owner != owner {
+			cleanupCtx, cleanupCancel := background.WithTimeout(ctx, generationStreamCleanupTimeout)
+			_, _ = r.store.AbandonGenerationStream(cleanupCtx, lease)
+			cleanupCancel()
+		}
+		return fail(ErrDuplicateMessageGenerationRun)
+	}
+	baseCtx := background.Detach(ctx)
+	workerCtx, workerCancel := context.WithCancel(baseCtx)
+	active := &activeGeneration{
+		userID:         userID,
+		conversationID: conversationPublicID,
+		owner:          owner,
+		baseCtx:        baseCtx,
+		cancel:         cancel,
+		workerCancel:   workerCancel,
+		workerStart:    make(chan struct{}),
+		workerReady:    make(chan struct{}),
+		workerDone:     make(chan struct{}),
+	}
+	r.activeWorkerWG.Add(1)
+	r.active[runID] = active
+	go r.runActiveWorker(workerCtx, runID, active)
+	r.mu.Unlock()
+
+	close(active.workerStart)
+	<-active.workerReady
+	r.mu.Lock()
+	current := !r.closed && r.active[runID] == active
+	r.mu.Unlock()
+	if !current {
+		return fail(context.Canceled)
+	}
+	r.publishActiveEvent(registrationCtx, userID, "started", runID, conversationPublicID)
+	return nil
 }
 
 func (r *generationStreamRegistry) cancel(ctx context.Context, userID uint, runID string) bool {
-	if runID == "" {
+	if r == nil || runID == "" || userID == 0 {
 		return false
 	}
-	if !r.authorized(ctx, r.store, runID, userID) {
-		return false
+	if r.store != nil {
+		requested, err := r.store.RequestGenerationStreamCancel(ctx, runID, userID, r.options.Retention)
+		if err != nil || !requested {
+			return false
+		}
 	}
-	return r.cancelActive(ctx, userID, runID, false)
+	active := r.localActive(runID)
+	if active != nil && active.userID == userID && active.cancel != nil {
+		active.cancel()
+	}
+	return r.store != nil || active != nil
 }
 
 // cancelForced cancels a run without owner checks (internal system paths such as moderation).
 func (r *generationStreamRegistry) cancelForced(ctx context.Context, runID string) bool {
-	if runID == "" {
+	if r == nil || runID == "" {
 		return false
 	}
-	return r.cancelActive(ctx, 0, runID, true)
-}
-
-func (r *generationStreamRegistry) cancelActive(ctx context.Context, userID uint, runID string, force bool) bool {
+	active := r.localActive(runID)
+	if active == nil {
+		return false
+	}
 	if r.store != nil {
-		_ = r.store.RequestGenerationStreamCancel(ctx, runID, r.options.Retention)
+		requested, err := r.store.RequestGenerationStreamCancel(ctx, runID, active.userID, r.options.Retention)
+		if err != nil || !requested {
+			return false
+		}
 	}
-
-	var active *activeGeneration
-	var ok bool
-	if force {
-		active, ok = r.deleteActiveAny(runID)
-	} else {
-		active, ok = r.deleteActive(userID, runID)
-	}
-	if ok {
-		stopActiveGeneration(active)
-	}
-	if ok && active.cancel != nil {
+	if active.cancel != nil {
 		active.cancel()
 	}
-	clearUserID := userID
-	if active != nil && active.userID != 0 {
-		clearUserID = active.userID
-	}
-	r.clearActive(context.Background(), runID, clearUserID)
-	conversationID := ""
-	if active != nil {
-		conversationID = active.conversationID
-	}
-	r.publishActiveEvent(context.Background(), clearUserID, "finished", runID, conversationID)
 	return true
-}
-
-func (r *generationStreamRegistry) deleteActiveAny(runID string) (*activeGeneration, bool) {
-	if runID == "" {
-		return nil, false
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	active, ok := r.active[runID]
-	if !ok {
-		return nil, false
-	}
-	delete(r.active, runID)
-	return active, true
 }
 
 func (r *generationStreamRegistry) isCanceled(ctx context.Context, runID string) bool {
@@ -308,48 +475,82 @@ func (r *generationStreamRegistry) isCanceled(ctx context.Context, runID string)
 	return false
 }
 
-func (r *generationStreamRegistry) publish(ctx context.Context, runID string, payload map[string]interface{}) map[string]interface{} {
+func (r *generationStreamRegistry) publish(ctx context.Context, runID string, payload map[string]interface{}) (map[string]interface{}, bool) {
 	if runID == "" {
-		return payload
+		return payload, false
 	}
-	r.touchActive(ctx, runID)
+	lease, ok := r.leaseForContext(ctx, runID)
+	if !ok {
+		return payload, false
+	}
+	return r.publishWithLease(ctx, lease, payload)
+}
+
+func (r *generationStreamRegistry) publishCurrent(ctx context.Context, runID string, payload map[string]interface{}) {
+	active := r.localActive(runID)
+	if active == nil {
+		return
+	}
+	_, _ = r.publishWithLease(ctx, active.lease(runID), payload)
+}
+
+func (r *generationStreamRegistry) publishWithLease(
+	ctx context.Context,
+	lease repository.GenerationStreamLease,
+	payload map[string]interface{},
+) (map[string]interface{}, bool) {
 	actual := cloneStreamPayload(payload)
 	persisted, sanitized := generationStreamPayloadForStore(actual)
 	payloadJSON, err := marshalStreamPayload(persisted)
 	if err != nil {
-		return actual
+		return actual, true
 	}
 	appendInput := repository.GenerationStreamAppend{PayloadJSON: payloadJSON}
 	if streamString(persisted["type"]) == "delta" {
 		appendInput.TextDelta = streamString(persisted["delta"])
 	}
 	appendInput.UpstreamThink = generationStreamUpstreamThinkAppend(actual)
-	record, err := r.append(ctx, r.store, runID, appendInput)
-	if err == nil && record.Seq > 0 {
+	record, accepted, err := r.append(ctx, r.store, lease, appendInput)
+	if err != nil {
+		return actual, true
+	}
+	if !accepted {
+		r.cancelLocalExecution(lease.RunID, lease.ExecutionID)
+		return actual, false
+	}
+	if record.Seq > 0 {
 		actual["seq"] = record.Seq
 		if sanitized {
 			persisted["seq"] = record.Seq
 		}
 	}
 	if shouldReturnSanitizedGenerationStreamPayload(actual, sanitized) {
-		return persisted
+		return persisted, true
 	}
-	return actual
+	return actual, true
 }
 
-// resetEvents clears retained stream events so blocked content cannot be replayed.
-func (r *generationStreamRegistry) resetEvents(ctx context.Context, runID string) {
+func (r *generationStreamRegistry) resetCurrentEvents(ctx context.Context, runID string) {
 	if runID == "" || r.store == nil {
 		return
 	}
-	_ = r.store.ResetGenerationStreamEvents(ctx, runID)
+	active := r.localActive(runID)
+	if active == nil {
+		return
+	}
+	_, _ = r.store.ResetGenerationStreamEvents(ctx, active.lease(runID))
 }
 
-func (r *generationStreamRegistry) append(ctx context.Context, store repository.GenerationStreamCacheRepository, runID string, input repository.GenerationStreamAppend) (repository.GenerationStreamMessage, error) {
+func (r *generationStreamRegistry) append(
+	ctx context.Context,
+	store repository.GenerationStreamCacheRepository,
+	lease repository.GenerationStreamLease,
+	input repository.GenerationStreamAppend,
+) (repository.GenerationStreamMessage, bool, error) {
 	if store == nil {
-		return repository.GenerationStreamMessage{}, nil
+		return repository.GenerationStreamMessage{}, true, nil
 	}
-	return store.AppendGenerationStreamEvent(ctx, runID, input, int64(r.options.MaxEvents), r.options.ActiveTTL)
+	return store.AppendGenerationStreamEvent(ctx, lease, input, int64(r.options.MaxEvents), r.options.ActiveTTL)
 }
 
 func (r *generationStreamRegistry) subscribe(
@@ -397,6 +598,9 @@ func (r *generationStreamRegistry) subscribeStore(
 			return nil, nil, nil, false
 		}
 	}
+	if !r.authorized(ctx, store, runID, userID) {
+		return nil, nil, nil, false
+	}
 	replay, cursor, terminal, safe := retainedStreamEvents(
 		retained,
 		afterSeq,
@@ -416,13 +620,14 @@ func (r *generationStreamRegistry) subscribeStore(
 	}
 
 	readCtx, cancel := context.WithCancel(ctx)
-	go r.readStoreEvents(readCtx, store, runID, cursor, afterSeq, textSnapshot.Seq, upstreamThinkSnapshot.Seq, events)
+	go r.readStoreEvents(readCtx, store, userID, runID, cursor, afterSeq, textSnapshot.Seq, upstreamThinkSnapshot.Seq, events)
 	return replay, events, cancel, true
 }
 
 func (r *generationStreamRegistry) readStoreEvents(
 	ctx context.Context,
 	store repository.GenerationStreamCacheRepository,
+	userID uint,
 	runID string,
 	cursor string,
 	afterSeq int64,
@@ -442,6 +647,9 @@ func (r *generationStreamRegistry) readStoreEvents(
 		}
 		records, err := store.ReadGenerationStreamEvents(ctx, runID, cursor, generationStreamReadBlock, int64(r.options.SubscriberBuffer))
 		if err != nil {
+			return
+		}
+		if !r.authorized(ctx, store, runID, userID) {
 			return
 		}
 		for _, record := range records {
@@ -478,33 +686,42 @@ func (r *generationStreamRegistry) finish(ctx context.Context, runID string) {
 	if runID == "" {
 		return
 	}
+	owner := generationLifecycleOwnerFromContext(ctx)
 	r.mu.Lock()
 	active, ok := r.active[runID]
+	if ok && active.owner != owner {
+		r.mu.Unlock()
+		return
+	}
 	if ok {
 		delete(r.active, runID)
 	}
 	r.mu.Unlock()
-	userID := uint(0)
-	if active != nil {
-		userID = active.userID
+	if ok {
+		stopActiveWorker(active)
 	}
-	if userID == 0 && r.store != nil {
-		if ownerID, found, err := r.store.GetGenerationStreamOwner(ctx, runID); err == nil && found {
-			userID = ownerID
+	if active == nil {
+		return
+	}
+	completed := true
+	if r.store != nil {
+		var err error
+		completed, err = r.store.CompleteGenerationStream(ctx, active.lease(runID), r.options.Retention)
+		if err != nil {
+			completed = false
 		}
 	}
-	r.clearActive(ctx, runID, userID)
-	conversationID := ""
-	if active != nil {
-		conversationID = active.conversationID
+	if completed {
+		r.publishActiveEvent(ctx, active.userID, "finished", runID, active.conversationID)
 	}
-	r.publishActiveEvent(context.Background(), userID, "finished", runID, conversationID)
-	if r.store != nil {
-		_ = r.store.ExpireGenerationStream(ctx, runID, r.options.Retention)
+}
+
+func generationLifecycleOwnerFromContext(ctx context.Context) *generationLifecycleOwner {
+	if ctx == nil {
+		return nil
 	}
-	if ok {
-		stopActiveGeneration(active)
-	}
+	owner, _ := ctx.Value(generationLifecycleOwnerContextKey{}).(*generationLifecycleOwner)
+	return owner
 }
 
 func (r *generationStreamRegistry) authorized(ctx context.Context, store repository.GenerationStreamCacheRepository, runID string, userID uint) bool {
@@ -518,52 +735,66 @@ func (r *generationStreamRegistry) authorized(ctx context.Context, store reposit
 	return ownerID == userID
 }
 
-func (r *generationStreamRegistry) scheduleActiveExpiryLocked(runID string, active *activeGeneration) {
-	if active.maxRuntimeTimer != nil {
-		active.maxRuntimeTimer.Stop()
+func (r *generationStreamRegistry) runActiveWorker(ctx context.Context, runID string, active *activeGeneration) {
+	defer r.activeWorkerWG.Done()
+	defer close(active.workerDone)
+	select {
+	case <-ctx.Done():
+		close(active.workerReady)
+		return
+	case <-active.workerStart:
 	}
+	close(active.workerReady)
+	if ctx.Err() != nil {
+		return
+	}
+	leaseValidUntil := time.Now().Add(r.options.LeaseTTL)
+
 	activeTTL := r.options.ActiveTTL
 	if activeTTL <= 0 {
 		activeTTL = generationStreamActiveTTL
 	}
-	active.maxRuntimeTimer = time.AfterFunc(activeTTL, func() {
-		var cancel context.CancelFunc
-		var leaseCancel context.CancelFunc
-		expired := false
-		r.mu.Lock()
-		current, ok := r.active[runID]
-		if ok && current == active {
-			delete(r.active, runID)
-			cancel = current.cancel
-			leaseCancel = current.leaseCancel
-			expired = true
+	expiryTimer := time.NewTimer(activeTTL)
+	defer expiryTimer.Stop()
+	leaseTicker := time.NewTicker(r.options.LeaseRefresh)
+	defer leaseTicker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-leaseTicker.C:
+			renewed, err := r.renewActiveLease(ctx, runID, active)
+			if err == nil && renewed {
+				leaseValidUntil = time.Now().Add(r.options.LeaseTTL)
+				continue
+			}
+			if err != nil && time.Now().Before(leaseValidUntil) {
+				continue
+			}
+			if r.removeActiveExecution(runID, active) && active.cancel != nil {
+				active.cancel()
+			}
+			return
+		case <-expiryTimer.C:
+			expired := r.removeActiveExecution(runID, active)
+			if !expired {
+				return
+			}
+			if active.cancel != nil {
+				active.cancel()
+			}
+			cleanupCtx, cleanupCancel := background.WithTimeout(active.baseCtx, generationStreamCleanupTimeout)
+			completed := true
+			if r.store != nil {
+				completed, _ = r.store.CompleteGenerationStream(cleanupCtx, active.lease(runID), r.options.Retention)
+			}
+			if completed {
+				r.publishActiveEvent(cleanupCtx, active.userID, "finished", runID, active.conversationID)
+			}
+			cleanupCancel()
+			return
 		}
-		r.mu.Unlock()
-		if leaseCancel != nil {
-			leaseCancel()
-		}
-		if expired {
-			r.clearActive(context.Background(), runID, active.userID)
-			r.publishActiveEvent(context.Background(), active.userID, "finished", runID, active.conversationID)
-		}
-		if cancel != nil {
-			cancel()
-		}
-	})
-}
-
-func (r *generationStreamRegistry) deleteActive(userID uint, runID string) (*activeGeneration, bool) {
-	if runID == "" {
-		return nil, false
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	active, ok := r.active[runID]
-	if !ok || active.userID != userID {
-		return nil, false
-	}
-	delete(r.active, runID)
-	return active, true
 }
 
 func (r *generationStreamRegistry) hasActive(ctx context.Context, runID string) bool {
@@ -578,63 +809,68 @@ func (r *generationStreamRegistry) hasActive(ctx context.Context, runID string) 
 	return false
 }
 
-func (r *generationStreamRegistry) startActiveLease(runID string, userID uint) context.CancelFunc {
-	ctx, cancel := context.WithCancel(context.Background())
-	r.touchActiveForOwner(ctx, runID, userID)
-	go func() {
-		ticker := time.NewTicker(r.options.LeaseRefresh)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				r.touchActiveForOwner(ctx, runID, userID)
-			}
-		}
-	}()
-	return cancel
+func (r *generationStreamRegistry) renewActiveLease(ctx context.Context, runID string, active *activeGeneration) (bool, error) {
+	if runID == "" || active == nil || r.store == nil {
+		return true, nil
+	}
+	return r.store.RenewGenerationStreamLease(
+		ctx,
+		active.lease(runID),
+		r.options.LeaseTTL,
+		r.options.ActiveTTL,
+	)
 }
 
-func (r *generationStreamRegistry) touchActive(ctx context.Context, runID string) {
-	if runID == "" {
-		return
+func (r *generationStreamRegistry) localActive(runID string) *activeGeneration {
+	if r == nil || runID == "" {
+		return nil
 	}
 	r.mu.Lock()
-	active := r.active[runID]
-	r.mu.Unlock()
-	if active != nil {
-		r.touchActiveForOwner(ctx, runID, active.userID)
-	}
+	defer r.mu.Unlock()
+	return r.active[runID]
 }
 
-func (r *generationStreamRegistry) touchActiveForOwner(ctx context.Context, runID string, userID uint) {
-	if runID == "" || userID == 0 || r.store == nil {
+func (r *generationStreamRegistry) leaseForContext(ctx context.Context, runID string) (repository.GenerationStreamLease, bool) {
+	owner := generationLifecycleOwnerFromContext(ctx)
+	if owner == nil {
+		return repository.GenerationStreamLease{}, false
+	}
+	active := r.localActive(runID)
+	if active == nil || active.owner != owner {
+		return repository.GenerationStreamLease{}, false
+	}
+	return active.lease(runID), true
+}
+
+func (r *generationStreamRegistry) cancelLocalExecution(runID string, executionID string) {
+	active := r.localActive(runID)
+	if active == nil || active.owner == nil || active.owner.executionID != executionID {
 		return
 	}
-	_ = r.store.TouchGenerationStreamActive(ctx, runID, userID, r.options.LeaseTTL)
-}
-
-func (r *generationStreamRegistry) clearActive(ctx context.Context, runID string, userID uint) {
-	if runID == "" {
-		return
-	}
-	if r.store != nil {
-		_ = r.store.ClearGenerationStreamActive(ctx, runID, userID)
+	if active.cancel != nil {
+		active.cancel()
 	}
 }
 
-func stopActiveGeneration(active *activeGeneration) {
+func (r *generationStreamRegistry) removeActiveExecution(runID string, active *activeGeneration) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.active[runID] != active {
+		return false
+	}
+	delete(r.active, runID)
+	return true
+}
+
+func stopActiveWorker(active *activeGeneration) {
 	if active == nil {
 		return
 	}
-	if active.maxRuntimeTimer != nil {
-		active.maxRuntimeTimer.Stop()
-		active.maxRuntimeTimer = nil
+	if active.workerCancel != nil {
+		active.workerCancel()
 	}
-	if active.leaseCancel != nil {
-		active.leaseCancel()
-		active.leaseCancel = nil
+	if active.workerDone != nil {
+		<-active.workerDone
 	}
 }
 
@@ -933,7 +1169,7 @@ func compactOversizedGenerationStreamPayload(payload map[string]interface{}) map
 	}
 	for _, key := range []string{"status", "message", "errorCode", "code"} {
 		if value := strings.TrimSpace(streamString(payload[key])); value != "" {
-			next[key] = compactSnippet(value, 512)
+			next[key] = textutil.CompactSnippet(value, 512)
 		}
 	}
 	if eventType == "" {

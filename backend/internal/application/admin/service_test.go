@@ -590,18 +590,7 @@ func (s *adminUserServiceFake) ImportUsersWithCredentialsAndBalances(context.Con
 
 type auditServiceFake struct{}
 
-func (auditServiceFake) Write(
-	context.Context,
-	string,
-	uint,
-	string,
-	string,
-	string,
-	string,
-	string,
-	interface{},
-) {
-}
+func (auditServiceFake) Write(context.Context, auditapp.WriteInput) {}
 
 func (auditServiceFake) List(context.Context, int, int, auditapp.ListFilter) ([]domainaudit.Log, int64, error) {
 	return nil, 0, nil
@@ -658,11 +647,10 @@ func (s subscriptionResolverFake) SetUserSubscriptionByPlanCode(context.Context,
 }
 
 type permissionGroupRepoFake struct {
-	groups    map[uint]domainchannel.PermissionGroup
-	modelIDs  []uint
-	groupIDs  []uint
-	userIDs   []uint
-	deletedID uint
+	groups   map[uint]domainchannel.PermissionGroup
+	modelIDs []uint
+	groupIDs []uint
+	userIDs  []uint
 }
 
 func (f permissionGroupRepoFake) ListPermissionGroups(context.Context) ([]domainchannel.PermissionGroup, error) {

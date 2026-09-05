@@ -18,11 +18,6 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-// Generate 生成访问令牌。
-func Generate(secret string, userID uint, username string, role string, ttl time.Duration) (string, error) {
-	return GenerateWithClaims(secret, userID, username, role, "", "", "access", ttl)
-}
-
 // GenerateWithClaims 生成带会话上下文和 token 类型的令牌。
 func GenerateWithClaims(
 	secret string,

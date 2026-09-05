@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 )
 
 const (
@@ -390,7 +392,7 @@ func Snippet(value string, maxChars int) string {
 
 func tokenSnippet(value string, maxTokens int64) string {
 	value = strings.TrimSpace(value)
-	if value == "" || maxTokens <= 0 || estimateTokens(value) <= maxTokens {
+	if value == "" || maxTokens <= 0 || tokenestimate.Estimate(value) <= maxTokens {
 		return value
 	}
 	runes := []rune(value)
@@ -398,35 +400,13 @@ func tokenSnippet(value string, maxTokens int64) string {
 	high := len(runes)
 	for low < high {
 		middle := (low + high + 1) / 2
-		if estimateTokens(strings.TrimSpace(string(runes[:middle]))+"…") <= maxTokens {
+		if tokenestimate.Estimate(strings.TrimSpace(string(runes[:middle]))+"…") <= maxTokens {
 			low = middle
 		} else {
 			high = middle - 1
 		}
 	}
 	return strings.TrimSpace(string(runes[:low])) + "…"
-}
-
-func estimateTokens(value string) int64 {
-	var cjk int64
-	var other int64
-	for _, char := range value {
-		if isCJKRune(char) {
-			cjk++
-		} else {
-			other++
-		}
-	}
-	return (cjk*2+2)/3 + (other+3)/4
-}
-
-func isCJKRune(char rune) bool {
-	return (char >= 0x3400 && char <= 0x4DBF) ||
-		(char >= 0x4E00 && char <= 0x9FFF) ||
-		(char >= 0x3040 && char <= 0x30FF) ||
-		(char >= 0xAC00 && char <= 0xD7AF) ||
-		(char >= 0xF900 && char <= 0xFAFF) ||
-		(char >= 0x20000 && char <= 0x2A6DF)
 }
 
 // ReadablePreview returns the first useful narrative value from generic JSON.

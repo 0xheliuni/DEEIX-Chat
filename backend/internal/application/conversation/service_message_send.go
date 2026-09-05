@@ -13,8 +13,10 @@ import (
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainmemory "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/memory"
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/traceid"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -40,7 +42,6 @@ func (s *Service) StreamMessage(
 	onDelta func(string) error,
 ) (result *SendMessageResult, retErr error) {
 	input.Cancelable = true
-	ctx = context.WithoutCancel(ctx)
 	return s.sendMessageInternal(ctx, input, onDelta, true)
 }
 
@@ -144,11 +145,11 @@ func buildRAGFallbackProcessTracePayload(
 		"filtered_count":  result.FilteredCount,
 		"max_score":       result.MaxScore,
 	}
-	if normalizedReason := strings.TrimSpace(firstNonEmptyString(reason, result.Reason)); normalizedReason != "" {
+	if normalizedReason := strings.TrimSpace(textutil.FirstNonEmpty(reason, result.Reason)); normalizedReason != "" {
 		stage["reason"] = normalizedReason
 	}
 	payload := map[string]interface{}{
-		"query":                  compactSnippet(query, 240),
+		"query":                  textutil.CompactSnippet(query, 240),
 		"file_names":             ragFileObjectNames(fileObjs),
 		"status":                 strings.TrimSpace(reason),
 		"reason":                 strings.TrimSpace(result.Reason),
@@ -209,11 +210,6 @@ func (s *Service) sendMessageInternal(
 	branchState := branchPreparation.branchState
 	normalizedBranchReason := branchPreparation.normalizedBranchReason
 	reuseUserMessage := branchPreparation.reuseUserMessage
-	if input.Cancelable {
-		cancelCtx, cancel := context.WithCancel(ctx)
-		ctx = cancelCtx
-		s.generationStreams.register(ctx, runID, input.UserID, conversation.PublicID, cancel)
-	}
 
 	currentPlatformModelName := strings.TrimSpace(conversation.Model)
 	requestedPlatformModelName := strings.TrimSpace(input.PlatformModelName)
@@ -250,12 +246,16 @@ func (s *Service) sendMessageInternal(
 	run := runState.run
 	runState.reuseUserMessage = reuseUserMessage
 	runState.bind(&userMessage, &assistantMessage, &traceRecorder, &result, ctx)
+	if err = s.claimConversationRun(ctx, run); err != nil {
+		retErr = err
+		return nil, err
+	}
 	defer func() {
 		if retErr != nil {
 			retainedOutput := false
 			usageRecovered := false
 			if errors.Is(retErr, ErrMessageGenerationCanceled) || llm.RequestWasAccepted(retErr) {
-				if usage, ok := s.recoverOpenAIResponsesBackgroundUsage(runner.routeConfig, runner.responsesBackgroundRecovery); ok {
+				if usage, ok := s.recoverOpenAIResponsesBackgroundUsage(ctx, runner.routeConfig, runner.responsesBackgroundRecovery); ok {
 					usageRecovered = true
 					if delta := diffLLMUsage(usage, runner.responsesBackgroundRecovery.ObservedUsage); delta != (llm.Usage{}) {
 						runner.usage.addObservedUsage(delta)
@@ -303,16 +303,18 @@ func (s *Service) sendMessageInternal(
 						StartedAt:        startedAt,
 					}
 				}
+				moderationCtx, cancelModeration := background.WithTimeout(ctx, moderationFinalizationTimeout)
 				if result != nil && retainedOutput {
 					s.completeModerationAfterInterruption(
-						context.Background(),
+						moderationCtx,
 						moderationCoord,
 						result,
 						moderationOutputText(runner.streamedText.String(), traceRecorder.upstreamThinkContent()),
 					)
 				} else {
-					s.completeModerationAfterFailure(context.Background(), moderationCoord, result)
+					s.completeModerationAfterFailure(moderationCtx, moderationCoord, result)
 				}
+				cancelModeration()
 			}
 		}
 		runState.finalize(ctx, retErr)
@@ -338,6 +340,17 @@ func (s *Service) sendMessageInternal(
 			}
 		}
 	}()
+	if input.Cancelable {
+		cancelCtx, cancel := context.WithCancel(ctx)
+		ctx = cancelCtx
+		if err = s.generationStreams.register(ctx, runID, input.UserID, conversation.PublicID, cancel); err != nil {
+			retErr = err
+			return nil, err
+		}
+		if len(input.FileIDs) > 0 {
+			emitEvent(input.OnEvent, "file_proc", map[string]interface{}{"message": "正在处理附件…"})
+		}
+	}
 
 	resolvedAttachments, err := s.resolveAttachments(ctx, input.UserID, input.FileIDs)
 	if err != nil {
@@ -355,7 +368,7 @@ func (s *Service) sendMessageInternal(
 	s.persistInitialConversationFallbackTitle(ctx, *conversation, *userMessage)
 	traceRecorder = newMessageTraceRecorder(s, ctx, assistantMessage, input.OnEvent)
 	runner.traceRecorder = traceRecorder
-	moderationCoord = s.startModerationRun(ctx, input, runID, userMessage, assistantMessage, run)
+	moderationCoord = s.startModerationRun(ctx, input, runID, userMessage, assistantMessage)
 
 	if s.routeResolver == nil || s.llmClient == nil {
 		retErr = ErrModelRouteNotConfigured
@@ -1206,7 +1219,7 @@ func messageKnowledgeSourcesFromRAGChunks(chunks []model.RAGChunk) []model.Messa
 			FileID:     strings.TrimSpace(chunk.FileID),
 			ChunkIndex: chunk.ChunkIndex,
 			Score:      chunk.Score,
-			Preview:    compactSnippet(chunk.Content, 100),
+			Preview:    textutil.CompactSnippet(chunk.Content, 100),
 		})
 	}
 	return sources

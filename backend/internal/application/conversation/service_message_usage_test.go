@@ -11,6 +11,7 @@ import (
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 )
 
 func TestMessageUsageAccumulatorCombinesObservedAndUnobservedInput(t *testing.T) {
@@ -281,7 +282,7 @@ func TestFollowUpUsageBudgetEstimateAccumulatesObservedAndNextCall(t *testing.T)
 	unobservedVisibleText := strings.Repeat("streamed answer ", 40)
 	accumulator.recordCallVisibleText(unobservedVisibleText)
 	accumulator.finishCall(false, false)
-	unobservedOutputTokens := estimateTokens(unobservedVisibleText)
+	unobservedOutputTokens := tokenestimate.Estimate(unobservedVisibleText)
 	if unobservedOutputTokens <= 0 {
 		t.Fatal("expected a positive output estimate for the unobserved call")
 	}
@@ -340,8 +341,8 @@ func TestMessageUsageAccumulatorInterruptedOutputOnlyEstimatesCurrentCallTail(t 
 	accumulator.recordCallReasoningText(tailReasoning)
 
 	gotOutput, gotReasoning := accumulator.interruptedOutputTokens()
-	wantOutput := int64(5) + estimateTokens(tailText)
-	wantReasoning := int64(3) + estimateTokens(tailReasoning)
+	wantOutput := int64(5) + tokenestimate.Estimate(tailText)
+	wantReasoning := int64(3) + tokenestimate.Estimate(tailReasoning)
 	if gotOutput != wantOutput || gotReasoning != wantReasoning {
 		t.Fatalf("interruptedOutputTokens() = (%d, %d), want (%d, %d)", gotOutput, gotReasoning, wantOutput, wantReasoning)
 	}
@@ -350,7 +351,7 @@ func TestMessageUsageAccumulatorInterruptedOutputOnlyEstimatesCurrentCallTail(t 
 	// 总量不变，已完成调用的观测值原样保留。
 	accumulator.addObservedUsage(llm.Usage{OutputTokens: 1})
 	gotOutput, gotReasoning = accumulator.interruptedOutputTokens()
-	if gotOutput != 5+estimateTokens(tailText)+estimateTokens(tailReasoning) || gotReasoning != 3 {
+	if gotOutput != 5+tokenestimate.Estimate(tailText)+tokenestimate.Estimate(tailReasoning) || gotReasoning != 3 {
 		t.Fatalf("partial combined output must fold the tail reasoning without stacking, got (%d, %d)", gotOutput, gotReasoning)
 	}
 
@@ -376,7 +377,7 @@ func TestMessageUsageAccumulatorEstimatesUnobservedCompletedOutput(t *testing.T)
 	accumulator.addObservedUsage(llm.Usage{InputTokens: 60, OutputTokens: 4})
 	accumulator.finishCall(true, true)
 
-	wantOutput := estimateTokens(firstText) + 4
+	wantOutput := tokenestimate.Estimate(firstText) + 4
 	if gotOutput, gotReasoning := accumulator.effectiveOutputTokens(); gotOutput != wantOutput || gotReasoning != 0 {
 		t.Fatalf("effectiveOutputTokens() = (%d, %d), want (%d, 0)", gotOutput, gotReasoning, wantOutput)
 	}
@@ -390,17 +391,17 @@ func TestEstimateOutputUsageFoldsReasoningIntoCombinedObservedOutput(t *testing.
 	reasoning := strings.Repeat("thinking ", 40)
 
 	gotOutput, gotReasoning := estimateOutputUsage(2, 0, visible, reasoning)
-	if gotOutput != estimateTokens(visible)+estimateTokens(reasoning) || gotReasoning != 0 {
+	if gotOutput != tokenestimate.Estimate(visible)+tokenestimate.Estimate(reasoning) || gotReasoning != 0 {
 		t.Fatalf("combined observed output must fold reasoning into the output estimate, got (%d, %d)", gotOutput, gotReasoning)
 	}
 
 	gotOutput, gotReasoning = estimateOutputUsage(2, 1, visible, reasoning)
-	if gotOutput != estimateTokens(visible) || gotReasoning != estimateTokens(reasoning) {
+	if gotOutput != tokenestimate.Estimate(visible) || gotReasoning != tokenestimate.Estimate(reasoning) {
 		t.Fatalf("split observed usage must estimate both sides separately, got (%d, %d)", gotOutput, gotReasoning)
 	}
 
 	gotOutput, gotReasoning = estimateOutputUsage(0, 0, visible, reasoning)
-	if gotOutput != estimateTokens(visible) || gotReasoning != estimateTokens(reasoning) {
+	if gotOutput != tokenestimate.Estimate(visible) || gotReasoning != tokenestimate.Estimate(reasoning) {
 		t.Fatalf("unreported usage must estimate both sides from text, got (%d, %d)", gotOutput, gotReasoning)
 	}
 }

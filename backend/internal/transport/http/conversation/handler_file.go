@@ -10,6 +10,7 @@ import (
 	appprocessing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/processing"
 	appupload "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/upload"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/filecontent"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
@@ -134,7 +135,7 @@ func (h *Handler) maxUploadRequestBytes() int64 {
 // ListFiles 查询文件列表。
 func (h *Handler) ListFiles(c *gin.Context) {
 	userID := middleware.MustUserID(c)
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	searchQuery := strings.TrimSpace(c.Query("q"))
 	filterKind := normalizeFileKinds(c.Query("kind"))
 	sortBy := normalizeFileSort(c.Query("sort"))

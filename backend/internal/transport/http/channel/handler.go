@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	appchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
@@ -86,7 +87,7 @@ func (h *Handler) ListPublicModels(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/llm/upstreams [get]
 func (h *Handler) ListUpstreams(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	items, total, err := h.service.ListUpstreams(c.Request.Context(), page, pageSize, appchannel.ListUpstreamsInput{
 		Query:      c.Query("q"),
 		Status:     c.Query("status"),
@@ -379,7 +380,7 @@ func (h *Handler) ListUpstreamModels(c *gin.Context) {
 		return
 	}
 
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	items, total, err := h.service.ListUpstreamModels(c.Request.Context(), upstreamID, page, pageSize, appchannel.ListUpstreamModelsInput{
 		Query:          c.Query("q"),
 		RouteStatus:    c.Query("route_status"),
@@ -925,7 +926,7 @@ func (h *Handler) ImportUpstreamModels(c *gin.Context) {
 // @Failure 500 {object} ErrorDoc
 // @Router /admin/llm/models [get]
 func (h *Handler) ListModels(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	onlyActive := c.Query("only_active") == "true"
 	onlyAvailable := c.Query("only_available") == "true"
 	var upstreamID uint
@@ -1344,7 +1345,7 @@ func (h *Handler) ListModelUpstreamSources(c *gin.Context) {
 		return
 	}
 
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	items, total, err := h.service.ListModelUpstreamSources(c.Request.Context(), modelID, page, pageSize)
 	if err != nil {
 		if errors.Is(err, appchannel.ErrModelNotFound) {
@@ -1564,26 +1565,6 @@ func (h *Handler) UpdateLLMSetting(c *gin.Context) {
 // ---------------------------------------------------------------------------
 // HTTP 辅助
 // ---------------------------------------------------------------------------
-
-func pageParams(c *gin.Context) (int, int) {
-	page := 1
-	pageSize := 20
-	const maxPageSize = 1000
-	if raw := c.Query("page"); raw != "" {
-		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
-			page = parsed
-		}
-	}
-	if raw := c.Query("page_size"); raw != "" {
-		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
-			if parsed > maxPageSize {
-				parsed = maxPageSize
-			}
-			pageSize = parsed
-		}
-	}
-	return page, pageSize
-}
 
 func uintParam(c *gin.Context, key string) (uint, error) {
 	value, err := strconv.ParseUint(c.Param(key), 10, strconv.IntSize)

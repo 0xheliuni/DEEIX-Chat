@@ -11,6 +11,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/extraction"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
@@ -38,6 +39,8 @@ const (
 var (
 	// ErrFileProcessingFailed 表示文件处理失败。
 	ErrFileProcessingFailed = errors.New("file processing failed")
+	// errExtractionServiceNotConfigured 表示文件处理服务未注入抽取服务。
+	errExtractionServiceNotConfigured = errors.New("extraction service not configured")
 	// ErrFileNotFound 表示当前用户名下不存在该活跃文件。
 	ErrFileNotFound            = apperr.New("file.not_found", "file not found")
 	errFileProcessingClaimLost = errors.New("file processing claim lost")
@@ -93,19 +96,6 @@ type Service struct {
 	fallbackSlots chan struct{}
 }
 
-// NewService 创建文件处理服务。
-func NewService(
-	cfg config.Config,
-	repo repository.FileProcessingStatusRepository,
-	cache repository.FileProcessingQueueRepository,
-	extractSvc *extraction.Service,
-	embeddingSvc *appembedding.Service,
-	logger *zap.Logger,
-	extractorVersion string,
-) *Service {
-	return NewServiceWithRuntime(config.NewRuntime(cfg), repo, cache, extractSvc, embeddingSvc, logger, extractorVersion)
-}
-
 // NewServiceWithRuntime 创建使用运行时配置容器的文件处理服务。
 func NewServiceWithRuntime(
 	cfg *config.Runtime,
@@ -116,9 +106,6 @@ func NewServiceWithRuntime(
 	logger *zap.Logger,
 	extractorVersion string,
 ) *Service {
-	if extractSvc == nil {
-		extractSvc = extraction.NewServiceWithRuntime(cfg)
-	}
 	return &Service{
 		cfg:              cfg,
 		repo:             repo,
@@ -369,7 +356,7 @@ func (s *Service) processClaimedFile(
 		return s.markClaimedFileProcessingFailed(runCtx, fileObj, attemptID, "extract_failed", HumanizeFileProcessingError(fileObj.FileCategory, "extract_failed", ""))
 	}
 	now := time.Now()
-	preview := compactSnippet(extractResult.Text, defaultProcessingPreview)
+	preview := textutil.CompactSnippet(extractResult.Text, defaultProcessingPreview)
 	ragAvailable, ragReason := s.embeddingSvc.Available(runCtx)
 	indexingAvailable, _ := s.embeddingSvc.IndexingAvailable(runCtx)
 	resultRAGReady := false
@@ -789,7 +776,7 @@ func (s *Service) handleProcessingMessage(ctx context.Context, consumerName stri
 				return
 			}
 		} else {
-			if finalizeErr := s.forceFinalizeFailed(msg.UserID, msg.FileID, attemptID, err); finalizeErr != nil {
+			if finalizeErr := s.forceFinalizeFailed(ctx, msg.UserID, msg.FileID, attemptID, err); finalizeErr != nil {
 				if s.logger != nil {
 					s.logger.Warn("force_finalize_file_processing_failed",
 						zap.Uint("user_id", msg.UserID),
@@ -799,7 +786,7 @@ func (s *Service) handleProcessingMessage(ctx context.Context, consumerName stri
 				}
 				return
 			}
-			if !s.deadLetterProcessingMessage(ctx, consumerName, msg, failureMessage) {
+			if !s.deadLetterProcessingMessage(ctx, consumerName, msg) {
 				return
 			}
 		}
@@ -820,7 +807,7 @@ func (s *Service) handleProcessingMessage(ctx context.Context, consumerName stri
 			return
 		}
 		if fileObj != nil && fileObj.ProcessingStatus == "failed" {
-			s.deadLetterProcessingMessage(ctx, consumerName, msg, msg.LastError)
+			s.deadLetterProcessingMessage(ctx, consumerName, msg)
 			return
 		}
 	}
@@ -921,7 +908,7 @@ func (s *Service) handleEmbeddingMessage(ctx context.Context, consumerName strin
 			}
 			return
 		}
-		if !s.deadLetterProcessingMessage(ctx, consumerName, msg, failureMessage) {
+		if !s.deadLetterProcessingMessage(ctx, consumerName, msg) {
 			return
 		}
 	}
@@ -991,10 +978,8 @@ func (s *Service) deadLetterProcessingMessage(
 	ctx context.Context,
 	consumerName string,
 	msg repository.FileProcessingMessage,
-	lastError string,
 ) bool {
-	lastError = processingQueueFailureMessage
-	settled, err := s.cache.DeadLetterFileProcessingMessage(ctx, consumerName, msg, lastError)
+	settled, err := s.cache.DeadLetterFileProcessingMessage(ctx, consumerName, msg, processingQueueFailureMessage)
 	if err == nil && settled {
 		return true
 	}
@@ -1010,11 +995,11 @@ func (s *Service) deadLetterProcessingMessage(
 	return false
 }
 
-func (s *Service) forceFinalizeFailed(userID uint, fileID string, attemptID string, processingErr error) error {
+func (s *Service) forceFinalizeFailed(parent context.Context, userID uint, fileID string, attemptID string, processingErr error) error {
 	if s == nil || s.repo == nil || strings.TrimSpace(fileID) == "" {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), failurePersistTimeout)
+	ctx, cancel := background.WithTimeout(parent, failurePersistTimeout)
 	defer cancel()
 
 	fileObj, err := s.repo.GetActiveFileObjectByID(ctx, userID, fileID)
@@ -1039,7 +1024,7 @@ func (s *Service) forceFinalizeFailed(userID uint, fileID string, attemptID stri
 // enqueueFileProcessing 将文件处理任务放入队列；无队列缓存时退化为进程内受限并发的异步处理。
 func (s *Service) enqueueFileProcessing(ctx context.Context, userID uint, fileID string, retry int, lastError string) error {
 	if s.cache == nil {
-		return s.processInFallbackMode(userID, fileID)
+		return s.processInFallbackMode(ctx, userID, fileID)
 	}
 	return s.cache.EnqueueFileProcessing(ctx, userID, fileID, retry, processingQueueFailureMessage)
 }
@@ -1048,7 +1033,7 @@ func (s *Service) enqueueFileProcessing(ctx context.Context, userID uint, fileID
 // 并发由 fallbackSlots 信号量限制，超出容量返回 ErrFileProcessingQueueFull，
 // 由 InitializeUploadedFile 将文件标为 failed，避免永远停在 queued。
 // 单个任务由硬超时兜底退出；超时后按同一 attemptID 落失败态。
-func (s *Service) processInFallbackMode(userID uint, fileID string) error {
+func (s *Service) processInFallbackMode(parent context.Context, userID uint, fileID string) error {
 	select {
 	case s.fallbackSlots <- struct{}{}:
 	default:
@@ -1057,14 +1042,14 @@ func (s *Service) processInFallbackMode(userID uint, fileID string) error {
 	background.Go(s.logger, "fallback_file_processing", func() {
 		defer func() { <-s.fallbackSlots }()
 		attemptID := uuid.NewString()
-		taskCtx, cancel := context.WithTimeout(context.Background(), fallbackProcessingTimeout)
+		taskCtx, cancel := background.WithTimeout(parent, fallbackProcessingTimeout)
 		defer cancel()
 		claimed, err := s.processFile(taskCtx, userID, fileID, false, attemptID)
 		if err == nil {
 			return
 		}
 		if claimed || taskCtx.Err() != nil {
-			_ = s.forceFinalizeFailed(userID, fileID, attemptID, err)
+			_ = s.forceFinalizeFailed(taskCtx, userID, fileID, attemptID, err)
 		}
 		if s.logger != nil {
 			s.logger.Warn("fallback_file_processing_failed",
@@ -1084,7 +1069,7 @@ func (s *Service) markFileProcessingFailed(ctx context.Context, fileObj *domainc
 	writeCtx := ctx
 	if writeCtx == nil || writeCtx.Err() != nil {
 		var cancel context.CancelFunc
-		writeCtx, cancel = context.WithTimeout(context.Background(), failurePersistTimeout)
+		writeCtx, cancel = background.WithTimeout(ctx, failurePersistTimeout)
 		defer cancel()
 	}
 	return s.repo.UpdateFileObjectProcessingState(
@@ -1106,7 +1091,7 @@ func (s *Service) markClaimedFileProcessingFailed(
 	writeCtx := ctx
 	if writeCtx == nil || writeCtx.Err() != nil {
 		var cancel context.CancelFunc
-		writeCtx, cancel = context.WithTimeout(context.Background(), failurePersistTimeout)
+		writeCtx, cancel = background.WithTimeout(ctx, failurePersistTimeout)
 		defer cancel()
 	}
 	return s.updateClaimedFileProcessingState(
@@ -1133,7 +1118,7 @@ func (s *Service) failedFileProcessingState(
 		RAGReady:         false,
 		RAGReason:        code,
 		ErrorCode:        code,
-		ErrorMessage:     truncateError(HumanizeFileProcessingError(fileObj.FileCategory, code, message), 255),
+		ErrorMessage:     textutil.TruncateTrimmed(HumanizeFileProcessingError(fileObj.FileCategory, code, message), 255),
 		ExtractorVersion: s.version(),
 		CompletedAt:      &now,
 	}
@@ -1155,6 +1140,10 @@ func (s *Service) updateClaimedFileProcessingState(
 }
 
 func (s *Service) extractTextForProcessing(ctx context.Context, fileObj domainconversation.FileObject) (extraction.Result, error) {
+	if s == nil || s.extractSvc == nil {
+		return extraction.Result{}, errExtractionServiceNotConfigured
+	}
+
 	type extractOutcome struct {
 		result extraction.Result
 		err    error
@@ -1409,30 +1398,6 @@ func HumanizeFileProcessingError(fileCategory string, code string, _ string) str
 	}
 
 	return "文件处理失败，请稍后重试。"
-}
-
-func compactSnippet(content string, maxLen int) string {
-	value := strings.Join(strings.Fields(strings.TrimSpace(content)), " ")
-	if value == "" {
-		return ""
-	}
-	if maxLen <= 0 {
-		maxLen = 120
-	}
-	runes := []rune(value)
-	if len(runes) <= maxLen {
-		return value
-	}
-	return string(runes[:maxLen]) + "..."
-}
-
-func truncateError(message string, limit int) string {
-	value := strings.TrimSpace(message)
-	if limit <= 0 || len([]rune(value)) <= limit {
-		return value
-	}
-	runes := []rune(value)
-	return string(runes[:limit])
 }
 
 func supportsExtraction(category string) bool {

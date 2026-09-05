@@ -2,6 +2,7 @@ package conversation
 
 import (
 	"encoding/json"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"strings"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
@@ -283,8 +284,8 @@ func nativeToolCapabilitiesFromConfig(raw string, protocolKey string) []nativeTo
 				}
 				addCapability(nativeToolCapability{
 					Key:      key,
-					Protocol: firstNonEmpty(protocol, definition.Protocol, protocolKey),
-					Type:     firstNonEmpty(item.Type, definition.Type),
+					Protocol: textutil.FirstNonEmpty(protocol, definition.Protocol, protocolKey),
+					Type:     textutil.FirstNonEmpty(item.Type, definition.Type),
 					Payload:  nativetool.CanonicalPayload(definition, item.Payload),
 				})
 			}
@@ -293,7 +294,7 @@ func nativeToolCapabilitiesFromConfig(raw string, protocolKey string) []nativeTo
 		for _, protocol := range protocols {
 			addCapability(nativeToolCapability{
 				Key:      key,
-				Protocol: firstNonEmpty(protocol, protocolKey),
+				Protocol: textutil.FirstNonEmpty(protocol, protocolKey),
 				Type:     item.Type,
 				Payload:  cloneModelOptionMap(item.Payload),
 			})
@@ -458,16 +459,6 @@ func mergeModelOptionMap(dst map[string]interface{}, src map[string]interface{})
 func modelOptionStringValue(value interface{}) string {
 	if typed, ok := value.(string); ok {
 		return typed
-	}
-	return ""
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value != "" {
-			return value
-		}
 	}
 	return ""
 }

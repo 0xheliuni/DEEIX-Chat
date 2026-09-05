@@ -8,6 +8,7 @@ import (
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/channel"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/traceid"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
@@ -116,7 +117,7 @@ func (s *Service) persistSuccessfulMessageGeneration(ctx context.Context, input 
 		msgID := input.UserMessage.ID
 		inputTokens, cacheReadTokens, cacheWriteTokens := input.InputTokens, input.CacheReadTokens, input.CacheWriteTokens
 		background.Go(s.logger, "user_message_usage_update", func() {
-			bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			bgCtx, cancel := background.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
 			_ = s.repo.UpdateMessageUsage(bgCtx, msgID, inputTokens, 0, cacheReadTokens, cacheWriteTokens, 0)
 		})
@@ -302,15 +303,15 @@ func (s *Service) finishSuccessfulMessageGeneration(ctx context.Context, input p
 
 	// 非默认分支不代表会话主链，不能覆盖后续默认消息使用的 Responses 状态。
 	if normalizeBranchReason(input.SendInput.BranchReason) == "default" {
-		s.updateStatefulResponseAsync(input.SendInput.ConversationID, input.ResponseID, input.StatefulPromptFingerprint)
+		s.updateStatefulResponseAsync(ctx, input.SendInput.ConversationID, input.ResponseID, input.StatefulPromptFingerprint)
 	}
 	if input.SkipEmbed {
 		return nil
 	}
 	if input.ReuseUserMessage {
-		s.embedMessagePairAsync(input.SendInput, nil, input.AssistantMessage)
+		s.embedMessagePairAsync(ctx, input.SendInput, nil, input.AssistantMessage)
 	} else {
-		s.embedMessagePairAsync(input.SendInput, input.UserMessage, input.AssistantMessage)
+		s.embedMessagePairAsync(ctx, input.SendInput, input.UserMessage, input.AssistantMessage)
 	}
 
 	return nil
@@ -324,12 +325,8 @@ func (s *Service) persistInterruptedMessageGeneration(ctx context.Context, input
 	if !shouldPersistInterruptedMessageGeneration(input) {
 		return nil
 	}
-	persistCtx := ctx
-	var cancel context.CancelFunc
-	if persistCtx == nil || persistCtx.Err() != nil {
-		persistCtx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-	}
+	persistCtx, cancel := background.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
 
 	metrics := resolveInterruptedMessageGenerationMetrics(input)
 
@@ -448,7 +445,7 @@ func resolveInterruptedMessageGenerationMetrics(input persistInterruptedMessageG
 		OutputTokens:     outputTokens,
 		LatencyMS:        latencyMS,
 		ErrorCode:        classifyRunErrorCode(input.Error),
-		ErrorMessage:     truncateError(messageErrorSummary(input.Error), 255),
+		ErrorMessage:     textutil.TruncateTrimmed(messageErrorSummary(input.Error), 255),
 		CacheReadTokens:  input.Usage.CacheReadTokens,
 		CacheWriteTokens: input.Usage.CacheWriteTokens,
 		ReasoningTokens:  reasoningTokens,
@@ -615,7 +612,7 @@ func normalizeMessageToolCallRows(input persistMessageToolCallsInput) []model.To
 	return rows
 }
 
-func (s *Service) updateStatefulResponseAsync(conversationID uint, responseID string, promptFingerprint string) {
+func (s *Service) updateStatefulResponseAsync(ctx context.Context, conversationID uint, responseID string, promptFingerprint string) {
 	respID := strings.TrimSpace(responseID)
 	if respID == "" {
 		return
@@ -625,19 +622,19 @@ func (s *Service) updateStatefulResponseAsync(conversationID uint, responseID st
 		return
 	}
 	background.Go(s.logger, "stateful_response_update", func() {
-		bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		bgCtx, cancel := background.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
 		_ = s.repo.UpdateConversationStatefulResponse(bgCtx, conversationID, respID, fingerprint)
 	})
 }
 
-func (s *Service) embedMessagePairAsync(input SendMessageInput, userMessage *model.Message, assistantMessage *model.Message) {
+func (s *Service) embedMessagePairAsync(ctx context.Context, input SendMessageInput, userMessage *model.Message, assistantMessage *model.Message) {
 	cfg := s.cfg.Snapshot()
 	if !cfg.EmbeddingEnabled || !cfg.MessageEmbeddingEnabled {
 		return
 	}
 	background.Go(s.logger, "message_pair_embedding", func() {
-		asyncCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		asyncCtx, cancel := background.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 		s.embedMessagePair(asyncCtx, input.ConversationID, input.UserID, userMessage, assistantMessage)
 	})

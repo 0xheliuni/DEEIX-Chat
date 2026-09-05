@@ -14,6 +14,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
+
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/outboundhttp"
 	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
@@ -37,10 +39,6 @@ const upstreamRequestIDHeaderTemplate = "${DEEIX_UPSTREAM_REQUEST_ID}"
 type Client struct {
 	httpClients *outboundhttp.Pool
 	adapters    map[string]transportAdapter
-}
-
-func resolveConnectTimeout(ms int) time.Duration {
-	return time.Duration(normalizeConnectTimeoutMS(ms)) * time.Millisecond
 }
 
 func normalizeConnectTimeoutMS(ms int) int {
@@ -245,7 +243,7 @@ func providerToolsFromOptions(options map[string]interface{}) ([]map[string]inte
 	}
 }
 
-func toolDeclarationsForInput(input GenerateInput) ([]map[string]interface{}, []ToolDefinition, bool, error) {
+func toolDeclarationsForInput(input portllm.GenerateInput) ([]map[string]interface{}, []portllm.ToolDefinition, bool, error) {
 	if input.DisableTools {
 		return nil, nil, false, nil
 	}
@@ -500,7 +498,7 @@ func doGenerationRequest(do func(*http.Request) (*http.Response, error), req *ht
 	tracedRequest := req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
 	resp, err := do(tracedRequest)
 	if err != nil && wroteRequest.Load() {
-		return resp, MarkRequestAccepted(err)
+		return resp, portllm.MarkRequestAccepted(err)
 	}
 	return resp, err
 }
@@ -514,33 +512,33 @@ func NewClient(outboundPolicy security.OutboundPolicy) *Client {
 		return newRouteHTTPClient(policy, outboundPolicy, trustedOrigin, variant)
 	})
 	client.adapters = map[string]transportAdapter{
-		AdapterOpenAIResponses:        &openAIResponsesAdapter{client: client},
-		AdapterOpenRouterChat:         &openRouterChatCompletionsAdapter{client: client},
-		AdapterOpenRouterResponses:    &openRouterResponsesAdapter{client: client},
-		AdapterOpenAIChatCompletions:  &openAIChatCompletionsAdapter{client: client},
-		AdapterOpenAIImageGenerations: &openAIImageGenerationsAdapter{client: client},
-		AdapterOpenAIImageEdits:       &openAIImageEditsAdapter{client: client},
-		AdapterXAIResponses:           &xAIResponsesAdapter{client: client},
-		AdapterXAIImage:               &xAIImageAdapter{client: client},
-		AdapterXAIImageEdits:          &xAIImageEditsAdapter{client: client},
-		AdapterXAIVideo:               &xAIVideoAdapter{client: client},
-		AdapterXAIVideoExtensions:     &xAIVideoExtensionsAdapter{client: client},
-		AdapterAnthropicMessages:      &anthropicMessagesAdapter{client: client},
-		AdapterGoogleGenerateContent:  &geminiGenerateContentAdapter{client: client},
-		AdapterGoogleImageGeneration:  &geminiImageGenerationAdapter{client: client},
-		AdapterGeminiInteractions:     &geminiInteractionsAdapter{client: client},
+		portllm.AdapterOpenAIResponses:        &openAIResponsesAdapter{client: client},
+		portllm.AdapterOpenRouterChat:         &openRouterChatCompletionsAdapter{client: client},
+		portllm.AdapterOpenRouterResponses:    &openRouterResponsesAdapter{client: client},
+		portllm.AdapterOpenAIChatCompletions:  &openAIChatCompletionsAdapter{client: client},
+		portllm.AdapterOpenAIImageGenerations: &openAIImageGenerationsAdapter{client: client},
+		portllm.AdapterOpenAIImageEdits:       &openAIImageEditsAdapter{client: client},
+		portllm.AdapterXAIResponses:           &xAIResponsesAdapter{client: client},
+		portllm.AdapterXAIImage:               &xAIImageAdapter{client: client},
+		portllm.AdapterXAIImageEdits:          &xAIImageEditsAdapter{client: client},
+		portllm.AdapterXAIVideo:               &xAIVideoAdapter{client: client},
+		portllm.AdapterXAIVideoExtensions:     &xAIVideoExtensionsAdapter{client: client},
+		portllm.AdapterAnthropicMessages:      &anthropicMessagesAdapter{client: client},
+		portllm.AdapterGoogleGenerateContent:  &geminiGenerateContentAdapter{client: client},
+		portllm.AdapterGoogleImageGeneration:  &geminiImageGenerationAdapter{client: client},
+		portllm.AdapterGeminiInteractions:     &geminiInteractionsAdapter{client: client},
 	}
 	return client
 }
 
-func (c *Client) adapterFor(route RouteConfig) (transportAdapter, error) {
-	adapterName := NormalizeAdapter(route.Protocol)
-	if !IsImplementedAdapter(adapterName) {
-		return nil, fmt.Errorf("%w: %s", ErrUnsupportedAdapter, adapterName)
+func (c *Client) adapterFor(route portllm.RouteConfig) (transportAdapter, error) {
+	adapterName := portllm.NormalizeAdapter(route.Protocol)
+	if !portllm.IsImplementedAdapter(adapterName) {
+		return nil, fmt.Errorf("%w: %s", portllm.ErrUnsupportedAdapter, adapterName)
 	}
 	adapter, ok := c.adapters[adapterName]
 	if !ok {
-		return nil, fmt.Errorf("%w: %s", ErrUnsupportedAdapter, adapterName)
+		return nil, fmt.Errorf("%w: %s", portllm.ErrUnsupportedAdapter, adapterName)
 	}
 	return adapter, nil
 }
@@ -566,7 +564,7 @@ func newRouteHTTPClient(policy security.OutboundPolicy, redirectPolicy security.
 	return outboundhttp.ManagedClient{Client: client, CloseIdleConnections: transport.CloseIdleConnections}, nil
 }
 
-func (c *Client) doRouteRequest(route RouteConfig, request *http.Request) (*http.Response, error) {
+func (c *Client) doRouteRequest(route portllm.RouteConfig, request *http.Request) (*http.Response, error) {
 	if request == nil || request.URL == nil {
 		return nil, fmt.Errorf("model provider request is nil")
 	}
@@ -574,7 +572,7 @@ func (c *Client) doRouteRequest(route RouteConfig, request *http.Request) (*http
 	return c.httpClients.Do(request, route.BaseURL, strconv.Itoa(connectTimeoutMS))
 }
 
-func (c *Client) doRouteGenerationRequest(route RouteConfig, request *http.Request) (*http.Response, error) {
+func (c *Client) doRouteGenerationRequest(route portllm.RouteConfig, request *http.Request) (*http.Response, error) {
 	if request == nil || request.URL == nil {
 		return nil, fmt.Errorf("model provider request is nil")
 	}
@@ -592,7 +590,7 @@ func (c *Client) CloseIdleConnections() {
 }
 
 // Generate 调用上游适配器并解析响应（非流式）。
-func (c *Client) Generate(ctx context.Context, route RouteConfig, input GenerateInput) (*GenerateOutput, error) {
+func (c *Client) Generate(ctx context.Context, route portllm.RouteConfig, input portllm.GenerateInput) (*portllm.GenerateOutput, error) {
 	adapter, err := c.adapterFor(route)
 	if err != nil {
 		return nil, err
@@ -603,10 +601,10 @@ func (c *Client) Generate(ctx context.Context, route RouteConfig, input Generate
 // GenerateStream 调用上游适配器并实时回传增量文本。
 func (c *Client) GenerateStream(
 	ctx context.Context,
-	route RouteConfig,
-	input GenerateInput,
-	onEvent func(GenerateStreamEvent) error,
-) (*GenerateOutput, error) {
+	route portllm.RouteConfig,
+	input portllm.GenerateInput,
+	onEvent func(portllm.GenerateStreamEvent) error,
+) (*portllm.GenerateOutput, error) {
 	adapter, err := c.adapterFor(route)
 	if err != nil {
 		return nil, err
@@ -615,7 +613,7 @@ func (c *Client) GenerateStream(
 }
 
 // ListModels 调用上游 models 目录接口。
-func (c *Client) ListModels(ctx context.Context, route RouteConfig) ([]ModelItem, error) {
+func (c *Client) ListModels(ctx context.Context, route portllm.RouteConfig) ([]portllm.ModelItem, error) {
 	adapter, err := c.adapterFor(route)
 	if err != nil {
 		return nil, err
@@ -629,7 +627,7 @@ func (c *Client) ListModels(ctx context.Context, route RouteConfig) ([]ModelItem
 	}
 
 	fallbackRoute := route
-	fallbackRoute.Protocol = AdapterOpenAIChatCompletions
+	fallbackRoute.Protocol = portllm.AdapterOpenAIChatCompletions
 	fallbackItems, fallbackErr := c.listModelsOpenAICompatible(ctx, fallbackRoute)
 	if fallbackErr != nil {
 		return nil, fmt.Errorf("%w; openai-compatible models fallback failed: %w", err, fallbackErr)
@@ -637,12 +635,12 @@ func (c *Client) ListModels(ctx context.Context, route RouteConfig) ([]ModelItem
 	return fallbackItems, nil
 }
 
-func shouldFallbackToOpenAICompatibleModels(route RouteConfig) bool {
+func shouldFallbackToOpenAICompatibleModels(route portllm.RouteConfig) bool {
 	if isOpenRouterBaseURL(route.BaseURL) {
 		return false
 	}
-	switch NormalizeAdapter(route.Protocol) {
-	case AdapterAnthropicMessages, AdapterGoogleGenerateContent, AdapterGoogleImageGeneration:
+	switch portllm.NormalizeAdapter(route.Protocol) {
+	case portllm.AdapterAnthropicMessages, portllm.AdapterGoogleGenerateContent, portllm.AdapterGoogleImageGeneration:
 		return true
 	default:
 		return false
@@ -654,8 +652,6 @@ type idleTimeoutReader struct {
 	reader  io.Reader
 	timeout time.Duration
 	timer   *time.Timer
-	done    chan struct{}
-	err     error
 }
 
 func newIdleTimeoutReader(reader io.Reader, timeout time.Duration) *idleTimeoutReader {
@@ -663,7 +659,6 @@ func newIdleTimeoutReader(reader io.Reader, timeout time.Duration) *idleTimeoutR
 		reader:  reader,
 		timeout: timeout,
 		timer:   time.NewTimer(timeout),
-		done:    make(chan struct{}),
 	}
 }
 
@@ -705,7 +700,7 @@ func decodeToolSchema(raw json.RawMessage) map[string]interface{} {
 	return payload
 }
 
-func buildToolResultContent(item ToolResult) string {
+func buildToolResultContent(item portllm.ToolResult) string {
 	if strings.TrimSpace(item.Error) != "" {
 		payload := map[string]interface{}{
 			"ok":     false,
@@ -725,14 +720,14 @@ func buildToolResultContent(item ToolResult) string {
 	return output
 }
 
-func normalizeMessages(messages []Message) []Message {
-	normalized := make([]Message, 0, len(messages))
+func normalizeMessages(messages []portllm.Message) []portllm.Message {
+	normalized := make([]portllm.Message, 0, len(messages))
 	for _, item := range messages {
 		// 跳过空消息（Parts 非空或 Content 非空才保留）
 		if len(item.Parts) == 0 && strings.TrimSpace(item.Content) == "" && len(item.ToolCalls) == 0 && len(item.ToolResults) == 0 {
 			continue
 		}
-		normalized = append(normalized, Message{
+		normalized = append(normalized, portllm.Message{
 			Role:             normalizeRole(item.Role),
 			Content:          item.Content,
 			Parts:            item.Parts,
@@ -743,7 +738,7 @@ func normalizeMessages(messages []Message) []Message {
 		})
 	}
 	if len(normalized) == 0 {
-		normalized = append(normalized, Message{Role: "user", Content: ""})
+		normalized = append(normalized, portllm.Message{Role: "user", Content: ""})
 	}
 	return normalized
 }
@@ -752,7 +747,7 @@ func setAdditionalHeaders(req *http.Request, headersJSON string) {
 	setAdditionalHeadersForInput(req, headersJSON, nil)
 }
 
-func setAdditionalHeadersForInput(req *http.Request, headersJSON string, input *GenerateInput) {
+func setAdditionalHeadersForInput(req *http.Request, headersJSON string, input *portllm.GenerateInput) {
 	if req == nil {
 		return
 	}
@@ -785,7 +780,7 @@ func setAdditionalHeadersForInput(req *http.Request, headersJSON string, input *
 	}
 }
 
-func expandAdditionalHeaderValue(value string, input *GenerateInput, upstreamRequestID string) (string, bool) {
+func expandAdditionalHeaderValue(value string, input *portllm.GenerateInput, upstreamRequestID string) (string, bool) {
 	replacements := []struct {
 		template string
 		value    string
@@ -854,7 +849,7 @@ func streamErrorBody(recorder *upstreamBodyRecorder, err error) []byte {
 	return upstreamErrorBody(err)
 }
 
-func parseUpstreamError(statusCode int, body []byte, debug *UpstreamDebugSnapshot) error {
+func parseUpstreamError(statusCode int, body []byte, debug *portllm.UpstreamDebugSnapshot) error {
 	message := fmt.Sprintf("upstream_status_%d", statusCode)
 	parsed := make(map[string]interface{})
 	if err := json.Unmarshal(body, &parsed); err == nil {
@@ -864,7 +859,7 @@ func parseUpstreamError(statusCode int, body []byte, debug *UpstreamDebugSnapsho
 			message = m
 		}
 	}
-	return &UpstreamError{
+	return &portllm.UpstreamError{
 		StatusCode: statusCode,
 		Message:    message,
 		Body:       string(body),
@@ -872,7 +867,7 @@ func parseUpstreamError(statusCode int, body []byte, debug *UpstreamDebugSnapsho
 	}
 }
 
-func upstreamDebugSnapshot(req *http.Request, requestBody []byte, resp *http.Response, responseBody []byte) *UpstreamDebugSnapshot {
+func upstreamDebugSnapshot(req *http.Request, requestBody []byte, resp *http.Response, responseBody []byte) *portllm.UpstreamDebugSnapshot {
 	if req == nil {
 		return nil
 	}
@@ -885,8 +880,8 @@ func upstreamDebugSnapshot(req *http.Request, requestBody []byte, resp *http.Res
 	}
 	requestDebugBody := portllm.SanitizeUpstreamDebugPayload(requestBody)
 	responseDebugBody := portllm.SanitizeUpstreamDebugPayload(responseBody)
-	return &UpstreamDebugSnapshot{
-		Request: UpstreamDebugRequest{
+	return &portllm.UpstreamDebugSnapshot{
+		Request: portllm.UpstreamDebugRequest{
 			Method:        req.Method,
 			Path:          path,
 			Headers:       redactHeaders(req.Header),
@@ -895,7 +890,7 @@ func upstreamDebugSnapshot(req *http.Request, requestBody []byte, resp *http.Res
 			BodyTruncated: requestDebugBody.Truncated,
 			RedactedParts: requestDebugBody.RedactedParts,
 		},
-		Response: UpstreamDebugResponse{
+		Response: portllm.UpstreamDebugResponse{
 			StatusCode:    responseStatusCode(resp),
 			Headers:       responseHeaders(resp),
 			Body:          responseDebugBody.Body,
@@ -949,11 +944,11 @@ func isSecretHeader(key string) bool {
 		strings.Contains(normalized, "key")
 }
 
-func attachUpstreamDebug(err error, debug *UpstreamDebugSnapshot) error {
+func attachUpstreamDebug(err error, debug *portllm.UpstreamDebugSnapshot) error {
 	if err == nil || debug == nil {
 		return err
 	}
-	var upstreamErr *UpstreamError
+	var upstreamErr *portllm.UpstreamError
 	if errors.As(err, &upstreamErr) {
 		if upstreamErr.Debug == nil {
 			upstreamErr.Debug = debug
@@ -971,7 +966,7 @@ func attachUpstreamDebug(err error, debug *UpstreamDebugSnapshot) error {
 	if message == "" {
 		message = fmt.Sprintf("upstream_status_%d", statusCode)
 	}
-	return &UpstreamError{
+	return &portllm.UpstreamError{
 		StatusCode: statusCode,
 		Message:    message,
 		Body:       debug.Response.Body,
@@ -980,7 +975,7 @@ func attachUpstreamDebug(err error, debug *UpstreamDebugSnapshot) error {
 	}
 }
 
-func responseStatusCodeFromDebug(debug *UpstreamDebugSnapshot) int {
+func responseStatusCodeFromDebug(debug *portllm.UpstreamDebugSnapshot) int {
 	if debug != nil && debug.Response.StatusCode >= 100 && debug.Response.StatusCode <= 599 {
 		return debug.Response.StatusCode
 	}
@@ -988,7 +983,7 @@ func responseStatusCodeFromDebug(debug *UpstreamDebugSnapshot) int {
 }
 
 func upstreamErrorBody(err error) []byte {
-	var upstreamErr *UpstreamError
+	var upstreamErr *portllm.UpstreamError
 	if errors.As(err, &upstreamErr) && strings.TrimSpace(upstreamErr.Body) != "" {
 		return []byte(upstreamErr.Body)
 	}
@@ -1004,13 +999,13 @@ func parseStreamUpstreamError(parsed map[string]interface{}, rawBody string) err
 		return nil
 	}
 	statusCode := streamErrorStatusCode(parsed, errorPayload)
-	message := firstNonEmptyString(
+	message := textutil.FirstNonEmpty(
 		getString(errorPayload["message"]),
 		getString(errorPayload["msg"]),
 		getString(parsed["message"]),
 		http.StatusText(statusCode),
 	)
-	return &UpstreamError{
+	return &portllm.UpstreamError{
 		StatusCode: statusCode,
 		Message:    message,
 		Body:       rawBody,
@@ -1049,16 +1044,7 @@ func toHTTPStatusCode(raw interface{}) int {
 	return parsed
 }
 
-func firstNonEmptyString(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
-}
-
-func appendUniqueToolCall(items *[]ToolCall, item ToolCall) {
+func appendUniqueToolCall(items *[]portllm.ToolCall, item portllm.ToolCall) {
 	if items == nil {
 		return
 	}
@@ -1071,7 +1057,7 @@ func appendUniqueToolCall(items *[]ToolCall, item ToolCall) {
 	*items = append(*items, item)
 }
 
-func shouldMergeToolCall(existing ToolCall, incoming ToolCall) bool {
+func shouldMergeToolCall(existing portllm.ToolCall, incoming portllm.ToolCall) bool {
 	existingID := strings.TrimSpace(existing.ToolCallID)
 	incomingID := strings.TrimSpace(incoming.ToolCallID)
 	if existingID != "" && incomingID != "" {
@@ -1086,7 +1072,7 @@ func shouldMergeToolCall(existing ToolCall, incoming ToolCall) bool {
 	return false
 }
 
-func sameToolCallKind(left ToolCall, right ToolCall) bool {
+func sameToolCallKind(left portllm.ToolCall, right portllm.ToolCall) bool {
 	leftName := strings.TrimSpace(left.ToolName)
 	rightName := strings.TrimSpace(right.ToolName)
 	if leftName != "" && rightName != "" && leftName == rightName {
@@ -1097,7 +1083,7 @@ func sameToolCallKind(left ToolCall, right ToolCall) bool {
 	return leftType != "" && rightType != "" && leftType == rightType
 }
 
-func mergeToolCall(existing ToolCall, incoming ToolCall) ToolCall {
+func mergeToolCall(existing portllm.ToolCall, incoming portllm.ToolCall) portllm.ToolCall {
 	merged := existing
 	if value := strings.TrimSpace(incoming.ToolCallID); value != "" {
 		merged.ToolCallID = value
@@ -1152,9 +1138,9 @@ func toolCallStatusRank(status string) int {
 	}
 }
 
-func updateToolCallInput(items *[]ToolCall, itemID string, input string, done bool) (ToolCall, bool) {
+func updateToolCallInput(items *[]portllm.ToolCall, itemID string, input string, done bool) (portllm.ToolCall, bool) {
 	if items == nil || strings.TrimSpace(itemID) == "" {
-		return ToolCall{}, false
+		return portllm.ToolCall{}, false
 	}
 	for index, item := range *items {
 		if strings.TrimSpace(item.ToolCallID) != itemID {
@@ -1176,7 +1162,7 @@ func updateToolCallInput(items *[]ToolCall, itemID string, input string, done bo
 		(*items)[index] = item
 		return item, true
 	}
-	return ToolCall{}, false
+	return portllm.ToolCall{}, false
 }
 
 func appendUniqueStrings(items []string, values ...string) []string {
@@ -1311,20 +1297,20 @@ func firstMapItem(items []interface{}) map[string]interface{} {
 
 func normalizeEndpoint(raw string) string {
 	switch strings.TrimSpace(raw) {
-	case EndpointChatCompletions:
-		return EndpointChatCompletions
-	case EndpointImageGenerations:
-		return EndpointImageGenerations
-	case EndpointImageEdits:
-		return EndpointImageEdits
-	case EndpointVideoGenerations:
-		return EndpointVideoGenerations
-	case EndpointVideoExtensions:
-		return EndpointVideoExtensions
-	case EndpointInteractions:
-		return EndpointInteractions
+	case portllm.EndpointChatCompletions:
+		return portllm.EndpointChatCompletions
+	case portllm.EndpointImageGenerations:
+		return portllm.EndpointImageGenerations
+	case portllm.EndpointImageEdits:
+		return portllm.EndpointImageEdits
+	case portllm.EndpointVideoGenerations:
+		return portllm.EndpointVideoGenerations
+	case portllm.EndpointVideoExtensions:
+		return portllm.EndpointVideoExtensions
+	case portllm.EndpointInteractions:
+		return portllm.EndpointInteractions
 	default:
-		return EndpointResponses
+		return portllm.EndpointResponses
 	}
 }
 

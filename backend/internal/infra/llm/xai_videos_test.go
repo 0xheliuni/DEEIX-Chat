@@ -8,15 +8,17 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
 func TestBuildXAIVideoRequestBody(t *testing.T) {
-	payload, debugBody, err := buildXAIVideoRequestBody("grok-imagine-video", GenerateInput{
-		Messages: []Message{{
+	payload, debugBody, err := buildXAIVideoRequestBody("grok-imagine-video", portllm.GenerateInput{
+		Messages: []portllm.Message{{
 			Role: "user",
-			Parts: []ContentPart{
-				{Kind: ContentPartText, Text: "Animate the scene"},
-				{Kind: ContentPartImage, MimeType: "image/png", Data: []byte("source")},
+			Parts: []portllm.ContentPart{
+				{Kind: portllm.ContentPartText, Text: "Animate the scene"},
+				{Kind: portllm.ContentPartImage, MimeType: "image/png", Data: []byte("source")},
 			},
 		}},
 		Options: map[string]interface{}{
@@ -51,13 +53,13 @@ func TestBuildXAIVideoRequestBody(t *testing.T) {
 }
 
 func TestBuildXAIVideoRequestBodyRejectsMultipleImages(t *testing.T) {
-	_, _, err := buildXAIVideoRequestBody("grok-imagine-video", GenerateInput{
-		Messages: []Message{{
+	_, _, err := buildXAIVideoRequestBody("grok-imagine-video", portllm.GenerateInput{
+		Messages: []portllm.Message{{
 			Role: "user",
-			Parts: []ContentPart{
-				{Kind: ContentPartText, Text: "Animate the scene"},
-				{Kind: ContentPartImage, MimeType: "image/png", Data: []byte("one")},
-				{Kind: ContentPartImage, MimeType: "image/png", Data: []byte("two")},
+			Parts: []portllm.ContentPart{
+				{Kind: portllm.ContentPartText, Text: "Animate the scene"},
+				{Kind: portllm.ContentPartImage, MimeType: "image/png", Data: []byte("one")},
+				{Kind: portllm.ContentPartImage, MimeType: "image/png", Data: []byte("two")},
 			},
 		}},
 	})
@@ -67,8 +69,8 @@ func TestBuildXAIVideoRequestBodyRejectsMultipleImages(t *testing.T) {
 }
 
 func TestBuildXAIVideoRequestBodyDropsUnsupportedParams(t *testing.T) {
-	payload, _, err := buildXAIVideoRequestBody("grok-imagine-video", GenerateInput{
-		Messages: []Message{{Role: "user", Content: "Animate the scene"}},
+	payload, _, err := buildXAIVideoRequestBody("grok-imagine-video", portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "Animate the scene"}},
 		Options: map[string]interface{}{
 			"aspect_ratio": "21:9",
 			"duration":     8.5,
@@ -86,9 +88,9 @@ func TestBuildXAIVideoRequestBodyDropsUnsupportedParams(t *testing.T) {
 }
 
 func TestBuildXAIVideoExtensionRequestBody(t *testing.T) {
-	payload, debugBody, err := buildXAIVideoExtensionRequestBody("grok-imagine-video", GenerateInput{
-		Messages:             []Message{{Role: "user", Content: "Continue the camera movement"}},
-		VideoExtensionSource: &ContentPart{Kind: ContentPartVideo, MimeType: "video/mp4", Data: []byte("source-video")},
+	payload, debugBody, err := buildXAIVideoExtensionRequestBody("grok-imagine-video", portllm.GenerateInput{
+		Messages:             []portllm.Message{{Role: "user", Content: "Continue the camera movement"}},
+		VideoExtensionSource: &portllm.ContentPart{Kind: portllm.ContentPartVideo, MimeType: "video/mp4", Data: []byte("source-video")},
 		Options:              map[string]interface{}{"duration": 8, "aspect_ratio": "16:9", "resolution": "1080p"},
 	})
 	if err != nil {
@@ -110,15 +112,15 @@ func TestBuildXAIVideoExtensionRequestBody(t *testing.T) {
 }
 
 func TestBuildXAIVideoExtensionRequestBodyRejectsInvalidSourceAndDuration(t *testing.T) {
-	payload, _, err := buildXAIVideoExtensionRequestBody("grok-imagine-video", GenerateInput{
-		Messages:             []Message{{Role: "user", Content: "Continue"}},
-		VideoExtensionSource: &ContentPart{Kind: ContentPartVideo, MimeType: "video/webm", Data: []byte("source")},
+	payload, _, err := buildXAIVideoExtensionRequestBody("grok-imagine-video", portllm.GenerateInput{
+		Messages:             []portllm.Message{{Role: "user", Content: "Continue"}},
+		VideoExtensionSource: &portllm.ContentPart{Kind: portllm.ContentPartVideo, MimeType: "video/webm", Data: []byte("source")},
 	})
 	if err == nil || payload != nil {
 		t.Fatalf("expected invalid source error, got payload=%#v err=%v", payload, err)
 	}
 	options := map[string]interface{}{"duration": 11, "resolution": "720p"}
-	SanitizeXAIVideoExtensionOptions(options)
+	portllm.SanitizeXAIVideoExtensionOptions(options)
 	if len(options) != 0 {
 		t.Fatalf("unsupported extension options must be removed: %#v", options)
 	}
@@ -182,14 +184,14 @@ func TestGenerateXAIVideoSubmitsAndPolls(t *testing.T) {
 	}))
 	defer server.Close()
 
-	output, err := newTestClient().Generate(context.Background(), RouteConfig{
-		Protocol:      AdapterXAIVideo,
+	output, err := newTestClient().Generate(context.Background(), portllm.RouteConfig{
+		Protocol:      portllm.AdapterXAIVideo,
 		BaseURL:       server.URL + "/v1",
 		APIKey:        "xai-key",
 		ReadTimeoutMS: 5000,
 		UpstreamModel: "grok-imagine-video",
-	}, GenerateInput{
-		Messages: []Message{{Role: "user", Content: "A cinematic orbit"}},
+	}, portllm.GenerateInput{
+		Messages: []portllm.Message{{Role: "user", Content: "A cinematic orbit"}},
 		Options:  map[string]interface{}{"duration": 8},
 	})
 	if err != nil {
@@ -227,13 +229,13 @@ func TestGenerateXAIVideoMarksFailedTaskAsAccepted(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := newTestClient().Generate(context.Background(), RouteConfig{
-		Protocol:      AdapterXAIVideo,
+	_, err := newTestClient().Generate(context.Background(), portllm.RouteConfig{
+		Protocol:      portllm.AdapterXAIVideo,
 		BaseURL:       server.URL + "/v1",
 		ReadTimeoutMS: 5000,
 		UpstreamModel: "grok-imagine-video",
-	}, GenerateInput{Messages: []Message{{Role: "user", Content: "Animate this"}}})
-	if err == nil || !RequestWasAccepted(err) {
+	}, portllm.GenerateInput{Messages: []portllm.Message{{Role: "user", Content: "Animate this"}}})
+	if err == nil || !portllm.RequestWasAccepted(err) {
 		t.Fatalf("expected accepted request error, got %v", err)
 	}
 	if !strings.Contains(err.Error(), "content_policy_violation: request rejected") {

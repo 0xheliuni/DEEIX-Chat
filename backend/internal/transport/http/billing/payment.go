@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"io"
 	"net/http"
 	"net/url"
@@ -230,7 +231,7 @@ func (h *Handler) StripeWebhook(c *gin.Context) {
 		writePaymentWebhookError(c, err)
 		return
 	}
-	order, activated, err := h.service.CompletePaymentOrder(c.Request.Context(), orderNo, firstNonEmpty(session.PaymentIntent, session.ID), time.Now())
+	order, activated, err := h.service.CompletePaymentOrder(c.Request.Context(), orderNo, textutil.FirstNonEmpty(session.PaymentIntent, session.ID), time.Now())
 	if err != nil {
 		writePaymentWebhookError(c, err)
 		return
@@ -734,8 +735,8 @@ func resolveCheckoutOrderType(req CreateCheckoutRequest) string {
 }
 
 func requestBaseURL(c *gin.Context) string {
-	proto := firstNonEmpty(c.GetHeader("X-Forwarded-Proto"), "http")
-	host := firstNonEmpty(c.GetHeader("X-Forwarded-Host"), c.Request.Host)
+	proto := textutil.FirstNonEmpty(c.GetHeader("X-Forwarded-Proto"), "http")
+	host := textutil.FirstNonEmpty(c.GetHeader("X-Forwarded-Host"), c.Request.Host)
 	return proto + "://" + host
 }
 
@@ -854,13 +855,4 @@ func sameOriginPublicURL(baseURL string, raw string) (string, error) {
 func isHTTPURL(value string) bool {
 	parsed, err := url.Parse(strings.TrimSpace(value))
 	return err == nil && (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Host != ""
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }

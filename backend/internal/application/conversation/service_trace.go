@@ -10,6 +10,8 @@ import (
 
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/toolresult"
 	"go.uber.org/zap"
 )
@@ -83,6 +85,7 @@ type messageTraceDraft struct {
 }
 
 type tracePersistenceJob struct {
+	ctx         context.Context
 	draft       messageTraceDraft
 	payloadJSON string
 }
@@ -145,13 +148,6 @@ func joinTraceParts(parts ...string) string {
 		}
 	}
 	return strings.Join(items, "；")
-}
-
-func traceCountLabel(count int, unit string) string {
-	if count <= 0 {
-		return ""
-	}
-	return fmt.Sprintf("%d %s", count, unit)
 }
 
 func traceNameScope(names []string) string {
@@ -243,7 +239,7 @@ func (r *messageTraceRecorder) completeForBackgroundContinuation() {
 	if !r.enabled() {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := background.WithTimeout(r.ctx, 5*time.Second)
 	defer cancel()
 	now := time.Now()
 	for _, draft := range []*messageTraceDraft{r.process, r.tools, r.upstreamThink} {
@@ -261,7 +257,7 @@ func (r *messageTraceRecorder) completeForBackgroundContinuation() {
 		}
 		r.persistDraftCtx(ctx, draft, true)
 	}
-	r.ctx = context.Background()
+	r.ctx = background.Detach(r.ctx)
 	r.onEvent = nil
 }
 
@@ -761,13 +757,13 @@ func (r *messageTraceRecorder) complete() {
 	r.completeProcess()
 	r.completeTools()
 	r.completeUpstreamThink()
-	ctx, cancel := context.WithTimeout(context.Background(), tracePersistenceDrainTimeout)
+	ctx, cancel := background.WithTimeout(r.ctx, tracePersistenceDrainTimeout)
 	defer cancel()
 	r.waitForPendingPersistence(ctx)
 }
 
 func (r *messageTraceRecorder) fail(err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), tracePersistenceDrainTimeout)
+	ctx, cancel := background.WithTimeout(r.ctx, tracePersistenceDrainTimeout)
 	defer cancel()
 	r.failWithContext(ctx, err)
 }
@@ -874,7 +870,11 @@ func (r *messageTraceRecorder) enqueueDraftPersistence(draft *messageTraceDraft,
 	r.persistQueueMu.Lock()
 	snapshot := *draft
 	snapshot.payload = nil
-	r.persistQueue = append(r.persistQueue, tracePersistenceJob{draft: snapshot, payloadJSON: payloadJSON})
+	r.persistQueue = append(r.persistQueue, tracePersistenceJob{
+		ctx:         background.Detach(r.ctx),
+		draft:       snapshot,
+		payloadJSON: payloadJSON,
+	})
 	if r.persistWorkerDone != nil {
 		r.persistQueueMu.Unlock()
 		return
@@ -900,7 +900,7 @@ func (r *messageTraceRecorder) runPersistenceWorker(done chan struct{}) {
 		r.persistQueue = r.persistQueue[1:]
 		r.persistQueueMu.Unlock()
 
-		r.persistDraftBackground(&job.draft, job.payloadJSON)
+		r.persistDraftBackground(job.ctx, &job.draft, job.payloadJSON)
 	}
 }
 
@@ -922,8 +922,8 @@ func (r *messageTraceRecorder) waitForPendingPersistence(ctx context.Context) {
 
 // persistDraftBackground uses a detached timeout because terminal trace
 // durability must not depend on the client request remaining connected.
-func (r *messageTraceRecorder) persistDraftBackground(draft *messageTraceDraft, payloadJSON string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+func (r *messageTraceRecorder) persistDraftBackground(parent context.Context, draft *messageTraceDraft, payloadJSON string) {
+	ctx, cancel := background.WithTimeout(parent, 5*time.Second)
 	defer cancel()
 	if !r.enabled() || r.ephemeral || draft == nil {
 		return
@@ -1066,7 +1066,7 @@ func (r *messageTraceRecorder) persistMessageTraceRow(ctx context.Context, draft
 		RoundID:         draft.roundID,
 		ParentEventID:   draft.parentEventID,
 		Title:           draft.title,
-		Summary:         truncateError(strings.TrimSpace(draft.summary), 255),
+		Summary:         textutil.TruncateTrimmed(strings.TrimSpace(draft.summary), 255),
 		ContentMarkdown: draft.contentMarkdown,
 		PayloadJSON:     payloadJSON,
 		Seq:             draft.seq,
@@ -1127,7 +1127,7 @@ func (r *messageTraceRecorder) persistTraceEventRow(ctx context.Context, draft *
 		ParentEventID:   draft.parentEventID,
 		Status:          draft.status,
 		Title:           draft.title,
-		Summary:         truncateError(strings.TrimSpace(draft.summary), 255),
+		Summary:         textutil.TruncateTrimmed(strings.TrimSpace(draft.summary), 255),
 		ContentMarkdown: draft.contentMarkdown,
 		PayloadJSON:     payloadJSON,
 		Seq:             draft.eventSeq,
@@ -1166,7 +1166,7 @@ func (r *messageTraceRecorder) storeSnapshotEvent(draft *messageTraceDraft, payl
 		RoundID:         draft.roundID,
 		ParentEventID:   draft.parentEventID,
 		Title:           draft.title,
-		Summary:         truncateError(strings.TrimSpace(draft.summary), 255),
+		Summary:         textutil.TruncateTrimmed(strings.TrimSpace(draft.summary), 255),
 		ContentMarkdown: draft.contentMarkdown,
 		Status:          draft.status,
 		Seq:             draft.eventSeq,
@@ -1739,7 +1739,7 @@ func summarizeThinkText(value string) string {
 	if trimmed == "" {
 		return ""
 	}
-	return compactSnippet(trimmed, 80)
+	return textutil.CompactSnippet(trimmed, 80)
 }
 
 type attachmentTraceFileRef struct {
@@ -1901,12 +1901,12 @@ func buildRAGProcessTrace(
 			"file_id":     chunk.FileID,
 			"chunk_index": chunk.ChunkIndex,
 			"score":       chunk.Score,
-			"preview":     compactSnippet(chunk.Content, 100),
+			"preview":     textutil.CompactSnippet(chunk.Content, 100),
 		})
 	}
 	detail := fmt.Sprintf("检索已完成，共检索 %d 个文件，命中 %d 个段落。", len(names), len(chunks))
 	return fmt.Sprintf("检索到 %d 段相关内容", len(chunks)), formatTraceStep("内容检索", detail), map[string]interface{}{
-		"query":           compactSnippet(query, 240),
+		"query":           textutil.CompactSnippet(query, 240),
 		"file_names":      names,
 		"hit_chunk_count": len(chunks),
 		"citations":       citations,
@@ -1959,16 +1959,16 @@ func buildToolTrace(rows []model.ToolCall) (string, string, map[string]interface
 		output := strings.TrimSpace(row.OutputJSON)
 		errorText := strings.TrimSpace(row.ErrorJSON)
 		inputDisplay := collapseWhitespace(input)
-		inputPreview := compactSnippet(inputDisplay, toolTraceCompactSummaryMaxChars)
+		inputPreview := textutil.CompactSnippet(inputDisplay, toolTraceCompactSummaryMaxChars)
 		outputPresentation := toolresult.BuildPresentation(output)
 		outputPreview := toolOutputPreview(output, outputPresentation)
 		inputDetail := toolTraceDetail(input, toolTraceDetailMaxChars)
 		outputDetail := toolTraceDetail(output, toolTraceDetailMaxChars)
 		errorDetail := toolTraceDetail(errorText, toolTraceDetailMaxChars)
 		if errorText != "" {
-			parts = append(parts, compactSnippet(collapseWhitespace(errorText), toolTraceCompactSummaryMaxChars))
+			parts = append(parts, textutil.CompactSnippet(collapseWhitespace(errorText), toolTraceCompactSummaryMaxChars))
 		} else if outputPreview != "" {
-			parts = append(parts, "结果："+compactSnippet(outputPreview, toolTraceCompactSummaryMaxChars))
+			parts = append(parts, "结果："+textutil.CompactSnippet(outputPreview, toolTraceCompactSummaryMaxChars))
 		}
 		lines = append(lines, formatTraceStep(toolName, joinTraceParts(parts...)))
 		toolCallID := strings.TrimSpace(row.ToolCallID)
@@ -2286,11 +2286,6 @@ func (r *thinkingDeltaRouter) flush() (string, string) {
 	return value, ""
 }
 
-func splitThinkingContent(content string) (string, string) {
-	visible, think, _ := splitLeadingThinkingBlock(content, true)
-	return strings.TrimSpace(visible), strings.TrimSpace(think)
-}
-
 func splitAssistantOutputThinkingContent(content string) (string, string) {
 	_, tagName, openEnd, openPending, ok := parseLeadingThinkingOpenTag(content)
 	if openPending {
@@ -2304,30 +2299,6 @@ func splitAssistantOutputThinkingContent(content string) (string, string) {
 		return "", strings.TrimSpace(content[openEnd:])
 	}
 	return strings.TrimSpace(content[closeEnd:]), strings.TrimSpace(content[openEnd:closeStart])
-}
-
-func splitLeadingThinkingBlock(content string, flush bool) (visible string, think string, pending bool) {
-	if content == "" {
-		return "", "", false
-	}
-	_, tagName, openEnd, openPending, ok := parseLeadingThinkingOpenTag(content)
-	if openPending {
-		if flush {
-			return content, "", false
-		}
-		return "", "", true
-	}
-	if !ok {
-		return content, "", false
-	}
-	closeStart, closeEnd, found := findThinkingCloseTag(content, openEnd, tagName)
-	if !found {
-		if flush {
-			return content, "", false
-		}
-		return "", "", true
-	}
-	return content[closeEnd:], content[openEnd:closeStart], false
 }
 
 func parseLeadingThinkingOpenTag(content string) (prefixEnd int, tagName string, openEnd int, pending bool, ok bool) {

@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	appaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/audit"
 )
 
 type cleanupTestRepository struct {
@@ -24,9 +26,9 @@ type cleanupTestAuditWriter struct {
 	detail interface{}
 }
 
-func (w *cleanupTestAuditWriter) Write(_ context.Context, _ string, _ uint, action string, _ string, _ string, _ string, _ string, detail interface{}) {
-	w.action = action
-	w.detail = detail
+func (w *cleanupTestAuditWriter) Write(_ context.Context, input appaudit.WriteInput) {
+	w.action = input.Action
+	w.detail = input.Detail
 }
 
 func TestCleanupConversationRunsNormalizesAndAudits(t *testing.T) {

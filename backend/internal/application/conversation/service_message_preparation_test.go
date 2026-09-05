@@ -18,9 +18,13 @@ type rejectedMessageRepositoryStub struct {
 	userMessage       *model.Message
 	assistantMessage  *model.Message
 	attachments       []model.Attachment
+	run               *model.Run
+	runCreateErr      error
 	metadataPatch     repository.ConversationMetadataPatch
 	pairCreateCalls   int
 	branchCreateCalls int
+	runCreateCalls    int
+	runUpdateCalls    int
 }
 
 func (r *rejectedMessageRepositoryStub) GetConversationByUser(_ context.Context, conversationID uint, userID uint) (*model.Conversation, error) {
@@ -33,6 +37,47 @@ func (r *rejectedMessageRepositoryStub) GetConversationByUser(_ context.Context,
 
 func (r *rejectedMessageRepositoryStub) ListLatestBranchPreviewMessages(context.Context, uint, int, int) ([]model.Message, error) {
 	return nil, nil
+}
+
+func (r *rejectedMessageRepositoryStub) CreateConversationRun(_ context.Context, run *model.Run) error {
+	r.runCreateCalls++
+	if r.runCreateErr != nil {
+		return r.runCreateErr
+	}
+	copy := *run
+	r.run = &copy
+	return nil
+}
+
+func TestPersistMessageUsageRejectionRejectsDuplicateBeforeMessages(t *testing.T) {
+	repo := &rejectedMessageRepositoryStub{
+		conversation: model.Conversation{ID: 7, UserID: 9, Model: "gpt-test"},
+		runCreateErr: repository.ErrDuplicate,
+	}
+	service := &Service{
+		cfg:    config.NewRuntime(config.Config{MaxMessageFiles: 10}),
+		repo:   repo,
+		logger: zap.NewNop(),
+	}
+
+	err := service.PersistMessageUsageRejection(
+		context.Background(),
+		SendMessageInput{UserID: 9, ConversationID: 7, ClientRunID: "run_duplicate", BranchReason: "default"},
+		appbilling.ErrUsageBalanceInsufficient,
+	)
+	if !errors.Is(err, ErrDuplicateMessageGenerationRun) {
+		t.Fatalf("duplicate rejection error = %v", err)
+	}
+	if repo.pairCreateCalls != 0 || repo.branchCreateCalls != 0 || repo.runUpdateCalls != 0 {
+		t.Fatalf("duplicate rejection wrote state: pair=%d branch=%d run_update=%d", repo.pairCreateCalls, repo.branchCreateCalls, repo.runUpdateCalls)
+	}
+}
+
+func (r *rejectedMessageRepositoryStub) UpdateConversationRun(_ context.Context, run *model.Run) error {
+	r.runUpdateCalls++
+	copy := *run
+	r.run = &copy
+	return nil
 }
 
 func (r *rejectedMessageRepositoryStub) CreateMessagePairWithUserAttachments(
@@ -130,6 +175,12 @@ func TestPersistMessageUsageRejectionStoresStableFailedTurn(t *testing.T) {
 	}
 	if repo.pairCreateCalls != 1 || repo.branchCreateCalls != 0 {
 		t.Fatalf("repository create calls = pair:%d branch:%d", repo.pairCreateCalls, repo.branchCreateCalls)
+	}
+	if repo.runCreateCalls != 1 || repo.runUpdateCalls != 1 || repo.run == nil {
+		t.Fatalf("run persistence calls = create:%d update:%d run:%#v", repo.runCreateCalls, repo.runUpdateCalls, repo.run)
+	}
+	if repo.run.Status != "error" || repo.run.ErrorCode != messageUsageBalanceErrorCode || repo.run.EndedAt == nil {
+		t.Fatalf("rejected run = %#v", repo.run)
 	}
 	wantTitle := conversationTitleFromFirstUserMessage("keep this failed message")
 	if repo.metadataPatch.Title != wantTitle {

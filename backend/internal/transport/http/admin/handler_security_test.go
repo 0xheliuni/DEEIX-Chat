@@ -256,8 +256,7 @@ func (f handlerUsageStatisticsCaptureFake) GetUsageStatistics(_ context.Context,
 	return domainbilling.UsageStatistics{}, nil
 }
 
-func (handlerAuditServiceFake) Write(context.Context, string, uint, string, string, string, string, string, interface{}) {
-}
+func (handlerAuditServiceFake) Write(context.Context, auditapp.WriteInput) {}
 
 func (handlerAuditServiceFake) List(context.Context, int, int, auditapp.ListFilter) ([]domainaudit.Log, int64, error) {
 	return nil, 0, nil

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 )
 
@@ -803,7 +804,7 @@ func TestBuildUsageLedgerBillsOpenAIWebSearchPreviewByModelFamily(t *testing.T) 
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			modelName := firstNonEmpty(tc.platformModelName, tc.upstreamModelName)
+			modelName := textutil.FirstNonEmpty(tc.platformModelName, tc.upstreamModelName)
 			repo := &billingRepositoryStub{
 				mode:                     "usage",
 				nativeToolBillingEnabled: true,

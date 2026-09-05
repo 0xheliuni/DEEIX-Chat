@@ -12,7 +12,9 @@ import (
 	domainchannel "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/channel"
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 	"go.uber.org/zap"
 )
 
@@ -62,11 +64,6 @@ type Service struct {
 	llmSummarizer          LLMSummarizerFunc
 	consecutiveLLMFailures int32 // atomic：连续 LLM 压缩失败次数，用于熔断
 	lastLLMFailureAt       int64 // atomic：最近一次 LLM 失败的 Unix 纳秒时间，用于时间窗口自恢复
-}
-
-// NewService 创建上下文压缩服务。
-func NewService(cfg config.Config, repo repository.CompactRepository, logger *zap.Logger) *Service {
-	return NewServiceWithRuntime(config.NewRuntime(cfg), repo, logger)
 }
 
 // NewServiceWithRuntime 创建使用运行时配置容器的上下文压缩服务。
@@ -199,7 +196,7 @@ func (s *Service) MaybeCompactConversation(
 	}
 
 	summaryText := s.buildCompactionSummary(ctx, summarySourceMessages, previousSummary, strategy, fromTurn, toTurn, preserveTurns, input.PlatformModelName)
-	summaryTokens := estimateTokens(summaryText)
+	summaryTokens := tokenestimate.Estimate(summaryText)
 	boundary := coveredMessages[len(coveredMessages)-1]
 	triggerMessage := messages[len(messages)-1]
 	snapshotUserID := input.UserID
@@ -369,7 +366,7 @@ func compactionScopeTokenEstimate(input MaybeCompactConversationInput) int64 {
 	activeMessages, snapshotMatched := messagesAfterSnapshot(input.Messages, input.ExistingSnapshot)
 	observedTokens := estimateMessageTokenTotal(activeMessages)
 	if snapshotMatched {
-		observedTokens += estimateTokens(input.ExistingSnapshot.SummaryText)
+		observedTokens += tokenestimate.Estimate(input.ExistingSnapshot.SummaryText)
 	}
 	return observedTokens
 }
@@ -515,7 +512,7 @@ func (s *Service) buildTemplateCompactSummary(
 	assistantHighlights := collectRoleHighlights(messages, "assistant", highlightLimit, snippetChars)
 
 	lines := make([]string, 0, 6+len(userHighlights)+len(assistantHighlights))
-	lines = append(lines, fmt.Sprintf("## Conversation Context Summary"))
+	lines = append(lines, "## Conversation Context Summary")
 	lines = append(lines, fmt.Sprintf("Compaction strategy: %s | Turns compressed: %d–%d | Recent %d turns preserved in full.", strategy, fromTurn, toTurn, preserveTurns))
 	lines = append(lines, "")
 	if normalizedPrevious := strings.TrimSpace(previousSummary); normalizedPrevious != "" {
@@ -581,7 +578,7 @@ func collectRoleHighlights(messages []domainconversation.Message, role string, l
 		if item.Role != role {
 			continue
 		}
-		snippet := compactSnippet(item.Content, snippetChars)
+		snippet := textutil.CompactSnippet(item.Content, snippetChars)
 		if snippet == "" {
 			continue
 		}
@@ -591,40 +588,6 @@ func collectRoleHighlights(messages []domainconversation.Message, role string, l
 		}
 	}
 	return highlights
-}
-
-func compactSnippet(content string, maxLen int) string {
-	value := strings.Join(strings.Fields(strings.TrimSpace(content)), " ")
-	if value == "" {
-		return ""
-	}
-	if maxLen <= 0 {
-		maxLen = 120
-	}
-	runes := []rune(value)
-	if len(runes) <= maxLen {
-		return value
-	}
-	return string(runes[:maxLen]) + "..."
-}
-
-func estimateTokens(content string) int64 {
-	if len(content) == 0 {
-		return 0
-	}
-	var cjk, other int64
-	for _, r := range content {
-		if isCJKRune(r) {
-			cjk++
-		} else {
-			other++
-		}
-	}
-	tokens := (cjk*2+2)/3 + (other+3)/4
-	if tokens == 0 {
-		return 1
-	}
-	return tokens
 }
 
 // resolveCompactPrompt 返回实际使用的压缩提示词。
@@ -637,26 +600,4 @@ func resolveCompactPrompt(customTpl string, fromTurn, toTurn int, defaultFn func
 	tpl = strings.ReplaceAll(tpl, "{{FROM_TURN}}", fmt.Sprintf("%d", fromTurn))
 	tpl = strings.ReplaceAll(tpl, "{{TO_TURN}}", fmt.Sprintf("%d", toTurn))
 	return tpl
-}
-
-func isCJKRune(r rune) bool {
-	return (r >= 0x2E80 && r <= 0x9FFF) ||
-		(r >= 0xAC00 && r <= 0xD7AF) ||
-		(r >= 0xF900 && r <= 0xFAFF) ||
-		(r >= 0x20000 && r <= 0x2A6DF)
-}
-
-// BuildSnapshotSystemPrompt 生成供模型消费的压缩快照系统提示。
-func BuildSnapshotSystemPrompt(summary string, fromTurn int, toTurn int, strategy string) string {
-	normalizedSummary := strings.TrimSpace(summary)
-	if normalizedSummary == "" {
-		return ""
-	}
-	return fmt.Sprintf(
-		"Conversation history summary (strategy=%s, turns=%d-%d):\n%s",
-		strings.TrimSpace(strategy),
-		fromTurn,
-		toTurn,
-		normalizedSummary,
-	)
 }

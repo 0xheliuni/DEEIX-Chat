@@ -3,7 +3,6 @@ package knowledgebase
 import (
 	"errors"
 	"net/http"
-	"strconv"
 	"strings"
 
 	appconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/conversation"
@@ -13,9 +12,11 @@ import (
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	domainknowledgebase "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/knowledgebase"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/filecontent"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/queryparam"
 	"github.com/gin-gonic/gin"
 )
 
@@ -72,7 +73,7 @@ func (h *Handler) ListVisible(c *gin.Context) {
 // @Router /knowledge-bases/mine [get]
 func (h *Handler) ListMine(c *gin.Context) {
 	input := listInput(c)
-	input.Enabled = boolQuery(c, "enabled")
+	input.Enabled = queryparam.OptionalBool(strings.TrimSpace(c.Query("enabled")))
 	items, total, err := h.service.ListMine(c.Request.Context(), middleware.MustUserID(c), input)
 	writeList(c, items, total, err)
 }
@@ -155,7 +156,7 @@ func (h *Handler) DeleteMine(c *gin.Context) {
 // @Success 200 {object} KnowledgeBaseFilePageResponseDoc
 // @Router /knowledge-bases/{id}/files [get]
 func (h *Handler) ListVisibleFiles(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	items, total, err := h.service.ListVisibleFiles(c.Request.Context(), middleware.MustUserID(c), c.Param("id"), page, pageSize)
 	h.writeFileList(c, items, total, err)
 }
@@ -282,7 +283,7 @@ func (h *Handler) RemoveMineFile(c *gin.Context) {
 // @Router /admin/knowledge-bases [get]
 func (h *Handler) ListAdmin(c *gin.Context) {
 	input := listInput(c)
-	input.Enabled = boolQuery(c, "enabled")
+	input.Enabled = queryparam.OptionalBool(strings.TrimSpace(c.Query("enabled")))
 	items, total, err := h.service.ListAdminBuiltin(c.Request.Context(), input)
 	writeList(c, items, total, err)
 }
@@ -548,7 +549,7 @@ func (h *Handler) DeleteAdmin(c *gin.Context) { h.delete(c, true) }
 // @Success 200 {object} KnowledgeBaseFilePageResponseDoc
 // @Router /admin/knowledge-bases/{id}/files [get]
 func (h *Handler) ListAdminFiles(c *gin.Context) {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	items, total, err := h.service.ListAdminFiles(c.Request.Context(), c.Param("id"), page, pageSize)
 	h.writeFileList(c, items, total, err)
 }
@@ -818,36 +819,8 @@ func writeInput(req WriteKnowledgeBaseRequest) appknowledgebase.WriteInput {
 }
 
 func listInput(c *gin.Context) appknowledgebase.ListInput {
-	page, pageSize := pageParams(c)
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	return appknowledgebase.ListInput{Query: c.Query("q"), Sort: c.Query("sort"), IDs: c.QueryArray("id"), Page: page, PageSize: pageSize}
-}
-
-func pageParams(c *gin.Context) (int, int) {
-	const maxPageSize = 1000
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	if page <= 0 {
-		page = 1
-	}
-	if pageSize <= 0 {
-		pageSize = 20
-	}
-	if pageSize > maxPageSize {
-		pageSize = maxPageSize
-	}
-	return page, pageSize
-}
-
-func boolQuery(c *gin.Context, key string) *bool {
-	raw := strings.TrimSpace(c.Query(key))
-	if raw == "" {
-		return nil
-	}
-	value, err := strconv.ParseBool(raw)
-	if err != nil {
-		return nil
-	}
-	return &value
 }
 
 func writeError(c *gin.Context, err error) {

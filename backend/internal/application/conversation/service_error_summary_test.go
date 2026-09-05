@@ -14,19 +14,19 @@ import (
 func TestMessageErrorSummaryUsesPublicApplicationMessage(t *testing.T) {
 	err := fmt.Errorf("resolve model route: %w", ErrModelAccessDenied)
 
-	if got := MessageErrorSummary(err); got != ErrModelAccessDenied.Message() {
-		t.Fatalf("MessageErrorSummary() = %q, want %q", got, ErrModelAccessDenied.Message())
+	if got := messageErrorSummary(err); got != ErrModelAccessDenied.Message() {
+		t.Fatalf("messageErrorSummary() = %q, want %q", got, ErrModelAccessDenied.Message())
 	}
-	if strings.Contains(MessageErrorSummary(err), ErrModelAccessDenied.Error()) {
-		t.Fatalf("MessageErrorSummary() leaked internal error text: %q", MessageErrorSummary(err))
+	if strings.Contains(messageErrorSummary(err), ErrModelAccessDenied.Error()) {
+		t.Fatalf("messageErrorSummary() leaked internal error text: %q", messageErrorSummary(err))
 	}
 }
 
 func TestMessageErrorSummaryRedactsUnknownPlainError(t *testing.T) {
 	err := errors.New("dial postgres with password=secret")
 
-	if got := MessageErrorSummary(err); got != "internal server error" {
-		t.Fatalf("MessageErrorSummary() = %q, want generic internal summary", got)
+	if got := messageErrorSummary(err); got != "internal server error" {
+		t.Fatalf("messageErrorSummary() = %q, want generic internal summary", got)
 	}
 }
 
@@ -43,8 +43,8 @@ func TestMessageErrorSummaryMapsKnownPlainSentinels(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := MessageErrorSummary(fmt.Errorf("operation failed: %w", test.err)); got != test.want {
-				t.Fatalf("MessageErrorSummary() = %q, want %q", got, test.want)
+			if got := messageErrorSummary(fmt.Errorf("operation failed: %w", test.err)); got != test.want {
+				t.Fatalf("messageErrorSummary() = %q, want %q", got, test.want)
 			}
 		})
 	}
