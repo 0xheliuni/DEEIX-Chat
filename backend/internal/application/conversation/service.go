@@ -194,7 +194,7 @@ type SendMessageInput struct {
 	ContentType             string
 	Content                 string
 	PlatformModelName       string
-	Options                 map[string]interface{}
+	Options                 map[string]any
 	ClientRunID             string
 	FileIDs                 []string
 	SelectedToolIDs         []uint
@@ -208,7 +208,7 @@ type SendMessageInput struct {
 	// UsageAuthorization 是请求级计费授权；提示词形状确定后据此把预算预留抬高到预估成本。
 	UsageAuthorization *domainbilling.UsageAuthorization
 	// OnEvent 用于向调用方推送中间事件（如 rag_search），流式场景使用。
-	OnEvent func(eventType string, payload map[string]interface{}) error
+	OnEvent func(eventType string, payload map[string]any) error
 }
 
 // SetSkillResolver 注入会话技能解析器。
@@ -233,7 +233,7 @@ type SendMessageResult struct {
 	RoutedBindingCode   string
 	UpstreamModelName   string
 	UpstreamProtocol    string
-	EffectiveOptions    map[string]interface{}
+	EffectiveOptions    map[string]any
 	UsageSpeed          string
 	UsageServiceTier    string
 	UsageSource         string

@@ -232,7 +232,7 @@ func (s *Service) notifyBlockedRecovery(ctx context.Context, runID string, info 
 		s.onBlocked(ctx, runID, info)
 	}
 	if s.emitEvent != nil {
-		s.emitEvent(ctx, runID, "moderation_blocked", map[string]interface{}{
+		s.emitEvent(ctx, runID, "moderation_blocked", map[string]any{
 			"type":       "moderation_blocked",
 			"eventID":    info.EventID,
 			"direction":  info.Direction,

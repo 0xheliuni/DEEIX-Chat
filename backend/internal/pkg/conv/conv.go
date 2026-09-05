@@ -12,7 +12,7 @@ func NormalizePublicID(raw string) string {
 }
 
 // GetStringFromAny 将任意类型转换为字符串。
-func GetStringFromAny(raw interface{}) string {
+func GetStringFromAny(raw any) string {
 	switch value := raw.(type) {
 	case string:
 		return value

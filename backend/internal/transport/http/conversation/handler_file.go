@@ -89,7 +89,7 @@ func (h *Handler) UploadFile(c *gin.Context) {
 	h.recordAudit(c, "upload_file",
 		"file",
 		result.File.FileID,
-		map[string]interface{}{
+		map[string]any{
 			"file_name":  result.File.FileName,
 			"size_bytes": result.File.SizeBytes,
 		},
@@ -252,7 +252,7 @@ func (h *Handler) SubmitFileEmbeddings(c *gin.Context) {
 		}
 		return
 	}
-	h.recordAudit(c, "submit_file_embeddings", "file", "", map[string]interface{}{
+	h.recordAudit(c, "submit_file_embeddings", "file", "", map[string]any{
 		"requested_file_ids": req.FileIDs,
 		"submitted_file_ids": result.SubmittedFileIDs,
 		"skipped_count":      len(result.Skipped),
@@ -368,7 +368,7 @@ func (h *Handler) UpdateFile(c *gin.Context) {
 		}
 	}
 
-	auditDetail := map[string]interface{}{}
+	auditDetail := map[string]any{}
 	if req.FileName != nil {
 		auditDetail["file_name"] = item.FileName
 	}
@@ -431,7 +431,7 @@ func (h *Handler) DeleteFile(c *gin.Context) {
 	h.recordAudit(c, "delete_file",
 		"file",
 		result.FileID,
-		map[string]interface{}{
+		map[string]any{
 			"deleted": true,
 		},
 	)

@@ -44,7 +44,7 @@ type MediaVideoInput struct {
 	TaskType              MediaVideoTaskType
 	Prompt                string
 	PlatformModelName     string
-	Options               map[string]interface{}
+	Options               map[string]any
 	ClientRunID           string
 	FileIDs               []string
 	ParentMessagePublicID string
@@ -52,7 +52,7 @@ type MediaVideoInput struct {
 	BranchReason          string
 	// UsageAuthorization 是请求级计费授权；路由确定后据此把预算预留抬高到按时长预估成本。
 	UsageAuthorization *domainbilling.UsageAuthorization
-	OnEvent            func(eventType string, payload map[string]interface{}) error
+	OnEvent            func(eventType string, payload map[string]any) error
 }
 
 // StreamMediaVideo 执行视频生成任务并把结果保存为文件对象。

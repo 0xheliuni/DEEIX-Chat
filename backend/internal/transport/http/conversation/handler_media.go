@@ -48,7 +48,7 @@ func (h *Handler) StreamVideoExtension(c *gin.Context) {
 type mediaVideoTransportRequest struct {
 	Prompt                string
 	Model                 string
-	Options               map[string]interface{}
+	Options               map[string]any
 	ClientRunID           string
 	FileIDs               []string
 	ParentMessagePublicID string
@@ -125,7 +125,7 @@ func (h *Handler) streamMediaVideo(c *gin.Context, taskType appconversation.Medi
 		generationCtx,
 		req.ClientRunID,
 		session,
-		func(onEvent func(string, map[string]interface{}) error) (*appconversation.SendMessageResult, error) {
+		func(onEvent func(string, map[string]any) error) (*appconversation.SendMessageResult, error) {
 			return h.service.StreamMediaVideo(generationCtx, appconversation.MediaVideoInput{
 				UserID:                userID,
 				ConversationID:        conversation.ID,
@@ -195,7 +195,7 @@ func (h *Handler) streamMediaImage(c *gin.Context, taskType appconversation.Medi
 		generationCtx,
 		req.ClientRunID,
 		session,
-		func(onEvent func(string, map[string]interface{}) error) (*appconversation.SendMessageResult, error) {
+		func(onEvent func(string, map[string]any) error) (*appconversation.SendMessageResult, error) {
 			return h.service.StreamMediaImage(generationCtx, appconversation.MediaImageInput{
 				UserID:                userID,
 				ConversationID:        conversation.ID,
@@ -223,7 +223,7 @@ func (h *Handler) streamMediaTask(
 	generationCtx context.Context,
 	clientRunID string,
 	session *appconversation.UsageSession,
-	run func(onEvent func(string, map[string]interface{}) error) (*appconversation.SendMessageResult, error),
+	run func(onEvent func(string, map[string]any) error) (*appconversation.SendMessageResult, error),
 ) {
 	c.Header("Content-Type", "application/x-ndjson; charset=utf-8")
 	c.Header("Cache-Control", "no-cache, no-transform")
@@ -232,7 +232,7 @@ func (h *Handler) streamMediaTask(
 	c.Status(http.StatusOK)
 
 	var clientDisconnected atomic.Bool
-	writeStreamEvent := func(payload map[string]interface{}) error {
+	writeStreamEvent := func(payload map[string]any) error {
 		if clientDisconnected.Load() {
 			return nil
 		}
@@ -247,7 +247,7 @@ func (h *Handler) streamMediaTask(
 		c.Writer.Flush()
 		return nil
 	}
-	flushStreamEvent := func(payload map[string]interface{}) (bool, error) {
+	flushStreamEvent := func(payload map[string]any) (bool, error) {
 		payload, owned := h.service.PublishMessageGenerationEvent(generationCtx, clientRunID, payload)
 		if !owned {
 			return false, nil
@@ -256,7 +256,7 @@ func (h *Handler) streamMediaTask(
 	}
 
 	defer h.service.FinishMessageGeneration(generationCtx, clientRunID)
-	result, err := run(func(eventType string, payload map[string]interface{}) error {
+	result, err := run(func(eventType string, payload map[string]any) error {
 		owned, flushErr := flushStreamEvent(normalizeStreamEventPayload(eventType, payload))
 		if !owned {
 			return appconversation.ErrMessageGenerationInterrupted
@@ -293,7 +293,7 @@ func (h *Handler) streamMediaTask(
 		_, _ = flushStreamEvent(streamErrorPayloadWithResult(appconversation.ErrMessageGenerationCanceled, result))
 		return
 	}
-	_, _ = flushStreamEvent(map[string]interface{}{
+	_, _ = flushStreamEvent(map[string]any{
 		"type": "completed",
 		"data": toSendMessageResponse(result),
 	})

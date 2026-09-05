@@ -407,7 +407,7 @@ var reasoningContentPassbackVendors = map[string]bool{
 // reasoningPassbackVendorRequestOptions 列出「仅回传字段无效、必须同时下发」的厂商私有请求入参。
 // 阿里百炼默认忽略 messages 里的历史 reasoning_content，须显式传 preserve_thinking=true
 // 才会把历史推理拼接进下一轮输入；不传则只是白白付出推理 token 且不报错。
-var reasoningPassbackVendorRequestOptions = map[string]map[string]interface{}{
+var reasoningPassbackVendorRequestOptions = map[string]map[string]any{
 	"alibaba": {"preserve_thinking": true},
 }
 
@@ -425,7 +425,7 @@ func reasoningContentPassbackRequired(protocol string, candidates ...string) boo
 // reasoningPassbackRequestOptions 返回本路由回传生效时需附加的厂商私有请求入参副本。
 // 仅在原生 Chat Completions 协议下生效：OpenRouter 有自己的 reasoning 字段与参数校验，
 // 转发厂商私有顶层入参会被判为未知参数。返回副本避免调用方污染包级变量。
-func reasoningPassbackRequestOptions(protocol string, candidates ...string) map[string]interface{} {
+func reasoningPassbackRequestOptions(protocol string, candidates ...string) map[string]any {
 	if llm.NormalizeAdapter(protocol) != llm.AdapterOpenAIChatCompletions {
 		return nil
 	}
@@ -438,7 +438,7 @@ func reasoningPassbackRequestOptions(protocol string, candidates ...string) map[
 	if len(required) == 0 {
 		return nil
 	}
-	options := make(map[string]interface{}, len(required))
+	options := make(map[string]any, len(required))
 	for key, value := range required {
 		options[key] = value
 	}
@@ -707,7 +707,7 @@ func validateOptionalJSON(raw string) error {
 }
 
 func mergeHeaderJSON(upstreamHeaders string, routeHeaders string) string {
-	merged := make(map[string]interface{})
+	merged := make(map[string]any)
 	mergeIntoJSONMap(strings.TrimSpace(upstreamHeaders), merged)
 	mergeIntoJSONMap(strings.TrimSpace(routeHeaders), merged)
 	if len(merged) == 0 {
@@ -720,11 +720,11 @@ func mergeHeaderJSON(upstreamHeaders string, routeHeaders string) string {
 	return string(payload)
 }
 
-func mergeIntoJSONMap(raw string, target map[string]interface{}) {
+func mergeIntoJSONMap(raw string, target map[string]any) {
 	if target == nil || strings.TrimSpace(raw) == "" {
 		return
 	}
-	parsed := make(map[string]interface{})
+	parsed := make(map[string]any)
 	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
 		return
 	}

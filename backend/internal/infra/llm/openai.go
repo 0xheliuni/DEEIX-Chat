@@ -251,7 +251,7 @@ func (c *Client) fetchOpenAIResponse(ctx context.Context, route portllm.RouteCon
 	return output, nil
 }
 
-func buildOpenAIRequestBody(protocol string, model string, endpoint string, input portllm.GenerateInput, stream bool) (map[string]interface{}, error) {
+func buildOpenAIRequestBody(protocol string, model string, endpoint string, input portllm.GenerateInput, stream bool) (map[string]any, error) {
 	endpoint = normalizeEndpoint(endpoint)
 	messages := normalizeMessages(input.Messages)
 	adapter := portllm.NormalizeAdapter(protocol)
@@ -272,11 +272,11 @@ func buildOpenAIRequestBody(protocol string, model string, endpoint string, inpu
 	}
 }
 
-func buildOpenAITools(tools []portllm.ToolDefinition, chatCompletions bool) []map[string]interface{} {
+func buildOpenAITools(tools []portllm.ToolDefinition, chatCompletions bool) []map[string]any {
 	if len(tools) == 0 {
 		return nil
 	}
-	items := make([]map[string]interface{}, 0, len(tools))
+	items := make([]map[string]any, 0, len(tools))
 	for _, tool := range tools {
 		name := strings.TrimSpace(tool.Name)
 		if name == "" {
@@ -284,9 +284,9 @@ func buildOpenAITools(tools []portllm.ToolDefinition, chatCompletions bool) []ma
 		}
 		schema := decodeToolSchema(tool.InputSchema)
 		if chatCompletions {
-			items = append(items, map[string]interface{}{
+			items = append(items, map[string]any{
 				"type": "function",
-				"function": map[string]interface{}{
+				"function": map[string]any{
 					"name":        name,
 					"description": strings.TrimSpace(tool.Description),
 					"parameters":  schema,
@@ -294,7 +294,7 @@ func buildOpenAITools(tools []portllm.ToolDefinition, chatCompletions bool) []ma
 			})
 			continue
 		}
-		items = append(items, map[string]interface{}{
+		items = append(items, map[string]any{
 			"type":        "function",
 			"name":        name,
 			"description": strings.TrimSpace(tool.Description),
@@ -304,7 +304,7 @@ func buildOpenAITools(tools []portllm.ToolDefinition, chatCompletions bool) []ma
 	return items
 }
 
-func applyOpenAICompatibleSamplingParams(payload map[string]interface{}, params map[string]interface{}, chatCompletions bool) {
+func applyOpenAICompatibleSamplingParams(payload map[string]any, params map[string]any, chatCompletions bool) {
 	if value, ok := modelParamFloat(params, "temperature"); ok {
 		payload["temperature"] = value
 	}
@@ -338,10 +338,10 @@ func applyOpenAICompatibleSamplingParams(payload map[string]interface{}, params 
 	}
 }
 
-func setOpenAIResponseTextParam(payload map[string]interface{}, key string, value interface{}) {
-	text, _ := payload["text"].(map[string]interface{})
+func setOpenAIResponseTextParam(payload map[string]any, key string, value any) {
+	text, _ := payload["text"].(map[string]any)
 	if text == nil {
-		text = map[string]interface{}{}
+		text = map[string]any{}
 		payload["text"] = text
 	}
 	text[key] = value
@@ -414,7 +414,7 @@ func hasAdditionalHeader(headersJSON string, names ...string) bool {
 	if value == "" {
 		return false
 	}
-	parsed := make(map[string]interface{})
+	parsed := make(map[string]any)
 	if err := json.Unmarshal([]byte(value), &parsed); err != nil {
 		return false
 	}
@@ -474,7 +474,7 @@ func consumeOpenAIGenerateStream(
 			return errStreamDone
 		}
 
-		parsed := make(map[string]interface{})
+		parsed := make(map[string]any)
 		if err := json.Unmarshal([]byte(payloadText), &parsed); err != nil {
 			return err
 		}
@@ -527,7 +527,7 @@ func consumeOpenAIGenerateStream(
 }
 
 func parseOpenAIGenerateOutput(endpoint string, adapter string, body []byte, allowTextEncodedToolCalls bool) (*portllm.GenerateOutput, error) {
-	parsed := make(map[string]interface{})
+	parsed := make(map[string]any)
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return nil, err
 	}
@@ -540,7 +540,7 @@ func parseOpenAIGenerateOutput(endpoint string, adapter string, body []byte, all
 	return result, nil
 }
 
-func buildGenerateOutputFromParsedForAdapter(endpoint string, adapter string, parsed map[string]interface{}, allowTextEncodedToolCalls bool) *portllm.GenerateOutput {
+func buildGenerateOutputFromParsedForAdapter(endpoint string, adapter string, parsed map[string]any, allowTextEncodedToolCalls bool) *portllm.GenerateOutput {
 	result := &portllm.GenerateOutput{
 		ResponseID:      strings.TrimSpace(getString(parsed["id"])),
 		Text:            "",

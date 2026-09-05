@@ -264,7 +264,7 @@ func (s *Service) probeRoute(ctx context.Context, row repository.ChannelUpstream
 			{Role: "user", Content: "Reply with OK."},
 		},
 		DisableTools: true,
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"max_output_tokens":     1,
 			"max_completion_tokens": 1,
 			"max_tokens":            1,

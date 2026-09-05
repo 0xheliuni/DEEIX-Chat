@@ -42,8 +42,8 @@ func publishTestGeneration(
 	registry *generationStreamRegistry,
 	ctx context.Context,
 	runID string,
-	payload map[string]interface{},
-) map[string]interface{} {
+	payload map[string]any,
+) map[string]any {
 	t.Helper()
 	published, accepted := registry.publish(ctx, runID, payload)
 	if !accepted {
@@ -86,8 +86,8 @@ func TestGenerationStreamRegistryReplayAndTerminal(t *testing.T) {
 	ctx, cleanup := registerTestGeneration(t, registry, runID, 7, "conv_test", func() {})
 	defer cleanup()
 
-	first := publishTestGeneration(t, registry, ctx, runID, map[string]interface{}{"type": "delta", "delta": "a"})
-	second := publishTestGeneration(t, registry, ctx, runID, map[string]interface{}{"type": "completed"})
+	first := publishTestGeneration(t, registry, ctx, runID, map[string]any{"type": "delta", "delta": "a"})
+	second := publishTestGeneration(t, registry, ctx, runID, map[string]any{"type": "completed"})
 	if first["seq"] != int64(1) || second["seq"] != int64(2) {
 		t.Fatalf("unexpected seq values: first=%v second=%v", first["seq"], second["seq"])
 	}
@@ -129,7 +129,7 @@ func TestGenerationStreamRegistryReplayUsesFullTextSnapshotBeyondWindow(t *testi
 	defer cleanup()
 
 	for _, delta := range []string{"a", "b", "c", "d", "e", "f"} {
-		publishTestGeneration(t, registry, ctx, runID, map[string]interface{}{"type": "delta", "delta": delta})
+		publishTestGeneration(t, registry, ctx, runID, map[string]any{"type": "delta", "delta": delta})
 	}
 
 	replay, _, unsubscribe, ok := registry.subscribe(ctx, 7, runID, 0, true)
@@ -152,7 +152,7 @@ func TestGenerationStreamRegistryLegacyReplayKeepsOriginalDeltaProtocol(t *testi
 	runID := EnsureMessageGenerationRunID("")
 	ctx, cleanup := registerTestGeneration(t, registry, runID, 7, "conv_test", func() {})
 	defer cleanup()
-	publishTestGeneration(t, registry, ctx, runID, map[string]interface{}{"type": "delta", "delta": "legacy"})
+	publishTestGeneration(t, registry, ctx, runID, map[string]any{"type": "delta", "delta": "legacy"})
 
 	replay, _, unsubscribe, ok := registry.subscribe(ctx, 7, runID, 0, false)
 	if !ok {
@@ -177,8 +177,8 @@ func TestGenerationStreamRegistrySnapshotThenLiveDeltaExactlyOnce(t *testing.T) 
 	runID := EnsureMessageGenerationRunID("")
 	ctx, cleanup := registerTestGeneration(t, registry, runID, 7, "conv_test", func() {})
 	defer cleanup()
-	publishTestGeneration(t, registry, ctx, runID, map[string]interface{}{"type": "delta", "delta": "a"})
-	publishTestGeneration(t, registry, ctx, runID, map[string]interface{}{"type": "delta", "delta": "b"})
+	publishTestGeneration(t, registry, ctx, runID, map[string]any{"type": "delta", "delta": "a"})
+	publishTestGeneration(t, registry, ctx, runID, map[string]any{"type": "delta", "delta": "b"})
 
 	replay, events, unsubscribe, ok := registry.subscribe(ctx, 7, runID, 0, true)
 	if !ok {
@@ -189,7 +189,7 @@ func TestGenerationStreamRegistrySnapshotThenLiveDeltaExactlyOnce(t *testing.T) 
 		t.Fatalf("unexpected snapshot replay: %+v", replay)
 	}
 
-	publishTestGeneration(t, registry, ctx, runID, map[string]interface{}{"type": "delta", "delta": "c"})
+	publishTestGeneration(t, registry, ctx, runID, map[string]any{"type": "delta", "delta": "c"})
 	select {
 	case event := <-events:
 		if event.Payload["type"] != "delta" || event.Payload["delta"] != "c" || event.Seq != 3 {
@@ -248,9 +248,9 @@ func TestGenerationStreamRegistryKeepsNonTextReplayInSequenceOrder(t *testing.T)
 	runID := EnsureMessageGenerationRunID("")
 	ctx, cleanup := registerTestGeneration(t, registry, runID, 7, "conv_test", func() {})
 	defer cleanup()
-	publishTestGeneration(t, registry, ctx, runID, map[string]interface{}{"type": "file_proc", "message": "preparing"})
-	publishTestGeneration(t, registry, ctx, runID, map[string]interface{}{"type": "delta", "delta": "answer"})
-	publishTestGeneration(t, registry, ctx, runID, map[string]interface{}{"type": "usage", "output_tokens": 1})
+	publishTestGeneration(t, registry, ctx, runID, map[string]any{"type": "file_proc", "message": "preparing"})
+	publishTestGeneration(t, registry, ctx, runID, map[string]any{"type": "delta", "delta": "answer"})
+	publishTestGeneration(t, registry, ctx, runID, map[string]any{"type": "usage", "output_tokens": 1})
 
 	replay, _, unsubscribe, ok := registry.subscribe(ctx, 7, runID, 0, true)
 	if !ok {
@@ -275,15 +275,15 @@ func TestGenerationStreamRegistryOrdersTextAndUpstreamThinkingSnapshots(t *testi
 	runID := EnsureMessageGenerationRunID("")
 	ctx, cleanup := registerTestGeneration(t, registry, runID, 7, "conv_test", func() {})
 	defer cleanup()
-	publishTestGeneration(t, registry, ctx, runID, map[string]interface{}{"type": "file_proc", "message": "preparing"})
-	publishTestGeneration(t, registry, ctx, runID, map[string]interface{}{
+	publishTestGeneration(t, registry, ctx, runID, map[string]any{"type": "file_proc", "message": "preparing"})
+	publishTestGeneration(t, registry, ctx, runID, map[string]any{
 		"type":    "upstream_think_delta",
 		"status":  "streaming",
 		"roundID": " round_1 ",
 		"delta":   "thought",
 	})
-	publishTestGeneration(t, registry, ctx, runID, map[string]interface{}{"type": "delta", "delta": "answer"})
-	publishTestGeneration(t, registry, ctx, runID, map[string]interface{}{"type": "usage", "output_tokens": 1})
+	publishTestGeneration(t, registry, ctx, runID, map[string]any{"type": "delta", "delta": "answer"})
+	publishTestGeneration(t, registry, ctx, runID, map[string]any{"type": "usage", "output_tokens": 1})
 
 	replay, _, unsubscribe, ok := registry.subscribe(ctx, 7, runID, 0, true)
 	if !ok {
@@ -310,13 +310,13 @@ func TestGenerationStreamRegistryUpstreamThinkingSnapshotTracksTerminalMetadata(
 	runID := EnsureMessageGenerationRunID("")
 	ctx, cleanup := registerTestGeneration(t, registry, runID, 7, "conv_test", func() {})
 	defer cleanup()
-	publishTestGeneration(t, registry, ctx, runID, map[string]interface{}{
+	publishTestGeneration(t, registry, ctx, runID, map[string]any{
 		"type":    "upstream_think_delta",
 		"status":  "streaming",
 		"roundID": "round_1",
 		"delta":   "thought",
 	})
-	publishTestGeneration(t, registry, ctx, runID, map[string]interface{}{
+	publishTestGeneration(t, registry, ctx, runID, map[string]any{
 		"type":    "upstream_think_delta",
 		"status":  "completed",
 		"roundID": "round_1",
@@ -351,7 +351,7 @@ func TestGenerationStreamRegistryRestoresCompleteUpstreamThinkingBeyondReplayWin
 	for i := 0; i < generationStreamMaxEvents+100; i++ {
 		delta := fmt.Sprintf("thought-%04d\n", i)
 		expected.WriteString(delta)
-		publishTestGeneration(t, registry, ctx, runID, map[string]interface{}{
+		publishTestGeneration(t, registry, ctx, runID, map[string]any{
 			"type":      "upstream_think_delta",
 			"status":    "streaming",
 			"stage":     "think",
@@ -378,7 +378,7 @@ func TestGenerationStreamRegistryRestoresCompleteUpstreamThinkingBeyondReplayWin
 		t.Fatalf("unexpected upstream-thinking checkpoint: %+v", checkpoint)
 	}
 
-	publishTestGeneration(t, registry, ctx, runID, map[string]interface{}{
+	publishTestGeneration(t, registry, ctx, runID, map[string]any{
 		"type":    "upstream_think_delta",
 		"status":  "streaming",
 		"roundID": "round_1",
@@ -432,7 +432,7 @@ func TestGenerationStreamRegistryResetClearsTextSnapshot(t *testing.T) {
 	runID := EnsureMessageGenerationRunID("")
 	ctx, cleanup := registerTestGeneration(t, registry, runID, 7, "conv_test", func() {})
 	defer cleanup()
-	publishTestGeneration(t, registry, ctx, runID, map[string]interface{}{"type": "delta", "delta": "blocked text"})
+	publishTestGeneration(t, registry, ctx, runID, map[string]any{"type": "delta", "delta": "blocked text"})
 	lease, ok := registry.leaseForContext(ctx, runID)
 	if !ok {
 		t.Fatal("expected registered generation lease")
@@ -440,7 +440,7 @@ func TestGenerationStreamRegistryResetClearsTextSnapshot(t *testing.T) {
 	if reset, err := store.ResetGenerationStreamEvents(ctx, lease); err != nil || !reset {
 		t.Fatalf("reset generation events: reset=%v err=%v", reset, err)
 	}
-	publishTestGeneration(t, registry, ctx, runID, map[string]interface{}{"type": "moderation_blocked"})
+	publishTestGeneration(t, registry, ctx, runID, map[string]any{"type": "moderation_blocked"})
 
 	replay, events, unsubscribe, ok := registry.subscribe(ctx, 7, runID, 0, true)
 	if !ok {
@@ -835,7 +835,7 @@ func TestGenerationStreamRegistryRejectsDuplicateClaimAcrossRegistries(t *testin
 	if !firstRegistry.hasActive(context.Background(), runID) {
 		t.Fatal("finish without local ownership cleared the active owner")
 	}
-	if _, accepted := firstRegistry.publish(firstCtx, runID, map[string]interface{}{"type": "delta", "delta": "owned"}); !accepted {
+	if _, accepted := firstRegistry.publish(firstCtx, runID, map[string]any{"type": "delta", "delta": "owned"}); !accepted {
 		t.Fatal("duplicate claim prevented the original owner from publishing")
 	}
 	firstRegistry.finish(firstCtx, runID)
@@ -885,7 +885,7 @@ func TestGenerationStreamRegistryRejectsReplacementAfterLeaseExpires(t *testing.
 	if reset, err := store.ResetGenerationStreamEvents(context.Background(), firstActive.lease(runID)); err != nil || reset {
 		t.Fatalf("stale stream reset = %v, err=%v; want rejected", reset, err)
 	}
-	if _, accepted := firstRegistry.publish(firstCtx, runID, map[string]interface{}{"type": "error", "error": "stale"}); accepted {
+	if _, accepted := firstRegistry.publish(firstCtx, runID, map[string]any{"type": "error", "error": "stale"}); accepted {
 		t.Fatal("stale execution appended a terminal event")
 	}
 	if !firstCanceled {
@@ -1059,8 +1059,8 @@ func TestGenerationStreamSanitizesOversizedTracePayload(t *testing.T) {
 	defer cleanup()
 
 	largeOutput := strings.Repeat("x", generationStreamMaxPayloadBytes)
-	tracePayload, err := json.Marshal(map[string]interface{}{
-		"tool_calls": []map[string]interface{}{{
+	tracePayload, err := json.Marshal(map[string]any{
+		"tool_calls": []map[string]any{{
 			"tool_call_id":   "call_1",
 			"name":           "fetch",
 			"status":         "success",
@@ -1068,7 +1068,7 @@ func TestGenerationStreamSanitizesOversizedTracePayload(t *testing.T) {
 			"output_detail":  largeOutput,
 			"output_text":    largeOutput,
 			"output_preview": "short result",
-			"output_presentation": map[string]interface{}{
+			"output_presentation": map[string]any{
 				"text": "## Structured result\n\n- first item",
 			},
 		}},
@@ -1077,11 +1077,11 @@ func TestGenerationStreamSanitizesOversizedTracePayload(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	published := publishTestGeneration(t, registry, ctx, runID, map[string]interface{}{
+	published := publishTestGeneration(t, registry, ctx, runID, map[string]any{
 		"type":   "process_update",
 		"status": "streaming",
-		"trace": map[string]interface{}{
-			"tools": map[string]interface{}{
+		"trace": map[string]any{
+			"tools": map[string]any{
 				"payloadJSON": string(tracePayload),
 			},
 		},
@@ -1115,7 +1115,7 @@ func TestGenerationStreamSanitizesOversizedTracePayload(t *testing.T) {
 		t.Fatal(err)
 	}
 	var parsedTrace struct {
-		ToolCalls []map[string]interface{} `json:"tool_calls"`
+		ToolCalls []map[string]any `json:"tool_calls"`
 	}
 	if err := json.Unmarshal([]byte(parsed.Trace.Tools.PayloadJSON), &parsedTrace); err != nil {
 		t.Fatal(err)
@@ -1131,7 +1131,7 @@ func TestGenerationStreamSanitizesOversizedTracePayload(t *testing.T) {
 	if _, ok := call["output_detail"]; ok {
 		t.Fatalf("expected oversized output detail to be removed, got %#v", call)
 	}
-	presentation, ok := call["output_presentation"].(map[string]interface{})
+	presentation, ok := call["output_presentation"].(map[string]any)
 	if !ok || getTraceString(presentation["text"]) != "## Structured result\n\n- first item" {
 		t.Fatalf("expected semantic output presentation to survive stream sanitization, got %#v", call)
 	}
@@ -1150,10 +1150,10 @@ func TestGenerationStreamDoesNotCompactOversizedCompletedPayload(t *testing.T) {
 	defer cleanup()
 
 	largeContent := strings.Repeat("a", generationStreamMaxPayloadBytes)
-	published := publishTestGeneration(t, registry, ctx, runID, map[string]interface{}{
+	published := publishTestGeneration(t, registry, ctx, runID, map[string]any{
 		"type": "completed",
-		"data": map[string]interface{}{
-			"assistantMessage": map[string]interface{}{
+		"data": map[string]any{
+			"assistantMessage": map[string]any{
 				"content": largeContent,
 			},
 		},
@@ -1162,11 +1162,11 @@ func TestGenerationStreamDoesNotCompactOversizedCompletedPayload(t *testing.T) {
 	if published["payloadTruncated"] == true {
 		t.Fatalf("completed payload must not be compacted for active clients, got %#v", published)
 	}
-	data, ok := published["data"].(map[string]interface{})
+	data, ok := published["data"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected completed data to be preserved, got %#v", published)
 	}
-	assistant, ok := data["assistantMessage"].(map[string]interface{})
+	assistant, ok := data["assistantMessage"].(map[string]any)
 	if !ok || assistant["content"] != largeContent {
 		t.Fatal("expected completed assistant content to be preserved")
 	}

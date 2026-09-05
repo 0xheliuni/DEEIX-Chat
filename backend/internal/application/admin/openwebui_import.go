@@ -332,7 +332,7 @@ func (s *Service) writeOpenWebUIImportAudit(
 		ResourceID:  openWebUIImportSource,
 		IP:          ip,
 		UserAgent:   userAgent,
-		Detail: map[string]interface{}{
+		Detail: map[string]any{
 			"source":                         result.Source,
 			"dedupe_field":                   result.DedupeField,
 			"scanned":                        result.Scanned,

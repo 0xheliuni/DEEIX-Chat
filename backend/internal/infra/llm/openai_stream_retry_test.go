@@ -56,7 +56,7 @@ func TestOpenAIResponsesStreamDoesNotRetryPromptCacheErrors(t *testing.T) {
 	requestCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestCount++
-		var payload map[string]interface{}
+		var payload map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			t.Fatalf("decode request: %v", err)
 		}
@@ -77,8 +77,8 @@ func TestOpenAIResponsesStreamDoesNotRetryPromptCacheErrors(t *testing.T) {
 	}, portllm.GenerateInput{
 		PromptCacheKey: "session-1",
 		Messages:       []portllm.Message{{Role: "user", Content: "hello"}},
-		Options: map[string]interface{}{
-			"prompt_cache_options": map[string]interface{}{"mode": "explicit"},
+		Options: map[string]any{
+			"prompt_cache_options": map[string]any{"mode": "explicit"},
 		},
 	}, func(event portllm.GenerateStreamEvent) error {
 		deltas.WriteString(event.Delta)

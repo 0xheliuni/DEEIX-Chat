@@ -11,7 +11,7 @@ import (
 	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
-func mustBuildRequestBody(t *testing.T, protocol string, model string, endpoint string, input portllm.GenerateInput, stream bool) map[string]interface{} {
+func mustBuildRequestBody(t *testing.T, protocol string, model string, endpoint string, input portllm.GenerateInput, stream bool) map[string]any {
 	t.Helper()
 	payload, err := buildOpenAIRequestBody(protocol, model, endpoint, input, stream)
 	if err != nil {
@@ -20,7 +20,7 @@ func mustBuildRequestBody(t *testing.T, protocol string, model string, endpoint 
 	return payload
 }
 
-func mustBuildAnthropicRequestBody(t *testing.T, model string, input portllm.GenerateInput, stream bool) map[string]interface{} {
+func mustBuildAnthropicRequestBody(t *testing.T, model string, input portllm.GenerateInput, stream bool) map[string]any {
 	t.Helper()
 	payload, err := buildAnthropicRequestBody(model, input, stream)
 	if err != nil {
@@ -29,7 +29,7 @@ func mustBuildAnthropicRequestBody(t *testing.T, model string, input portllm.Gen
 	return payload
 }
 
-func mustBuildGeminiRequestBody(t *testing.T, input portllm.GenerateInput) map[string]interface{} {
+func mustBuildGeminiRequestBody(t *testing.T, input portllm.GenerateInput) map[string]any {
 	t.Helper()
 	payload, err := buildGeminiRequestBody(input)
 	if err != nil {
@@ -50,7 +50,7 @@ func TestBuildChatCompletionsToolMessages(t *testing.T) {
 		},
 	}, false)
 
-	messages := payload["messages"].([]map[string]interface{})
+	messages := payload["messages"].([]map[string]any)
 	if len(messages) != 2 {
 		t.Fatalf("expected 2 messages, got %#v", messages)
 	}
@@ -60,7 +60,7 @@ func TestBuildChatCompletionsToolMessages(t *testing.T) {
 	if messages[0]["reasoning_content"] != "need memory" {
 		t.Fatalf("expected reasoning_content passback, got %#v", messages[0])
 	}
-	toolCalls := messages[0]["tool_calls"].([]map[string]interface{})
+	toolCalls := messages[0]["tool_calls"].([]map[string]any)
 	if toolCalls[0]["id"] != "call_1" {
 		t.Fatalf("expected tool call id, got %#v", toolCalls[0])
 	}
@@ -81,7 +81,7 @@ func TestBuildOpenRouterChatCompletionsToolMessagesUsesReasoningField(t *testing
 		},
 	}, false)
 
-	messages := payload["messages"].([]map[string]interface{})
+	messages := payload["messages"].([]map[string]any)
 	assistant := messages[0]
 	if assistant["reasoning"] != "need live news" {
 		t.Fatalf("expected OpenRouter reasoning passback, got %#v", assistant)
@@ -96,19 +96,19 @@ func TestBuildOpenRouterChatCompletionsToolMessagesUsesReasoningField(t *testing
 
 func TestParseChatCompletionsOutputSeparatesReasoningContentParts(t *testing.T) {
 	result := &portllm.GenerateOutput{}
-	parseChatCompletionsOutput(portllm.AdapterOpenAIChatCompletions, map[string]interface{}{
-		"choices": []interface{}{
-			map[string]interface{}{
-				"message": map[string]interface{}{
-					"content": []interface{}{
-						map[string]interface{}{"type": "reasoning", "text": "hidden reasoning"},
-						map[string]interface{}{"type": "text", "text": "visible answer"},
+	parseChatCompletionsOutput(portllm.AdapterOpenAIChatCompletions, map[string]any{
+		"choices": []any{
+			map[string]any{
+				"message": map[string]any{
+					"content": []any{
+						map[string]any{"type": "reasoning", "text": "hidden reasoning"},
+						map[string]any{"type": "text", "text": "visible answer"},
 					},
-					"tool_calls": []interface{}{
-						map[string]interface{}{
+					"tool_calls": []any{
+						map[string]any{
 							"id":   "call_1",
 							"type": "function",
-							"function": map[string]interface{}{
+							"function": map[string]any{
 								"name":      "memory.list",
 								"arguments": "{}",
 							},
@@ -135,13 +135,13 @@ func TestApplyChatStreamEventSeparatesReasoningContentParts(t *testing.T) {
 	var buffer string
 	var visible string
 	var reasoning string
-	err := applyChatStreamEvent(portllm.AdapterOpenAIChatCompletions, map[string]interface{}{
-		"choices": []interface{}{
-			map[string]interface{}{
-				"delta": map[string]interface{}{
-					"content": []interface{}{
-						map[string]interface{}{"type": "reasoning", "text": "hidden"},
-						map[string]interface{}{"type": "text", "text": "visible"},
+	err := applyChatStreamEvent(portllm.AdapterOpenAIChatCompletions, map[string]any{
+		"choices": []any{
+			map[string]any{
+				"delta": map[string]any{
+					"content": []any{
+						map[string]any{"type": "reasoning", "text": "hidden"},
+						map[string]any{"type": "text", "text": "visible"},
 					},
 				},
 			},
@@ -174,12 +174,12 @@ func TestBuildChatCompletionsCustomToolMessages(t *testing.T) {
 		},
 	}, false)
 
-	messages := payload["messages"].([]map[string]interface{})
-	toolCalls := messages[0]["tool_calls"].([]map[string]interface{})
+	messages := payload["messages"].([]map[string]any)
+	toolCalls := messages[0]["tool_calls"].([]map[string]any)
 	if toolCalls[0]["type"] != "custom" {
 		t.Fatalf("expected custom tool call, got %#v", toolCalls[0])
 	}
-	custom := toolCalls[0]["custom"].(map[string]interface{})
+	custom := toolCalls[0]["custom"].(map[string]any)
 	if custom["name"] != "code_exec" || custom["input"] != `print("hi")` {
 		t.Fatalf("expected custom tool payload, got %#v", custom)
 	}
@@ -192,7 +192,7 @@ func TestBuildResponsesToolInputItems(t *testing.T) {
 		},
 	}, false)
 
-	items := payload["input"].([]map[string]interface{})
+	items := payload["input"].([]map[string]any)
 	if len(items) != 1 || items[0]["type"] != "function_call_output" || items[0]["call_id"] != "call_1" {
 		t.Fatalf("expected function_call_output item, got %#v", items)
 	}
@@ -206,7 +206,7 @@ func TestBuildOpenRouterResponsesToolHistoryAddsItemIDs(t *testing.T) {
 		},
 	}, false)
 
-	items := payload["input"].([]map[string]interface{})
+	items := payload["input"].([]map[string]any)
 	if len(items) != 2 {
 		t.Fatalf("expected two tool history items, got %#v", items)
 	}
@@ -229,12 +229,12 @@ func TestBuildOpenAIToolsKeepsInputSchema(t *testing.T) {
 		}},
 	}, false)
 
-	tools := payload["tools"].([]map[string]interface{})
-	fn := tools[0]["function"].(map[string]interface{})
-	parameters := fn["parameters"].(map[string]interface{})
-	properties := parameters["properties"].(map[string]interface{})
-	query := properties["query"].(map[string]interface{})
-	count := properties["count"].(map[string]interface{})
+	tools := payload["tools"].([]map[string]any)
+	fn := tools[0]["function"].(map[string]any)
+	parameters := fn["parameters"].(map[string]any)
+	properties := parameters["properties"].(map[string]any)
+	query := properties["query"].(map[string]any)
+	count := properties["count"].(map[string]any)
 	if fn["name"] != "bing_search" || query["type"] != "string" || count["type"] != "number" {
 		t.Fatalf("expected OpenAI tool schema to be preserved, got %#v", tools[0])
 	}
@@ -244,9 +244,9 @@ func TestBuildOpenAIToolsMergesProviderAndMCPTools(t *testing.T) {
 	schema := json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`)
 	payload := mustBuildRequestBody(t, portllm.AdapterOpenAIChatCompletions, "gpt-5", portllm.EndpointChatCompletions, portllm.GenerateInput{
 		Messages: []portllm.Message{{Role: "user", Content: "search"}},
-		Options: map[string]interface{}{
-			"tools": []interface{}{
-				map[string]interface{}{
+		Options: map[string]any{
+			"tools": []any{
+				map[string]any{
 					"type": "web_search_preview",
 				},
 			},
@@ -258,14 +258,14 @@ func TestBuildOpenAIToolsMergesProviderAndMCPTools(t *testing.T) {
 		}},
 	}, false)
 
-	tools := payload["tools"].([]map[string]interface{})
+	tools := payload["tools"].([]map[string]any)
 	if len(tools) != 2 {
 		t.Fatalf("expected provider tool and MCP tool, got %#v", tools)
 	}
 	if tools[0]["type"] != "web_search_preview" {
 		t.Fatalf("expected provider tool first, got %#v", tools[0])
 	}
-	fn := tools[1]["function"].(map[string]interface{})
+	fn := tools[1]["function"].(map[string]any)
 	if fn["name"] != "bing_search" {
 		t.Fatalf("expected MCP tool second, got %#v", tools[1])
 	}
@@ -274,19 +274,19 @@ func TestBuildOpenAIToolsMergesProviderAndMCPTools(t *testing.T) {
 func TestBuildOpenAIResponsesNativeToolOptions(t *testing.T) {
 	payload := mustBuildRequestBody(t, portllm.AdapterOpenAIResponses, "gpt-5.5", portllm.EndpointResponses, portllm.GenerateInput{
 		Messages: []portllm.Message{{Role: "user", Content: "search and run code"}},
-		Options: map[string]interface{}{
-			"tools": []interface{}{
-				map[string]interface{}{"type": "web_search"},
-				map[string]interface{}{
+		Options: map[string]any{
+			"tools": []any{
+				map[string]any{"type": "web_search"},
+				map[string]any{
 					"type": "shell",
-					"environment": map[string]interface{}{
+					"environment": map[string]any{
 						"type": "container_auto",
 					},
 				},
-				map[string]interface{}{"type": "image_generation"},
-				map[string]interface{}{
+				map[string]any{"type": "image_generation"},
+				map[string]any{
 					"type": "code_interpreter",
-					"container": map[string]interface{}{
+					"container": map[string]any{
 						"type": "auto",
 					},
 				},
@@ -294,18 +294,18 @@ func TestBuildOpenAIResponsesNativeToolOptions(t *testing.T) {
 		},
 	}, true)
 
-	tools, ok := payload["tools"].([]map[string]interface{})
+	tools, ok := payload["tools"].([]map[string]any)
 	if !ok || len(tools) != 4 {
 		t.Fatalf("expected four native OpenAI tools, got %#v", payload["tools"])
 	}
 	if tools[0]["type"] != "web_search" || tools[1]["type"] != "shell" || tools[2]["type"] != "image_generation" || tools[3]["type"] != "code_interpreter" {
 		t.Fatalf("expected OpenAI native tool order to be preserved, got %#v", tools)
 	}
-	environment, ok := tools[1]["environment"].(map[string]interface{})
+	environment, ok := tools[1]["environment"].(map[string]any)
 	if !ok || environment["type"] != "container_auto" {
 		t.Fatalf("expected shell container_auto environment, got %#v", tools[1])
 	}
-	container, ok := tools[3]["container"].(map[string]interface{})
+	container, ok := tools[3]["container"].(map[string]any)
 	if !ok || container["type"] != "auto" {
 		t.Fatalf("expected code_interpreter auto container, got %#v", tools[3])
 	}
@@ -315,8 +315,8 @@ func TestBuildRequestBodyDisableToolsRemovesProviderAndMCPTools(t *testing.T) {
 	schema := json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`)
 	payload := mustBuildRequestBody(t, portllm.AdapterOpenAIChatCompletions, "gpt-5", portllm.EndpointChatCompletions, portllm.GenerateInput{
 		Messages: []portllm.Message{{Role: "user", Content: "summarize"}},
-		Options: map[string]interface{}{
-			"tools": []interface{}{map[string]interface{}{"type": "web_search_preview"}},
+		Options: map[string]any{
+			"tools": []any{map[string]any{"type": "web_search_preview"}},
 		},
 		Tools: []portllm.ToolDefinition{{
 			Name:        "bing_search",
@@ -335,9 +335,9 @@ func TestBuildResponsesDisableToolsRemovesWebSearchAndMCPTools(t *testing.T) {
 	schema := json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`)
 	payload := mustBuildRequestBody(t, portllm.AdapterOpenAIResponses, "gpt-5", portllm.EndpointResponses, portllm.GenerateInput{
 		Messages: []portllm.Message{{Role: "user", Content: "summarize"}},
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"web_search": true,
-			"tools":      []interface{}{map[string]interface{}{"type": "web_search_preview"}},
+			"tools":      []any{map[string]any{"type": "web_search_preview"}},
 		},
 		Tools: []portllm.ToolDefinition{{
 			Name:        "bing_search",
@@ -356,10 +356,10 @@ func TestBuildAnthropicToolsMergesProviderAndMCPTools(t *testing.T) {
 	schema := json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`)
 	payload := mustBuildAnthropicRequestBody(t, "claude-sonnet-4", portllm.GenerateInput{
 		Messages: []portllm.Message{{Role: "user", Content: "search"}},
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"web_search": true,
-			"tools": []interface{}{
-				map[string]interface{}{
+			"tools": []any{
+				map[string]any{
 					"type": "custom_tool",
 					"name": "provider_lookup",
 				},
@@ -372,7 +372,7 @@ func TestBuildAnthropicToolsMergesProviderAndMCPTools(t *testing.T) {
 		}},
 	}, false)
 
-	tools := payload["tools"].([]map[string]interface{})
+	tools := payload["tools"].([]map[string]any)
 	if len(tools) != 3 {
 		t.Fatalf("expected provider, web search, and MCP tools, got %#v", tools)
 	}
@@ -396,19 +396,19 @@ func TestBuildAnthropicToolsMergesProviderAndMCPTools(t *testing.T) {
 func TestBuildAnthropicNativeToolsAddsRequiredNames(t *testing.T) {
 	payload := mustBuildAnthropicRequestBody(t, "claude-haiku-4-5", portllm.GenerateInput{
 		Messages: []portllm.Message{{Role: "user", Content: "今日天气？"}},
-		Options: map[string]interface{}{
-			"tools": []interface{}{
-				map[string]interface{}{"type": "web_search_20260209"},
-				map[string]interface{}{"type": "web_fetch_20260209"},
-				map[string]interface{}{"type": "code_execution_20260120"},
-				map[string]interface{}{"type": "advisor_20260301"},
-				map[string]interface{}{"type": "tool_search_tool_regex_20251119"},
-				map[string]interface{}{"type": "tool_search_tool_bm25_20251119"},
+		Options: map[string]any{
+			"tools": []any{
+				map[string]any{"type": "web_search_20260209"},
+				map[string]any{"type": "web_fetch_20260209"},
+				map[string]any{"type": "code_execution_20260120"},
+				map[string]any{"type": "advisor_20260301"},
+				map[string]any{"type": "tool_search_tool_regex_20251119"},
+				map[string]any{"type": "tool_search_tool_bm25_20251119"},
 			},
 		},
 	}, true)
 
-	tools, ok := payload["tools"].([]map[string]interface{})
+	tools, ok := payload["tools"].([]map[string]any)
 	if !ok || len(tools) != 6 {
 		t.Fatalf("expected normalized Anthropic native tools, got %#v", payload["tools"])
 	}
@@ -433,9 +433,9 @@ func TestBuildAnthropicRequestBodyDisableToolsRemovesProviderAndMCPTools(t *test
 	schema := json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`)
 	payload := mustBuildAnthropicRequestBody(t, "claude-sonnet-4", portllm.GenerateInput{
 		Messages: []portllm.Message{{Role: "user", Content: "summarize"}},
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"web_search": true,
-			"tools": []interface{}{map[string]interface{}{
+			"tools": []any{map[string]any{
 				"type": "custom_tool",
 				"name": "provider_lookup",
 			}},
@@ -460,8 +460,8 @@ func TestApplyAnthropicBetaHeadersForNativeTools(t *testing.T) {
 	}
 	req.Header.Set("anthropic-beta", "existing-beta")
 
-	applyAnthropicBetaHeaders(req, map[string]interface{}{
-		"tools": []map[string]interface{}{
+	applyAnthropicBetaHeaders(req, map[string]any{
+		"tools": []map[string]any{
 			{"type": "web_search_20260209"},
 			{"type": "web_fetch_20260209"},
 			{"type": "code_execution_20260120"},
@@ -489,11 +489,11 @@ func TestBuildGeminiToolsMergesProviderAndMCPTools(t *testing.T) {
 	schema := json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`)
 	payload := mustBuildGeminiRequestBody(t, portllm.GenerateInput{
 		Messages: []portllm.Message{{Role: "user", Content: "search"}},
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"web_search": true,
-			"tools": []interface{}{
-				map[string]interface{}{
-					"url_context": map[string]interface{}{},
+			"tools": []any{
+				map[string]any{
+					"url_context": map[string]any{},
 				},
 			},
 		},
@@ -504,7 +504,7 @@ func TestBuildGeminiToolsMergesProviderAndMCPTools(t *testing.T) {
 		}},
 	})
 
-	tools := payload["tools"].([]map[string]interface{})
+	tools := payload["tools"].([]map[string]any)
 	if len(tools) != 3 {
 		t.Fatalf("expected provider, web search, and MCP tools, got %#v", tools)
 	}
@@ -514,11 +514,11 @@ func TestBuildGeminiToolsMergesProviderAndMCPTools(t *testing.T) {
 	if _, ok := tools[1]["google_search"]; !ok {
 		t.Fatalf("expected Gemini web search second, got %#v", tools[1])
 	}
-	declarations := tools[2]["functionDeclarations"].([]map[string]interface{})
+	declarations := tools[2]["functionDeclarations"].([]map[string]any)
 	if declarations[0]["name"] != "bing_search" {
 		t.Fatalf("expected MCP tool third, got %#v", tools[2])
 	}
-	toolConfig := payload["toolConfig"].(map[string]interface{})
+	toolConfig := payload["toolConfig"].(map[string]any)
 	if toolConfig["includeServerSideToolInvocations"] != true {
 		t.Fatalf("expected Gemini server-side tool invocations to be included when mixed with function declarations, got %#v", toolConfig)
 	}
@@ -528,10 +528,10 @@ func TestBuildGeminiToolsPreservesExplicitToolConfigWhenMixedTools(t *testing.T)
 	schema := json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`)
 	payload := mustBuildGeminiRequestBody(t, portllm.GenerateInput{
 		Messages: []portllm.Message{{Role: "user", Content: "search"}},
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"web_search": true,
-			"toolConfig": map[string]interface{}{
-				"functionCallingConfig": map[string]interface{}{"mode": "ANY"},
+			"toolConfig": map[string]any{
+				"functionCallingConfig": map[string]any{"mode": "ANY"},
 			},
 		},
 		Tools: []portllm.ToolDefinition{{
@@ -541,11 +541,11 @@ func TestBuildGeminiToolsPreservesExplicitToolConfigWhenMixedTools(t *testing.T)
 		}},
 	})
 
-	toolConfig := payload["toolConfig"].(map[string]interface{})
+	toolConfig := payload["toolConfig"].(map[string]any)
 	if toolConfig["includeServerSideToolInvocations"] != true {
 		t.Fatalf("expected mixed tools to enable server-side invocations, got %#v", toolConfig)
 	}
-	if _, ok := toolConfig["functionCallingConfig"].(map[string]interface{}); !ok {
+	if _, ok := toolConfig["functionCallingConfig"].(map[string]any); !ok {
 		t.Fatalf("expected explicit functionCallingConfig to be preserved, got %#v", toolConfig)
 	}
 }
@@ -591,13 +591,13 @@ func TestBuildGeminiToolsPreservesJSONSchemaForFunctionDeclarations(t *testing.T
 		}},
 	})
 
-	tools := payload["tools"].([]map[string]interface{})
-	declarations := tools[0]["functionDeclarations"].([]map[string]interface{})
+	tools := payload["tools"].([]map[string]any)
+	declarations := tools[0]["functionDeclarations"].([]map[string]any)
 	declaration := declarations[0]
 	if _, ok := declaration["parameters"]; ok {
 		t.Fatalf("expected Generate Content to use parametersJsonSchema, got %#v", declaration)
 	}
-	parameters, ok := declaration["parametersJsonSchema"].(map[string]interface{})
+	parameters, ok := declaration["parametersJsonSchema"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected native JSON Schema parameters, got %#v", declaration)
 	}
@@ -608,7 +608,7 @@ func TestBuildGeminiToolsPreservesJSONSchemaForFunctionDeclarations(t *testing.T
 	if asMap(definitions["request"])["type"] != "object" || asMap(definitions["parser"])["type"] != "object" {
 		t.Fatalf("expected JSON Schema definitions to be preserved, got %#v", definitions)
 	}
-	properties := parameters["properties"].(map[string]interface{})
+	properties := parameters["properties"].(map[string]any)
 	actions := asMap(properties["actions"])
 	if asMap(actions["items"])["$ref"] != "#/properties/headers" {
 		t.Fatalf("expected array item reference to be preserved, got %#v", actions)
@@ -626,10 +626,10 @@ func TestBuildGeminiRequestBodyDisableToolsRemovesProviderAndMCPTools(t *testing
 	schema := json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`)
 	payload := mustBuildGeminiRequestBody(t, portllm.GenerateInput{
 		Messages: []portllm.Message{{Role: "user", Content: "summarize"}},
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"web_search": true,
-			"tools": []interface{}{
-				map[string]interface{}{"url_context": map[string]interface{}{}},
+			"tools": []any{
+				map[string]any{"url_context": map[string]any{}},
 			},
 		},
 		Tools: []portllm.ToolDefinition{{
@@ -648,8 +648,8 @@ func TestBuildGeminiRequestBodyDisableToolsRemovesProviderAndMCPTools(t *testing
 func TestBuildRequestBodyRejectsInvalidProviderToolsOption(t *testing.T) {
 	_, err := buildOpenAIRequestBody(portllm.AdapterOpenAIChatCompletions, "gpt-5", portllm.EndpointChatCompletions, portllm.GenerateInput{
 		Messages: []portllm.Message{{Role: "user", Content: "search"}},
-		Options: map[string]interface{}{
-			"tools": map[string]interface{}{"type": "web_search_preview"},
+		Options: map[string]any{
+			"tools": map[string]any{"type": "web_search_preview"},
 		},
 	}, false)
 	if err == nil || err.Error() != "model option tools must be an array" {
@@ -659,16 +659,16 @@ func TestBuildRequestBodyRejectsInvalidProviderToolsOption(t *testing.T) {
 
 func TestChatStreamToolCallArgumentsAreConcatenatedWithoutDefaultPrefix(t *testing.T) {
 	result := &portllm.GenerateOutput{ToolCalls: make([]portllm.ToolCall, 0)}
-	chunks := []map[string]interface{}{
+	chunks := []map[string]any{
 		{
 			"id": "chatcmpl_1",
-			"choices": []interface{}{map[string]interface{}{
-				"delta": map[string]interface{}{
-					"tool_calls": []interface{}{map[string]interface{}{
+			"choices": []any{map[string]any{
+				"delta": map[string]any{
+					"tool_calls": []any{map[string]any{
 						"index": float64(0),
 						"id":    "call_1",
 						"type":  "function",
-						"function": map[string]interface{}{
+						"function": map[string]any{
 							"name": "bing_search",
 						},
 					}},
@@ -676,11 +676,11 @@ func TestChatStreamToolCallArgumentsAreConcatenatedWithoutDefaultPrefix(t *testi
 			}},
 		},
 		{
-			"choices": []interface{}{map[string]interface{}{
-				"delta": map[string]interface{}{
-					"tool_calls": []interface{}{map[string]interface{}{
+			"choices": []any{map[string]any{
+				"delta": map[string]any{
+					"tool_calls": []any{map[string]any{
 						"index": float64(0),
-						"function": map[string]interface{}{
+						"function": map[string]any{
 							"arguments": "{\"query\":\"IDC",
 						},
 					}},
@@ -688,11 +688,11 @@ func TestChatStreamToolCallArgumentsAreConcatenatedWithoutDefaultPrefix(t *testi
 			}},
 		},
 		{
-			"choices": []interface{}{map[string]interface{}{
-				"delta": map[string]interface{}{
-					"tool_calls": []interface{}{map[string]interface{}{
+			"choices": []any{map[string]any{
+				"delta": map[string]any{
+					"tool_calls": []any{map[string]any{
 						"index": float64(0),
-						"function": map[string]interface{}{
+						"function": map[string]any{
 							"arguments": " Flare\"}",
 						},
 					}},
@@ -716,16 +716,16 @@ func TestChatStreamToolCallArgumentsAreConcatenatedWithoutDefaultPrefix(t *testi
 
 func TestChatStreamCustomToolCallInputIsConcatenated(t *testing.T) {
 	result := &portllm.GenerateOutput{ToolCalls: make([]portllm.ToolCall, 0)}
-	chunks := []map[string]interface{}{
+	chunks := []map[string]any{
 		{
 			"id": "chatcmpl_1",
-			"choices": []interface{}{map[string]interface{}{
-				"delta": map[string]interface{}{
-					"tool_calls": []interface{}{map[string]interface{}{
+			"choices": []any{map[string]any{
+				"delta": map[string]any{
+					"tool_calls": []any{map[string]any{
 						"index": float64(0),
 						"id":    "call_custom",
 						"type":  "custom",
-						"custom": map[string]interface{}{
+						"custom": map[string]any{
 							"name": "code_exec",
 						},
 					}},
@@ -733,11 +733,11 @@ func TestChatStreamCustomToolCallInputIsConcatenated(t *testing.T) {
 			}},
 		},
 		{
-			"choices": []interface{}{map[string]interface{}{
-				"delta": map[string]interface{}{
-					"tool_calls": []interface{}{map[string]interface{}{
+			"choices": []any{map[string]any{
+				"delta": map[string]any{
+					"tool_calls": []any{map[string]any{
 						"index": float64(0),
-						"custom": map[string]interface{}{
+						"custom": map[string]any{
 							"input": "print(",
 						},
 					}},
@@ -745,11 +745,11 @@ func TestChatStreamCustomToolCallInputIsConcatenated(t *testing.T) {
 			}},
 		},
 		{
-			"choices": []interface{}{map[string]interface{}{
-				"delta": map[string]interface{}{
-					"tool_calls": []interface{}{map[string]interface{}{
+			"choices": []any{map[string]any{
+				"delta": map[string]any{
+					"tool_calls": []any{map[string]any{
 						"index": float64(0),
-						"custom": map[string]interface{}{
+						"custom": map[string]any{
 							"input": `"hi")`,
 						},
 					}},
@@ -1352,7 +1352,7 @@ func TestParseResponsesCapturesGeneratedImageWithoutBase64Trace(t *testing.T) {
 
 func TestResponsesStreamAcceptsLargePartialImageAndKeepsOnlyFinalImage(t *testing.T) {
 	partial := strings.Repeat("A", 2*1024*1024)
-	partialPayload, err := json.Marshal(map[string]interface{}{
+	partialPayload, err := json.Marshal(map[string]any{
 		"type":                "response.image_generation_call.partial_image",
 		"item_id":             "img_1",
 		"output_format":       "png",
@@ -1363,12 +1363,12 @@ func TestResponsesStreamAcceptsLargePartialImageAndKeepsOnlyFinalImage(t *testin
 	if err != nil {
 		t.Fatalf("marshal partial image event: %v", err)
 	}
-	completedPayload, err := json.Marshal(map[string]interface{}{
+	completedPayload, err := json.Marshal(map[string]any{
 		"type": "response.completed",
-		"response": map[string]interface{}{
+		"response": map[string]any{
 			"id": "resp_1",
-			"output": []interface{}{
-				map[string]interface{}{
+			"output": []any{
+				map[string]any{
 					"type":          "image_generation_call",
 					"id":            "img_1",
 					"status":        "completed",
@@ -1704,7 +1704,7 @@ func TestBuildAnthropicToolBlocks(t *testing.T) {
 		ToolResults: []portllm.ToolResult{{ToolCallID: "toolu_1", ToolName: "memory.list", OutputJSON: `{"items":[]}`, Status: "success"}},
 	})
 
-	blocks := content.([]map[string]interface{})
+	blocks := content.([]map[string]any)
 	if len(blocks) != 1 || blocks[0]["type"] != "tool_result" || blocks[0]["tool_use_id"] != "toolu_1" {
 		t.Fatalf("expected anthropic tool_result block, got %#v", blocks)
 	}
@@ -1748,9 +1748,9 @@ func TestAnthropicStreamToolUseInputJSONDeltaIsCaptured(t *testing.T) {
 func TestAnthropicStreamRejectsNativeToolUseReturnedAsClientTool(t *testing.T) {
 	payload := mustBuildAnthropicRequestBody(t, "claude-sonnet-4-6", portllm.GenerateInput{
 		Messages: []portllm.Message{{Role: "user", Content: "北京今天天气"}},
-		Options: map[string]interface{}{
-			"tools": []interface{}{
-				map[string]interface{}{"type": "web_search_20260209"},
+		Options: map[string]any{
+			"tools": []any{
+				map[string]any{"type": "web_search_20260209"},
 			},
 		},
 	}, true)
@@ -1796,9 +1796,9 @@ func TestAnthropicStreamRejectsNativeToolUseReturnedAsClientTool(t *testing.T) {
 func TestAnthropicStreamKeepsDeclaredClientToolWithNativeNameLocal(t *testing.T) {
 	payload := mustBuildAnthropicRequestBody(t, "claude-sonnet-4-6", portllm.GenerateInput{
 		Messages: []portllm.Message{{Role: "user", Content: "search"}},
-		Options: map[string]interface{}{
-			"tools": []interface{}{
-				map[string]interface{}{"type": "web_search_20260209"},
+		Options: map[string]any{
+			"tools": []any{
+				map[string]any{"type": "web_search_20260209"},
 			},
 		},
 		Tools: []portllm.ToolDefinition{{Name: "web_search", Description: "Local search", InputSchema: json.RawMessage(`{"type":"object"}`)}},
@@ -1936,7 +1936,7 @@ func TestBuildGeminiToolParts(t *testing.T) {
 		ToolResults: []portllm.ToolResult{{ToolCallID: "call_1", ToolName: "memory.list", OutputJSON: `{"items":[]}`, Status: "success"}},
 	})
 
-	response := parts[0]["functionResponse"].(map[string]interface{})
+	response := parts[0]["functionResponse"].(map[string]any)
 	if response["name"] != "memory.list" {
 		t.Fatalf("expected gemini functionResponse name, got %#v", response)
 	}

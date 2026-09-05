@@ -144,7 +144,7 @@ func TestErrorWithDetailsUsesCanonicalMessage(t *testing.T) {
 	if payload.ErrorCode != "billing.invalid_redemption_code" || payload.ErrorMsg != "invalid redemption code" {
 		t.Fatalf("envelope = %#v", payload)
 	}
-	decodedDetails, ok := payload.Details.(map[string]interface{})
+	decodedDetails, ok := payload.Details.(map[string]any)
 	if !ok || decodedDetails["field"] != "code" {
 		t.Fatalf("details = %#v", payload.Details)
 	}

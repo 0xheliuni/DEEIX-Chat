@@ -29,7 +29,7 @@ func NewHandler(service *appauth.Service) *Handler {
 	}
 }
 
-func (h *Handler) recordAudit(c *gin.Context, userID uint, action string, resource string, resourceID string, detail interface{}) {
+func (h *Handler) recordAudit(c *gin.Context, userID uint, action string, resource string, resourceID string, detail any) {
 	h.service.RecordAudit(c.Request.Context(), appauth.AuditInput{
 		ActorUserID: userID,
 		RequestID:   middleware.MustRequestID(c),
@@ -42,7 +42,7 @@ func (h *Handler) recordAudit(c *gin.Context, userID uint, action string, resour
 	})
 }
 
-func bindOptionalJSON(c *gin.Context, req interface{}) error {
+func bindOptionalJSON(c *gin.Context, req any) error {
 	if c.Request.Body == nil || c.Request.ContentLength == 0 {
 		return nil
 	}
@@ -1279,7 +1279,7 @@ func (h *Handler) PatchMe(c *gin.Context) {
 		"update_profile",
 		"user",
 		strconv.FormatUint(uint64(userID), 10),
-		map[string]interface{}{"fields": updatedFields},
+		map[string]any{"fields": updatedFields},
 	)
 
 	view, err := h.service.BuildUserView(c.Request.Context(), *item)
@@ -1341,7 +1341,7 @@ func (h *Handler) PatchUsername(c *gin.Context) {
 		"update_username",
 		"user",
 		strconv.FormatUint(uint64(userID), 10),
-		map[string]interface{}{"username": item.Username},
+		map[string]any{"username": item.Username},
 	)
 
 	view, err := h.service.BuildUserView(c.Request.Context(), *item)

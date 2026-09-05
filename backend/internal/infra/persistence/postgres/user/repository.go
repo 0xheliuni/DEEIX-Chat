@@ -168,7 +168,7 @@ func (r *Repo) UpdateUsernameOnce(ctx context.Context, userID uint, username str
 
 		return translateError(tx.Model(&model.User{}).
 			Where("id = ?", userID).
-			Updates(map[string]interface{}{
+			Updates(map[string]any{
 				"username":            username,
 				"username_changed_at": changedAt,
 			}).
@@ -201,7 +201,7 @@ func (r *Repo) updateUserFields(ctx context.Context, userID uint, input reposito
 func (r *Repo) updateUserFieldsInTransaction(
 	ctx context.Context,
 	userID uint,
-	updates map[string]interface{},
+	updates map[string]any,
 	withSuperAdminGuard bool,
 ) (*domainuser.User, error) {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -259,8 +259,8 @@ func (r *Repo) updateUserFieldsInTransaction(
 	return r.GetByID(ctx, userID)
 }
 
-func userFieldUpdates(input repository.UpdateUserFieldsInput) map[string]interface{} {
-	updates := make(map[string]interface{})
+func userFieldUpdates(input repository.UpdateUserFieldsInput) map[string]any {
+	updates := make(map[string]any)
 	if input.AvatarURL != nil {
 		updates["avatar_url"] = *input.AvatarURL
 	}
@@ -609,7 +609,7 @@ func (r *Repo) UpsertUserTwoFactor(ctx context.Context, item *domainuser.UserTwo
 	err := r.db.WithContext(ctx).
 		Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "user_id"}},
-			DoUpdates: clause.Assignments(map[string]interface{}{
+			DoUpdates: clause.Assignments(map[string]any{
 				"totp_enabled":              dbItem.TOTPEnabled,
 				"totp_secret_encrypted":     dbItem.TOTPSecretEncrypted,
 				"totp_setup_expires_at":     dbItem.TOTPSetupExpiresAt,
@@ -648,8 +648,8 @@ func (r *Repo) UpdateUserTwoFactor(ctx context.Context, userID uint, input repos
 	return r.GetUserTwoFactorByUserID(ctx, userID)
 }
 
-func userTwoFactorUpdates(input repository.UpdateUserTwoFactorInput) map[string]interface{} {
-	updates := make(map[string]interface{})
+func userTwoFactorUpdates(input repository.UpdateUserTwoFactorInput) map[string]any {
+	updates := make(map[string]any)
 	if input.TOTPEnabled != nil {
 		updates["totp_enabled"] = *input.TOTPEnabled
 	}
@@ -706,7 +706,7 @@ func (r *Repo) MarkLoginFailure(
 		}
 
 		nextFailedCount := credential.FailedLoginCount + 1
-		updates := map[string]interface{}{
+		updates := map[string]any{
 			"failed_login_count": nextFailedCount,
 		}
 		if lockThreshold > 0 && nextFailedCount >= lockThreshold {
@@ -737,7 +737,7 @@ func (r *Repo) ResetLoginFailure(ctx context.Context, userID uint) error {
 	return translateError(r.db.WithContext(ctx).
 		Model(&model.UserCredential{}).
 		Where("user_id = ?", userID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"failed_login_count": 0,
 			"locked_until":       nil,
 		}).
@@ -788,7 +788,7 @@ func (r *Repo) UpdatePassword(ctx context.Context, userID uint, passwordHash str
 	result := r.db.WithContext(ctx).
 		Model(&model.UserCredential{}).
 		Where("user_id = ?", userID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"password_hash":       passwordHash,
 			"password_algo":       "bcrypt",
 			"password_enabled":    true,
@@ -1144,7 +1144,7 @@ func (r *Repo) RotateSessionTokens(ctx context.Context, input repository.RotateS
 			return repository.ErrInvalidInput
 		}
 
-		updates := map[string]interface{}{
+		updates := map[string]any{
 			"previous_refresh_token_hash": item.RefreshTokenHash,
 			"refresh_token_hash":          input.NextRefreshHash,
 			"refresh_rotated_at":          input.Now,
@@ -1198,8 +1198,8 @@ func (r *Repo) TouchSessionActivity(ctx context.Context, userID uint, sessionID 
 		Error)
 }
 
-func sessionActivityUpdates(input repository.UpdateSessionActivityInput) map[string]interface{} {
-	updates := make(map[string]interface{})
+func sessionActivityUpdates(input repository.UpdateSessionActivityInput) map[string]any {
+	updates := make(map[string]any)
 	if input.LastSeenAt != nil {
 		updates["last_seen_at"] = *input.LastSeenAt
 	}
@@ -1266,7 +1266,7 @@ func (r *Repo) RevokeSession(ctx context.Context, userID uint, sessionID string,
 	return translateError(r.db.WithContext(ctx).
 		Model(&model.UserSession{}).
 		Where("user_id = ? AND session_id = ? AND revoked_at IS NULL", userID, sessionID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"revoked_at":    now,
 			"revoke_reason": reason,
 		}).
@@ -1279,7 +1279,7 @@ func (r *Repo) RevokeAllSessions(ctx context.Context, userID uint, reason string
 	return translateError(r.db.WithContext(ctx).
 		Model(&model.UserSession{}).
 		Where("user_id = ? AND revoked_at IS NULL", userID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"revoked_at":    now,
 			"revoke_reason": reason,
 		}).
@@ -1431,8 +1431,8 @@ func (r *Repo) UpdateIdentityProvider(ctx context.Context, publicID string, inpu
 	return r.GetIdentityProviderByPublicID(ctx, publicID)
 }
 
-func identityProviderUpdates(input repository.UpdateIdentityProviderInput) map[string]interface{} {
-	updates := make(map[string]interface{})
+func identityProviderUpdates(input repository.UpdateIdentityProviderInput) map[string]any {
+	updates := make(map[string]any)
 	if input.Type != nil {
 		updates["type"] = *input.Type
 	}
@@ -1737,7 +1737,7 @@ func (r *Repo) UpdateUserIdentityLogin(ctx context.Context, identityID uint, pro
 	result := r.db.WithContext(ctx).
 		Model(&model.UserIdentity{}).
 		Where("id = ?", identityID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"profile_json":          profileJSON,
 			"provider_display_name": providerDisplayName,
 			"email":                 email,
@@ -1758,7 +1758,7 @@ func (r *Repo) CancelPendingContactVerifications(ctx context.Context, channel st
 	return translateError(r.db.WithContext(ctx).
 		Model(&model.UserContactVerification{}).
 		Where("channel = ? AND purpose = ? AND target = ? AND status = ?", channel, purpose, target, model.ContactVerificationStatusPending).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"status":      model.ContactVerificationStatusCanceled,
 			"consumed_at": now,
 		}).Error)
@@ -1769,7 +1769,7 @@ func (r *Repo) CancelPendingContactVerificationsForUser(ctx context.Context, use
 	return translateError(r.db.WithContext(ctx).
 		Model(&model.UserContactVerification{}).
 		Where("user_id = ? AND channel = ? AND purpose = ? AND target = ? AND status = ?", userID, channel, purpose, target, model.ContactVerificationStatusPending).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"status":      model.ContactVerificationStatusCanceled,
 			"consumed_at": now,
 		}).Error)
@@ -1825,7 +1825,7 @@ func (r *Repo) MarkContactVerificationVerified(ctx context.Context, verification
 	result := r.db.WithContext(ctx).
 		Model(&model.UserContactVerification{}).
 		Where("id = ? AND status = ?", verificationID, model.ContactVerificationStatusPending).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"status":      model.ContactVerificationStatusVerified,
 			"verified_at": now,
 			"consumed_at": now,

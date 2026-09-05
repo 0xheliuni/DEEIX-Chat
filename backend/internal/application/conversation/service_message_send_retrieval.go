@@ -87,7 +87,7 @@ func (s *Service) retrieveMessageRAGContext(ctx context.Context, in messageRAGRe
 			knowledgeBaseFileIDs[fileID] = struct{}{}
 		}
 	}
-	emitEvent(input.OnEvent, "rag_search", map[string]interface{}{
+	emitEvent(input.OnEvent, "rag_search", map[string]any{
 		"message": "正在检索相关内容…",
 	})
 	ragCtx, ragSpan := platformtracing.Start(ctx, "conversation.rag.retrieve",

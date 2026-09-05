@@ -66,7 +66,7 @@ func (h *Handler) UpdateMessage(c *gin.Context) {
 	h.recordAudit(c, "update_message",
 		"message",
 		item.PublicID,
-		map[string]interface{}{
+		map[string]any{
 			"role": item.Role,
 		},
 	)
@@ -131,7 +131,7 @@ func (h *Handler) SetMessageFeedback(c *gin.Context) {
 	h.recordAudit(c, "set_message_feedback",
 		"message",
 		result.MessagePublicID,
-		map[string]interface{}{
+		map[string]any{
 			"feedback": req.Feedback,
 		},
 	)

@@ -36,17 +36,17 @@ func buildChatCompletionsRequestBody(
 	model string,
 	input portllm.GenerateInput,
 	messages []portllm.Message,
-	providerTools []map[string]interface{},
+	providerTools []map[string]any,
 	toolDefinitions []portllm.ToolDefinition,
-	providerStreamOptions map[string]interface{},
+	providerStreamOptions map[string]any,
 	stream bool,
-) map[string]interface{} {
+) map[string]any {
 	promptCache := resolveOpenAIPromptCacheConfig(adapter, input)
-	items := make([]map[string]interface{}, 0, len(messages))
+	items := make([]map[string]any, 0, len(messages))
 	for _, item := range messages {
 		items = append(items, buildChatCompletionsMessages(adapter, item, &promptCache)...)
 	}
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"model":    strings.TrimSpace(model),
 		"messages": items,
 		"stream":   stream,
@@ -62,7 +62,7 @@ func buildChatCompletionsRequestBody(
 		if modelParamBool(input.Options, "thinking") {
 			thinkingType = "enabled"
 		}
-		payload["thinking"] = map[string]interface{}{
+		payload["thinking"] = map[string]any{
 			"type": thinkingType,
 		}
 	}
@@ -83,18 +83,18 @@ func buildChatCompletionsRequestBody(
 	return payload
 }
 
-func chatCompletionsStreamOptions(options map[string]interface{}, stream bool) map[string]interface{} {
+func chatCompletionsStreamOptions(options map[string]any, stream bool) map[string]any {
 	if !stream {
 		return nil
 	}
-	result := map[string]interface{}{"include_usage": true}
+	result := map[string]any{"include_usage": true}
 	for key, value := range options {
 		result[key] = value
 	}
 	return result
 }
 
-func normalizedChatCompletionResponseFormat(options map[string]interface{}) (interface{}, bool) {
+func normalizedChatCompletionResponseFormat(options map[string]any) (any, bool) {
 	format, ok := normalizedJSONResponseFormat(options)
 	if !ok {
 		return nil, false
@@ -106,7 +106,7 @@ func normalizedChatCompletionResponseFormat(options map[string]interface{}) (int
 	if _, ok := payload["json_schema"]; ok {
 		return payload, true
 	}
-	jsonSchema := map[string]interface{}{}
+	jsonSchema := map[string]any{}
 	for _, key := range []string{"name", "description", "schema", "strict"} {
 		if value, ok := payload[key]; ok {
 			jsonSchema[key] = value
@@ -115,17 +115,17 @@ func normalizedChatCompletionResponseFormat(options map[string]interface{}) (int
 	if len(jsonSchema) == 0 {
 		return payload, true
 	}
-	return map[string]interface{}{
+	return map[string]any{
 		"type":        "json_schema",
 		"json_schema": jsonSchema,
 	}, true
 }
 
-func buildChatCompletionsMessages(adapter string, msg portllm.Message, promptCache *openAIPromptCacheConfig) []map[string]interface{} {
-	result := make([]map[string]interface{}, 0, 1+len(msg.ToolResults))
+func buildChatCompletionsMessages(adapter string, msg portllm.Message, promptCache *openAIPromptCacheConfig) []map[string]any {
+	result := make([]map[string]any, 0, 1+len(msg.ToolResults))
 	if len(msg.ToolResults) > 0 {
 		for _, item := range msg.ToolResults {
-			result = append(result, map[string]interface{}{
+			result = append(result, map[string]any{
 				"role":         "tool",
 				"tool_call_id": strings.TrimSpace(item.ToolCallID),
 				"content":      buildToolResultContent(item),
@@ -134,7 +134,7 @@ func buildChatCompletionsMessages(adapter string, msg portllm.Message, promptCac
 		return result
 	}
 
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"role":    normalizeRole(msg.Role),
 		"content": buildChatCompletionsContent(msg, promptCache),
 	}
@@ -155,8 +155,8 @@ func buildChatCompletionsMessages(adapter string, msg portllm.Message, promptCac
 	return result
 }
 
-func buildChatCompletionsToolCalls(toolCalls []portllm.ToolCall) []map[string]interface{} {
-	items := make([]map[string]interface{}, 0, len(toolCalls))
+func buildChatCompletionsToolCalls(toolCalls []portllm.ToolCall) []map[string]any {
+	items := make([]map[string]any, 0, len(toolCalls))
 	for _, item := range toolCalls {
 		toolType := strings.TrimSpace(item.ToolType)
 		if toolType == "" {
@@ -167,20 +167,20 @@ func buildChatCompletionsToolCalls(toolCalls []portllm.ToolCall) []map[string]in
 			args = "{}"
 		}
 		if toolType == "custom" {
-			items = append(items, map[string]interface{}{
+			items = append(items, map[string]any{
 				"id":   strings.TrimSpace(item.ToolCallID),
 				"type": toolType,
-				"custom": map[string]interface{}{
+				"custom": map[string]any{
 					"name":  strings.TrimSpace(item.ToolName),
 					"input": args,
 				},
 			})
 			continue
 		}
-		items = append(items, map[string]interface{}{
+		items = append(items, map[string]any{
 			"id":   strings.TrimSpace(item.ToolCallID),
 			"type": toolType,
-			"function": map[string]interface{}{
+			"function": map[string]any{
 				"name":      strings.TrimSpace(item.ToolName),
 				"arguments": args,
 			},
@@ -191,16 +191,16 @@ func buildChatCompletionsToolCalls(toolCalls []portllm.ToolCall) []map[string]in
 
 // buildChatCompletionsContent 将消息内容序列化为 Chat Completions API 格式。
 // 多模态或显式缓存消息返回 parts 数组；其余纯文本消息保持字符串结构。
-func buildChatCompletionsContent(msg portllm.Message, promptCache *openAIPromptCacheConfig) interface{} {
+func buildChatCompletionsContent(msg portllm.Message, promptCache *openAIPromptCacheConfig) any {
 	if len(msg.Parts) == 0 {
 		if msg.CacheControl != nil && promptCache != nil && promptCache.Explicit {
-			block := map[string]interface{}{"type": "text", "text": msg.Content}
+			block := map[string]any{"type": "text", "text": msg.Content}
 			appendOpenAIPromptCacheBreakpoint(block, msg.CacheControl, promptCache)
-			return []map[string]interface{}{block}
+			return []map[string]any{block}
 		}
 		return msg.Content
 	}
-	parts := make([]map[string]interface{}, 0, len(msg.Parts))
+	parts := make([]map[string]any, 0, len(msg.Parts))
 	for _, part := range msg.Parts {
 		switch part.Kind {
 		case portllm.ContentPartImage:
@@ -212,7 +212,7 @@ func buildChatCompletionsContent(msg portllm.Message, promptCache *openAIPromptC
 				mime = "image/jpeg"
 			}
 			b64 := base64.StdEncoding.EncodeToString(part.Data)
-			block := map[string]interface{}{
+			block := map[string]any{
 				"type": "image_url",
 				"image_url": map[string]string{
 					"url": "data:" + mime + ";base64," + b64,
@@ -225,7 +225,7 @@ func buildChatCompletionsContent(msg portllm.Message, promptCache *openAIPromptC
 			if strings.TrimSpace(text) == "" {
 				continue
 			}
-			block := map[string]interface{}{
+			block := map[string]any{
 				"type": "text",
 				"text": text,
 			}
@@ -248,7 +248,7 @@ func buildChatCompletionsContent(msg portllm.Message, promptCache *openAIPromptC
 
 func applyChatStreamEvent(
 	adapter string,
-	parsed map[string]interface{},
+	parsed map[string]any,
 	result *portllm.GenerateOutput,
 	visibleTextBuffer *string,
 	onEvent func(portllm.GenerateStreamEvent) error,
@@ -301,7 +301,7 @@ func applyChatStreamEvent(
 	return nil
 }
 
-func mergeChatStreamToolCalls(parsed map[string]interface{}, result *portllm.GenerateOutput) {
+func mergeChatStreamToolCalls(parsed map[string]any, result *portllm.GenerateOutput) {
 	choice := firstMapItem(asSlice(parsed["choices"]))
 	delta := asMap(choice["delta"])
 	items := asSlice(delta["tool_calls"])
@@ -341,7 +341,7 @@ func mergeChatStreamToolCalls(parsed map[string]interface{}, result *portllm.Gen
 	}
 }
 
-func parseChatCompletionsOutput(adapter string, parsed map[string]interface{}, result *portllm.GenerateOutput, allowTextEncodedToolCalls bool) {
+func parseChatCompletionsOutput(adapter string, parsed map[string]any, result *portllm.GenerateOutput, allowTextEncodedToolCalls bool) {
 	choice := firstMapItem(asSlice(parsed["choices"]))
 	message := asMap(choice["message"])
 	result.Text = extractChatVisibleContentText(message["content"])
@@ -358,7 +358,7 @@ func parseChatCompletionsOutput(adapter string, parsed map[string]interface{}, r
 	}
 }
 
-func parseChatReasoningOutput(message map[string]interface{}) *portllm.ReasoningOutput {
+func parseChatReasoningOutput(message map[string]any) *portllm.ReasoningOutput {
 	if len(message) == 0 {
 		return nil
 	}
@@ -375,13 +375,13 @@ func parseChatReasoningOutput(message map[string]interface{}) *portllm.Reasoning
 	}
 }
 
-func extractChatStreamDelta(parsed map[string]interface{}) string {
+func extractChatStreamDelta(parsed map[string]any) string {
 	choice := firstMapItem(asSlice(parsed["choices"]))
 	delta := asMap(choice["delta"])
 	return extractChatVisibleContentText(delta["content"])
 }
 
-func extractChatStreamReasoningDelta(parsed map[string]interface{}) *portllm.ReasoningDelta {
+func extractChatStreamReasoningDelta(parsed map[string]any) *portllm.ReasoningDelta {
 	choice := firstMapItem(asSlice(parsed["choices"]))
 	delta := asMap(choice["delta"])
 	if think := extractReasoningDeltaText(delta["reasoning"]); think != "" {
@@ -418,11 +418,11 @@ func extractChatStreamReasoningDelta(parsed map[string]interface{}) *portllm.Rea
 	return nil
 }
 
-func extractChatVisibleContentText(raw interface{}) string {
+func extractChatVisibleContentText(raw any) string {
 	switch value := raw.(type) {
 	case string:
 		return value
-	case []interface{}:
+	case []any:
 		chunks := make([]string, 0, len(value))
 		for _, item := range value {
 			if text := extractChatVisibleContentText(item); text != "" {
@@ -430,7 +430,7 @@ func extractChatVisibleContentText(raw interface{}) string {
 			}
 		}
 		return strings.Join(chunks, "")
-	case map[string]interface{}:
+	case map[string]any:
 		if isChatReasoningContentType(value["type"]) {
 			return ""
 		}
@@ -516,9 +516,9 @@ func maybeDSMLToolCallsPrefix(text string) bool {
 	return false
 }
 
-func extractChatReasoningContentText(raw interface{}) string {
+func extractChatReasoningContentText(raw any) string {
 	switch value := raw.(type) {
-	case []interface{}:
+	case []any:
 		parts := make([]string, 0, len(value))
 		for _, item := range value {
 			if text := extractChatReasoningContentText(item); text != "" {
@@ -526,7 +526,7 @@ func extractChatReasoningContentText(raw interface{}) string {
 			}
 		}
 		return strings.Join(parts, "")
-	case map[string]interface{}:
+	case map[string]any:
 		if isChatReasoningContentType(value["type"]) {
 			return extractReasoningDeltaText(value)
 		}
@@ -536,19 +536,19 @@ func extractChatReasoningContentText(raw interface{}) string {
 	}
 }
 
-func isChatReasoningContentType(raw interface{}) bool {
+func isChatReasoningContentType(raw any) bool {
 	itemType := strings.ToLower(strings.TrimSpace(getString(raw)))
 	return strings.Contains(itemType, "reason") || strings.Contains(itemType, "think")
 }
 
-func parseChatStreamUsage(adapter string, parsed map[string]interface{}) portllm.Usage {
+func parseChatStreamUsage(adapter string, parsed map[string]any) portllm.Usage {
 	if len(asMap(parsed["usage"])) == 0 {
 		return portllm.Usage{}
 	}
 	return parseOpenAICompatibleUsageForAdapter(adapter, parsed)
 }
 
-func parseOpenAICompatibleUsageForAdapter(adapter string, parsed map[string]interface{}) portllm.Usage {
+func parseOpenAICompatibleUsageForAdapter(adapter string, parsed map[string]any) portllm.Usage {
 	totalInputTokens := firstNonZero(
 		getInt64FromPath(parsed, "usage", "input_tokens"),
 		getInt64FromPath(parsed, "usage", "prompt_tokens"),
@@ -628,7 +628,7 @@ func visibleOutputTokens(outputTokens int64, reasoningTokens int64) int64 {
 	return outputTokens - reasoningTokens
 }
 
-func parseChatToolCalls(raw interface{}) []portllm.ToolCall {
+func parseChatToolCalls(raw any) []portllm.ToolCall {
 	items := asSlice(raw)
 	result := make([]portllm.ToolCall, 0, len(items))
 	for _, item := range items {

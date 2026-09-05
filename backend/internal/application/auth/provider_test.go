@@ -410,7 +410,7 @@ func TestResolveProviderUserNormalizesProviderEmailBeforeAutoLink(t *testing.T) 
 
 func TestResolveProviderEmailVerifiedUsesConfiguredField(t *testing.T) {
 	provider := domainuser.IdentityProvider{EmailVerifiedField: "verified"}
-	profile := map[string]interface{}{
+	profile := map[string]any{
 		"email":    "verified@example.com",
 		"verified": true,
 	}
@@ -422,7 +422,7 @@ func TestResolveProviderEmailVerifiedUsesConfiguredField(t *testing.T) {
 
 func TestResolveProviderEmailVerifiedUsesDiscordVerifiedField(t *testing.T) {
 	provider := domainuser.IdentityProvider{Slug: "discord", EmailVerifiedField: "email_verified"}
-	profile := map[string]interface{}{
+	profile := map[string]any{
 		"email":    "verified@example.com",
 		"verified": true,
 	}
@@ -434,7 +434,7 @@ func TestResolveProviderEmailVerifiedUsesDiscordVerifiedField(t *testing.T) {
 
 func TestResolveProviderEmailVerifiedDoesNotUseGenericVerifiedField(t *testing.T) {
 	provider := domainuser.IdentityProvider{Slug: "x", EmailVerifiedField: "email_verified"}
-	profile := map[string]interface{}{
+	profile := map[string]any{
 		"email":    "verified@example.com",
 		"verified": true,
 	}

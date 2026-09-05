@@ -18,7 +18,7 @@ type postBillingCompactionTask struct {
 	MessageID      uint
 	RunID          string
 	PreserveTurns  int
-	OnEvent        func(eventType string, payload map[string]interface{}) error
+	OnEvent        func(eventType string, payload map[string]any) error
 	TraceRecorder  *messageTraceRecorder
 }
 
@@ -64,7 +64,7 @@ func (s *Service) runPostBillingCompaction(ctx context.Context, task *postBillin
 				if len(preview) > 80 {
 					preview = preview[:80]
 				}
-				emitEvent(task.OnEvent, "compact_done", map[string]interface{}{
+				emitEvent(task.OnEvent, "compact_done", map[string]any{
 					"method":          snapshot.Strategy,
 					"freed_tokens":    snapshot.SourceTokens - snapshot.SummaryTokens,
 					"kept_turns":      task.PreserveTurns,

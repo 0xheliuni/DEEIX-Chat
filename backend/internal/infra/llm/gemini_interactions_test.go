@@ -42,10 +42,10 @@ func TestBuildGeminiInteractionRequestBody(t *testing.T) {
 				{Kind: portllm.ContentPartImage, MimeType: "image/png", Data: []byte("image-bytes")},
 			},
 		}},
-		Options: map[string]interface{}{
-			"response_format": map[string]interface{}{"type": "video", "aspect_ratio": "16:9", "delivery": "b64_json"},
-			"generation_config": map[string]interface{}{
-				"video_config": map[string]interface{}{"task": "IMAGE_TO_VIDEO"},
+		Options: map[string]any{
+			"response_format": map[string]any{"type": "video", "aspect_ratio": "16:9", "delivery": "b64_json"},
+			"generation_config": map[string]any{
+				"video_config": map[string]any{"task": "IMAGE_TO_VIDEO"},
 			},
 			"input": "override",
 		},
@@ -56,7 +56,7 @@ func TestBuildGeminiInteractionRequestBody(t *testing.T) {
 	if payload["model"] != "gemini-omni-flash-preview" {
 		t.Fatalf("unexpected model: %#v", payload)
 	}
-	responseFormat, ok := payload["response_format"].(map[string]interface{})
+	responseFormat, ok := payload["response_format"].(map[string]any)
 	if !ok || responseFormat["type"] != "video" {
 		t.Fatalf("expected video response format, got %#v", payload["response_format"])
 	}
@@ -66,15 +66,15 @@ func TestBuildGeminiInteractionRequestBody(t *testing.T) {
 	if responseFormat["aspect_ratio"] != "16:9" {
 		t.Fatalf("expected response_format aspect ratio, got %#v", payload["response_format"])
 	}
-	config, ok := payload["generation_config"].(map[string]interface{})
+	config, ok := payload["generation_config"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected generation config, got %#v", payload["generation_config"])
 	}
-	videoConfig, ok := config["video_config"].(map[string]interface{})
+	videoConfig, ok := config["video_config"].(map[string]any)
 	if !ok || videoConfig["task"] != "image_to_video" {
 		t.Fatalf("expected video config task, got %#v", payload["generation_config"])
 	}
-	input, ok := payload["input"].([]map[string]interface{})
+	input, ok := payload["input"].([]map[string]any)
 	if !ok || len(input) != 2 {
 		t.Fatalf("expected text and image input parts, got %#v", payload["input"])
 	}
@@ -132,26 +132,26 @@ func TestBuildGeminiInteractionRequestBodySupportsUniversalOptionsAndTools(t *te
 				"required":["location"]
 			}`),
 		}},
-		Options: map[string]interface{}{
-			"response_format": []interface{}{
-				map[string]interface{}{
+		Options: map[string]any{
+			"response_format": []any{
+				map[string]any{
 					"type":      "text",
 					"mime_type": "application/json",
-					"schema": map[string]interface{}{
+					"schema": map[string]any{
 						"type": "object",
-						"properties": map[string]interface{}{
-							"summary": map[string]interface{}{"type": "string"},
+						"properties": map[string]any{
+							"summary": map[string]any{"type": "string"},
 						},
 					},
 				},
-				map[string]interface{}{
+				map[string]any{
 					"type":         "image",
 					"aspect_ratio": "1:1",
 					"image_size":   "1K",
 					"mime_type":    "image/jpeg",
 				},
 			},
-			"generation_config": map[string]interface{}{
+			"generation_config": map[string]any{
 				"temperature":        0.4,
 				"top_p":              0.9,
 				"max_output_tokens":  512,
@@ -163,7 +163,7 @@ func TestBuildGeminiInteractionRequestBodySupportsUniversalOptionsAndTools(t *te
 	if err != nil {
 		t.Fatalf("build Gemini interaction universal body: %v", err)
 	}
-	formats, ok := payload["response_format"].([]interface{})
+	formats, ok := payload["response_format"].([]any)
 	if !ok || len(formats) != 2 {
 		t.Fatalf("expected response_format array, got %#v", payload["response_format"])
 	}
@@ -178,18 +178,18 @@ func TestBuildGeminiInteractionRequestBodySupportsUniversalOptionsAndTools(t *te
 	if imageFormat["type"] != "image" || imageFormat["aspect_ratio"] != "1:1" || imageFormat["image_size"] != "1K" || imageFormat["mime_type"] != "image/jpeg" {
 		t.Fatalf("unexpected image response_format: %#v", imageFormat)
 	}
-	config, ok := payload["generation_config"].(map[string]interface{})
+	config, ok := payload["generation_config"].(map[string]any)
 	if !ok || config["temperature"] != 0.4 || config["top_p"] != 0.9 || config["max_output_tokens"] != 512 || config["thinking_level"] != "low" || config["thinking_summaries"] != "auto" {
 		t.Fatalf("unexpected generation_config: %#v", payload["generation_config"])
 	}
-	tools, ok := payload["tools"].([]map[string]interface{})
+	tools, ok := payload["tools"].([]map[string]any)
 	if !ok || len(tools) != 1 {
 		t.Fatalf("expected Interactions tool declaration, got %#v", payload["tools"])
 	}
 	if tools[0]["type"] != "function" || tools[0]["name"] != "get_weather" {
 		t.Fatalf("unexpected tool declaration: %#v", tools[0])
 	}
-	steps, ok := payload["input"].([]map[string]interface{})
+	steps, ok := payload["input"].([]map[string]any)
 	if !ok || len(steps) != 5 {
 		t.Fatalf("expected conversation steps with tool call/result, got %#v", payload["input"])
 	}
@@ -202,7 +202,7 @@ func TestBuildGeminiInteractionRequestBodySupportsUniversalOptionsAndTools(t *te
 	if steps[3]["call_id"] != "call_weather" {
 		t.Fatalf("expected function result call_id, got %#v", steps[3])
 	}
-	resultContent, ok := steps[3]["result"].([]map[string]interface{})
+	resultContent, ok := steps[3]["result"].([]map[string]any)
 	if !ok || len(resultContent) != 1 || resultContent[0]["type"] != "text" || resultContent[0]["text"] != `{"temperature":"20C"}` {
 		t.Fatalf("expected function result content blocks, got %#v", steps[3]["result"])
 	}
@@ -211,11 +211,11 @@ func TestBuildGeminiInteractionRequestBodySupportsUniversalOptionsAndTools(t *te
 func TestBuildGeminiInteractionRequestBodyMergesNativeAndFunctionTools(t *testing.T) {
 	input := portllm.GenerateInput{
 		Messages: []portllm.Message{{Role: "user", Content: "Research and calculate."}},
-		Options: map[string]interface{}{
-			"tools": []interface{}{
-				map[string]interface{}{"type": "google_search"},
-				map[string]interface{}{"type": "code_execution"},
-				map[string]interface{}{"type": "url_context"},
+		Options: map[string]any{
+			"tools": []any{
+				map[string]any{"type": "google_search"},
+				map[string]any{"type": "code_execution"},
+				map[string]any{"type": "url_context"},
 			},
 		},
 		Tools: []portllm.ToolDefinition{{
@@ -231,7 +231,7 @@ func TestBuildGeminiInteractionRequestBodyMergesNativeAndFunctionTools(t *testin
 	if err != nil {
 		t.Fatalf("build Gemini interaction request body: %v", err)
 	}
-	tools, ok := payload["tools"].([]map[string]interface{})
+	tools, ok := payload["tools"].([]map[string]any)
 	if !ok || len(tools) != 4 {
 		t.Fatalf("expected three native tools and one function, got %#v", payload["tools"])
 	}
@@ -283,11 +283,11 @@ func TestBuildGeminiInteractionToolsPreservesJSONSchemaReferences(t *testing.T) 
 		t.Fatalf("build Gemini interaction request body: %v", err)
 	}
 
-	tools, ok := payload["tools"].([]map[string]interface{})
+	tools, ok := payload["tools"].([]map[string]any)
 	if !ok || len(tools) != 1 {
 		t.Fatalf("expected one Interactions tool, got %#v", payload["tools"])
 	}
-	parameters, ok := tools[0]["parameters"].(map[string]interface{})
+	parameters, ok := tools[0]["parameters"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected native JSON Schema parameters, got %#v", tools[0])
 	}
@@ -310,8 +310,8 @@ func TestBuildGeminiInteractionRequestBodyAcceptsTypedResponseFormatList(t *test
 		UpstreamModel: "gemini-3-flash-preview",
 	}, portllm.GenerateInput{
 		Messages: []portllm.Message{{Role: "user", Content: "Return text and image."}},
-		Options: map[string]interface{}{
-			"response_format": []map[string]interface{}{
+		Options: map[string]any{
+			"response_format": []map[string]any{
 				{"type": "text"},
 				{"type": "image", "image_size": "2K"},
 			},
@@ -320,7 +320,7 @@ func TestBuildGeminiInteractionRequestBodyAcceptsTypedResponseFormatList(t *test
 	if err != nil {
 		t.Fatalf("build Gemini interaction typed response format body: %v", err)
 	}
-	formats, ok := payload["response_format"].([]interface{})
+	formats, ok := payload["response_format"].([]any)
 	if !ok || len(formats) != 2 {
 		t.Fatalf("expected response_format array, got %#v", payload["response_format"])
 	}
@@ -336,10 +336,10 @@ func TestBuildGeminiInteractionRequestBodyNormalizesVideoOptions(t *testing.T) {
 		UpstreamModel: "gemini-omni-flash-preview",
 	}, portllm.GenerateInput{
 		Messages: []portllm.Message{{Role: "user", Content: "Edit this video."}},
-		Options: map[string]interface{}{
-			"response_format": map[string]interface{}{"type": "video", "aspect_ratio": "1:1"},
-			"generation_config": map[string]interface{}{
-				"video_config": map[string]interface{}{"task": "edit"},
+		Options: map[string]any{
+			"response_format": map[string]any{"type": "video", "aspect_ratio": "1:1"},
+			"generation_config": map[string]any{
+				"video_config": map[string]any{"task": "edit"},
 			},
 		},
 	})
@@ -378,7 +378,7 @@ func TestBuildGeminiInteractionRequestBodyUsesConversationSteps(t *testing.T) {
 	if payload["system_instruction"] != "Be concise." || payload["previous_interaction_id"] != "interaction-prev" {
 		t.Fatalf("expected instruction and previous interaction id, got %#v", payload)
 	}
-	steps, ok := payload["input"].([]map[string]interface{})
+	steps, ok := payload["input"].([]map[string]any)
 	if !ok || len(steps) != 3 {
 		t.Fatalf("expected conversation steps, got %#v", payload["input"])
 	}
@@ -697,7 +697,7 @@ func TestParseGeminiInteractionOutputPreservesNativeToolFailure(t *testing.T) {
 
 func TestGenerateGeminiInteractionPostsInteractionsRequest(t *testing.T) {
 	var capturedPath string
-	var capturedPayload map[string]interface{}
+	var capturedPayload map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedPath = r.URL.Path
 		if !strings.HasSuffix(capturedPath, "/v1beta/interactions") {
@@ -723,7 +723,7 @@ func TestGenerateGeminiInteractionPostsInteractionsRequest(t *testing.T) {
 		UpstreamModel: "gemini-omni-flash-preview",
 	}, portllm.GenerateInput{
 		Messages: []portllm.Message{{Role: "user", Content: "Make a short video"}},
-		Options:  map[string]interface{}{"response_format": map[string]interface{}{"type": "video"}},
+		Options:  map[string]any{"response_format": map[string]any{"type": "video"}},
 	})
 	if err != nil {
 		t.Fatalf("generate Gemini interaction: %v", err)
@@ -737,7 +737,7 @@ func TestGenerateGeminiInteractionPostsInteractionsRequest(t *testing.T) {
 }
 
 func TestGenerateGeminiInteractionStreamPostsStreamRequest(t *testing.T) {
-	var capturedPayload map[string]interface{}
+	var capturedPayload map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasSuffix(r.URL.Path, "/v1beta/interactions") {
 			t.Fatalf("unexpected request path: %s", r.URL.Path)
@@ -876,12 +876,12 @@ data: [DONE]
 func TestParseGeminiInteractionUsageReadsOfficialStepShapes(t *testing.T) {
 	tests := []struct {
 		name    string
-		payload map[string]interface{}
+		payload map[string]any
 	}{
 		{
 			name: "accumulated step usage",
-			payload: map[string]interface{}{
-				"usage": map[string]interface{}{
+			payload: map[string]any{
+				"usage": map[string]any{
 					"total_input_tokens":  float64(8),
 					"total_cached_tokens": float64(3),
 					"total_output_tokens": float64(5),
@@ -890,9 +890,9 @@ func TestParseGeminiInteractionUsageReadsOfficialStepShapes(t *testing.T) {
 		},
 		{
 			name: "delta metadata total usage",
-			payload: map[string]interface{}{
-				"metadata": map[string]interface{}{
-					"total_usage": map[string]interface{}{
+			payload: map[string]any{
+				"metadata": map[string]any{
+					"total_usage": map[string]any{
 						"total_input_tokens":   float64(8),
 						"total_cached_tokens":  float64(3),
 						"total_output_tokens":  float64(5),
@@ -946,16 +946,16 @@ func TestParseGeminiInteractionOutputExtractsOfficialServerToolSteps(t *testing.
 func TestGeminiInteractionStreamToolCallKeepsStepStartArgumentsWithoutDeltas(t *testing.T) {
 	result := &portllm.GenerateOutput{}
 	state := &geminiInteractionStreamState{}
-	updateGeminiInteractionStreamToolCall(result, state, map[string]interface{}{
+	updateGeminiInteractionStreamToolCall(result, state, map[string]any{
 		"index": float64(0),
-		"step": map[string]interface{}{
+		"step": map[string]any{
 			"type":      "function_call",
 			"id":        "call-1",
 			"name":      "lookup",
-			"arguments": map[string]interface{}{"query": "weather"},
+			"arguments": map[string]any{"query": "weather"},
 		},
 	}, "step.start")
-	updateGeminiInteractionStreamToolCall(result, state, map[string]interface{}{
+	updateGeminiInteractionStreamToolCall(result, state, map[string]any{
 		"index": float64(0),
 	}, "step.stop")
 	if len(result.ToolCalls) != 1 || result.ToolCalls[0].ArgumentsJSON != `{"query":"weather"}` {

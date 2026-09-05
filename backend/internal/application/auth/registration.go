@@ -112,7 +112,7 @@ type passwordResetAuditInput struct {
 	Reason       string
 	Email        string
 	AuditContext requestmeta.SessionAuditContext
-	Detail       map[string]interface{}
+	Detail       map[string]any
 }
 
 type requestEmailVerificationCodeInput struct {
@@ -195,7 +195,7 @@ func (s *Service) RequestEmailRegistration(ctx context.Context, email string, tu
 			Result:    "success",
 			ClientIP:  normalizedAuditCtx.ClientIP,
 			UserAgent: normalizedAuditCtx.UserAgent,
-			DetailJSON: marshalAuthEventDetail(map[string]interface{}{
+			DetailJSON: marshalAuthEventDetail(map[string]any{
 				"email":           normalizedEmail,
 				"verification_id": created.ID,
 				"expires_at":      expiresAt,
@@ -311,7 +311,7 @@ func (s *Service) RegisterWithEmail(ctx context.Context, input RegisterWithEmail
 			Result:    "success",
 			ClientIP:  normalizedAuditCtx.ClientIP,
 			UserAgent: normalizedAuditCtx.UserAgent,
-			DetailJSON: marshalAuthEventDetail(map[string]interface{}{
+			DetailJSON: marshalAuthEventDetail(map[string]any{
 				"email":      normalizedEmail,
 				"session_id": result.SessionID,
 			}),
@@ -394,7 +394,7 @@ func (s *Service) RequestPasswordChangeVerification(ctx context.Context, userID 
 			Result:    "success",
 			ClientIP:  normalizedAuditCtx.ClientIP,
 			UserAgent: normalizedAuditCtx.UserAgent,
-			DetailJSON: marshalAuthEventDetail(map[string]interface{}{
+			DetailJSON: marshalAuthEventDetail(map[string]any{
 				"email":           normalizedEmail,
 				"verification_id": created.ID,
 				"expires_at":      expiresAt,
@@ -488,7 +488,7 @@ func (s *Service) ChangePassword(ctx context.Context, input ChangePasswordInput)
 			Result:    "success",
 			ClientIP:  normalizedAuditCtx.ClientIP,
 			UserAgent: normalizedAuditCtx.UserAgent,
-			DetailJSON: marshalAuthEventDetail(map[string]interface{}{
+			DetailJSON: marshalAuthEventDetail(map[string]any{
 				"email": normalizedEmail,
 			}),
 		},
@@ -583,7 +583,7 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email string, reques
 		Result:       "success",
 		Email:        normalizedEmail,
 		AuditContext: auditCtx,
-		Detail:       map[string]interface{}{"verification_id": created.ID, "expires_at": expiresAt},
+		Detail:       map[string]any{"verification_id": created.ID, "expires_at": expiresAt},
 	})
 	return &PasswordResetStartResult{
 		Sent:      true,
@@ -703,7 +703,7 @@ func inactivePasswordResetStartResult() *PasswordResetStartResult {
 }
 
 func (s *Service) recordPasswordResetEvent(ctx context.Context, input passwordResetAuditInput) {
-	detail := map[string]interface{}{"email_hash": hashAuditEmail(input.Email)}
+	detail := map[string]any{"email_hash": hashAuditEmail(input.Email)}
 	for key, value := range input.Detail {
 		detail[key] = value
 	}
@@ -1246,7 +1246,7 @@ func (s *Service) requestEmailVerificationCode(ctx context.Context, input reques
 			Result:    "success",
 			ClientIP:  normalizedAuditCtx.ClientIP,
 			UserAgent: normalizedAuditCtx.UserAgent,
-			DetailJSON: marshalAuthEventDetail(map[string]interface{}{
+			DetailJSON: marshalAuthEventDetail(map[string]any{
 				"email":           input.Target,
 				"verification_id": created.ID,
 				"expires_at":      expiresAt,
@@ -1306,7 +1306,7 @@ func (s *Service) recordEmailSecurityEvent(ctx context.Context, userID uint, req
 			Result:    "success",
 			ClientIP:  normalizedAuditCtx.ClientIP,
 			UserAgent: normalizedAuditCtx.UserAgent,
-			DetailJSON: marshalAuthEventDetail(map[string]interface{}{
+			DetailJSON: marshalAuthEventDetail(map[string]any{
 				"email": email,
 			}),
 		},

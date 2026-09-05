@@ -115,7 +115,7 @@ func TestStreamingThinkInflightPersistenceWritesRoundIdentityAndStaysThrottled(t
 func TestStreamingToolUpdatesKeepLatestSnapshotAndThrottleSideEffects(t *testing.T) {
 	recorder, stub := newSnapshotRecorder(true)
 	emitted := 0
-	recorder.onEvent = func(eventType string, _ map[string]interface{}) error {
+	recorder.onEvent = func(eventType string, _ map[string]any) error {
 		if eventType == "process_update" {
 			emitted++
 		}

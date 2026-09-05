@@ -432,7 +432,7 @@ func (r *Repo) ReplaceActiveConversationShare(ctx context.Context, item *domainc
 		now := time.Now().UTC()
 		if err := tx.Model(&models.ConversationShare{}).
 			Where("user_id = ? AND conversation_id = ? AND status = ?", item.UserID, item.ConversationID, "active").
-			Updates(map[string]interface{}{
+			Updates(map[string]any{
 				"status":     "revoked",
 				"revoked_at": now,
 				"updated_at": now,
@@ -461,7 +461,7 @@ func (r *Repo) RevokeActiveConversationShares(ctx context.Context, userID uint, 
 	return dberror.Translate(r.db.WithContext(ctx).
 		Model(&models.ConversationShare{}).
 		Where("user_id = ? AND conversation_id IN ? AND status = ?", userID, conversationIDs, "active").
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"status":     "revoked",
 			"revoked_at": now,
 			"updated_at": now,
@@ -499,7 +499,7 @@ func (r *Repo) UpdateConversationTitleByPublicID(
 
 // UpdateConversationMetadata 更新自动生成的会话元数据。
 func (r *Repo) UpdateConversationMetadata(ctx context.Context, conversationID uint, patch repository.ConversationMetadataPatch) (*domainconversation.Conversation, error) {
-	updates := map[string]interface{}{}
+	updates := map[string]any{}
 	if strings.TrimSpace(patch.Title) != "" {
 		replaceable := []string{"new chat", "新对话"}
 		for _, item := range patch.ReplaceableTitles {
@@ -547,7 +547,7 @@ func (r *Repo) UpdateConversationLabelsByPublicID(
 	result := r.db.WithContext(ctx).
 		Model(&models.Conversation{}).
 		Where("user_id = ? AND public_id = ?", userID, publicID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"labels_json":             strings.TrimSpace(labelsJSON),
 			"labels_manually_managed": true,
 		})
@@ -602,7 +602,7 @@ func (r *Repo) UpdateConversationStarByPublicID(
 		return current, nil
 	}
 
-	var starredAt interface{}
+	var starredAt any
 	if starred {
 		now := time.Now().UTC()
 		starredAt = &now
@@ -613,7 +613,7 @@ func (r *Repo) UpdateConversationStarByPublicID(
 	result := r.db.WithContext(ctx).
 		Model(&models.Conversation{}).
 		Where("user_id = ? AND public_id = ?", userID, publicID).
-		UpdateColumns(map[string]interface{}{
+		UpdateColumns(map[string]any{
 			"is_starred": starred,
 			"starred_at": starredAt,
 		})
@@ -821,7 +821,7 @@ func (r *Repo) UpdateConversationCompactedAt(ctx context.Context, conversationID
 	return dberror.Translate(r.db.WithContext(ctx).
 		Model(&models.Conversation{}).
 		Where("id = ?", conversationID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"last_compacted_at": compactedAt,
 		}).
 		Error)
@@ -829,7 +829,7 @@ func (r *Repo) UpdateConversationCompactedAt(ctx context.Context, conversationID
 
 // UpdateConversationLastResponseID 更新会话最近响应 ID。
 func (r *Repo) UpdateConversationLastResponseID(ctx context.Context, conversationID uint, responseID string) error {
-	updates := map[string]interface{}{"last_response_id": responseID}
+	updates := map[string]any{"last_response_id": responseID}
 	if strings.TrimSpace(responseID) == "" {
 		updates["last_prompt_fingerprint"] = ""
 	}
@@ -845,7 +845,7 @@ func (r *Repo) UpdateConversationStatefulResponse(ctx context.Context, conversat
 	return dberror.Translate(r.db.WithContext(ctx).
 		Model(&models.Conversation{}).
 		Where("id = ?", conversationID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"last_response_id":        responseID,
 			"last_prompt_fingerprint": promptFingerprint,
 		}).
@@ -857,7 +857,7 @@ func (r *Repo) UpdateConversationModel(ctx context.Context, conversationID uint,
 	return dberror.Translate(r.db.WithContext(ctx).
 		Model(&models.Conversation{}).
 		Where("id = ?", conversationID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"model":    platformModelName,
 			"provider": provider,
 		}).
@@ -1046,7 +1046,7 @@ func (r *Repo) UpdateMessageUsage(
 	return dberror.Translate(r.db.WithContext(ctx).
 		Model(&models.Message{}).
 		Where("id = ?", messageID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"token_usage":        tokenUsage,
 			"input_tokens":       usage.InputTokens,
 			"output_tokens":      usage.OutputTokens,
@@ -1068,7 +1068,7 @@ func (r *Repo) UpdateMessageState(
 	return dberror.Translate(r.db.WithContext(ctx).
 		Model(&models.Message{}).
 		Where("id = ?", messageID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"status":        status,
 			"error_code":    errorCode,
 			"error_message": errorMessage,
@@ -1098,7 +1098,7 @@ func (r *Repo) UpdateAssistantMessageContent(
 		}
 		if err := tx.Model(&models.Message{}).
 			Where("id = ?", item.ID).
-			Updates(map[string]interface{}{
+			Updates(map[string]any{
 				"content":   content,
 				"edited_at": editedAt,
 			}).Error; err != nil {
@@ -1140,7 +1140,7 @@ func (r *Repo) CancelPendingGenerationMessagesByRunID(
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		userResult := tx.Model(&models.Message{}).
 			Where("user_id = ? AND run_id = ? AND role = ? AND status = ?", userID, normalizedRunID, "user", "pending").
-			Updates(map[string]interface{}{
+			Updates(map[string]any{
 				"status":        "success",
 				"error_code":    "",
 				"error_message": "",
@@ -1150,7 +1150,7 @@ func (r *Repo) CancelPendingGenerationMessagesByRunID(
 		}
 		assistantResult := tx.Model(&models.Message{}).
 			Where("user_id = ? AND run_id = ? AND role = ? AND status = ?", userID, normalizedRunID, "assistant", "pending").
-			Updates(map[string]interface{}{
+			Updates(map[string]any{
 				"status":        "canceled",
 				"error_code":    normalizedErrorCode,
 				"error_message": normalizedErrorMessage,
@@ -1178,7 +1178,7 @@ func (r *Repo) InterruptPendingAssistantMessageByRunID(
 	result := r.db.WithContext(ctx).
 		Model(&models.Message{}).
 		Where("user_id = ? AND run_id = ? AND role = ? AND status = ?", userID, strings.TrimSpace(runID), "assistant", "pending").
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"status":        "error",
 			"error_code":    strings.TrimSpace(errorCode),
 			"error_message": truncateText(strings.TrimSpace(errorMessage), 255),
@@ -1202,7 +1202,7 @@ func (r *Repo) UpdateAssistantMessageCompletion(
 	if update.LatencyMS < 0 {
 		update.LatencyMS = 0
 	}
-	updates := map[string]interface{}{
+	updates := map[string]any{
 		"content":            update.Content,
 		"reasoning_content":  update.ReasoningContent,
 		"token_usage":        tokenUsage,
@@ -1257,7 +1257,7 @@ func (r *Repo) CompleteAssistantMessageWithAttachments(
 		}
 		if err := tx.Model(&models.Message{}).
 			Where("id = ?", userMessageID).
-			Updates(map[string]interface{}{
+			Updates(map[string]any{
 				"token_usage":        userTokenUsage,
 				"input_tokens":       userUsage.InputTokens,
 				"output_tokens":      userUsage.OutputTokens,
@@ -1276,7 +1276,7 @@ func (r *Repo) CompleteAssistantMessageWithAttachments(
 		if latencyMS < 0 {
 			latencyMS = 0
 		}
-		updates := map[string]interface{}{
+		updates := map[string]any{
 			"content":            assistantCompletion.Content,
 			"reasoning_content":  assistantCompletion.ReasoningContent,
 			"token_usage":        assistantTokenUsage,
@@ -1333,7 +1333,7 @@ func (r *Repo) CompleteAssistantMessageWithGeneratedAttachments(
 		if latencyMS < 0 {
 			latencyMS = 0
 		}
-		updates := map[string]interface{}{
+		updates := map[string]any{
 			"content":            assistantCompletion.Content,
 			"reasoning_content":  assistantCompletion.ReasoningContent,
 			"token_usage":        assistantTokenUsage,
@@ -1367,7 +1367,7 @@ func (r *Repo) UpdateMessageBilling(ctx context.Context, messageID uint, billedC
 	return dberror.Translate(r.db.WithContext(ctx).
 		Model(&models.Message{}).
 		Where("id = ?", messageID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"billed_currency":  billedCurrency,
 			"billed_nanousd":   billedNanousd,
 			"pricing_snapshot": pricingSnapshot,
@@ -2541,7 +2541,7 @@ func (r *Repo) GetLatestActiveFileObjectBySHA(
 	return &result, nil
 }
 
-func buildFileKindWhereClause(filterKind string) (string, []interface{}) {
+func buildFileKindWhereClause(filterKind string) (string, []any) {
 	normalized := strings.ToLower(strings.TrimSpace(filterKind))
 	if normalized == "" || normalized == "all" {
 		return "", nil
@@ -2549,7 +2549,7 @@ func buildFileKindWhereClause(filterKind string) (string, []interface{}) {
 
 	parts := strings.Split(normalized, ",")
 	conditions := make([]string, 0, len(parts))
-	args := make([]interface{}, 0, len(parts)*8)
+	args := make([]any, 0, len(parts)*8)
 	seen := make(map[string]struct{}, len(parts))
 
 	for _, part := range parts {
@@ -2577,16 +2577,16 @@ func buildFileKindWhereClause(filterKind string) (string, []interface{}) {
 	return "(" + strings.Join(conditions, " OR ") + ")", args
 }
 
-func buildSingleFileKindWhereClause(filterKind string) (string, []interface{}) {
+func buildSingleFileKindWhereClause(filterKind string) (string, []any) {
 	switch filterKind {
 	case "image":
-		return "LOWER(mime_type) LIKE ?", []interface{}{"image/%"}
+		return "LOWER(mime_type) LIKE ?", []any{"image/%"}
 	case "audio":
-		return "LOWER(mime_type) LIKE ?", []interface{}{"audio/%"}
+		return "LOWER(mime_type) LIKE ?", []any{"audio/%"}
 	case "video":
-		return "LOWER(mime_type) LIKE ?", []interface{}{"video/%"}
+		return "LOWER(mime_type) LIKE ?", []any{"video/%"}
 	case "pdf":
-		return "(LOWER(mime_type) = ? OR LOWER(file_name) LIKE ?)", []interface{}{"application/pdf", "%.pdf"}
+		return "(LOWER(mime_type) = ? OR LOWER(file_name) LIKE ?)", []any{"application/pdf", "%.pdf"}
 	case "spreadsheet":
 		return "(" + strings.Join([]string{
 				"LOWER(mime_type) LIKE ?",
@@ -2596,7 +2596,7 @@ func buildSingleFileKindWhereClause(filterKind string) (string, []interface{}) {
 				"LOWER(file_name) LIKE ?",
 				"LOWER(file_name) LIKE ?",
 				"LOWER(file_name) LIKE ?",
-			}, " OR ") + ")", []interface{}{
+			}, " OR ") + ")", []any{
 				"%spreadsheet%",
 				"%excel%",
 				"%csv%",
@@ -2612,7 +2612,7 @@ func buildSingleFileKindWhereClause(filterKind string) (string, []interface{}) {
 				"LOWER(file_name) LIKE ?",
 				"LOWER(file_name) LIKE ?",
 				"LOWER(file_name) LIKE ?",
-			}, " OR ") + ")", []interface{}{
+			}, " OR ") + ")", []any{
 				"%presentation%",
 				"%powerpoint%",
 				"%.ppt",
@@ -2629,7 +2629,7 @@ func buildSingleFileKindWhereClause(filterKind string) (string, []interface{}) {
 				"LOWER(file_name) LIKE ?",
 				"LOWER(file_name) LIKE ?",
 				"LOWER(file_name) LIKE ?",
-			}, " OR ") + ")", []interface{}{
+			}, " OR ") + ")", []any{
 				"%word%",
 				"%rtf%",
 				"%opendocument.text%",
@@ -2667,7 +2667,7 @@ func buildSingleFileKindWhereClause(filterKind string) (string, []interface{}) {
 				"LOWER(file_name) LIKE ?",
 				"LOWER(file_name) LIKE ?",
 				"LOWER(file_name) LIKE ?",
-			}, " OR ") + ")", []interface{}{
+			}, " OR ") + ")", []any{
 				"text/%",
 				"%json%",
 				"%javascript%",
@@ -2785,7 +2785,7 @@ func (r *Repo) DeleteFileObjectAndReleaseQuota(
 
 		if err = tx.Model(&models.FileObject{}).
 			Where("id = ?", deletedFile.ID).
-			Updates(map[string]interface{}{
+			Updates(map[string]any{
 				"status": "deleted",
 			}).Error; err != nil {
 			return dberror.Translate(err)
@@ -2910,7 +2910,7 @@ func (r *Repo) QueueFileEmbedding(ctx context.Context, userID uint, fileID strin
 		Model(&models.FileObject{}).
 		Where("user_id = ? AND file_id = ? AND status = ?", userID, fileID, "active").
 		Where("NOT (embed_signature = ? AND embed_status IN ?)", embeddingSignature, []string{"queued", "processing", "ready"}).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"embed_status":    "queued",
 			"embed_signature": embeddingSignature,
 			"embed_error":     "",
@@ -2930,7 +2930,7 @@ func (r *Repo) ClaimFileEmbedding(ctx context.Context, userID uint, fileID strin
 		Model(&models.FileObject{}).
 		Where("user_id = ? AND file_id = ? AND status = ?", userID, fileID, "active").
 		Where("NOT (embed_signature = ? AND embed_status IN ?)", embeddingSignature, []string{"processing", "ready"}).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"embed_status":    "processing",
 			"embed_signature": embeddingSignature,
 			"embed_error":     "",
@@ -2943,7 +2943,7 @@ func (r *Repo) UpdateFileObjectEmbedStatus(ctx context.Context, userID uint, fil
 	result := r.db.WithContext(ctx).
 		Model(&models.FileObject{}).
 		Where("user_id = ? AND file_id = ? AND status = ? AND embed_signature = ?", userID, fileID, "active", strings.TrimSpace(embeddingSignature)).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"embed_status": status,
 			"embed_error":  embedErr,
 		})
@@ -2970,7 +2970,7 @@ func (r *Repo) CloneFileEmbeddingArtifacts(ctx context.Context, source *domainco
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&models.FileObject{}).
 			Where("id = ?", targetEntity.ID).
-			Updates(map[string]interface{}{
+			Updates(map[string]any{
 				"embed_status":    "ready",
 				"embed_signature": sourceEntity.EmbedSignature,
 				"embed_error":     "",
@@ -3715,9 +3715,9 @@ func (r *Repo) hydrateMessageAttachments(ctx context.Context, items []models.Mes
 		return dberror.Translate(err)
 	}
 
-	grouped := make(map[uint][]map[string]interface{}, len(rows))
+	grouped := make(map[uint][]map[string]any, len(rows))
 	for _, row := range rows {
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"file_id":                  row.FileID,
 			"kind":                     row.Kind,
 			"file_name":                row.FileName,
@@ -4546,11 +4546,11 @@ func toFileObjectProcessingStateDomain(item models.FileObject) domainconversatio
 	}
 }
 
-func fileObjectProcessingStateUpdates(item *domainconversation.FileObjectProcessing) map[string]interface{} {
+func fileObjectProcessingStateUpdates(item *domainconversation.FileObjectProcessing) map[string]any {
 	if item == nil {
-		return map[string]interface{}{}
+		return map[string]any{}
 	}
-	return map[string]interface{}{
+	return map[string]any{
 		"detected_mime":            item.DetectedMIME,
 		"file_category":            item.FileCategory,
 		"processing_status":        item.ProcessingStatus,
@@ -4897,7 +4897,7 @@ func (r *Repo) MarkEmbeddedFilesStale(ctx context.Context, activeSignature strin
 			WHERE file_chunks.file_obj_id = file_objects.id
 				AND file_chunks.embedding_signature = ?
 		)`, activeSignature).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"embed_status": "stale",
 			"embed_error":  "embedding configuration changed, reindex required",
 		})
@@ -4922,7 +4922,7 @@ func (r *Repo) MarkTimedOutFileEmbeddingsFailed(ctx context.Context, userID uint
 	result := r.db.WithContext(ctx).
 		Model(&models.FileObject{}).
 		Where("user_id = ? AND status = ? AND embed_status = ? AND updated_at < ?", userID, "active", "processing", cutoff).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"embed_status":             "failed",
 			"embed_error":              truncateText(message, 255),
 			"processing_status":        gorm.Expr("CASE WHEN processing_status = ? THEN ? ELSE processing_status END", "embedding", "ready"),

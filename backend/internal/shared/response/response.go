@@ -9,20 +9,20 @@ import (
 
 // Envelope 是统一接口响应体。
 type Envelope struct {
-	ErrorMsg  string      `json:"errorMsg"`
-	ErrorCode string      `json:"errorCode,omitempty"`
-	Details   interface{} `json:"details,omitempty"`
-	RequestID string      `json:"requestId,omitempty"`
-	Data      interface{} `json:"data"`
+	ErrorMsg  string `json:"errorMsg"`
+	ErrorCode string `json:"errorCode,omitempty"`
+	Details   any    `json:"details,omitempty"`
+	RequestID string `json:"requestId,omitempty"`
+	Data      any    `json:"data"`
 }
 
 // SuccessDoc 用于 swagger 标注通用成功响应。
 type SuccessDoc struct {
-	ErrorMsg  string      `json:"errorMsg" example:""`
-	ErrorCode string      `json:"errorCode,omitempty" example:""`
-	Details   interface{} `json:"details,omitempty"`
-	RequestID string      `json:"requestId,omitempty" example:""`
-	Data      interface{} `json:"data"`
+	ErrorMsg  string `json:"errorMsg" example:""`
+	ErrorCode string `json:"errorCode,omitempty" example:""`
+	Details   any    `json:"details,omitempty"`
+	RequestID string `json:"requestId,omitempty" example:""`
+	Data      any    `json:"data"`
 }
 
 // PageData 是分页响应数据。
@@ -32,7 +32,7 @@ type PageData[T any] struct {
 }
 
 // Success 返回成功响应。
-func Success(c *gin.Context, data interface{}) {
+func Success(c *gin.Context, data any) {
 	c.JSON(http.StatusOK, Envelope{
 		ErrorMsg: "",
 		Data:     data,
@@ -97,12 +97,12 @@ func ErrorWithCode(c *gin.Context, status int, code string) {
 }
 
 // ErrorWithDetails 写出响应边界登记的稳定错误码及结构化详情。
-func ErrorWithDetails(c *gin.Context, status int, code string, details interface{}) {
+func ErrorWithDetails(c *gin.Context, status int, code string, details any) {
 	description := DescribeCode(status, code)
 	write(c, description.Status, description.Code, description.Message, details)
 }
 
-func write(c *gin.Context, status int, code string, message string, details interface{}) {
+func write(c *gin.Context, status int, code string, message string, details any) {
 	c.JSON(status, Envelope{
 		ErrorMsg:  message,
 		ErrorCode: code,

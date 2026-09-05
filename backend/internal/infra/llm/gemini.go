@@ -120,7 +120,7 @@ func normalizeGeminiEndpointBaseURL(baseURL string) string {
 
 // buildGeminiRequestBody 构造 GenerateContentRequest。
 // system role 消息被提取为顶层 systemInstruction；其余消息映射为 contents。
-func buildGeminiRequestBody(input portllm.GenerateInput) (map[string]interface{}, error) {
+func buildGeminiRequestBody(input portllm.GenerateInput) (map[string]any, error) {
 	messages := normalizeMessages(input.Messages)
 	providerTools, toolDefinitions, toolsEnabled, err := toolDeclarationsForInput(input)
 	if err != nil {
@@ -128,8 +128,8 @@ func buildGeminiRequestBody(input portllm.GenerateInput) (map[string]interface{}
 	}
 
 	var systemTextParts []string
-	contents := make([]map[string]interface{}, 0, len(messages))
-	generationConfig := map[string]interface{}{}
+	contents := make([]map[string]any, 0, len(messages))
+	generationConfig := map[string]any{}
 
 	for _, msg := range messages {
 		if msg.Role == "system" {
@@ -138,13 +138,13 @@ func buildGeminiRequestBody(input portllm.GenerateInput) (map[string]interface{}
 			}
 			continue
 		}
-		contents = append(contents, map[string]interface{}{
+		contents = append(contents, map[string]any{
 			"role":  toGeminiRole(msg.Role),
 			"parts": buildGeminiParts(msg),
 		})
 	}
 
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"contents": contents,
 	}
 	applyGeminiRootOptions(payload, input.Options)
@@ -153,16 +153,16 @@ func buildGeminiRequestBody(input portllm.GenerateInput) (map[string]interface{}
 		payload["generationConfig"] = generationConfig
 	}
 	providerTools = buildGeminiProviderTools(providerTools)
-	webSearchTools := []map[string]interface{}{}
+	webSearchTools := []map[string]any{}
 	if toolsEnabled && modelParamBool(input.Options, "web_search") {
-		webSearchTools = append(webSearchTools, map[string]interface{}{"google_search": map[string]interface{}{}})
+		webSearchTools = append(webSearchTools, map[string]any{"google_search": map[string]any{}})
 	}
 	appendToolDeclarations(payload, providerTools, webSearchTools, buildGeminiTools(toolDefinitions))
 	applyGeminiToolConfigDefaults(payload, len(providerTools)+len(webSearchTools) > 0)
 
 	if len(systemTextParts) > 0 {
-		payload["systemInstruction"] = map[string]interface{}{
-			"parts": []map[string]interface{}{
+		payload["systemInstruction"] = map[string]any{
+			"parts": []map[string]any{
 				{"text": strings.Join(systemTextParts, "\n\n")},
 			},
 		}
@@ -172,13 +172,13 @@ func buildGeminiRequestBody(input portllm.GenerateInput) (map[string]interface{}
 	return payload, nil
 }
 
-func applyGeminiToolConfigDefaults(payload map[string]interface{}, hasServerSideTools bool) {
+func applyGeminiToolConfigDefaults(payload map[string]any, hasServerSideTools bool) {
 	if !hasServerSideTools {
 		return
 	}
 	toolConfig := asMap(payload["toolConfig"])
 	if len(toolConfig) == 0 {
-		toolConfig = map[string]interface{}{}
+		toolConfig = map[string]any{}
 	}
 	if _, ok := toolConfig["includeServerSideToolInvocations"]; !ok {
 		toolConfig["includeServerSideToolInvocations"] = true
@@ -255,7 +255,7 @@ func geminiProtectedProviderOptionKeys() []string {
 	}
 }
 
-func applyGeminiRootOptions(payload map[string]interface{}, options map[string]interface{}) {
+func applyGeminiRootOptions(payload map[string]any, options map[string]any) {
 	if len(options) == 0 {
 		return
 	}
@@ -266,11 +266,11 @@ func applyGeminiRootOptions(payload map[string]interface{}, options map[string]i
 	copyGeminiOption(payload, options, "store", "store")
 }
 
-func applyGeminiGenerationOptions(generationConfig map[string]interface{}, options map[string]interface{}) {
+func applyGeminiGenerationOptions(generationConfig map[string]any, options map[string]any) {
 	if len(options) == 0 {
 		return
 	}
-	for _, raw := range []map[string]interface{}{modelParamMap(options, "generationConfig"), modelParamMap(options, "generation_config")} {
+	for _, raw := range []map[string]any{modelParamMap(options, "generationConfig"), modelParamMap(options, "generation_config")} {
 		for key, value := range raw {
 			if strings.TrimSpace(key) != "" {
 				generationConfig[key] = value
@@ -324,7 +324,7 @@ func applyGeminiGenerationOptions(generationConfig map[string]interface{}, optio
 	applyGeminiThinkingConfig(generationConfig, options)
 }
 
-func applyGeminiResponseFormat(generationConfig map[string]interface{}, options map[string]interface{}) {
+func applyGeminiResponseFormat(generationConfig map[string]any, options map[string]any) {
 	if len(options) == 0 {
 		return
 	}
@@ -377,7 +377,7 @@ func geminiResponseMimeType(format string) string {
 	}
 }
 
-func geminiSchemaFromResponseFormat(format map[string]interface{}) map[string]interface{} {
+func geminiSchemaFromResponseFormat(format map[string]any) map[string]any {
 	if schema := asMap(format["schema"]); len(schema) > 0 {
 		return schema
 	}
@@ -391,8 +391,8 @@ func geminiSchemaFromResponseFormat(format map[string]interface{}) map[string]in
 	return nil
 }
 
-func applyGeminiThinkingConfig(generationConfig map[string]interface{}, options map[string]interface{}) {
-	thinkingConfig := map[string]interface{}{}
+func applyGeminiThinkingConfig(generationConfig map[string]any, options map[string]any) {
+	thinkingConfig := map[string]any{}
 	for key, value := range asMap(generationConfig["thinkingConfig"]) {
 		if strings.TrimSpace(key) != "" {
 			thinkingConfig[key] = value
@@ -402,7 +402,7 @@ func applyGeminiThinkingConfig(generationConfig map[string]interface{}, options 
 	switch thinking := options["thinking"].(type) {
 	case bool:
 		thinkingConfig["includeThoughts"] = thinking
-	case map[string]interface{}:
+	case map[string]any:
 		mergeGeminiThinkingConfig(thinkingConfig, thinking)
 	}
 	if value, ok := firstGeminiBoolOption(options, "include_thoughts", "includeThoughts"); ok {
@@ -419,7 +419,7 @@ func applyGeminiThinkingConfig(generationConfig map[string]interface{}, options 
 	}
 }
 
-func mergeGeminiThinkingConfig(dst map[string]interface{}, raw map[string]interface{}) {
+func mergeGeminiThinkingConfig(dst map[string]any, raw map[string]any) {
 	for key, value := range raw {
 		switch key {
 		case "includeThoughts", "thinkingBudget", "thinkingLevel":
@@ -445,7 +445,7 @@ func mergeGeminiThinkingConfig(dst map[string]interface{}, raw map[string]interf
 	}
 }
 
-func copyGeminiOption(dst map[string]interface{}, options map[string]interface{}, target string, aliases ...string) {
+func copyGeminiOption(dst map[string]any, options map[string]any, target string, aliases ...string) {
 	for _, key := range aliases {
 		if value, ok := options[key]; ok {
 			dst[target] = value
@@ -454,7 +454,7 @@ func copyGeminiOption(dst map[string]interface{}, options map[string]interface{}
 	}
 }
 
-func firstGeminiMapOption(options map[string]interface{}, aliases ...string) map[string]interface{} {
+func firstGeminiMapOption(options map[string]any, aliases ...string) map[string]any {
 	for _, key := range aliases {
 		if value := modelParamMap(options, key); len(value) > 0 {
 			return value
@@ -463,7 +463,7 @@ func firstGeminiMapOption(options map[string]interface{}, aliases ...string) map
 	return nil
 }
 
-func firstGeminiIntOption(options map[string]interface{}, aliases ...string) (int, bool) {
+func firstGeminiIntOption(options map[string]any, aliases ...string) (int, bool) {
 	for _, key := range aliases {
 		if value, ok := modelParamIntValue(options, key); ok {
 			return value, true
@@ -472,7 +472,7 @@ func firstGeminiIntOption(options map[string]interface{}, aliases ...string) (in
 	return 0, false
 }
 
-func firstGeminiFloatOption(options map[string]interface{}, aliases ...string) (float64, bool) {
+func firstGeminiFloatOption(options map[string]any, aliases ...string) (float64, bool) {
 	for _, key := range aliases {
 		if value, ok := modelParamFloat(options, key); ok {
 			return value, true
@@ -481,7 +481,7 @@ func firstGeminiFloatOption(options map[string]interface{}, aliases ...string) (
 	return 0, false
 }
 
-func firstGeminiBoolOption(options map[string]interface{}, aliases ...string) (bool, bool) {
+func firstGeminiBoolOption(options map[string]any, aliases ...string) (bool, bool) {
 	for _, key := range aliases {
 		value, ok := options[key]
 		if !ok {
@@ -495,7 +495,7 @@ func firstGeminiBoolOption(options map[string]interface{}, aliases ...string) (b
 	return false, false
 }
 
-func firstGeminiStringOption(options map[string]interface{}, aliases ...string) string {
+func firstGeminiStringOption(options map[string]any, aliases ...string) string {
 	for _, key := range aliases {
 		if value := modelParamString(options, key); value != "" {
 			return value
@@ -504,7 +504,7 @@ func firstGeminiStringOption(options map[string]interface{}, aliases ...string) 
 	return ""
 }
 
-func firstGeminiStringListOption(options map[string]interface{}, aliases ...string) []string {
+func firstGeminiStringListOption(options map[string]any, aliases ...string) []string {
 	for _, key := range aliases {
 		if value := modelParamStringList(options, key); len(value) > 0 {
 			return value
@@ -513,17 +513,17 @@ func firstGeminiStringListOption(options map[string]interface{}, aliases ...stri
 	return nil
 }
 
-func buildGeminiTools(tools []portllm.ToolDefinition) []map[string]interface{} {
+func buildGeminiTools(tools []portllm.ToolDefinition) []map[string]any {
 	if len(tools) == 0 {
 		return nil
 	}
-	declarations := make([]map[string]interface{}, 0, len(tools))
+	declarations := make([]map[string]any, 0, len(tools))
 	for _, tool := range tools {
 		name := strings.TrimSpace(tool.Name)
 		if name == "" {
 			continue
 		}
-		declarations = append(declarations, map[string]interface{}{
+		declarations = append(declarations, map[string]any{
 			"name":                 name,
 			"description":          strings.TrimSpace(tool.Description),
 			"parametersJsonSchema": decodeToolSchema(tool.InputSchema),
@@ -532,17 +532,17 @@ func buildGeminiTools(tools []portllm.ToolDefinition) []map[string]interface{} {
 	if len(declarations) == 0 {
 		return nil
 	}
-	return []map[string]interface{}{{"functionDeclarations": declarations}}
+	return []map[string]any{{"functionDeclarations": declarations}}
 }
 
-func buildGeminiProviderTools(tools []map[string]interface{}) []map[string]interface{} {
+func buildGeminiProviderTools(tools []map[string]any) []map[string]any {
 	if len(tools) == 0 {
 		return nil
 	}
-	result := make([]map[string]interface{}, 0, len(tools))
+	result := make([]map[string]any, 0, len(tools))
 	for _, tool := range tools {
 		if googleSearch, ok := geminiGoogleSearchToolPayload(tool); ok {
-			result = append(result, map[string]interface{}{"google_search": googleSearch})
+			result = append(result, map[string]any{"google_search": googleSearch})
 			continue
 		}
 		result = append(result, tool)
@@ -550,7 +550,7 @@ func buildGeminiProviderTools(tools []map[string]interface{}) []map[string]inter
 	return result
 }
 
-func geminiGoogleSearchToolPayload(tool map[string]interface{}) (map[string]interface{}, bool) {
+func geminiGoogleSearchToolPayload(tool map[string]any) (map[string]any, bool) {
 	if strings.TrimSpace(getString(tool["type"])) == "google_search" {
 		return geminiToolParameterMap(tool["google_search"], tool["googleSearch"]), true
 	}
@@ -563,13 +563,13 @@ func geminiGoogleSearchToolPayload(tool map[string]interface{}) (map[string]inte
 	return nil, false
 }
 
-func geminiToolParameterMap(values ...interface{}) map[string]interface{} {
+func geminiToolParameterMap(values ...any) map[string]any {
 	for _, value := range values {
-		if typed, ok := value.(map[string]interface{}); ok {
+		if typed, ok := value.(map[string]any); ok {
 			return typed
 		}
 	}
-	return map[string]interface{}{}
+	return map[string]any{}
 }
 
 // toGeminiRole 将内部 role 转换为 Gemini role（user / model）。
@@ -583,14 +583,14 @@ func toGeminiRole(role string) string {
 }
 
 // buildGeminiParts 将 Message 转换为 Gemini parts 数组。
-func buildGeminiParts(msg portllm.Message) []map[string]interface{} {
+func buildGeminiParts(msg portllm.Message) []map[string]any {
 	if len(msg.Parts) == 0 && len(msg.ToolCalls) == 0 && len(msg.ToolResults) == 0 {
-		return []map[string]interface{}{{"text": msg.Content}}
+		return []map[string]any{{"text": msg.Content}}
 	}
 
-	parts := make([]map[string]interface{}, 0, len(msg.Parts)+len(msg.ToolCalls)+len(msg.ToolResults)+1)
+	parts := make([]map[string]any, 0, len(msg.Parts)+len(msg.ToolCalls)+len(msg.ToolResults)+1)
 	if text := strings.TrimSpace(msg.Content); text != "" {
-		parts = append(parts, map[string]interface{}{"text": text})
+		parts = append(parts, map[string]any{"text": text})
 	}
 	for _, part := range msg.Parts {
 		switch part.Kind {
@@ -602,8 +602,8 @@ func buildGeminiParts(msg portllm.Message) []map[string]interface{} {
 			if mime == "" {
 				mime = "image/jpeg"
 			}
-			parts = append(parts, map[string]interface{}{
-				"inlineData": map[string]interface{}{
+			parts = append(parts, map[string]any{
+				"inlineData": map[string]any{
 					"mimeType": mime,
 					"data":     base64.StdEncoding.EncodeToString(part.Data),
 				},
@@ -613,7 +613,7 @@ func buildGeminiParts(msg portllm.Message) []map[string]interface{} {
 			if strings.TrimSpace(text) == "" {
 				continue
 			}
-			parts = append(parts, map[string]interface{}{"text": text})
+			parts = append(parts, map[string]any{"text": text})
 		}
 	}
 	for _, item := range msg.ToolCalls {
@@ -621,12 +621,12 @@ func buildGeminiParts(msg portllm.Message) []map[string]interface{} {
 		if args == "" {
 			args = "{}"
 		}
-		arguments := make(map[string]interface{})
+		arguments := make(map[string]any)
 		if err := json.Unmarshal([]byte(args), &arguments); err != nil {
-			arguments = map[string]interface{}{"arguments": args}
+			arguments = map[string]any{"arguments": args}
 		}
-		parts = append(parts, map[string]interface{}{
-			"functionCall": map[string]interface{}{
+		parts = append(parts, map[string]any{
+			"functionCall": map[string]any{
 				"name": strings.TrimSpace(item.ToolName),
 				"args": arguments,
 			},
@@ -636,20 +636,20 @@ func buildGeminiParts(msg portllm.Message) []map[string]interface{} {
 		}
 	}
 	for _, item := range msg.ToolResults {
-		response := map[string]interface{}{
+		response := map[string]any{
 			"name": strings.TrimSpace(item.ToolName),
-			"response": map[string]interface{}{
+			"response": map[string]any{
 				"content": buildToolResultContent(item),
 			},
 		}
 		if strings.TrimSpace(item.Error) != "" {
-			response["response"].(map[string]interface{})["error"] = strings.TrimSpace(item.Error)
+			response["response"].(map[string]any)["error"] = strings.TrimSpace(item.Error)
 		}
-		parts = append(parts, map[string]interface{}{"functionResponse": response})
+		parts = append(parts, map[string]any{"functionResponse": response})
 	}
 
 	if len(parts) == 0 {
-		return []map[string]interface{}{{"text": msg.Content}}
+		return []map[string]any{{"text": msg.Content}}
 	}
 	return parts
 }
@@ -678,7 +678,7 @@ func (c *Client) newGeminiRequest(
 
 // parseGeminiError 从 Gemini 错误响应中提取 error.message。
 func parseGeminiError(statusCode int, body []byte, debug *portllm.UpstreamDebugSnapshot) error {
-	parsed := make(map[string]interface{})
+	parsed := make(map[string]any)
 	if err := json.Unmarshal(body, &parsed); err == nil {
 		if msg := getStringFromPath(parsed, "error", "message"); msg != "" {
 			return &portllm.UpstreamError{StatusCode: statusCode, Message: msg, Body: string(body), Debug: debug}
@@ -755,7 +755,7 @@ func (c *Client) generateGemini(
 
 // parseGeminiResponse 解析 GenerateContentResponse（非流式）。
 func parseGeminiResponse(body []byte) (*portllm.GenerateOutput, error) {
-	parsed := make(map[string]interface{})
+	parsed := make(map[string]any)
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return nil, err
 	}
@@ -777,7 +777,7 @@ func parseGeminiResponse(body []byte) (*portllm.GenerateOutput, error) {
 }
 
 // extractGeminiText 从 candidates[0].content.parts 中拼接所有 text。
-func extractGeminiText(parsed map[string]interface{}) string {
+func extractGeminiText(parsed map[string]any) string {
 	candidate := firstMapItem(asSlice(parsed["candidates"]))
 	content := asMap(candidate["content"])
 	chunks := make([]string, 0)
@@ -793,7 +793,7 @@ func extractGeminiText(parsed map[string]interface{}) string {
 	return strings.Join(chunks, "")
 }
 
-func extractGeminiReasoning(parsed map[string]interface{}) *portllm.ReasoningOutput {
+func extractGeminiReasoning(parsed map[string]any) *portllm.ReasoningOutput {
 	candidate := firstMapItem(asSlice(parsed["candidates"]))
 	content := asMap(candidate["content"])
 	result := &portllm.ReasoningOutput{}
@@ -815,7 +815,7 @@ func extractGeminiReasoning(parsed map[string]interface{}) *portllm.ReasoningOut
 }
 
 // parseGeminiUsage 解析 usageMetadata。
-func parseGeminiUsage(parsed map[string]interface{}) portllm.Usage {
+func parseGeminiUsage(parsed map[string]any) portllm.Usage {
 	totalInputTokens := getInt64FromPath(parsed, "usageMetadata", "promptTokenCount")
 	cacheReadTokens := getInt64FromPath(parsed, "usageMetadata", "cachedContentTokenCount")
 	return portllm.Usage{
@@ -828,7 +828,7 @@ func parseGeminiUsage(parsed map[string]interface{}) portllm.Usage {
 }
 
 // parseGeminiFunctionCalls 解析 candidates[0].content.parts 中的 functionCall。
-func parseGeminiFunctionCalls(parsed map[string]interface{}) []portllm.ToolCall {
+func parseGeminiFunctionCalls(parsed map[string]any) []portllm.ToolCall {
 	candidate := firstMapItem(asSlice(parsed["candidates"]))
 	content := asMap(candidate["content"])
 
@@ -857,7 +857,7 @@ func parseGeminiFunctionCalls(parsed map[string]interface{}) []portllm.ToolCall 
 	return result
 }
 
-func parseGeminiServerToolCalls(parsed map[string]interface{}) []portllm.ToolCall {
+func parseGeminiServerToolCalls(parsed map[string]any) []portllm.ToolCall {
 	if len(parsed) == 0 {
 		return make([]portllm.ToolCall, 0)
 	}
@@ -883,7 +883,7 @@ func parseGeminiServerToolCalls(parsed map[string]interface{}) []portllm.ToolCal
 	return result
 }
 
-func parseGeminiExplicitServerToolCalls(payload map[string]interface{}, candidateIndex int) []portllm.ToolCall {
+func parseGeminiExplicitServerToolCalls(payload map[string]any, candidateIndex int) []portllm.ToolCall {
 	if len(payload) == 0 {
 		return nil
 	}
@@ -913,7 +913,7 @@ func parseGeminiExplicitServerToolCalls(payload map[string]interface{}, candidat
 	return result
 }
 
-func parseGeminiExplicitServerToolCall(item map[string]interface{}, candidateIndex int, itemIndex int) (portllm.ToolCall, bool) {
+func parseGeminiExplicitServerToolCall(item map[string]any, candidateIndex int, itemIndex int) (portllm.ToolCall, bool) {
 	if len(item) == 0 {
 		return portllm.ToolCall{}, false
 	}
@@ -973,16 +973,16 @@ func normalizeGeminiExplicitServerToolStatus(status string) string {
 	}
 }
 
-func parseGeminiGoogleSearchServerToolCall(candidate map[string]interface{}, candidateIndex int) (portllm.ToolCall, bool) {
+func parseGeminiGoogleSearchServerToolCall(candidate map[string]any, candidateIndex int) (portllm.ToolCall, bool) {
 	grounding := asMap(candidate["groundingMetadata"])
 	if !hasGeminiSearchGroundingMetadata(grounding) {
 		return portllm.ToolCall{}, false
 	}
-	input := map[string]interface{}{}
+	input := map[string]any{}
 	if queries := asSlice(grounding["webSearchQueries"]); len(queries) > 0 {
 		input["queries"] = queries
 	}
-	output := compactGeminiServerToolPayload(map[string]interface{}{
+	output := compactGeminiServerToolPayload(map[string]any{
 		"queries":            grounding["webSearchQueries"],
 		"sources":            geminiGroundingSources(grounding),
 		"support_count":      len(asSlice(grounding["groundingSupports"])),
@@ -999,7 +999,7 @@ func parseGeminiGoogleSearchServerToolCall(candidate map[string]interface{}, can
 	}, true
 }
 
-func parseGeminiURLContextServerToolCall(candidate map[string]interface{}, candidateIndex int) (portllm.ToolCall, bool) {
+func parseGeminiURLContextServerToolCall(candidate map[string]any, candidateIndex int) (portllm.ToolCall, bool) {
 	metadata := asMap(candidate["urlContextMetadata"])
 	urlMetadata := asSlice(metadata["urlMetadata"])
 	if len(urlMetadata) == 0 {
@@ -1012,11 +1012,11 @@ func parseGeminiURLContextServerToolCall(candidate map[string]interface{}, candi
 			urls = append(urls, uri)
 		}
 	}
-	input := map[string]interface{}{}
+	input := map[string]any{}
 	if len(urls) > 0 {
 		input["urls"] = urls
 	}
-	output := compactGeminiServerToolPayload(map[string]interface{}{
+	output := compactGeminiServerToolPayload(map[string]any{
 		"urls": geminiURLContextItems(urlMetadata),
 	})
 	return portllm.ToolCall{
@@ -1029,7 +1029,7 @@ func parseGeminiURLContextServerToolCall(candidate map[string]interface{}, candi
 	}, true
 }
 
-func parseGeminiCodeExecutionServerToolCalls(candidate map[string]interface{}, candidateIndex int) []portllm.ToolCall {
+func parseGeminiCodeExecutionServerToolCalls(candidate map[string]any, candidateIndex int) []portllm.ToolCall {
 	content := asMap(candidate["content"])
 	parts := asSlice(content["parts"])
 	result := make([]portllm.ToolCall, 0)
@@ -1070,12 +1070,12 @@ func parseGeminiCodeExecutionServerToolCalls(candidate map[string]interface{}, c
 	return result
 }
 
-func geminiGroundingSources(grounding map[string]interface{}) []map[string]interface{} {
+func geminiGroundingSources(grounding map[string]any) []map[string]any {
 	chunks := asSlice(grounding["groundingChunks"])
 	if len(chunks) == 0 {
 		return nil
 	}
-	result := make([]map[string]interface{}, 0, len(chunks))
+	result := make([]map[string]any, 0, len(chunks))
 	for _, raw := range chunks {
 		chunk := asMap(raw)
 		for _, key := range []string{"web", "retrievedContext"} {
@@ -1084,7 +1084,7 @@ func geminiGroundingSources(grounding map[string]interface{}) []map[string]inter
 			if uri == "" {
 				continue
 			}
-			item := map[string]interface{}{"url": uri}
+			item := map[string]any{"url": uri}
 			if title := strings.TrimSpace(getString(source["title"])); title != "" {
 				item["title"] = title
 			}
@@ -1094,18 +1094,18 @@ func geminiGroundingSources(grounding map[string]interface{}) []map[string]inter
 	return result
 }
 
-func geminiURLContextItems(items []interface{}) []map[string]interface{} {
+func geminiURLContextItems(items []any) []map[string]any {
 	if len(items) == 0 {
 		return nil
 	}
-	result := make([]map[string]interface{}, 0, len(items))
+	result := make([]map[string]any, 0, len(items))
 	for _, raw := range items {
 		item := asMap(raw)
 		url := textutil.FirstNonEmpty(getString(item["retrievedUrl"]), getString(item["url"]), getString(item["uri"]))
 		if url == "" {
 			continue
 		}
-		next := map[string]interface{}{"url": url}
+		next := map[string]any{"url": url}
 		if status := strings.TrimSpace(getString(item["urlRetrievalStatus"])); status != "" {
 			next["status"] = status
 		}
@@ -1114,11 +1114,11 @@ func geminiURLContextItems(items []interface{}) []map[string]interface{} {
 	return result
 }
 
-func compactGeminiServerToolPayload(payload map[string]interface{}) map[string]interface{} {
+func compactGeminiServerToolPayload(payload map[string]any) map[string]any {
 	if len(payload) == 0 {
 		return nil
 	}
-	result := make(map[string]interface{}, len(payload))
+	result := make(map[string]any, len(payload))
 	for key, value := range payload {
 		if isEmptyGeminiPayloadValue(value) {
 			continue
@@ -1128,7 +1128,7 @@ func compactGeminiServerToolPayload(payload map[string]interface{}) map[string]i
 	return result
 }
 
-func isEmptyGeminiPayloadValue(value interface{}) bool {
+func isEmptyGeminiPayloadValue(value any) bool {
 	if value == nil {
 		return true
 	}
@@ -1136,9 +1136,9 @@ func isEmptyGeminiPayloadValue(value interface{}) bool {
 		return false
 	}
 	switch typed := value.(type) {
-	case []interface{}:
+	case []any:
 		return len(typed) == 0
-	case map[string]interface{}:
+	case map[string]any:
 		return len(typed) == 0
 	case string:
 		return strings.TrimSpace(typed) == ""
@@ -1147,7 +1147,7 @@ func isEmptyGeminiPayloadValue(value interface{}) bool {
 	}
 }
 
-func geminiCodeExecutionStatus(result map[string]interface{}) string {
+func geminiCodeExecutionStatus(result map[string]any) string {
 	outcome := strings.ToUpper(strings.TrimSpace(getString(result["outcome"])))
 	switch outcome {
 	case "", "OUTCOME_OK", "OK":
@@ -1161,7 +1161,7 @@ func geminiServerToolCallID(tool string, candidateIndex int, itemIndex int) stri
 	return fmt.Sprintf("gemini_%s_%d_%d", strings.TrimSpace(tool), candidateIndex, itemIndex)
 }
 
-func parseGeminiCitations(parsed map[string]interface{}) []string {
+func parseGeminiCitations(parsed map[string]any) []string {
 	if len(parsed) == 0 {
 		return nil
 	}
@@ -1189,7 +1189,7 @@ func parseGeminiCitations(parsed map[string]interface{}) []string {
 	return appendUniqueStrings(nil, citations...)
 }
 
-func parseGeminiServerSideToolUsage(parsed map[string]interface{}) map[string]int64 {
+func parseGeminiServerSideToolUsage(parsed map[string]any) map[string]int64 {
 	if len(parsed) == 0 {
 		return nil
 	}
@@ -1213,7 +1213,7 @@ func parseGeminiServerSideToolUsage(parsed map[string]interface{}) map[string]in
 	return result
 }
 
-func hasGeminiSearchGroundingMetadata(grounding map[string]interface{}) bool {
+func hasGeminiSearchGroundingMetadata(grounding map[string]any) bool {
 	if len(grounding) == 0 {
 		return false
 	}
@@ -1309,7 +1309,7 @@ func consumeGeminiStream(
 		if data == "" || data == "[DONE]" {
 			return nil
 		}
-		parsed := make(map[string]interface{})
+		parsed := make(map[string]any)
 		if err := json.Unmarshal([]byte(data), &parsed); err != nil {
 			return nil // 单个异常事件不应中断后续流式输出。
 		}
@@ -1342,7 +1342,7 @@ func consumeGeminiStream(
 
 // applyGeminiStreamChunk 将单个 GenerateContentResponse 片段合并到 result。
 func applyGeminiStreamChunk(
-	parsed map[string]interface{},
+	parsed map[string]any,
 	result *portllm.GenerateOutput,
 	onEvent func(portllm.GenerateStreamEvent) error,
 ) error {

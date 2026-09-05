@@ -531,7 +531,7 @@ func canonicalToolArguments(raw string) string {
 	if value == "" {
 		return "{}"
 	}
-	var payload interface{}
+	var payload any
 	if err := json.Unmarshal([]byte(value), &payload); err != nil {
 		return value
 	}

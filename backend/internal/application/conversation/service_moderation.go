@@ -82,10 +82,10 @@ func paidUsageBilledReason(authorization *domainbilling.UsageAuthorization) stri
 
 // moderationLiveEmitter 把实时事件回调包装为审核协调器的推送出口，并给拦截事件标注计费说明。
 func moderationLiveEmitter(
-	onEvent func(eventType string, payload map[string]interface{}) error,
+	onEvent func(eventType string, payload map[string]any) error,
 	authorization *domainbilling.UsageAuthorization,
 ) appcm.LiveEmitter {
-	return func(eventType string, payload map[string]interface{}) {
+	return func(eventType string, payload map[string]any) {
 		if eventType == "moderation_blocked" && payload != nil {
 			direction, _ := payload["direction"].(string)
 			if reason := liveModerationBlockedBilledReason(direction, authorization); reason != "" {
@@ -102,9 +102,9 @@ func (s *Service) SetModerationService(svc *appcm.Service) {
 	if svc == nil {
 		return
 	}
-	svc.SetEventEmitter(func(ctx context.Context, runID string, eventType string, payload map[string]interface{}) {
+	svc.SetEventEmitter(func(ctx context.Context, runID string, eventType string, payload map[string]any) {
 		if payload == nil {
-			payload = map[string]interface{}{"type": eventType}
+			payload = map[string]any{"type": eventType}
 		} else if _, ok := payload["type"]; !ok {
 			payload["type"] = eventType
 		}

@@ -102,7 +102,7 @@ func (s *Service) Cleanup(ctx context.Context, input Input) (*Result, error) {
 			ResourceID:  logType,
 			IP:          input.IP,
 			UserAgent:   input.UserAgent,
-			Detail: map[string]interface{}{
+			Detail: map[string]any{
 				"type":          logType,
 				"before":        input.Before.Format(time.RFC3339),
 				"deleted_count": deletedCount,
@@ -136,7 +136,7 @@ func (s *Service) CleanupConversationRuns(ctx context.Context, input Conversatio
 			ResourceID:  "batch",
 			IP:          input.IP,
 			UserAgent:   input.UserAgent,
-			Detail: map[string]interface{}{
+			Detail: map[string]any{
 				"run_ids":       runIDs,
 				"run_count":     len(runIDs),
 				"deleted_count": deletedCount,

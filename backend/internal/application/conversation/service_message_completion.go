@@ -60,7 +60,7 @@ type persistInterruptedMessageGenerationInput struct {
 	PersistedToolCallKeys    map[string]struct{}
 	TraceRecorder            *messageTraceRecorder
 	Route                    *channel.ResolvedRoute
-	EffectiveOptions         map[string]interface{}
+	EffectiveOptions         map[string]any
 	ServerSideToolUsage      map[string]int64
 	// MCPToolUsage 聚合中断前成功的 MCP 调用；错误中断时也需带出已产生的上游费用。
 	MCPToolUsage     []MCPToolUsageItem

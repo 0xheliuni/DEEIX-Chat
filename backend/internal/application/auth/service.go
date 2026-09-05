@@ -279,7 +279,7 @@ func (s *Service) Login(
 			Result:    "success",
 			ClientIP:  normalizedAuditCtx.ClientIP,
 			UserAgent: normalizedAuditCtx.UserAgent,
-			DetailJSON: marshalAuthEventDetail(map[string]interface{}{
+			DetailJSON: marshalAuthEventDetail(map[string]any{
 				"username":       result.User.Username,
 				"session_id":     result.SessionID,
 				"client_ip":      normalizedAuditCtx.ClientIP,
@@ -604,7 +604,7 @@ func (s *Service) CompleteOnboarding(
 				Result:    "success",
 				ClientIP:  normalizedAuditCtx.ClientIP,
 				UserAgent: normalizedAuditCtx.UserAgent,
-				DetailJSON: marshalAuthEventDetail(map[string]interface{}{
+				DetailJSON: marshalAuthEventDetail(map[string]any{
 					"initial_onboarding": true,
 				}),
 			},
@@ -969,7 +969,7 @@ func (s *Service) DeleteAccount(
 				Reason:    "list_storage_paths_failed",
 				ClientIP:  normalizedAuditCtx.ClientIP,
 				UserAgent: normalizedAuditCtx.UserAgent,
-				DetailJSON: marshalAuthEventDetail(map[string]interface{}{
+				DetailJSON: marshalAuthEventDetail(map[string]any{
 					"user_id":   userID,
 					"username":  item.Username,
 					"public_id": item.PublicID,
@@ -990,7 +990,7 @@ func (s *Service) DeleteAccount(
 				Reason:    "delete_account_failed",
 				ClientIP:  normalizedAuditCtx.ClientIP,
 				UserAgent: normalizedAuditCtx.UserAgent,
-				DetailJSON: marshalAuthEventDetail(map[string]interface{}{
+				DetailJSON: marshalAuthEventDetail(map[string]any{
 					"user_id":            userID,
 					"username":           item.Username,
 					"public_id":          item.PublicID,
@@ -1011,7 +1011,7 @@ func (s *Service) DeleteAccount(
 			Result:    "success",
 			ClientIP:  normalizedAuditCtx.ClientIP,
 			UserAgent: normalizedAuditCtx.UserAgent,
-			DetailJSON: marshalAuthEventDetail(map[string]interface{}{
+			DetailJSON: marshalAuthEventDetail(map[string]any{
 				"user_id":                  userID,
 				"username":                 item.Username,
 				"public_id":                item.PublicID,
@@ -1033,7 +1033,7 @@ func (s *Service) DeleteAccount(
 				Reason:    "storage_cleanup_failed",
 				ClientIP:  normalizedAuditCtx.ClientIP,
 				UserAgent: normalizedAuditCtx.UserAgent,
-				DetailJSON: marshalAuthEventDetail(map[string]interface{}{
+				DetailJSON: marshalAuthEventDetail(map[string]any{
 					"user_id":           userID,
 					"failed_path_count": len(failedPaths),
 					"failed_paths":      trimStringSlice(failedPaths, 10),
@@ -1507,7 +1507,7 @@ func (s *Service) UpdateCurrentSessionLocation(
 					Result:    "success",
 					ClientIP:  normalizedAuditCtx.ClientIP,
 					UserAgent: normalizedAuditCtx.UserAgent,
-					DetailJSON: marshalAuthEventDetail(map[string]interface{}{
+					DetailJSON: marshalAuthEventDetail(map[string]any{
 						"session_id":              normalizedSessionID,
 						"precise_latitude":        session.PreciseLatitude,
 						"precise_longitude":       session.PreciseLongitude,
@@ -1560,7 +1560,7 @@ func (s *Service) loginLockDuration() time.Duration {
 }
 
 // marshalAuthEventDetail 将事件详情序列化为 JSON 字符串；序列化失败时返回空字符串。
-func marshalAuthEventDetail(detail interface{}) string {
+func marshalAuthEventDetail(detail any) string {
 	if detail == nil {
 		return ""
 	}

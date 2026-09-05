@@ -466,7 +466,7 @@ func (s *Service) completeProviderLoginForUser(
 				Reason:    "two_factor_required",
 				ClientIP:  normalizedAuditCtx.ClientIP,
 				UserAgent: normalizedAuditCtx.UserAgent,
-				DetailJSON: marshalAuthEventDetail(map[string]interface{}{
+				DetailJSON: marshalAuthEventDetail(map[string]any{
 					"provider": providerSlug,
 					"subject":  subject,
 				}),
@@ -487,7 +487,7 @@ func (s *Service) completeProviderLoginForUser(
 			Result:    "success",
 			ClientIP:  normalizedAuditCtx.ClientIP,
 			UserAgent: normalizedAuditCtx.UserAgent,
-			DetailJSON: marshalAuthEventDetail(map[string]interface{}{
+			DetailJSON: marshalAuthEventDetail(map[string]any{
 				"provider":   providerSlug,
 				"subject":    subject,
 				"session_id": result.SessionID,
@@ -614,7 +614,7 @@ func (s *Service) CompleteProviderBind(ctx context.Context, input CompleteProvid
 			Result:    "success",
 			ClientIP:  normalizedAuditCtx.ClientIP,
 			UserAgent: normalizedAuditCtx.UserAgent,
-			DetailJSON: marshalAuthEventDetail(map[string]interface{}{
+			DetailJSON: marshalAuthEventDetail(map[string]any{
 				"provider": provider.Slug,
 				"subject":  subject,
 				"email":    normalizedEmail,
@@ -978,7 +978,7 @@ func (s *Service) exchangeProviderCode(ctx context.Context, provider domainuser.
 	return &tokenResponse, nil
 }
 
-func (s *Service) fetchProviderUserInfo(ctx context.Context, provider domainuser.IdentityProvider, accessToken string) (map[string]interface{}, error) {
+func (s *Service) fetchProviderUserInfo(ctx context.Context, provider domainuser.IdentityProvider, accessToken string) (map[string]any, error) {
 	_, _, userInfoURL, err := s.resolveProviderEndpoints(ctx, provider)
 	if err != nil {
 		return nil, err
@@ -999,7 +999,7 @@ func (s *Service) fetchProviderUserInfo(ctx context.Context, provider domainuser
 	if !response.Successful() {
 		return nil, fmt.Errorf("provider userinfo failed: %s: %w", response.Status, ErrProviderUpstreamFailed)
 	}
-	var profile map[string]interface{}
+	var profile map[string]any
 	if err = json.Unmarshal(response.Body, &profile); err != nil {
 		return nil, fmt.Errorf("provider userinfo response decode failed: %w", ErrProviderUpstreamFailed)
 	}
@@ -1014,7 +1014,7 @@ func (s *Service) fetchProviderUserInfo(ctx context.Context, provider domainuser
 func (s *Service) enrichGitHubVerifiedEmail(
 	ctx context.Context,
 	accessToken string,
-	profile map[string]interface{},
+	profile map[string]any,
 	emailsURL string,
 	trustedEndpoints []string,
 ) error {
@@ -1158,7 +1158,7 @@ func (s *Service) resolveProviderEndpoints(ctx context.Context, provider domainu
 }
 
 func parseOAuthTokenResponse(raw []byte) (oauthTokenResponse, error) {
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return oauthTokenResponse{}, err
 	}
@@ -1170,7 +1170,7 @@ func parseOAuthTokenResponse(raw []byte) (oauthTokenResponse, error) {
 }
 
 func parseOIDCDiscoveryDocument(raw []byte) (oidcDiscoveryDocument, error) {
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return oidcDiscoveryDocument{}, err
 	}
@@ -1484,7 +1484,7 @@ func providerUsername(slug string, subject string) string {
 	return prefix + "-" + suffix
 }
 
-func claimString(profile map[string]interface{}, field string) string {
+func claimString(profile map[string]any, field string) string {
 	value, ok := claimValue(profile, field)
 	if !ok {
 		return ""
@@ -1504,7 +1504,7 @@ func normalizeProviderEmail(raw string) (string, error) {
 	return normalized, nil
 }
 
-func resolveProviderEmailVerified(profile map[string]interface{}, provider domainuser.IdentityProvider) bool {
+func resolveProviderEmailVerified(profile map[string]any, provider domainuser.IdentityProvider) bool {
 	fields := make([]string, 0, 3)
 	if strings.TrimSpace(provider.EmailVerifiedField) != "" {
 		fields = append(fields, provider.EmailVerifiedField)
@@ -1550,7 +1550,7 @@ func uniqueClaimFields(fields []string) []string {
 	return results
 }
 
-func claimBool(profile map[string]interface{}, fields ...string) bool {
+func claimBool(profile map[string]any, fields ...string) bool {
 	for _, field := range fields {
 		value, ok := claimValue(profile, field)
 		if !ok {
@@ -1567,14 +1567,14 @@ func claimBool(profile map[string]interface{}, fields ...string) bool {
 	return false
 }
 
-func claimValue(profile map[string]interface{}, field string) (interface{}, bool) {
+func claimValue(profile map[string]any, field string) (any, bool) {
 	normalizedField := strings.TrimSpace(field)
 	if normalizedField == "" {
 		return nil, false
 	}
-	current := interface{}(profile)
+	current := any(profile)
 	for _, part := range strings.Split(normalizedField, ".") {
-		object, ok := current.(map[string]interface{})
+		object, ok := current.(map[string]any)
 		if !ok {
 			return nil, false
 		}

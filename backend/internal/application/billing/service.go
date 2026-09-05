@@ -172,22 +172,22 @@ type UsagePricingInput struct {
 	BillingAt    time.Time
 }
 
-func upstreamUsageSnapshot(input UsagePricingInput) interface{} {
+func upstreamUsageSnapshot(input UsagePricingInput) any {
 	raw := strings.TrimSpace(input.RawUsageJSON)
 	if raw == "" {
-		return map[string]interface{}{}
+		return map[string]any{}
 	}
-	var decoded interface{}
+	var decoded any
 	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
-		return map[string]interface{}{}
+		return map[string]any{}
 	}
 	switch value := decoded.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		return value
-	case []interface{}:
+	case []any:
 		return value
 	default:
-		return map[string]interface{}{}
+		return map[string]any{}
 	}
 }
 
@@ -869,7 +869,7 @@ func (s *Service) CreatePaymentOrder(ctx context.Context, input PaymentOrderInpu
 	}
 	now := time.Now()
 	expiredAt := now.Add(30 * time.Minute)
-	snapshot := map[string]interface{}{
+	snapshot := map[string]any{
 		"plan_id":           plan.ID,
 		"plan_code":         plan.Code,
 		"plan_name":         plan.Name,
@@ -958,7 +958,7 @@ func (s *Service) CreateTopUpPaymentOrder(ctx context.Context, input TopUpPaymen
 	}
 	now := time.Now()
 	expiredAt := now.Add(30 * time.Minute)
-	snapshot := map[string]interface{}{
+	snapshot := map[string]any{
 		"order_type":         domainbilling.PaymentOrderTypeTopUp,
 		"base_currency":      quote.BaseCurrency,
 		"base_amount_cents":  quote.BaseAmountCents,
@@ -1938,7 +1938,7 @@ func (s *Service) BuildUsageLedger(ctx context.Context, input UsagePricingInput)
 	// 结算层会对免费标记整单清零，因此只有整单为 0 才落免费标记。
 	ledgerIsFreeModel := isFreeModel && billedNanousd <= 0
 
-	snapshot := map[string]interface{}{
+	snapshot := map[string]any{
 		"platform_model_name":                      platformModelName,
 		"routed_binding_code":                      strings.TrimSpace(input.RoutedBindingCode),
 		"model_vendor":                             strings.TrimSpace(identity.ModelVendor),
@@ -2295,10 +2295,10 @@ func (s *Service) buildUsageServiceItems(ctx context.Context, inputs []ServiceUs
 	return results, total, nil
 }
 
-func usageServiceItemSnapshots(items []domainbilling.UsageServiceItem) []map[string]interface{} {
-	results := make([]map[string]interface{}, 0, len(items))
+func usageServiceItemSnapshots(items []domainbilling.UsageServiceItem) []map[string]any {
+	results := make([]map[string]any, 0, len(items))
 	for _, item := range items {
-		results = append(results, map[string]interface{}{
+		results = append(results, map[string]any{
 			"service_code":                        item.ServiceCode,
 			"service_name":                        item.ServiceName,
 			"platform_model_name":                 item.PlatformModelName,
@@ -3471,13 +3471,13 @@ func mcpToolServiceName(serverName string, toolName string) string {
 }
 
 // mcpToolUsageSnapshots 无论是否计费都完整落快照，保证 self 模式下也有成本可见性。
-func mcpToolUsageSnapshots(items []MCPToolUsageInput) []map[string]interface{} {
-	results := make([]map[string]interface{}, 0, len(items))
+func mcpToolUsageSnapshots(items []MCPToolUsageInput) []map[string]any {
+	results := make([]map[string]any, 0, len(items))
 	for _, item := range items {
 		if item.CallCount <= 0 {
 			continue
 		}
-		results = append(results, map[string]interface{}{
+		results = append(results, map[string]any{
 			"server_id":     item.ServerID,
 			"server_name":   strings.TrimSpace(item.ServerName),
 			"tool_name":     strings.TrimSpace(item.ToolName),

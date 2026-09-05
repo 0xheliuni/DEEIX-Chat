@@ -25,12 +25,12 @@ type messageRoutePromptInput struct {
 }
 
 func withMessageRouteReasoningPassbackOptions(
-	options map[string]interface{},
-	inputOptions map[string]interface{},
+	options map[string]any,
+	inputOptions map[string]any,
 	route *channel.ResolvedRoute,
 	reasoningContentPassback bool,
 	messages []llm.Message,
-) map[string]interface{} {
+) map[string]any {
 	if route == nil || !shouldApplyReasoningPassbackRequestOptions(
 		reasoningContentPassback,
 		route.ReasoningPassbackRequestOptions,

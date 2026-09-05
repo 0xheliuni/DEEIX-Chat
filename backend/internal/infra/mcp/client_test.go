@@ -18,9 +18,9 @@ func TestClientCallToolUsesStreamableHTTPJSONRPC(t *testing.T) {
 			t.Fatalf("expected /mcp path, got %s", r.URL.Path)
 		}
 		var req struct {
-			ID     interface{}            `json:"id"`
-			Method string                 `json:"method"`
-			Params map[string]interface{} `json:"params"`
+			ID     any            `json:"id"`
+			Method string         `json:"method"`
+			Params map[string]any `json:"params"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Fatalf("decode request: %v", err)
@@ -30,12 +30,12 @@ func TestClientCallToolUsesStreamableHTTPJSONRPC(t *testing.T) {
 		switch req.Method {
 		case "initialize":
 			w.Header().Set("Mcp-Session-Id", "session_1")
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]any{
 				"jsonrpc": "2.0",
 				"id":      req.ID,
-				"result": map[string]interface{}{
+				"result": map[string]any{
 					"protocolVersion": protocolVersion,
-					"capabilities":    map[string]interface{}{},
+					"capabilities":    map[string]any{},
 					"serverInfo":      map[string]string{"name": "test", "version": "1.0.0"},
 				},
 			})
@@ -51,10 +51,10 @@ func TestClientCallToolUsesStreamableHTTPJSONRPC(t *testing.T) {
 			if req.Params["name"] != "memory.list" {
 				t.Fatalf("expected tool name, got %#v", req.Params["name"])
 			}
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]any{
 				"jsonrpc": "2.0",
 				"id":      req.ID,
-				"result": map[string]interface{}{
+				"result": map[string]any{
 					"content": []map[string]string{{"type": "text", "text": "ok"}},
 				},
 			})
@@ -94,8 +94,8 @@ func TestClientCallToolRejectsInvalidArgumentsJSON(t *testing.T) {
 func TestClientCallToolTreatsMCPResultErrorAsExecutionError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
-			ID     interface{} `json:"id"`
-			Method string      `json:"method"`
+			ID     any    `json:"id"`
+			Method string `json:"method"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Fatalf("decode request: %v", err)
@@ -104,14 +104,14 @@ func TestClientCallToolTreatsMCPResultErrorAsExecutionError(t *testing.T) {
 		switch req.Method {
 		case "initialize":
 			w.Header().Set("Mcp-Session-Id", "session_1")
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{"jsonrpc": "2.0", "id": req.ID, "result": map[string]interface{}{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": req.ID, "result": map[string]any{}})
 		case "notifications/initialized":
 			w.WriteHeader(http.StatusAccepted)
 		case "tools/call":
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]any{
 				"jsonrpc": "2.0",
 				"id":      req.ID,
-				"result": map[string]interface{}{
+				"result": map[string]any{
 					"isError": true,
 					"content": []map[string]string{{"type": "text", "text": "missing required field query"}},
 				},
@@ -135,8 +135,8 @@ func TestClientCallToolTreatsMCPResultErrorAsExecutionError(t *testing.T) {
 func TestClientCallToolTreatsWrappedMCPProtocolErrorAsExecutionError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
-			ID     interface{} `json:"id"`
-			Method string      `json:"method"`
+			ID     any    `json:"id"`
+			Method string `json:"method"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Fatalf("decode request: %v", err)
@@ -145,14 +145,14 @@ func TestClientCallToolTreatsWrappedMCPProtocolErrorAsExecutionError(t *testing.
 		switch req.Method {
 		case "initialize":
 			w.Header().Set("Mcp-Session-Id", "session_1")
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{"jsonrpc": "2.0", "id": req.ID, "result": map[string]interface{}{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": req.ID, "result": map[string]any{}})
 		case "notifications/initialized":
 			w.WriteHeader(http.StatusAccepted)
 		case "tools/call":
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]any{
 				"jsonrpc": "2.0",
 				"id":      req.ID,
-				"result": map[string]interface{}{
+				"result": map[string]any{
 					"content": []map[string]string{{
 						"type": "text",
 						"text": "MCP error -32602: Input validation error: Invalid arguments for tool bing_search",
@@ -178,8 +178,8 @@ func TestClientCallToolTreatsWrappedMCPProtocolErrorAsExecutionError(t *testing.
 func TestClientListToolsParsesSSEJSONRPC(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
-			ID     interface{} `json:"id"`
-			Method string      `json:"method"`
+			ID     any    `json:"id"`
+			Method string `json:"method"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Fatalf("decode request: %v", err)
@@ -187,7 +187,7 @@ func TestClientListToolsParsesSSEJSONRPC(t *testing.T) {
 		switch req.Method {
 		case "initialize":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{"jsonrpc": "2.0", "id": req.ID, "result": map[string]interface{}{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": req.ID, "result": map[string]any{}})
 		case "notifications/initialized":
 			w.WriteHeader(http.StatusAccepted)
 		case "tools/list":

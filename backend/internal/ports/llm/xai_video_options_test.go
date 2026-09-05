@@ -8,7 +8,7 @@ import (
 func TestIntegerOption(t *testing.T) {
 	tests := []struct {
 		name   string
-		value  interface{}
+		value  any
 		want   int
 		wantOK bool
 	}{
@@ -21,7 +21,7 @@ func TestIntegerOption(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, ok := IntegerOption(map[string]interface{}{"value": test.value}, "value")
+			got, ok := IntegerOption(map[string]any{"value": test.value}, "value")
 			if got != test.want || ok != test.wantOK {
 				t.Fatalf("IntegerOption() = (%d, %v), want (%d, %v)", got, ok, test.want, test.wantOK)
 			}

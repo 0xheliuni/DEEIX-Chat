@@ -155,7 +155,7 @@ func TestLogGeneratedMediaArtifactFailureIncludesOperationalContext(t *testing.T
 		t.Fatalf("expected one diagnostic log entry, got %d", len(entries))
 	}
 	fields := entries[0].ContextMap()
-	want := map[string]interface{}{
+	want := map[string]any{
 		"request_id":          "request-456",
 		"run_id":              "run-123",
 		"error_code":          MessageErrorCodeMediaArtifactUnavailable,

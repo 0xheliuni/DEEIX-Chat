@@ -45,7 +45,7 @@ type AuditInput struct {
 	ResourceID string
 	ClientIP   string
 	UserAgent  string
-	Detail     interface{}
+	Detail     any
 }
 
 // RecordAudit 记录预制提示词审计日志。

@@ -7,7 +7,7 @@ import (
 )
 
 // SanitizeXAIVideoExtensionOptions 仅保留 xAI 视频扩展支持的时长参数。
-func SanitizeXAIVideoExtensionOptions(options map[string]interface{}) {
+func SanitizeXAIVideoExtensionOptions(options map[string]any) {
 	if len(options) == 0 {
 		return
 	}
@@ -26,7 +26,7 @@ func SanitizeXAIVideoExtensionOptions(options map[string]interface{}) {
 
 // SanitizeXAIVideoOptions 将 xAI 视频协议参数收敛为实际会上送的规范值。
 // Application 层复用该函数，保证有效参数、计费和 adapter 请求一致。
-func SanitizeXAIVideoOptions(options map[string]interface{}) {
+func SanitizeXAIVideoOptions(options map[string]any) {
 	if len(options) == 0 {
 		return
 	}
@@ -68,7 +68,7 @@ func isXAIVideoResolution(value string) bool {
 	}
 }
 
-func stringOption(options map[string]interface{}, key string) string {
+func stringOption(options map[string]any, key string) string {
 	if options == nil {
 		return ""
 	}
@@ -83,7 +83,7 @@ func stringOption(options map[string]interface{}, key string) string {
 }
 
 // IntegerOption 读取整数类型的 LLM 选项，并拒绝有损或越界转换。
-func IntegerOption(options map[string]interface{}, key string) (int, bool) {
+func IntegerOption(options map[string]any, key string) (int, bool) {
 	if options == nil {
 		return 0, false
 	}

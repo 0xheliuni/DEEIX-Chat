@@ -72,7 +72,7 @@ type AuditInput struct {
 	MemoryKey string
 	ClientIP  string
 	UserAgent string
-	Detail    interface{}
+	Detail    any
 }
 
 // UpsertUserMemory 新增或更新用户长期记忆。

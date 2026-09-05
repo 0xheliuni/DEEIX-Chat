@@ -166,7 +166,7 @@ func (s *Service) VerifyLoginTwoFactor(
 			Result:    "success",
 			ClientIP:  normalizedAuditCtx.ClientIP,
 			UserAgent: normalizedAuditCtx.UserAgent,
-			DetailJSON: marshalAuthEventDetail(map[string]interface{}{
+			DetailJSON: marshalAuthEventDetail(map[string]any{
 				"session_id": result.SessionID,
 			}),
 		},

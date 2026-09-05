@@ -16,10 +16,10 @@ func TestBuildResponsesRequestBodyEnforcesEphemeralRequest(t *testing.T) {
 			PreviousResponseID:  "resp_should_not_be_sent",
 			ResponsesBackground: true,
 			Ephemeral:           true,
-			Options: map[string]interface{}{
+			Options: map[string]any{
 				"store":      true,
 				"background": true,
-				"prompt_cache_options": map[string]interface{}{
+				"prompt_cache_options": map[string]any{
 					"mode": "explicit",
 				},
 			},
@@ -54,8 +54,8 @@ func TestBuildAnthropicRequestBodyDisablesEphemeralPromptCache(t *testing.T) {
 	payload, err := buildAnthropicRequestBody("claude-test", portllm.GenerateInput{
 		Messages:  []portllm.Message{{Role: "system", Content: "system", CacheControl: cacheControl}, {Role: "user", Content: "hello"}},
 		Ephemeral: true,
-		Options: map[string]interface{}{
-			"cache_control": map[string]interface{}{"type": "ephemeral", "ttl": "1h"},
+		Options: map[string]any{
+			"cache_control": map[string]any{"type": "ephemeral", "ttl": "1h"},
 		},
 	}, true)
 	if err != nil {
@@ -64,7 +64,7 @@ func TestBuildAnthropicRequestBodyDisablesEphemeralPromptCache(t *testing.T) {
 	if _, ok := payload["cache_control"]; ok {
 		t.Fatalf("cache_control must be omitted for ephemeral requests: %#v", payload)
 	}
-	if system, ok := payload["system"].([]map[string]interface{}); ok {
+	if system, ok := payload["system"].([]map[string]any); ok {
 		for _, block := range system {
 			if _, exists := block["cache_control"]; exists {
 				t.Fatalf("system cache_control must be omitted for ephemeral requests: %#v", payload)

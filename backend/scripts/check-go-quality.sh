@@ -21,6 +21,16 @@ if [[ -s "$work_dir/gofmt.txt" ]]; then
   exit 1
 fi
 
+echo "Checking interface spelling..."
+find internal -type f -name '*.go' -not -name '*_test.go' \
+  -exec grep -nE 'interface[[:space:]]*\{[[:space:]]*\}' {} + \
+  > "$work_dir/interface-legacy.txt" || true
+if [[ -s "$work_dir/interface-legacy.txt" ]]; then
+  echo "Use any instead of interface{} in production code:" >&2
+  cat "$work_dir/interface-legacy.txt" >&2
+  exit 1
+fi
+
 echo "Checking context.Background policy..."
 find internal/application internal/transport \
   -type f \

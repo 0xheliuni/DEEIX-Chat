@@ -32,8 +32,8 @@ type Handler struct {
 	shutdown *lifecycle.Shutdown
 }
 
-func normalizeStreamEventPayload(eventType string, payload map[string]interface{}) map[string]interface{} {
-	normalized := map[string]interface{}{
+func normalizeStreamEventPayload(eventType string, payload map[string]any) map[string]any {
+	normalized := map[string]any{
 		"type": eventType,
 	}
 
@@ -74,7 +74,7 @@ func NewHandler(
 	}
 }
 
-func (h *Handler) recordAudit(c *gin.Context, action string, resource string, resourceID string, detail interface{}) {
+func (h *Handler) recordAudit(c *gin.Context, action string, resource string, resourceID string, detail any) {
 	h.service.RecordAudit(c.Request.Context(), appconversation.AuditInput{
 		ActorUserID: middleware.MustUserID(c),
 		RequestID:   middleware.MustRequestID(c),
@@ -168,9 +168,9 @@ func describeUpstreamRequestFailure(err error) response.Description {
 	return response.DescribeCode(http.StatusBadGateway, code)
 }
 
-func streamErrorPayload(err error) map[string]interface{} {
+func streamErrorPayload(err error) map[string]any {
 	mapped := describeSendMessageError(err)
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"type":      "error",
 		"status":    mapped.Status,
 		"message":   mapped.Message,
@@ -183,7 +183,7 @@ func streamErrorPayload(err error) map[string]interface{} {
 }
 
 // streamErrorPayloadWithResult 在错误事件中保留已持久化的消息结果，供客户端完成临时消息对账。
-func streamErrorPayloadWithResult(err error, result *appconversation.SendMessageResult) map[string]interface{} {
+func streamErrorPayloadWithResult(err error, result *appconversation.SendMessageResult) map[string]any {
 	payload := streamErrorPayload(err)
 	if result != nil {
 		payload["data"] = toSendMessageResponse(result)
@@ -194,8 +194,8 @@ func streamErrorPayloadWithResult(err error, result *appconversation.SendMessage
 // moderationBlockedStreamPayload is retained for recovery/reconnect assembly only.
 // Live streams receive moderation_blocked via OnEvent after ApplyRunBlock commits.
 // 此时运行已定稿，可直接按结算结论标注"拦截后上游用量照常计费"。
-func moderationBlockedStreamPayload(result *appconversation.SendMessageResult, authorization *domainbilling.UsageAuthorization) map[string]interface{} {
-	payload := map[string]interface{}{
+func moderationBlockedStreamPayload(result *appconversation.SendMessageResult, authorization *domainbilling.UsageAuthorization) map[string]any {
+	payload := map[string]any{
 		"type": "moderation_blocked",
 	}
 	if result == nil {

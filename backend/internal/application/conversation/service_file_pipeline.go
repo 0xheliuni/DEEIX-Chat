@@ -249,7 +249,7 @@ func (s *Service) hydrateAttachmentsForSend(
 	ctx context.Context,
 	userID uint,
 	attachments []AttachmentInput,
-	onEvent func(string, map[string]interface{}) error,
+	onEvent func(string, map[string]any) error,
 ) ([]AttachmentInput, error) {
 	if len(attachments) == 0 {
 		return attachments, nil
@@ -283,7 +283,7 @@ func (s *Service) hydrateAttachmentsForSend(
 				latestFile = fileObj
 				mu.Lock()
 				defer mu.Unlock()
-				emitEvent(onEvent, "process_update", map[string]interface{}{
+				emitEvent(onEvent, "process_update", map[string]any{
 					"status": "streaming",
 				})
 			})
@@ -353,8 +353,8 @@ func canUseAttachmentFullContext(att AttachmentInput, cfg config.Config) bool {
 	return true
 }
 
-func buildFileAttachmentSnapshot(att AttachmentInput) map[string]interface{} {
-	payload := map[string]interface{}{
+func buildFileAttachmentSnapshot(att AttachmentInput) map[string]any {
+	payload := map[string]any{
 		"file_id":                  att.FileID,
 		"kind":                     att.Kind,
 		"file_name":                att.FileName,
@@ -374,7 +374,7 @@ func buildFileAttachmentSnapshot(att AttachmentInput) map[string]interface{} {
 }
 
 func marshalAttachmentSnapshots(items []AttachmentInput) string {
-	payload := make([]map[string]interface{}, 0, len(items))
+	payload := make([]map[string]any, 0, len(items))
 	for _, item := range items {
 		payload = append(payload, buildFileAttachmentSnapshot(item))
 	}

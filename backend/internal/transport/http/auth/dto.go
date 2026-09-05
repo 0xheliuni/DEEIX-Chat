@@ -548,11 +548,11 @@ type UpdateCurrentSessionLocationResponseDoc struct {
 
 // ErrorDoc 错误响应（Swagger 用）。
 type ErrorDoc struct {
-	ErrorMsg  string      `json:"errorMsg"`
-	ErrorCode string      `json:"errorCode,omitempty"`
-	Details   interface{} `json:"details,omitempty"`
-	RequestID string      `json:"requestId,omitempty"`
-	Data      interface{} `json:"data"`
+	ErrorMsg  string `json:"errorMsg"`
+	ErrorCode string `json:"errorCode,omitempty"`
+	Details   any    `json:"details,omitempty"`
+	RequestID string `json:"requestId,omitempty"`
+	Data      any    `json:"data"`
 }
 
 // toUserResponse 将 userview.UserView 映射为响应 DTO。

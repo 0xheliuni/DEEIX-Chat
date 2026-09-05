@@ -134,7 +134,7 @@ type usageBudgetEstimate struct {
 // followUpUsageBudgetEstimate 构造再次调用上游前的累计成本形状：本条消息已产生的计费用量加上
 // 下一次调用的预估输入与请求限定的最大输出。billed 是按计费口径汇总的已产生用量：输入与输出侧
 // 含未上报调用的预估补齐，缓存读写为观测值。
-func followUpUsageBudgetEstimate(billed llm.Usage, nextInputTokens int64, options map[string]interface{}) usageBudgetEstimate {
+func followUpUsageBudgetEstimate(billed llm.Usage, nextInputTokens int64, options map[string]any) usageBudgetEstimate {
 	return usageBudgetEstimate{
 		InputTokens:      billed.InputTokens + nextInputTokens,
 		CacheReadTokens:  billed.CacheReadTokens,
@@ -149,7 +149,7 @@ func (s *Service) ensureUsageBudgetCoversEstimate(
 	ctx context.Context,
 	authorization *domainbilling.UsageAuthorization,
 	route *channel.ResolvedRoute,
-	options map[string]interface{},
+	options map[string]any,
 	estimate usageBudgetEstimate,
 ) error {
 	if s.billingSvc == nil || authorization == nil || authorization.Reservation == nil || route == nil {
@@ -176,7 +176,7 @@ func (s *Service) ensureUsageBudgetCoversEstimate(
 }
 
 // messageRequestMaxOutputTokens 读取请求明确限定的最大输出 token 数，未限定返回 0。
-func messageRequestMaxOutputTokens(options map[string]interface{}) int64 {
+func messageRequestMaxOutputTokens(options map[string]any) int64 {
 	paths := [][]string{
 		{"max_output_tokens"},
 		{"max_completion_tokens"},
@@ -197,7 +197,7 @@ func messageRequestMaxOutputTokens(options map[string]interface{}) int64 {
 	return 0
 }
 
-func int64FromOptionValue(value interface{}) int64 {
+func int64FromOptionValue(value any) int64 {
 	switch v := value.(type) {
 	case int:
 		return int64(v)
@@ -375,7 +375,7 @@ func (s *Service) RecordSendMessageAudit(ctx context.Context, input SendMessageA
 		ResourceID:  strconv.FormatUint(uint64(input.ConversationID), 10),
 		IP:          input.ClientIP,
 		UserAgent:   input.UserAgent,
-		Detail: map[string]interface{}{
+		Detail: map[string]any{
 			"content_type": strings.TrimSpace(input.ContentType),
 			"attachments":  imageCount + fileCount,
 			"file_ids":     len(input.FileIDs),
@@ -526,7 +526,7 @@ func sendMessageBillingPlatformModelName(input SendMessageBillingInput) string {
 	return strings.TrimSpace(input.ConversationModel)
 }
 
-func messageCacheTimeout(options map[string]interface{}) string {
+func messageCacheTimeout(options map[string]any) string {
 	if len(options) == 0 {
 		return "5m"
 	}
@@ -536,7 +536,7 @@ func messageCacheTimeout(options map[string]interface{}) string {
 		}
 		return "5m"
 	}
-	if cacheControl, ok := options["cache_control"].(map[string]interface{}); ok {
+	if cacheControl, ok := options["cache_control"].(map[string]any); ok {
 		if value := strings.TrimSpace(stringOption(cacheControl, "ttl")); strings.EqualFold(value, "1h") {
 			return "1h"
 		}
@@ -544,7 +544,7 @@ func messageCacheTimeout(options map[string]interface{}) string {
 	return "5m"
 }
 
-func messageRequestSpeed(options map[string]interface{}) string {
+func messageRequestSpeed(options map[string]any) string {
 	if len(options) == 0 {
 		return ""
 	}
@@ -555,14 +555,14 @@ func messageRequestSpeed(options map[string]interface{}) string {
 	return speed
 }
 
-func messageRequestServiceTier(options map[string]interface{}) string {
+func messageRequestServiceTier(options map[string]any) string {
 	if len(options) == 0 {
 		return ""
 	}
 	return strings.TrimSpace(stringOption(options, "service_tier"))
 }
 
-func stringOption(options map[string]interface{}, key string) string {
+func stringOption(options map[string]any, key string) string {
 	raw, ok := options[key]
 	if !ok || raw == nil {
 		return ""

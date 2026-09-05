@@ -169,7 +169,7 @@ func extractAssistantImageCandidates(content string) []assistantImageCandidate {
 	if !strings.HasPrefix(text, "{") && !strings.HasPrefix(text, "[") {
 		return nil
 	}
-	var payload interface{}
+	var payload any
 	if err := json.Unmarshal([]byte(text), &payload); err != nil {
 		return nil
 	}
@@ -218,7 +218,7 @@ func directAssistantImageCandidate(text string) (assistantImageCandidate, bool) 
 	return assistantImageCandidate{Value: text}, true
 }
 
-func collectAssistantImageCandidates(value interface{}, key string, result *[]assistantImageCandidate) {
+func collectAssistantImageCandidates(value any, key string, result *[]assistantImageCandidate) {
 	if len(*result) >= maxAssistantImageContentItems {
 		return
 	}
@@ -227,14 +227,14 @@ func collectAssistantImageCandidates(value interface{}, key string, result *[]as
 		if candidate, ok := assistantImageCandidateFromString(typed, assistantImagePayloadKey(key)); ok {
 			*result = append(*result, candidate)
 		}
-	case []interface{}:
+	case []any:
 		for _, item := range typed {
 			collectAssistantImageCandidates(item, key, result)
 			if len(*result) >= maxAssistantImageContentItems {
 				return
 			}
 		}
-	case map[string]interface{}:
+	case map[string]any:
 		for childKey, childValue := range typed {
 			collectAssistantImageCandidates(childValue, childKey, result)
 			if len(*result) >= maxAssistantImageContentItems {

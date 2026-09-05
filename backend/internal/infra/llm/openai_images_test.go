@@ -17,7 +17,7 @@ func TestBuildOpenAIImageGenerationRequestBody(t *testing.T) {
 			{Role: "system", Content: "ignore"},
 			{Role: "user", Content: "A clean product render"},
 		},
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"size":               "1024x1024",
 			"quality":            "high",
 			"response_format":    "b64_json",
@@ -54,7 +54,7 @@ func TestBuildOpenAIImageGenerationRequestBody(t *testing.T) {
 func TestBuildOpenAIImageGenerationStreamRequestBody(t *testing.T) {
 	payload, err := buildOpenAIImageGenerationStreamRequestBody("gpt-image-1", portllm.GenerateInput{
 		Messages: []portllm.Message{{Role: "user", Content: "A clean product render"}},
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"output_format":  "webp",
 			"partial_images": 2,
 		},
@@ -85,7 +85,7 @@ func TestBuildOpenAIImageGenerationStreamRequestBodyOmitsDefaultPartialImages(t 
 func TestBuildOpenAIImageGenerationStreamRequestBodyOmitsZeroPartialImages(t *testing.T) {
 	payload, err := buildOpenAIImageGenerationStreamRequestBody("gpt-image-1", portllm.GenerateInput{
 		Messages: []portllm.Message{{Role: "user", Content: "A clean product render"}},
-		Options:  map[string]interface{}{"partial_images": 0},
+		Options:  map[string]any{"partial_images": 0},
 	})
 	if err != nil {
 		t.Fatalf("build image stream request body: %v", err)
@@ -98,7 +98,7 @@ func TestBuildOpenAIImageGenerationStreamRequestBodyOmitsZeroPartialImages(t *te
 func TestBuildOpenAIImageGenerationRequestBodyDallEParams(t *testing.T) {
 	payload, err := buildOpenAIImageGenerationRequestBody("dall-e-3", portllm.GenerateInput{
 		Messages: []portllm.Message{{Role: "user", Content: "A clean product render"}},
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"response_format":    "url",
 			"style":              "natural",
 			"output_format":      "webp",
@@ -142,7 +142,7 @@ func TestBuildOpenAIImageEditMultipartRequest(t *testing.T) {
 			},
 		}},
 		ImageEditMask: &portllm.ContentPart{Kind: portllm.ContentPartImage, MimeType: "image/png", FileName: "mask.png", Data: []byte("mask")},
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"size":               "1024x1024",
 			"quality":            "high",
 			"output_format":      "webp",
@@ -177,7 +177,7 @@ func TestBuildOpenAIImageEditMultipartRequest(t *testing.T) {
 	if len(form.File["image[]"]) != 1 || len(form.File["mask"]) != 1 {
 		t.Fatalf("expected image[] and mask files, got %#v", form.File)
 	}
-	var debug map[string]interface{}
+	var debug map[string]any
 	if err = json.Unmarshal(debugBody, &debug); err != nil {
 		t.Fatalf("parse debug body: %v", err)
 	}
@@ -218,7 +218,7 @@ func TestBuildOpenAIImageEditStreamMultipartRequest(t *testing.T) {
 				{Kind: portllm.ContentPartImage, MimeType: "image/png", Data: []byte("source")},
 			},
 		}},
-		Options: map[string]interface{}{"partial_images": 2},
+		Options: map[string]any{"partial_images": 2},
 	}, true)
 	if err != nil {
 		t.Fatalf("build image edit stream multipart request: %v", err)
@@ -242,7 +242,7 @@ func TestBuildOpenAIImageEditStreamMultipartRequestOmitsZeroPartialImages(t *tes
 				{Kind: portllm.ContentPartImage, MimeType: "image/png", Data: []byte("source")},
 			},
 		}},
-		Options: map[string]interface{}{"partial_images": 0},
+		Options: map[string]any{"partial_images": 0},
 	}, true)
 	if err != nil {
 		t.Fatalf("build image edit stream multipart request: %v", err)
@@ -307,7 +307,7 @@ func TestParseOpenAIImageGenerationOutputDoesNotInventUsage(t *testing.T) {
 }
 
 func TestOpenAIImageGenerationStream(t *testing.T) {
-	var requestPayload map[string]interface{}
+	var requestPayload map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/images/generations" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
@@ -334,7 +334,7 @@ func TestOpenAIImageGenerationStream(t *testing.T) {
 		UpstreamModel: "gpt-image-1",
 	}, portllm.GenerateInput{
 		Messages: []portllm.Message{{Role: "user", Content: "A clean product render"}},
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"output_format":  "webp",
 			"partial_images": 2,
 		},
@@ -450,7 +450,7 @@ func TestOpenAIImageEditStream(t *testing.T) {
 				{Kind: portllm.ContentPartImage, MimeType: "image/png", Data: []byte("source")},
 			},
 		}},
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"output_format":  "webp",
 			"partial_images": 2,
 		},

@@ -90,7 +90,7 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 	if err != nil {
 		return nil, fmt.Errorf("configure trusted proxy headers: %w", err)
 	}
-	engine.Use(gin.CustomRecovery(func(c *gin.Context, recovered interface{}) {
+	engine.Use(gin.CustomRecovery(func(c *gin.Context, recovered any) {
 		if log != nil {
 			log.Error("http_panic_recovered", zap.Any("error", recovered), zap.ByteString("stack", debug.Stack()))
 		}

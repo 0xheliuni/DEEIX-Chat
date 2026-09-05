@@ -143,7 +143,7 @@ func buildGeminiInteractionsURL(base string) string {
 	return buildGeminiEndpointURL(base, "/interactions")
 }
 
-func buildGeminiInteractionRequestBody(route portllm.RouteConfig, input portllm.GenerateInput) (map[string]interface{}, error) {
+func buildGeminiInteractionRequestBody(route portllm.RouteConfig, input portllm.GenerateInput) (map[string]any, error) {
 	model := strings.TrimSpace(route.UpstreamModel)
 	if model == "" {
 		return nil, fmt.Errorf("interaction model required")
@@ -152,7 +152,7 @@ func buildGeminiInteractionRequestBody(route portllm.RouteConfig, input portllm.
 	if geminiInteractionInputEmpty(interactionInput) {
 		return nil, fmt.Errorf("interaction input required")
 	}
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"model": model,
 		"input": interactionInput,
 	}
@@ -179,8 +179,8 @@ func buildGeminiInteractionRequestBody(route portllm.RouteConfig, input portllm.
 	return payload, nil
 }
 
-func buildGeminiInteractionInput(messages []portllm.Message) interface{} {
-	steps := make([]map[string]interface{}, 0, len(messages))
+func buildGeminiInteractionInput(messages []portllm.Message) any {
+	steps := make([]map[string]any, 0, len(messages))
 	for _, message := range messages {
 		stepType := geminiInteractionStepType(message.Role)
 		contentMessage := message
@@ -189,7 +189,7 @@ func buildGeminiInteractionInput(messages []portllm.Message) interface{} {
 		if stepType != "" {
 			content := buildGeminiInteractionContent(contentMessage)
 			if !geminiInteractionInputEmpty(content) {
-				steps = append(steps, map[string]interface{}{
+				steps = append(steps, map[string]any{
 					"type":    stepType,
 					"content": content,
 				})
@@ -223,13 +223,13 @@ func geminiInteractionStepType(role string) string {
 	}
 }
 
-func buildGeminiInteractionContent(message portllm.Message) interface{} {
+func buildGeminiInteractionContent(message portllm.Message) any {
 	if len(message.Parts) == 0 {
 		return strings.TrimSpace(message.Content)
 	}
-	items := make([]map[string]interface{}, 0, len(message.Parts)+1)
+	items := make([]map[string]any, 0, len(message.Parts)+1)
 	if text := strings.TrimSpace(message.Content); text != "" {
-		items = append(items, map[string]interface{}{"type": "text", "text": text})
+		items = append(items, map[string]any{"type": "text", "text": text})
 	}
 	for _, part := range message.Parts {
 		switch part.Kind {
@@ -238,7 +238,7 @@ func buildGeminiInteractionContent(message portllm.Message) interface{} {
 			if text == "" {
 				continue
 			}
-			items = append(items, map[string]interface{}{"type": "text", "text": text})
+			items = append(items, map[string]any{"type": "text", "text": text})
 		case portllm.ContentPartImage:
 			if len(part.Data) == 0 {
 				continue
@@ -247,7 +247,7 @@ func buildGeminiInteractionContent(message portllm.Message) interface{} {
 			if mimeType == "" {
 				mimeType = "image/png"
 			}
-			items = append(items, map[string]interface{}{
+			items = append(items, map[string]any{
 				"type":      "image",
 				"mime_type": mimeType,
 				"data":      base64.StdEncoding.EncodeToString(part.Data),
@@ -260,7 +260,7 @@ func buildGeminiInteractionContent(message portllm.Message) interface{} {
 	return items
 }
 
-func buildGeminiInteractionFunctionCall(call portllm.ToolCall) map[string]interface{} {
+func buildGeminiInteractionFunctionCall(call portllm.ToolCall) map[string]any {
 	name := strings.TrimSpace(call.ToolName)
 	if name == "" {
 		return nil
@@ -269,11 +269,11 @@ func buildGeminiInteractionFunctionCall(call portllm.ToolCall) map[string]interf
 	if args == "" {
 		args = "{}"
 	}
-	arguments := map[string]interface{}{}
+	arguments := map[string]any{}
 	if err := json.Unmarshal([]byte(args), &arguments); err != nil {
-		arguments = map[string]interface{}{"arguments": args}
+		arguments = map[string]any{"arguments": args}
 	}
-	item := map[string]interface{}{
+	item := map[string]any{
 		"type":      "function_call",
 		"name":      name,
 		"arguments": arguments,
@@ -284,12 +284,12 @@ func buildGeminiInteractionFunctionCall(call portllm.ToolCall) map[string]interf
 	return item
 }
 
-func buildGeminiInteractionFunctionResult(result portllm.ToolResult) map[string]interface{} {
+func buildGeminiInteractionFunctionResult(result portllm.ToolResult) map[string]any {
 	name := strings.TrimSpace(result.ToolName)
 	if name == "" {
 		return nil
 	}
-	item := map[string]interface{}{
+	item := map[string]any{
 		"type":   "function_result",
 		"name":   name,
 		"result": geminiInteractionFunctionResultContent(result),
@@ -300,13 +300,13 @@ func buildGeminiInteractionFunctionResult(result portllm.ToolResult) map[string]
 	return item
 }
 
-func geminiInteractionFunctionResultContent(result portllm.ToolResult) []map[string]interface{} {
-	output := map[string]interface{}{}
+func geminiInteractionFunctionResultContent(result portllm.ToolResult) []map[string]any {
+	output := map[string]any{}
 	raw := strings.TrimSpace(result.OutputJSON)
 	if raw != "" {
-		var decoded interface{}
+		var decoded any
 		if err := json.Unmarshal([]byte(raw), &decoded); err == nil {
-			if payload, ok := decoded.(map[string]interface{}); ok {
+			if payload, ok := decoded.(map[string]any); ok {
 				output = payload
 			} else {
 				output["content"] = decoded
@@ -325,30 +325,30 @@ func geminiInteractionFunctionResultContent(result portllm.ToolResult) []map[str
 	if err != nil {
 		text = []byte(`{"content":""}`)
 	}
-	return []map[string]interface{}{{
+	return []map[string]any{{
 		"type": "text",
 		"text": string(text),
 	}}
 }
 
-func geminiInteractionInputEmpty(value interface{}) bool {
+func geminiInteractionInputEmpty(value any) bool {
 	switch typed := value.(type) {
 	case string:
 		return strings.TrimSpace(typed) == ""
-	case map[string]interface{}:
+	case map[string]any:
 		return len(typed) == 0
-	case []map[string]interface{}:
+	case []map[string]any:
 		return len(typed) == 0
-	case []interface{}:
+	case []any:
 		return len(typed) == 0
 	default:
 		return value == nil
 	}
 }
 
-func buildGeminiInteractionResponseFormat(route portllm.RouteConfig, options map[string]interface{}) interface{} {
+func buildGeminiInteractionResponseFormat(route portllm.RouteConfig, options map[string]any) any {
 	if rawFormats, ok := firstGeminiInteractionResponseFormatList(options); ok {
-		items := make([]interface{}, 0, len(rawFormats))
+		items := make([]any, 0, len(rawFormats))
 		for _, rawFormat := range rawFormats {
 			if format := normalizeGeminiInteractionResponseFormat(route, rawFormat); len(format) > 0 {
 				items = append(items, format)
@@ -362,7 +362,7 @@ func buildGeminiInteractionResponseFormat(route portllm.RouteConfig, options map
 	return normalizeGeminiInteractionResponseFormat(route, raw)
 }
 
-func normalizeGeminiInteractionResponseFormat(route portllm.RouteConfig, raw map[string]interface{}) map[string]interface{} {
+func normalizeGeminiInteractionResponseFormat(route portllm.RouteConfig, raw map[string]any) map[string]any {
 	responseType := geminiInteractionResponseType(getString(raw["type"]))
 	if responseType == "" {
 		switch normalizeEndpoint(route.Endpoint) {
@@ -373,7 +373,7 @@ func normalizeGeminiInteractionResponseFormat(route portllm.RouteConfig, raw map
 	if responseType == "" {
 		return nil
 	}
-	format := map[string]interface{}{
+	format := map[string]any{
 		"type": responseType,
 	}
 	if responseType == "video" {
@@ -396,22 +396,22 @@ func normalizeGeminiInteractionResponseFormat(route portllm.RouteConfig, raw map
 	return format
 }
 
-func firstGeminiInteractionResponseFormatList(options map[string]interface{}) ([]map[string]interface{}, bool) {
+func firstGeminiInteractionResponseFormatList(options map[string]any) ([]map[string]any, bool) {
 	value, ok := options["response_format"]
 	if !ok {
 		return nil, false
 	}
 	switch typed := value.(type) {
-	case []map[string]interface{}:
-		items := make([]map[string]interface{}, 0, len(typed))
+	case []map[string]any:
+		items := make([]map[string]any, 0, len(typed))
 		for _, item := range typed {
 			if len(item) > 0 {
 				items = append(items, item)
 			}
 		}
 		return items, len(items) > 0
-	case []interface{}:
-		items := make([]map[string]interface{}, 0, len(typed))
+	case []any:
+		items := make([]map[string]any, 0, len(typed))
 		for _, raw := range typed {
 			item := asMap(raw)
 			if len(item) > 0 {
@@ -437,8 +437,8 @@ func geminiInteractionResponseType(value string) string {
 	}
 }
 
-func buildGeminiInteractionGenerationConfig(options map[string]interface{}) map[string]interface{} {
-	config := map[string]interface{}{}
+func buildGeminiInteractionGenerationConfig(options map[string]any) map[string]any {
+	config := map[string]any{}
 	raw := modelParamMap(options, "generation_config")
 	for key, value := range raw {
 		if strings.TrimSpace(key) != "" && key != "video_config" {
@@ -451,8 +451,8 @@ func buildGeminiInteractionGenerationConfig(options map[string]interface{}) map[
 	return config
 }
 
-func buildGeminiInteractionVideoConfig(raw map[string]interface{}) map[string]interface{} {
-	config := map[string]interface{}{}
+func buildGeminiInteractionVideoConfig(raw map[string]any) map[string]any {
+	config := map[string]any{}
 	if task := geminiInteractionVideoTask(getString(raw["task"])); task != "" {
 		config["task"] = task
 	}
@@ -522,17 +522,17 @@ func geminiInteractionMIMEType(value string, responseType string) string {
 	return ""
 }
 
-func buildGeminiInteractionTools(tools []portllm.ToolDefinition) []map[string]interface{} {
+func buildGeminiInteractionTools(tools []portllm.ToolDefinition) []map[string]any {
 	if len(tools) == 0 {
 		return nil
 	}
-	items := make([]map[string]interface{}, 0, len(tools))
+	items := make([]map[string]any, 0, len(tools))
 	for _, tool := range tools {
 		name := strings.TrimSpace(tool.Name)
 		if name == "" {
 			continue
 		}
-		items = append(items, map[string]interface{}{
+		items = append(items, map[string]any{
 			"type":        "function",
 			"name":        name,
 			"description": strings.TrimSpace(tool.Description),
@@ -572,7 +572,7 @@ func consumeGeminiInteractionStream(
 		if data == "" || data == "[DONE]" {
 			return nil
 		}
-		parsed := make(map[string]interface{})
+		parsed := make(map[string]any)
 		if err := json.Unmarshal([]byte(data), &parsed); err != nil {
 			return nil
 		}
@@ -616,7 +616,7 @@ func newGeminiInteractionStreamState() *geminiInteractionStreamState {
 
 // applyGeminiInteractionStreamEvent 将单个官方 event_type 事件归并到统一生成结果并向会话层发送增量。
 func applyGeminiInteractionStreamEvent(
-	parsed map[string]interface{},
+	parsed map[string]any,
 	result *portllm.GenerateOutput,
 	streamState *geminiInteractionStreamState,
 	onEvent func(portllm.GenerateStreamEvent) error,
@@ -689,14 +689,14 @@ func applyGeminiInteractionStreamEvent(
 	return nil
 }
 
-func geminiInteractionStreamServiceTier(parsed map[string]interface{}) string {
+func geminiInteractionStreamServiceTier(parsed map[string]any) string {
 	if interaction := asMap(parsed["interaction"]); len(interaction) > 0 {
 		return strings.TrimSpace(getString(interaction["service_tier"]))
 	}
 	return strings.TrimSpace(getString(parsed["service_tier"]))
 }
 
-func geminiInteractionStreamResponseID(parsed map[string]interface{}, eventType string) string {
+func geminiInteractionStreamResponseID(parsed map[string]any, eventType string) string {
 	if interaction := asMap(parsed["interaction"]); len(interaction) > 0 {
 		return strings.TrimSpace(getString(interaction["id"]))
 	}
@@ -706,7 +706,7 @@ func geminiInteractionStreamResponseID(parsed map[string]interface{}, eventType 
 	return ""
 }
 
-func geminiInteractionStreamFinalPayload(parsed map[string]interface{}, eventType string) map[string]interface{} {
+func geminiInteractionStreamFinalPayload(parsed map[string]any, eventType string) map[string]any {
 	eventType = strings.ToLower(strings.TrimSpace(eventType))
 	if eventType != "interaction.completed" {
 		return nil
@@ -717,7 +717,7 @@ func geminiInteractionStreamFinalPayload(parsed map[string]interface{}, eventTyp
 // mergeGeminiInteractionStreamFinal 使用完成事件补齐文本、用量与工具轨迹，不重复发送已累计的文本增量。
 func mergeGeminiInteractionStreamFinal(
 	result *portllm.GenerateOutput,
-	payload map[string]interface{},
+	payload map[string]any,
 	onEvent func(portllm.GenerateStreamEvent) error,
 ) error {
 	finalOutput := parseGeminiInteractionPayload(payload)
@@ -769,7 +769,7 @@ func mergeGeminiInteractionStreamFinal(
 }
 
 func applyGeminiInteractionStreamMedia(
-	parsed map[string]interface{},
+	parsed map[string]any,
 	eventType string,
 	result *portllm.GenerateOutput,
 	onEvent func(portllm.GenerateStreamEvent) error,
@@ -800,8 +800,8 @@ func applyGeminiInteractionStreamMedia(
 	return nil
 }
 
-func geminiInteractionStreamMedia(parsed map[string]interface{}, eventType string) ([]portllm.GeneratedImage, []portllm.GeneratedVideo) {
-	var value interface{}
+func geminiInteractionStreamMedia(parsed map[string]any, eventType string) ([]portllm.GeneratedImage, []portllm.GeneratedVideo) {
+	var value any
 	switch strings.ToLower(strings.TrimSpace(eventType)) {
 	case "step.start":
 		step := asMap(parsed["step"])
@@ -847,7 +847,7 @@ func geminiInteractionImageExists(images []portllm.GeneratedImage, candidate por
 	return false
 }
 
-func geminiInteractionStreamText(parsed map[string]interface{}, eventType string) string {
+func geminiInteractionStreamText(parsed map[string]any, eventType string) string {
 	switch strings.ToLower(strings.TrimSpace(eventType)) {
 	case "step.start":
 		step := asMap(parsed["step"])
@@ -871,7 +871,7 @@ func geminiInteractionStreamText(parsed map[string]interface{}, eventType string
 	return ""
 }
 
-func geminiInteractionStreamReasoningDelta(parsed map[string]interface{}, eventType string) *portllm.ReasoningDelta {
+func geminiInteractionStreamReasoningDelta(parsed map[string]any, eventType string) *portllm.ReasoningDelta {
 	result := &portllm.ReasoningDelta{
 		EventType: eventType,
 		ItemID:    fmt.Sprintf("%v", parsed["index"]),
@@ -917,7 +917,7 @@ func geminiInteractionStreamReasoningDelta(parsed map[string]interface{}, eventT
 }
 
 func parseGeminiInteractionOutput(body []byte) (*portllm.GenerateOutput, error) {
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return nil, err
 	}
@@ -927,7 +927,7 @@ func parseGeminiInteractionOutput(body []byte) (*portllm.GenerateOutput, error) 
 }
 
 // parseGeminiInteractionPayload 将 Interactions 完整响应映射为项目统一的生成结果。
-func parseGeminiInteractionPayload(parsed map[string]interface{}) *portllm.GenerateOutput {
+func parseGeminiInteractionPayload(parsed map[string]any) *portllm.GenerateOutput {
 	payload := parsed
 	if interaction := asMap(parsed["interaction"]); len(interaction) > 0 {
 		payload = interaction
@@ -957,7 +957,7 @@ func parseGeminiInteractionPayload(parsed map[string]interface{}) *portllm.Gener
 // 官方文档示例满足 total_tokens = total_input_tokens + total_output_tokens + total_thought_tokens，
 // 即 total_output_tokens 不含思考 token，与 generateContent 的 candidatesTokenCount/thoughtsTokenCount
 // 语义一致；输出与思考分别记账、相加计费，不会重复计费。
-func parseGeminiInteractionUsage(parsed map[string]interface{}) portllm.Usage {
+func parseGeminiInteractionUsage(parsed map[string]any) portllm.Usage {
 	payload := parsed
 	if interaction := asMap(parsed["interaction"]); len(interaction) > 0 {
 		payload = interaction
@@ -981,7 +981,7 @@ func parseGeminiInteractionUsage(parsed map[string]interface{}) portllm.Usage {
 	}
 }
 
-func parseGeminiInteractionReasoning(parsed map[string]interface{}) *portllm.ReasoningOutput {
+func parseGeminiInteractionReasoning(parsed map[string]any) *portllm.ReasoningOutput {
 	result := &portllm.ReasoningOutput{}
 	summaryParts := make([]string, 0)
 	for _, rawStep := range asSlice(parsed["steps"]) {
@@ -1003,7 +1003,7 @@ func parseGeminiInteractionReasoning(parsed map[string]interface{}) *portllm.Rea
 	return result
 }
 
-func geminiInteractionSummaryText(raw interface{}) string {
+func geminiInteractionSummaryText(raw any) string {
 	parts := make([]string, 0)
 	for _, rawContent := range asSlice(raw) {
 		content := asMap(rawContent)
@@ -1017,7 +1017,7 @@ func geminiInteractionSummaryText(raw interface{}) string {
 	return strings.Join(parts, "\n\n")
 }
 
-func rawJSONFromValue(value interface{}) string {
+func rawJSONFromValue(value any) string {
 	if value == nil {
 		return ""
 	}
@@ -1028,7 +1028,7 @@ func rawJSONFromValue(value interface{}) string {
 	return string(raw)
 }
 
-func parseGeminiInteractionFunctionCalls(parsed map[string]interface{}) []portllm.ToolCall {
+func parseGeminiInteractionFunctionCalls(parsed map[string]any) []portllm.ToolCall {
 	calls := make([]portllm.ToolCall, 0)
 	for _, rawStep := range asSlice(parsed["steps"]) {
 		if call, ok := geminiInteractionToolCallFromMap(asMap(rawStep)); ok {
@@ -1038,7 +1038,7 @@ func parseGeminiInteractionFunctionCalls(parsed map[string]interface{}) []portll
 	return dedupeGeminiInteractionToolCalls(calls)
 }
 
-func parseGeminiInteractionServerToolCalls(parsed map[string]interface{}) []portllm.ToolCall {
+func parseGeminiInteractionServerToolCalls(parsed map[string]any) []portllm.ToolCall {
 	calls := make([]portllm.ToolCall, 0)
 	for _, rawStep := range asSlice(parsed["steps"]) {
 		if call, ok := parseGeminiInteractionServerToolCall(asMap(rawStep), false); ok {
@@ -1050,7 +1050,7 @@ func parseGeminiInteractionServerToolCalls(parsed map[string]interface{}) []port
 
 func updateGeminiInteractionStreamServerToolCall(
 	state *geminiInteractionStreamState,
-	parsed map[string]interface{},
+	parsed map[string]any,
 	eventType string,
 ) (portllm.ToolCall, bool) {
 	if state == nil {
@@ -1060,7 +1060,7 @@ func updateGeminiInteractionStreamServerToolCall(
 	if !ok {
 		return portllm.ToolCall{}, false
 	}
-	var payload map[string]interface{}
+	var payload map[string]any
 	switch strings.ToLower(strings.TrimSpace(eventType)) {
 	case "step.start":
 		payload = asMap(parsed["step"])
@@ -1090,7 +1090,7 @@ func updateGeminiInteractionStreamServerToolCall(
 	return call, true
 }
 
-func parseGeminiInteractionServerToolCall(item map[string]interface{}, streaming bool) (portllm.ToolCall, bool) {
+func parseGeminiInteractionServerToolCall(item map[string]any, streaming bool) (portllm.ToolCall, bool) {
 	itemType := strings.ToLower(strings.TrimSpace(getString(item["type"])))
 	toolName, isResult := geminiInteractionServerToolName(itemType)
 	if toolName == "" {
@@ -1225,7 +1225,7 @@ func geminiInteractionServerToolCitations(calls []portllm.ToolCall) []string {
 		if call.ToolName != "google_search" && call.ToolName != "url_context" {
 			continue
 		}
-		var output interface{}
+		var output any
 		if err := json.Unmarshal([]byte(call.OutputJSON), &output); err != nil {
 			continue
 		}
@@ -1234,9 +1234,9 @@ func geminiInteractionServerToolCitations(calls []portllm.ToolCall) []string {
 	return appendUniqueStrings(nil, citations...)
 }
 
-func walkGeminiInteractionCitationURLs(value interface{}, citations *[]string) {
+func walkGeminiInteractionCitationURLs(value any, citations *[]string) {
 	switch typed := value.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		for key, child := range typed {
 			if key == "url" || key == "uri" {
 				if citation := strings.TrimSpace(getString(child)); citation != "" {
@@ -1245,7 +1245,7 @@ func walkGeminiInteractionCitationURLs(value interface{}, citations *[]string) {
 			}
 			walkGeminiInteractionCitationURLs(child, citations)
 		}
-	case []interface{}:
+	case []any:
 		for _, child := range typed {
 			walkGeminiInteractionCitationURLs(child, citations)
 		}
@@ -1255,7 +1255,7 @@ func walkGeminiInteractionCitationURLs(value interface{}, citations *[]string) {
 func updateGeminiInteractionStreamToolCall(
 	result *portllm.GenerateOutput,
 	state *geminiInteractionStreamState,
-	parsed map[string]interface{},
+	parsed map[string]any,
 	eventType string,
 ) {
 	if result == nil || state == nil {
@@ -1317,7 +1317,7 @@ func updateGeminiInteractionStreamToolCall(
 	}
 }
 
-func geminiInteractionStreamStepIndex(parsed map[string]interface{}) (int64, bool) {
+func geminiInteractionStreamStepIndex(parsed map[string]any) (int64, bool) {
 	rawIndex, ok := parsed["index"]
 	if !ok {
 		return 0, false
@@ -1337,7 +1337,7 @@ func geminiInteractionStreamToolCallIndex(result *portllm.GenerateOutput, state 
 	return callIndex, true
 }
 
-func geminiInteractionToolCallFromMap(item map[string]interface{}) (portllm.ToolCall, bool) {
+func geminiInteractionToolCallFromMap(item map[string]any) (portllm.ToolCall, bool) {
 	if strings.TrimSpace(strings.ToLower(getString(item["type"]))) != "function_call" {
 		return portllm.ToolCall{}, false
 	}
@@ -1378,9 +1378,9 @@ func dedupeGeminiInteractionToolCalls(calls []portllm.ToolCall) []portllm.ToolCa
 	return result
 }
 
-func extractGeminiInteractionGeneratedImages(parsed map[string]interface{}) []portllm.GeneratedImage {
+func extractGeminiInteractionGeneratedImages(parsed map[string]any) []portllm.GeneratedImage {
 	images := make([]portllm.GeneratedImage, 0)
-	walkGeminiInteractionModelOutputContent(parsed["steps"], func(content interface{}) {
+	walkGeminiInteractionModelOutputContent(parsed["steps"], func(content any) {
 		walkGeminiInteractionImages(content, &images)
 	})
 	return dedupeGeminiInteractionImages(images)
@@ -1409,7 +1409,7 @@ func dedupeGeminiInteractionImages(images []portllm.GeneratedImage) []portllm.Ge
 	return deduped
 }
 
-func walkGeminiInteractionModelOutputContent(raw interface{}, walk func(interface{})) {
+func walkGeminiInteractionModelOutputContent(raw any, walk func(any)) {
 	if walk == nil {
 		return
 	}
@@ -1422,13 +1422,13 @@ func walkGeminiInteractionModelOutputContent(raw interface{}, walk func(interfac
 	}
 }
 
-func walkGeminiInteractionImages(value interface{}, images *[]portllm.GeneratedImage) {
+func walkGeminiInteractionImages(value any, images *[]portllm.GeneratedImage) {
 	switch typed := value.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		if image, ok := geminiImageFromInteractionMap(typed); ok {
 			*images = append(*images, image)
 		}
-	case []interface{}:
+	case []any:
 		for _, child := range typed {
 			if image, ok := geminiImageFromInteractionMap(asMap(child)); ok {
 				*images = append(*images, image)
@@ -1437,7 +1437,7 @@ func walkGeminiInteractionImages(value interface{}, images *[]portllm.GeneratedI
 	}
 }
 
-func geminiImageFromInteractionMap(item map[string]interface{}) (portllm.GeneratedImage, bool) {
+func geminiImageFromInteractionMap(item map[string]any) (portllm.GeneratedImage, bool) {
 	if strings.TrimSpace(strings.ToLower(getString(item["type"]))) != "image" {
 		return portllm.GeneratedImage{}, false
 	}
@@ -1460,9 +1460,9 @@ func geminiImageFromInteractionMap(item map[string]interface{}) (portllm.Generat
 	}, true
 }
 
-func extractGeminiInteractionGeneratedVideos(parsed map[string]interface{}) []portllm.GeneratedVideo {
+func extractGeminiInteractionGeneratedVideos(parsed map[string]any) []portllm.GeneratedVideo {
 	videos := make([]portllm.GeneratedVideo, 0)
-	walkGeminiInteractionModelOutputContent(parsed["steps"], func(content interface{}) {
+	walkGeminiInteractionModelOutputContent(parsed["steps"], func(content any) {
 		walkGeminiInteractionVideos(content, &videos)
 	})
 	return dedupeGeminiInteractionVideos(videos)
@@ -1491,13 +1491,13 @@ func dedupeGeminiInteractionVideos(videos []portllm.GeneratedVideo) []portllm.Ge
 	return deduped
 }
 
-func walkGeminiInteractionVideos(value interface{}, videos *[]portllm.GeneratedVideo) {
+func walkGeminiInteractionVideos(value any, videos *[]portllm.GeneratedVideo) {
 	switch typed := value.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		if video, ok := geminiVideoFromMap(typed); ok {
 			*videos = append(*videos, video)
 		}
-	case []interface{}:
+	case []any:
 		for _, child := range typed {
 			if video, ok := geminiVideoFromMap(asMap(child)); ok {
 				*videos = append(*videos, video)
@@ -1506,7 +1506,7 @@ func walkGeminiInteractionVideos(value interface{}, videos *[]portllm.GeneratedV
 	}
 }
 
-func geminiVideoFromMap(item map[string]interface{}) (portllm.GeneratedVideo, bool) {
+func geminiVideoFromMap(item map[string]any) (portllm.GeneratedVideo, bool) {
 	if strings.TrimSpace(strings.ToLower(getString(item["type"]))) != "video" {
 		return portllm.GeneratedVideo{}, false
 	}
@@ -1529,7 +1529,7 @@ func geminiVideoFromMap(item map[string]interface{}) (portllm.GeneratedVideo, bo
 	}, true
 }
 
-func geminiInteractionTextFromSteps(raw interface{}) string {
+func geminiInteractionTextFromSteps(raw any) string {
 	parts := make([]string, 0)
 	for _, rawStep := range asSlice(raw) {
 		step := asMap(rawStep)

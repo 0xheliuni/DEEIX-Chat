@@ -53,7 +53,7 @@ type routeGenerationPlan struct {
 	routeConfig              llm.RouteConfig
 	promptPlan               PromptPlan
 	reasoningContentPassback bool
-	filteredOptions          map[string]interface{}
+	filteredOptions          map[string]any
 	// llmMessages 是预算裁剪后的完整上下文，工具回灌在其上追加；fullLLMMessages 是它在剥离
 	// Responses instructions 与有状态续传裁剪之前的副本，用于续传指纹与账单输入估算。
 	llmMessages               []llm.Message

@@ -64,7 +64,7 @@ func NewHandler(
 	}
 }
 
-func (h *Handler) recordAudit(c *gin.Context, userID uint, action string, resource string, resourceID string, detail interface{}) {
+func (h *Handler) recordAudit(c *gin.Context, userID uint, action string, resource string, resourceID string, detail any) {
 	h.service.RecordAudit(c.Request.Context(), appbilling.AuditInput{
 		ActorUserID: userID,
 		RequestID:   middleware.MustRequestID(c),
@@ -245,7 +245,7 @@ func (h *Handler) PatchBillingConfig(c *gin.Context) {
 		"update_billing_config",
 		"billing_config",
 		"mode",
-		map[string]interface{}{
+		map[string]any{
 			"mode":                        mode,
 			"prepaid_amount_usd":          req.PrepaidAmountUSD,
 			"usd_to_cny_rate":             req.USDToCNYRate,
@@ -371,7 +371,7 @@ func (h *Handler) UpdateBillingAccountBalance(c *gin.Context) {
 		"update_billing_balance",
 		"billing_account",
 		strconv.FormatUint(targetUserID, 10),
-		map[string]interface{}{
+		map[string]any{
 			"user_id":     targetUserID,
 			"balance_usd": balanceUSD,
 		},
@@ -453,7 +453,7 @@ func (h *Handler) CreateRedemptionCodes(c *gin.Context) {
 		"create_redemption_code",
 		"billing_redemption_code",
 		req.Mode,
-		map[string]interface{}{
+		map[string]any{
 			"mode":            req.Mode,
 			"quantity":        req.Quantity,
 			"credit_usd":      req.CreditUSD,
@@ -534,7 +534,7 @@ func (h *Handler) RevealRedemptionCode(c *gin.Context) {
 		"reveal_redemption_code",
 		"billing_redemption_code",
 		strconv.FormatUint(codeID, 10),
-		map[string]interface{}{"code_hint": item.CodeHint},
+		map[string]any{"code_hint": item.CodeHint},
 	)
 	c.Header("Cache-Control", "no-store")
 	response.Success(c, RedemptionCodeDataResponse{Code: toRedemptionCodeResponse(*item)})
@@ -584,7 +584,7 @@ func (h *Handler) PatchRedemptionCode(c *gin.Context) {
 		"update_redemption_code",
 		"billing_redemption_code",
 		strconv.FormatUint(codeID, 10),
-		map[string]interface{}{
+		map[string]any{
 			"status":          req.Status,
 			"max_redemptions": req.MaxRedemptions.Value,
 			"per_user_limit":  req.PerUserLimit,
@@ -623,7 +623,7 @@ func (h *Handler) DeleteRedemptionCode(c *gin.Context) {
 		"delete_redemption_code",
 		"billing_redemption_code",
 		strconv.FormatUint(codeID, 10),
-		map[string]interface{}{"deleted": true},
+		map[string]any{"deleted": true},
 	)
 	response.Success(c, RedemptionCodeDeleteDataResponse{Deleted: true})
 }
@@ -653,7 +653,7 @@ func (h *Handler) BatchDeleteRedemptionCodes(c *gin.Context) {
 		"batch_delete_redemption_codes",
 		"billing_redemption_code",
 		"batch",
-		map[string]interface{}{
+		map[string]any{
 			"ids":           req.IDs,
 			"success_count": result.SuccessCount,
 			"not_found":     result.NotFoundCount,
@@ -777,7 +777,7 @@ func (h *Handler) UpdatePlan(c *gin.Context) {
 		"update_billing_plan",
 		"billing_plan",
 		strconv.FormatUint(planID, 10),
-		map[string]interface{}{
+		map[string]any{
 			"plan_id":           planID,
 			"name":              req.Name,
 			"period_credit_usd": *req.PeriodCreditUSD,
@@ -835,7 +835,7 @@ func (h *Handler) Subscribe(c *gin.Context) {
 		"subscribe",
 		"billing",
 		strconv.FormatUint(uint64(item.ID), 10),
-		map[string]interface{}{
+		map[string]any{
 			"price_id": req.PriceID,
 			"cycles":   cycles,
 		},
@@ -1053,7 +1053,7 @@ func (h *Handler) UpsertModelPricing(c *gin.Context) {
 		"upsert_model_pricing",
 		"billing_model_price",
 		platformModelName,
-		map[string]interface{}{
+		map[string]any{
 			"platform_model_name": platformModelName,
 			"currency":            req.Currency,
 		},

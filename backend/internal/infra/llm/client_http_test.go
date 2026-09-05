@@ -95,14 +95,14 @@ func TestListModelsFallsBackToOpenAICompatibleModels(t *testing.T) {
 		}
 		if r.Header.Get("Authorization") != "Bearer test-key" {
 			w.WriteHeader(http.StatusUnauthorized)
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
-				"error": map[string]interface{}{"message": "bearer required"},
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"error": map[string]any{"message": "bearer required"},
 			})
 			return
 		}
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"object": "list",
-			"data": []map[string]interface{}{
+			"data": []map[string]any{
 				{"id": "claude-3-7-sonnet-20250219", "object": "model", "owned_by": "clewdr"},
 			},
 		})
@@ -143,7 +143,7 @@ func TestListModelsAnthropicFetchesEveryPage(t *testing.T) {
 			if got := r.URL.Query().Get("after_id"); got != "" {
 				t.Fatalf("unexpected first-page cursor %q", got)
 			}
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]any{
 				"data":     []map[string]string{{"id": "claude-first"}},
 				"has_more": true,
 				"last_id":  "cursor-1",
@@ -152,7 +152,7 @@ func TestListModelsAnthropicFetchesEveryPage(t *testing.T) {
 			if got := r.URL.Query().Get("after_id"); got != "cursor-1" {
 				t.Fatalf("unexpected second-page cursor %q", got)
 			}
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]any{
 				"data":     []map[string]string{{"id": "claude-second"}},
 				"has_more": false,
 			})
@@ -186,7 +186,7 @@ func TestListModelsGeminiFetchesEveryPage(t *testing.T) {
 			if got := r.URL.Query().Get("pageToken"); got != "" {
 				t.Fatalf("unexpected first-page token %q", got)
 			}
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]any{
 				"models":        []map[string]string{{"name": "models/gemini-first"}},
 				"nextPageToken": "token-1",
 			})
@@ -194,7 +194,7 @@ func TestListModelsGeminiFetchesEveryPage(t *testing.T) {
 			if got := r.URL.Query().Get("pageToken"); got != "token-1" {
 				t.Fatalf("unexpected second-page token %q", got)
 			}
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]any{
 				"models": []map[string]string{{"name": "models/gemini-second"}},
 			})
 		default:
@@ -239,8 +239,8 @@ func TestListModelsFallsBackToOpenAICompatibleModelsForGemini(t *testing.T) {
 		paths = append(paths, r.URL.Path)
 		if r.URL.Path == "/v1beta/models" {
 			w.WriteHeader(http.StatusNotFound)
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
-				"error": map[string]interface{}{"message": "no gemini models endpoint"},
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"error": map[string]any{"message": "no gemini models endpoint"},
 			})
 			return
 		}
@@ -250,9 +250,9 @@ func TestListModelsFallsBackToOpenAICompatibleModelsForGemini(t *testing.T) {
 		if r.Header.Get("Authorization") != "Bearer test-key" {
 			t.Fatalf("expected fallback bearer auth header, got %q", r.Header.Get("Authorization"))
 		}
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"object": "list",
-			"data": []map[string]interface{}{
+			"data": []map[string]any{
 				{"id": "gemini-openai-compatible", "object": "model", "owned_by": "proxy"},
 			},
 		})
@@ -507,12 +507,12 @@ func TestOpenAIGenerationExpandsConversationIdentityHeader(t *testing.T) {
 }
 
 func TestOpenAIChatCompletionsStreamRetriesWhenAutoUsageOptionIsRejected(t *testing.T) {
-	var includeUsageValues []interface{}
+	var includeUsageValues []any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/chat/completions" {
 			t.Fatalf("expected chat completions path, got %s", r.URL.Path)
 		}
-		var payload map[string]interface{}
+		var payload map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			t.Fatalf("decode request: %v", err)
 		}
@@ -520,8 +520,8 @@ func TestOpenAIChatCompletionsStreamRetriesWhenAutoUsageOptionIsRejected(t *test
 		includeUsageValues = append(includeUsageValues, streamOptions["include_usage"])
 		if len(includeUsageValues) == 1 {
 			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
-				"error": map[string]interface{}{"message": "unknown field stream_options.include_usage"},
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"error": map[string]any{"message": "unknown field stream_options.include_usage"},
 			})
 			return
 		}

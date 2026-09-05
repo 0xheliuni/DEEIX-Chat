@@ -100,7 +100,7 @@ func (s *Service) CancelMessageGeneration(ctx context.Context, userID uint, runI
 }
 
 // PublishMessageGenerationEvent 发布由当前请求生命周期持有的生成事件。
-func (s *Service) PublishMessageGenerationEvent(ctx context.Context, runID string, payload map[string]interface{}) (map[string]interface{}, bool) {
+func (s *Service) PublishMessageGenerationEvent(ctx context.Context, runID string, payload map[string]any) (map[string]any, bool) {
 	return s.generationStreams.publish(ctx, normalizeRunID(runID), payload)
 }
 
@@ -184,7 +184,7 @@ func normalizeRunID(raw string) string {
 type GenerationStreamEvent struct {
 	ID      string
 	Seq     int64
-	Payload map[string]interface{}
+	Payload map[string]any
 }
 
 type activeGeneration struct {
@@ -496,7 +496,7 @@ func (r *generationStreamRegistry) isCanceled(ctx context.Context, runID string)
 	return false
 }
 
-func (r *generationStreamRegistry) publish(ctx context.Context, runID string, payload map[string]interface{}) (map[string]interface{}, bool) {
+func (r *generationStreamRegistry) publish(ctx context.Context, runID string, payload map[string]any) (map[string]any, bool) {
 	if runID == "" {
 		return payload, false
 	}
@@ -507,7 +507,7 @@ func (r *generationStreamRegistry) publish(ctx context.Context, runID string, pa
 	return r.publishWithLease(ctx, lease, payload)
 }
 
-func (r *generationStreamRegistry) publishCurrent(ctx context.Context, runID string, payload map[string]interface{}) {
+func (r *generationStreamRegistry) publishCurrent(ctx context.Context, runID string, payload map[string]any) {
 	active := r.localActive(runID)
 	if active == nil {
 		return
@@ -518,8 +518,8 @@ func (r *generationStreamRegistry) publishCurrent(ctx context.Context, runID str
 func (r *generationStreamRegistry) publishWithLease(
 	ctx context.Context,
 	lease repository.GenerationStreamLease,
-	payload map[string]interface{},
-) (map[string]interface{}, bool) {
+	payload map[string]any,
+) (map[string]any, bool) {
 	actual := cloneStreamPayload(payload)
 	persisted, sanitized := generationStreamPayloadForStore(actual)
 	payloadJSON, err := marshalStreamPayload(persisted)
@@ -906,7 +906,7 @@ func retainedStreamEvents(input retainedStreamEventsInput) ([]GenerationStreamEv
 		}
 		replay = append(replay, GenerationStreamEvent{
 			Seq: input.TextSnapshot.Seq,
-			Payload: map[string]interface{}{
+			Payload: map[string]any{
 				"type":    "delta",
 				"seq":     input.TextSnapshot.Seq,
 				"delta":   input.TextSnapshot.Content,
@@ -981,14 +981,14 @@ func retainedStreamEvents(input retainedStreamEventsInput) ([]GenerationStreamEv
 	return replay, cursor, terminal, true
 }
 
-func generationStreamUpstreamThinkAppend(payload map[string]interface{}) *repository.GenerationStreamUpstreamThinkAppend {
+func generationStreamUpstreamThinkAppend(payload map[string]any) *repository.GenerationStreamUpstreamThinkAppend {
 	if streamString(payload["type"]) != "upstream_think_delta" {
 		return nil
 	}
 	delta, _ := payload["delta"].(string)
 	contentMarkdown, hasContent := payload["contentMarkdown"].(string)
 	roundID := strings.TrimSpace(streamString(payload["roundID"]))
-	metadata := map[string]interface{}{"type": "upstream_think_delta"}
+	metadata := map[string]any{"type": "upstream_think_delta"}
 	for _, key := range []string{"status", "title", "summary", "stage", "eventID", "startedAt", "endedAt", "kind"} {
 		if value, ok := payload[key]; ok {
 			metadata[key] = value
@@ -1010,10 +1010,10 @@ func generationStreamUpstreamThinkAppend(payload map[string]interface{}) *reposi
 	}
 }
 
-func generationStreamUpstreamThinkSnapshotPayload(snapshot repository.GenerationStreamUpstreamThinkSnapshot) map[string]interface{} {
-	payload := map[string]interface{}{}
+func generationStreamUpstreamThinkSnapshotPayload(snapshot repository.GenerationStreamUpstreamThinkSnapshot) map[string]any {
+	payload := map[string]any{}
 	if err := json.Unmarshal([]byte(snapshot.MetadataJSON), &payload); err != nil || payload == nil {
-		payload = map[string]interface{}{}
+		payload = map[string]any{}
 	}
 	payload["type"] = "upstream_think_delta"
 	payload["seq"] = snapshot.Seq
@@ -1025,14 +1025,14 @@ func generationStreamUpstreamThinkSnapshotPayload(snapshot repository.Generation
 	return payload
 }
 
-func upstreamThinkPayloadHasContent(payload map[string]interface{}) bool {
+func upstreamThinkPayloadHasContent(payload map[string]any) bool {
 	_, hasDelta := payload["delta"].(string)
 	_, hasContent := payload["contentMarkdown"].(string)
 	return hasDelta || hasContent
 }
 
 func decodeStreamRecord(record repository.GenerationStreamMessage) (GenerationStreamEvent, bool) {
-	payload := map[string]interface{}{}
+	payload := map[string]any{}
 	if err := json.Unmarshal([]byte(record.PayloadJSON), &payload); err != nil {
 		return GenerationStreamEvent{}, false
 	}
@@ -1047,7 +1047,7 @@ func decodeStreamRecord(record repository.GenerationStreamMessage) (GenerationSt
 	return GenerationStreamEvent{ID: record.ID, Seq: seq, Payload: payload}, true
 }
 
-func marshalStreamPayload(payload map[string]interface{}) (string, error) {
+func marshalStreamPayload(payload map[string]any) (string, error) {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return "", err
@@ -1055,7 +1055,7 @@ func marshalStreamPayload(payload map[string]interface{}) (string, error) {
 	return string(data), nil
 }
 
-func generationStreamPayloadForStore(payload map[string]interface{}) (map[string]interface{}, bool) {
+func generationStreamPayloadForStore(payload map[string]any) (map[string]any, bool) {
 	if !isTraceUpdateStreamPayload(payload) {
 		return payload, false
 	}
@@ -1071,11 +1071,11 @@ func generationStreamPayloadForStore(payload map[string]interface{}) (map[string
 	return compactOversizedGenerationStreamPayload(sanitized), true
 }
 
-func shouldReturnSanitizedGenerationStreamPayload(actual map[string]interface{}, sanitized bool) bool {
+func shouldReturnSanitizedGenerationStreamPayload(actual map[string]any, sanitized bool) bool {
 	return sanitized && isTraceUpdateStreamPayload(actual)
 }
 
-func isTraceUpdateStreamPayload(payload map[string]interface{}) bool {
+func isTraceUpdateStreamPayload(payload map[string]any) bool {
 	switch strings.TrimSpace(streamString(payload["type"])) {
 	case "process_update", "upstream_think_delta":
 		return true
@@ -1084,31 +1084,31 @@ func isTraceUpdateStreamPayload(payload map[string]interface{}) bool {
 	}
 }
 
-func sanitizeGenerationStreamPayload(payload map[string]interface{}) map[string]interface{} {
+func sanitizeGenerationStreamPayload(payload map[string]any) map[string]any {
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		next := cloneStreamPayload(payload)
 		next["payloadTruncated"] = true
 		return next
 	}
-	var normalized interface{}
+	var normalized any
 	if err := json.Unmarshal(raw, &normalized); err != nil {
 		next := cloneStreamPayload(payload)
 		next["payloadTruncated"] = true
 		return next
 	}
-	sanitized, _ := sanitizeGenerationStreamValue(normalized).(map[string]interface{})
+	sanitized, _ := sanitizeGenerationStreamValue(normalized).(map[string]any)
 	if sanitized == nil {
-		sanitized = map[string]interface{}{}
+		sanitized = map[string]any{}
 	}
 	sanitized["payloadTruncated"] = true
 	return sanitized
 }
 
-func sanitizeGenerationStreamValue(value interface{}) interface{} {
+func sanitizeGenerationStreamValue(value any) any {
 	switch typed := value.(type) {
-	case map[string]interface{}:
-		next := make(map[string]interface{}, len(typed))
+	case map[string]any:
+		next := make(map[string]any, len(typed))
 		for key, item := range typed {
 			if shouldDropStreamTraceField(key) {
 				next[key+"_size"] = len(strings.TrimSpace(streamString(item)))
@@ -1128,8 +1128,8 @@ func sanitizeGenerationStreamValue(value interface{}) interface{} {
 			next[key] = sanitizeGenerationStreamValue(item)
 		}
 		return next
-	case []interface{}:
-		next := make([]interface{}, 0, len(typed))
+	case []any:
+		next := make([]any, 0, len(typed))
 		for _, item := range typed {
 			next = append(next, sanitizeGenerationStreamValue(item))
 		}
@@ -1139,14 +1139,14 @@ func sanitizeGenerationStreamValue(value interface{}) interface{} {
 	}
 }
 
-func sanitizeStreamToolCalls(value interface{}) interface{} {
-	items, ok := value.([]interface{})
+func sanitizeStreamToolCalls(value any) any {
+	items, ok := value.([]any)
 	if !ok {
 		return sanitizeGenerationStreamValue(value)
 	}
-	next := make([]interface{}, 0, len(items))
+	next := make([]any, 0, len(items))
 	for _, item := range items {
-		record, ok := item.(map[string]interface{})
+		record, ok := item.(map[string]any)
 		if !ok {
 			next = append(next, sanitizeGenerationStreamValue(item))
 			continue
@@ -1161,7 +1161,7 @@ func sanitizeStreamTracePayloadJSON(raw string) string {
 	if value == "" {
 		return ""
 	}
-	var payload interface{}
+	var payload any
 	if err := json.Unmarshal([]byte(value), &payload); err != nil {
 		return ""
 	}
@@ -1173,9 +1173,9 @@ func sanitizeStreamTracePayloadJSON(raw string) string {
 	return string(data)
 }
 
-func compactOversizedGenerationStreamPayload(payload map[string]interface{}) map[string]interface{} {
+func compactOversizedGenerationStreamPayload(payload map[string]any) map[string]any {
 	eventType := strings.TrimSpace(streamString(payload["type"]))
-	next := map[string]interface{}{
+	next := map[string]any{
 		"type":             eventType,
 		"payloadTruncated": true,
 	}
@@ -1203,25 +1203,25 @@ func isTracePayloadJSONField(key string) bool {
 	return key == "payloadJSON" || key == "PayloadJSON" || key == "payloadJson"
 }
 
-func streamString(value interface{}) string {
+func streamString(value any) string {
 	text, _ := value.(string)
 	return text
 }
 
-func cloneStreamPayload(payload map[string]interface{}) map[string]interface{} {
-	next := make(map[string]interface{}, len(payload)+1)
+func cloneStreamPayload(payload map[string]any) map[string]any {
+	next := make(map[string]any, len(payload)+1)
 	for key, value := range payload {
 		next[key] = value
 	}
 	return next
 }
 
-func isTerminalStreamPayload(payload map[string]interface{}) bool {
+func isTerminalStreamPayload(payload map[string]any) bool {
 	eventType, _ := payload["type"].(string)
 	return eventType == "completed" || eventType == "error" || eventType == "moderation_blocked"
 }
 
-func int64FromPayload(raw interface{}) int64 {
+func int64FromPayload(raw any) int64 {
 	switch value := raw.(type) {
 	case int64:
 		return value

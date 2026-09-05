@@ -241,7 +241,7 @@ func (h *Handler) ExportConversation(c *gin.Context) {
 	h.recordAudit(c, "export_conversation",
 		"conversation",
 		publicID,
-		map[string]interface{}{"message_count": item.TotalMessages},
+		map[string]any{"message_count": item.TotalMessages},
 	)
 
 	response.Success(c, toConversationExportResponse(item))
@@ -268,7 +268,7 @@ type userExportManifest struct {
 func (h *Handler) ExportAllConversations(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 
-	h.recordAudit(c, "export_all_conversations", "conversation", "", map[string]interface{}{"scope": "user"})
+	h.recordAudit(c, "export_all_conversations", "conversation", "", map[string]any{"scope": "user"})
 
 	c.Header("Content-Type", "application/x-ndjson")
 	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="my-conversations-%s.jsonl"`, time.Now().UTC().Format("20060102-150405")))
@@ -610,7 +610,7 @@ func (h *Handler) DeleteConversation(c *gin.Context) {
 	h.recordAudit(c, "delete_conversation",
 		"conversation",
 		publicID,
-		map[string]interface{}{
+		map[string]any{
 			"deleted":            true,
 			"delete_files":       deleteFiles,
 			"deleted_file_count": result.DeletedFileCount,
@@ -670,7 +670,7 @@ func (h *Handler) ForkConversationFromMessage(c *gin.Context) {
 	h.recordAudit(c, "fork_conversation",
 		"conversation",
 		result.PublicID,
-		map[string]interface{}{
+		map[string]any{
 			"source_conversation_id": conversationID,
 			"source_message_id":      messageID,
 		},

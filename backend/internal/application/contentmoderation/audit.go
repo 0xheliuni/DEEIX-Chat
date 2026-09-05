@@ -18,7 +18,7 @@ type ReviewAuditInput struct {
 	EventID     string
 	ClientIP    string
 	UserAgent   string
-	Detail      interface{}
+	Detail      any
 }
 
 // RecordReviewAudit records which administrator viewed retained moderation content.

@@ -59,7 +59,7 @@ type AuditInput struct {
 	Action    string
 	ClientIP  string
 	UserAgent string
-	Detail    interface{}
+	Detail    any
 }
 
 // RecordAudit 记录系统设置审计日志。

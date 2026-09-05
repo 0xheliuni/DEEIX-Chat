@@ -796,7 +796,7 @@ func sanitizeSharedTracePayloadJSON(raw string) string {
 	if value == "" {
 		return ""
 	}
-	payload := map[string]interface{}{}
+	payload := map[string]any{}
 	if err := json.Unmarshal([]byte(value), &payload); err != nil {
 		return ""
 	}
@@ -811,18 +811,18 @@ func sanitizeSharedTracePayloadJSON(raw string) string {
 	return string(data)
 }
 
-func deleteSharedTraceInternalFields(payload map[string]interface{}, parentKey string) {
+func deleteSharedTraceInternalFields(payload map[string]any, parentKey string) {
 	for key, value := range payload {
 		if isSharedTraceInternalField(key, parentKey) {
 			delete(payload, key)
 			continue
 		}
 		switch child := value.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			deleteSharedTraceInternalFields(child, key)
-		case []interface{}:
+		case []any:
 			for _, item := range child {
-				if itemMap, ok := item.(map[string]interface{}); ok {
+				if itemMap, ok := item.(map[string]any); ok {
 					deleteSharedTraceInternalFields(itemMap, key)
 				}
 			}

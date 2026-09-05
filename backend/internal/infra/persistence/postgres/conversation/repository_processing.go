@@ -97,7 +97,7 @@ func (r *Repo) TryClaimFileObjectProcessing(
 	result := r.db.WithContext(ctx).
 		Model(&models.FileObject{}).
 		Where("user_id = ? AND file_id = ? AND processing_status IN ?", userID, fileID, claimableStatuses).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"processing_status":        "extracting",
 			"processing_ready":         false,
 			"processing_error_code":    "",
@@ -131,7 +131,7 @@ func (r *Repo) ResetFileObjectProcessingForRetry(
 			attemptID,
 			[]string{"extracting", "embedding"},
 		).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"processing_status":       "queued",
 			"processing_ready":        false,
 			"extract_status":          "none",

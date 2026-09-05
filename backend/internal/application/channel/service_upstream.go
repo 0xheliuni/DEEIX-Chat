@@ -475,12 +475,12 @@ type apiKeysPayload struct {
 
 // maskAPIKeys 将密钥配置中的密钥做脱敏处理用于前端展示。
 func maskAPIKeys(raw string) string {
-	var cfgMap map[string]interface{}
+	var cfgMap map[string]any
 	if err := json.Unmarshal([]byte(raw), &cfgMap); err == nil {
 		if keysRaw, ok := cfgMap["keys"]; ok {
-			if keys, ok := keysRaw.([]interface{}); ok {
+			if keys, ok := keysRaw.([]any); ok {
 				for _, k := range keys {
-					if m, ok := k.(map[string]interface{}); ok {
+					if m, ok := k.(map[string]any); ok {
 						if v, ok := m["key"].(string); ok {
 							m["key"] = maskSingleKey(v)
 						}

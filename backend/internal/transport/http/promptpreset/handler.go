@@ -213,7 +213,7 @@ func (h *Handler) CreateAdminPromptPreset(c *gin.Context) {
 		writePromptPresetError(c, err)
 		return
 	}
-	h.service.RecordAudit(c.Request.Context(), auditInput(c, "prompt_preset.create_builtin", item.ID, map[string]interface{}{"trigger": item.Trigger}))
+	h.service.RecordAudit(c.Request.Context(), auditInput(c, "prompt_preset.create_builtin", item.ID, map[string]any{"trigger": item.Trigger}))
 	response.Success(c, PromptPresetDataResponse{PromptPreset: toPromptPresetResponse(*item)})
 }
 
@@ -246,7 +246,7 @@ func (h *Handler) PatchAdminPromptPreset(c *gin.Context) {
 		writePromptPresetError(c, err)
 		return
 	}
-	h.service.RecordAudit(c.Request.Context(), auditInput(c, "prompt_preset.update_builtin", item.ID, map[string]interface{}{"trigger": item.Trigger}))
+	h.service.RecordAudit(c.Request.Context(), auditInput(c, "prompt_preset.update_builtin", item.ID, map[string]any{"trigger": item.Trigger}))
 	response.Success(c, PromptPresetDataResponse{PromptPreset: toPromptPresetResponse(*item)})
 }
 
@@ -306,7 +306,7 @@ func idParam(c *gin.Context) (uint, bool) {
 	return uint(id), true
 }
 
-func auditInput(c *gin.Context, action string, resourceID uint, detail interface{}) apppromptpreset.AuditInput {
+func auditInput(c *gin.Context, action string, resourceID uint, detail any) apppromptpreset.AuditInput {
 	return apppromptpreset.AuditInput{
 		UserID:     middleware.MustUserID(c),
 		RequestID:  middleware.MustRequestID(c),

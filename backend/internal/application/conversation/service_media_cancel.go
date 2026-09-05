@@ -27,7 +27,7 @@ type canceledMediaGenerationInput struct {
 	AssistantMessage    *model.Message
 	ReuseUserMessage    bool
 	Route               channel.ResolvedRoute
-	EffectiveOptions    map[string]interface{}
+	EffectiveOptions    map[string]any
 	GenerateInput       llm.GenerateInput
 	StartedAt           time.Time
 	DurationSeconds     int64
@@ -40,7 +40,7 @@ type failedMediaBillingResultInput struct {
 	UserMessage      *model.Message
 	AssistantMessage *model.Message
 	Route            channel.ResolvedRoute
-	EffectiveOptions map[string]interface{}
+	EffectiveOptions map[string]any
 	Usage            llm.Usage
 	StartedAt        time.Time
 	DurationSeconds  int64
@@ -201,7 +201,7 @@ func applyMediaRunUsage(run *model.Run, result *SendMessageResult) {
 	run.ReasoningTokens = result.AssistantMessage.ReasoningTokens
 }
 
-func mediaDurationSecondsFromOptions(options map[string]interface{}) int64 {
+func mediaDurationSecondsFromOptions(options map[string]any) int64 {
 	paths := [][]string{
 		{"durationSeconds"},
 		{"duration_seconds"},
@@ -225,12 +225,12 @@ func mediaDurationSecondsFromOptions(options map[string]interface{}) int64 {
 
 // withDefaultMediaVideoDuration 仅向明确支持 duration 参数的视频协议补齐产品缺省值。
 // 其他协议仍以其返回的真实媒体时长为准，避免发送未声明的厂商参数。
-func withDefaultMediaVideoDuration(options map[string]interface{}, protocol string) map[string]interface{} {
+func withDefaultMediaVideoDuration(options map[string]any, protocol string) map[string]any {
 	adapter := llm.NormalizeAdapter(protocol)
 	if mediaDurationSecondsFromOptions(options) > 0 || (adapter != llm.AdapterXAIVideo && adapter != llm.AdapterXAIVideoExtensions) {
 		return options
 	}
-	next := make(map[string]interface{}, len(options)+1)
+	next := make(map[string]any, len(options)+1)
 	for key, value := range options {
 		next[key] = value
 	}
@@ -252,7 +252,7 @@ func resolveGeneratedVideoDurations(videos []llm.GeneratedVideo, fallbackSeconds
 	return durations, total
 }
 
-func mediaDurationSecondsFromValue(value interface{}) int64 {
+func mediaDurationSecondsFromValue(value any) int64 {
 	switch v := value.(type) {
 	case int:
 		return positiveSeconds(int64(v))

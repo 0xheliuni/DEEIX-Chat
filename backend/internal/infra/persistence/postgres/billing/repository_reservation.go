@@ -198,7 +198,7 @@ func (r *Repo) RaiseUsageBalanceReservation(ctx context.Context, userID uint, re
 			return repository.ErrInsufficientBalance
 		}
 		periodCreditNanousd := minInt64(requiredNanousd, availableCreditNanousd)
-		return dberror.Translate(tx.Model(&reservation).Updates(map[string]interface{}{
+		return dberror.Translate(tx.Model(&reservation).Updates(map[string]any{
 			"balance_nanousd":       requiredNanousd - periodCreditNanousd,
 			"period_credit_nanousd": periodCreditNanousd,
 		}).Error)
@@ -225,7 +225,7 @@ func (r *Repo) ReleaseUsageBalanceReservation(ctx context.Context, userID uint, 
 			return nil
 		}
 		releasedAt := time.Now()
-		return dberror.Translate(tx.Model(&reservation).Updates(map[string]interface{}{
+		return dberror.Translate(tx.Model(&reservation).Updates(map[string]any{
 			"status":      domainbilling.UsageReservationStatusReleased,
 			"released_at": releasedAt,
 		}).Error)
@@ -247,7 +247,7 @@ func (r *Repo) RenewUsageBalanceReservation(ctx context.Context, userID uint, re
 			domainbilling.UsageReservationStatusActive,
 			now,
 		).
-		Updates(map[string]interface{}{"expires_at": now.Add(usageReservationTTL)})
+		Updates(map[string]any{"expires_at": now.Add(usageReservationTTL)})
 	if result.Error != nil {
 		return dberror.Translate(result.Error)
 	}
@@ -278,7 +278,7 @@ func (r *Repo) MarkUsageReservationReconciliationRequired(ctx context.Context, u
 				domainbilling.UsageReservationStatusReconciliation,
 			},
 		).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"status":            domainbilling.UsageReservationStatusReconciliation,
 			"failure_code":      failureCode,
 			"reconciliation_at": reconciliationAt,
@@ -332,7 +332,7 @@ func settleUsageReservation(tx *gorm.DB, reservation *model.UsageReservation, us
 		return nil
 	}
 	settledAt := time.Now()
-	return dberror.Translate(tx.Model(reservation).Updates(map[string]interface{}{
+	return dberror.Translate(tx.Model(reservation).Updates(map[string]any{
 		"status":          domainbilling.UsageReservationStatusSettled,
 		"usage_ledger_id": usageLedgerID,
 		"settled_at":      settledAt,

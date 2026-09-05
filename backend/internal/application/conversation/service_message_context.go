@@ -105,7 +105,7 @@ func estimatePromptTokens(messages []llm.Message) int64 {
 }
 
 func buildContextPolicyJSON(cfg config.Config) string {
-	policy := map[string]interface{}{
+	policy := map[string]any{
 		"max_turns":                      cfg.ContextMaxTurns,
 		"compact_enabled":                cfg.ContextCompactEnabled,
 		"context_window_fallback_tokens": cfg.ContextWindowFallbackTokens,
@@ -228,7 +228,7 @@ func sanitizeUpstreamNameJSON(raw string) string {
 	if value == "" {
 		return raw
 	}
-	var payload interface{}
+	var payload any
 	if err := json.Unmarshal([]byte(value), &payload); err != nil {
 		return raw
 	}
@@ -240,9 +240,9 @@ func sanitizeUpstreamNameJSON(raw string) string {
 	return string(data)
 }
 
-func deleteUpstreamNameValues(value interface{}, parentKey string) {
+func deleteUpstreamNameValues(value any, parentKey string) {
 	switch current := value.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		for key, child := range current {
 			if isUpstreamNameKey(key, parentKey) {
 				delete(current, key)
@@ -250,7 +250,7 @@ func deleteUpstreamNameValues(value interface{}, parentKey string) {
 			}
 			deleteUpstreamNameValues(child, key)
 		}
-	case []interface{}:
+	case []any:
 		for _, child := range current {
 			deleteUpstreamNameValues(child, parentKey)
 		}
@@ -339,7 +339,7 @@ func isImageStreamingUpstreamRequest(debug *llm.UpstreamDebugSnapshot) bool {
 }
 
 func jsonObjectFieldIsTrue(raw string, key string) bool {
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &payload); err != nil {
 		return false
 	}
@@ -354,22 +354,22 @@ func jsonObjectFieldIsTrue(raw string, key string) bool {
 }
 
 func geminiImageResponseRequested(raw string) bool {
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &payload); err != nil {
 		return false
 	}
-	config, ok := payload["generationConfig"].(map[string]interface{})
+	config, ok := payload["generationConfig"].(map[string]any)
 	if !ok {
 		return false
 	}
 	return containsImageModality(config["responseModalities"])
 }
 
-func containsImageModality(raw interface{}) bool {
+func containsImageModality(raw any) bool {
 	switch value := raw.(type) {
 	case string:
 		return strings.EqualFold(strings.TrimSpace(value), "image")
-	case []interface{}:
+	case []any:
 		for _, item := range value {
 			if containsImageModality(item) {
 				return true

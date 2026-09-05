@@ -8,9 +8,9 @@ import (
 	portllm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
 )
 
-func mustDecodeObject(t *testing.T, raw string) map[string]interface{} {
+func mustDecodeObject(t *testing.T, raw string) map[string]any {
 	t.Helper()
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
 		t.Fatalf("decode usage fixture: %v", err)
 	}
@@ -19,11 +19,11 @@ func mustDecodeObject(t *testing.T, raw string) map[string]interface{} {
 
 func assertJSONEqual(t *testing.T, actual string, expected string) {
 	t.Helper()
-	var actualPayload interface{}
+	var actualPayload any
 	if err := json.Unmarshal([]byte(actual), &actualPayload); err != nil {
 		t.Fatalf("decode actual json: %v; raw=%s", err, actual)
 	}
-	var expectedPayload interface{}
+	var expectedPayload any
 	if err := json.Unmarshal([]byte(expected), &expectedPayload); err != nil {
 		t.Fatalf("decode expected json: %v; raw=%s", err, expected)
 	}

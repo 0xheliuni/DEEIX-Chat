@@ -108,8 +108,8 @@ func parseDSMLInvokeToolCalls(content string, offset int) []portllm.ToolCall {
 
 // parseDSMLParameters 按 DeepSeek DSML 的 string 标记还原参数类型。
 // 参数名重复时放弃本次 invoke，避免同名覆盖造成工具入参歧义。
-func parseDSMLParameters(content string) map[string]interface{} {
-	params := map[string]interface{}{}
+func parseDSMLParameters(content string) map[string]any {
+	params := map[string]any{}
 	for _, match := range dsmlParameterRE.FindAllStringSubmatch(content, -1) {
 		attrs := parseDSMLAttributes(match[1])
 		name := strings.TrimSpace(attrs["name"])
@@ -124,7 +124,7 @@ func parseDSMLParameters(content string) map[string]interface{} {
 			params[name] = value
 			continue
 		}
-		var decoded interface{}
+		var decoded any
 		if err := json.Unmarshal([]byte(value), &decoded); err == nil {
 			params[name] = decoded
 			continue

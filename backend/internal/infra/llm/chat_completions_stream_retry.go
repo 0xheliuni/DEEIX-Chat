@@ -33,7 +33,7 @@ func (c *Client) generateChatCompletionsStreamWithAutoUsageFallback(
 	return c.generateStreamOpenAICompatible(ctx, route, retryInput, onEvent)
 }
 
-func shouldRetryChatCompletionsWithoutAutoStreamUsage(options map[string]interface{}, err error) bool {
+func shouldRetryChatCompletionsWithoutAutoStreamUsage(options map[string]any, err error) bool {
 	if chatCompletionsStreamUsageExplicit(options) {
 		return false
 	}
@@ -48,8 +48,8 @@ func shouldRetryChatCompletionsWithoutAutoStreamUsage(options map[string]interfa
 	return strings.Contains(detail, "stream_options") || strings.Contains(detail, "include_usage")
 }
 
-func chatCompletionsStreamUsageExplicit(options map[string]interface{}) bool {
-	streamOptions, ok := options["stream_options"].(map[string]interface{})
+func chatCompletionsStreamUsageExplicit(options map[string]any) bool {
+	streamOptions, ok := options["stream_options"].(map[string]any)
 	if !ok {
 		return false
 	}
@@ -57,7 +57,7 @@ func chatCompletionsStreamUsageExplicit(options map[string]interface{}) bool {
 	return ok
 }
 
-func disableChatCompletionsAutoStreamUsage(options map[string]interface{}) map[string]interface{} {
+func disableChatCompletionsAutoStreamUsage(options map[string]any) map[string]any {
 	result := cloneMap(options)
 	streamOptions := cloneMap(asMap(result["stream_options"]))
 	streamOptions["include_usage"] = false

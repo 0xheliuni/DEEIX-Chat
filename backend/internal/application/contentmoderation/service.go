@@ -24,7 +24,7 @@ const (
 )
 
 // EventEmitter publishes recovery-stream events for a run (optional).
-type EventEmitter func(ctx context.Context, runID string, eventType string, payload map[string]interface{})
+type EventEmitter func(ctx context.Context, runID string, eventType string, payload map[string]any)
 
 // CancelRun cancels in-flight upstream generation for a run.
 type CancelRun func(ctx context.Context, runID string)
@@ -392,7 +392,7 @@ func sha256Hex(data []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func mustJSON(v interface{}) string {
+func mustJSON(v any) string {
 	raw, err := json.Marshal(v)
 	if err != nil {
 		return "{}"

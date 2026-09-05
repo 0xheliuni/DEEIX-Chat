@@ -79,7 +79,7 @@ func canFailoverMessageRoute(attemptCount int, llmRequestCount int, maxLLMCalls 
 }
 
 // emitEvent 统一处理可选事件回调，调用方无需重复判断 nil。
-func emitEvent(onEvent func(string, map[string]interface{}) error, eventType string, payload map[string]interface{}) {
+func emitEvent(onEvent func(string, map[string]any) error, eventType string, payload map[string]any) {
 	if onEvent == nil {
 		return
 	}
@@ -330,7 +330,7 @@ func (s *Service) sendMessageInternal(
 			return nil, err
 		}
 		if len(input.FileIDs) > 0 {
-			emitEvent(input.OnEvent, "file_proc", map[string]interface{}{"message": "正在处理附件…"})
+			emitEvent(input.OnEvent, "file_proc", map[string]any{"message": "正在处理附件…"})
 		}
 	}
 

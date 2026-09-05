@@ -33,7 +33,7 @@ type WriteInput struct {
 	ResourceID  string
 	IP          string
 	UserAgent   string
-	Detail      interface{}
+	Detail      any
 }
 
 func normalizeWriteInput(input WriteInput) WriteInput {

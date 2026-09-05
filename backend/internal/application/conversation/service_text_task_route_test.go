@@ -124,7 +124,7 @@ func TestBuildTextTaskGenerateInputAppliesDefaultsAndInstructions(t *testing.T) 
 	if len(input.Messages) != 1 || input.Messages[0].Role != "user" {
 		t.Fatalf("expected system message to be removed from input, got %#v", input.Messages)
 	}
-	reasoning := input.Options["reasoning"].(map[string]interface{})
+	reasoning := input.Options["reasoning"].(map[string]any)
 	if reasoning["effort"] != "medium" {
 		t.Fatalf("expected default reasoning effort, got %#v", input.Options)
 	}

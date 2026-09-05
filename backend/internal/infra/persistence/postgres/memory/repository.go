@@ -284,7 +284,7 @@ func (r *Repo) UpsertUserMemoryEmbedding(ctx context.Context, userID uint, memor
 		return err
 	}
 	query := `UPDATE "user_memories" SET embedding = ?::vector, embedding_signature = ? WHERE user_id = ? AND memory_key = ?`
-	args := []interface{}{vec, embeddingSignature, userID, memoryKey}
+	args := []any{vec, embeddingSignature, userID, memoryKey}
 	if strings.TrimSpace(expectedValue) != "" {
 		query += ` AND value = ?`
 		args = append(args, strings.TrimSpace(expectedValue))

@@ -78,7 +78,7 @@ func buildAnthropicModelsURL(baseURL string) string {
 
 // buildAnthropicRequestBody 构造 Anthropic Messages API 请求体。
 // system role 消息会被提取为顶层 system 字段；其余 user/assistant 消息按顺序放入 messages。
-func buildAnthropicRequestBody(model string, input portllm.GenerateInput, stream bool) (map[string]interface{}, error) {
+func buildAnthropicRequestBody(model string, input portllm.GenerateInput, stream bool) (map[string]any, error) {
 	messages := normalizeMessages(input.Messages)
 	providerTools, toolDefinitions, toolsEnabled, err := toolDeclarationsForInput(input)
 	if err != nil {
@@ -86,9 +86,9 @@ func buildAnthropicRequestBody(model string, input portllm.GenerateInput, stream
 	}
 
 	var systemParts []string
-	var systemBlocks []map[string]interface{}
+	var systemBlocks []map[string]any
 	explicitCacheControl := false
-	anthropicMessages := make([]map[string]interface{}, 0, len(messages))
+	anthropicMessages := make([]map[string]any, 0, len(messages))
 	maxTokens := anthropicMaxTokensFromOptions(input.Options)
 
 	for _, msg := range messages {
@@ -96,7 +96,7 @@ func buildAnthropicRequestBody(model string, input portllm.GenerateInput, stream
 			// system role → 顶层 system 字段（拼接多条）
 			if text := extractMessageText(msg); text != "" {
 				systemParts = append(systemParts, text)
-				block := map[string]interface{}{"type": "text", "text": text}
+				block := map[string]any{"type": "text", "text": text}
 				if !input.Ephemeral {
 					if cacheControl := anthropicCacheControlFromHint(msg.CacheControl, input.Options); len(cacheControl) > 0 {
 						block["cache_control"] = cacheControl
@@ -107,13 +107,13 @@ func buildAnthropicRequestBody(model string, input portllm.GenerateInput, stream
 			}
 			continue
 		}
-		anthropicMessages = append(anthropicMessages, map[string]interface{}{
+		anthropicMessages = append(anthropicMessages, map[string]any{
 			"role":    normalizeAnthropicRole(msg.Role),
 			"content": buildAnthropicContent(msg),
 		})
 	}
 
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"model":      strings.TrimSpace(model),
 		"max_tokens": maxTokens,
 		"messages":   anthropicMessages,
@@ -143,9 +143,9 @@ func buildAnthropicRequestBody(model string, input portllm.GenerateInput, stream
 	if speed := strings.TrimSpace(modelParamString(input.Options, "speed")); speed != "" {
 		payload["speed"] = speed
 	}
-	webSearchTools := []map[string]interface{}{}
+	webSearchTools := []map[string]any{}
 	if toolsEnabled && modelParamBool(input.Options, "web_search") {
-		webSearchTools = append(webSearchTools, map[string]interface{}{
+		webSearchTools = append(webSearchTools, map[string]any{
 			"type": "web_search_20250305",
 			"name": "web_search",
 		})
@@ -171,11 +171,11 @@ func buildAnthropicRequestBody(model string, input portllm.GenerateInput, stream
 	return payload, nil
 }
 
-func anthropicCacheControlFromHint(hint *portllm.CacheControl, options map[string]interface{}) map[string]interface{} {
+func anthropicCacheControlFromHint(hint *portllm.CacheControl, options map[string]any) map[string]any {
 	if hint == nil || !anthropicPromptCacheEnabled(options) {
 		return nil
 	}
-	cacheControl := map[string]interface{}{"type": "ephemeral"}
+	cacheControl := map[string]any{"type": "ephemeral"}
 	if value := strings.TrimSpace(hint.Type); value != "" {
 		cacheControl["type"] = value
 	}
@@ -189,7 +189,7 @@ func anthropicCacheControlFromHint(hint *portllm.CacheControl, options map[strin
 	return cacheControl
 }
 
-func anthropicMaxTokensFromOptions(options map[string]interface{}) int {
+func anthropicMaxTokensFromOptions(options map[string]any) int {
 	if requestedMaxTokens, ok := modelParamIntValue(options, "max_output_tokens"); ok && requestedMaxTokens >= 0 {
 		return requestedMaxTokens
 	}
@@ -199,7 +199,7 @@ func anthropicMaxTokensFromOptions(options map[string]interface{}) int {
 	return anthropicDefaultMaxTokens
 }
 
-func anthropicPromptCacheEnabled(options map[string]interface{}) bool {
+func anthropicPromptCacheEnabled(options map[string]any) bool {
 	if options == nil {
 		return true
 	}
@@ -217,7 +217,7 @@ func anthropicPromptCacheEnabled(options map[string]interface{}) bool {
 	return typed
 }
 
-func anthropicCacheControlFromOptions(options map[string]interface{}) map[string]interface{} {
+func anthropicCacheControlFromOptions(options map[string]any) map[string]any {
 	if !anthropicPromptCacheEnabled(options) {
 		return nil
 	}
@@ -230,14 +230,14 @@ func anthropicCacheControlFromOptions(options map[string]interface{}) map[string
 			return cacheControl
 		}
 	}
-	cacheControl := map[string]interface{}{"type": "ephemeral"}
+	cacheControl := map[string]any{"type": "ephemeral"}
 	if ttl := anthropicPromptCacheTTL(options); ttl != "" {
 		cacheControl["ttl"] = ttl
 	}
 	return cacheControl
 }
 
-func anthropicPromptCacheTTL(options map[string]interface{}) string {
+func anthropicPromptCacheTTL(options map[string]any) string {
 	switch strings.TrimSpace(strings.ToLower(modelParamString(options, "cache_timeout"))) {
 	case "5m":
 		return "5m"
@@ -248,11 +248,11 @@ func anthropicPromptCacheTTL(options map[string]interface{}) string {
 	}
 }
 
-func anthropicThinkingFromOptions(options map[string]interface{}, maxTokens int) map[string]interface{} {
+func anthropicThinkingFromOptions(options map[string]any, maxTokens int) map[string]any {
 	result := anthropicBaseThinkingFromOptions(options, maxTokens)
 	if enabled, ok := modelParamBoolValue(options, "enable_thinking"); ok {
 		if result == nil {
-			result = map[string]interface{}{}
+			result = map[string]any{}
 		}
 		if !enabled {
 			result["type"] = "disabled"
@@ -266,7 +266,7 @@ func anthropicThinkingFromOptions(options map[string]interface{}, maxTokens int)
 	}
 	if display := strings.TrimSpace(modelParamString(options, "thinking_display")); display != "" {
 		if result == nil {
-			result = map[string]interface{}{}
+			result = map[string]any{}
 		}
 		result["display"] = display
 	}
@@ -279,20 +279,20 @@ func anthropicThinkingFromOptions(options map[string]interface{}, maxTokens int)
 	return result
 }
 
-func anthropicBaseThinkingFromOptions(options map[string]interface{}, maxTokens int) map[string]interface{} {
+func anthropicBaseThinkingFromOptions(options map[string]any, maxTokens int) map[string]any {
 	if thinking := modelParamMap(options, "thinking"); len(thinking) > 0 {
-		result := make(map[string]interface{}, len(thinking))
+		result := make(map[string]any, len(thinking))
 		for key, value := range thinking {
 			result[key] = value
 		}
 		return result
 	}
 	if value := modelParamString(options, "thinking"); value != "" {
-		return map[string]interface{}{"type": value}
+		return map[string]any{"type": value}
 	}
 	if raw, ok := options["thinking"].(bool); ok {
 		if !raw {
-			return map[string]interface{}{"type": "disabled"}
+			return map[string]any{"type": "disabled"}
 		}
 		budgetTokens := modelParamInt(options, "budget_tokens")
 		if budgetTokens < 1024 {
@@ -301,10 +301,10 @@ func anthropicBaseThinkingFromOptions(options map[string]interface{}, maxTokens 
 				budgetTokens = min(maxTokens/4, maxTokens-1)
 			}
 		}
-		return map[string]interface{}{"type": "enabled", "budget_tokens": budgetTokens}
+		return map[string]any{"type": "enabled", "budget_tokens": budgetTokens}
 	}
 	if budgetTokens := modelParamInt(options, "budget_tokens"); budgetTokens >= 1024 {
-		return map[string]interface{}{
+		return map[string]any{
 			"type":          "enabled",
 			"budget_tokens": budgetTokens,
 		}
@@ -312,7 +312,7 @@ func anthropicBaseThinkingFromOptions(options map[string]interface{}, maxTokens 
 	return nil
 }
 
-func anthropicToolChoiceFromOptions(options map[string]interface{}) map[string]interface{} {
+func anthropicToolChoiceFromOptions(options map[string]any) map[string]any {
 	raw, ok := options["tool_choice"]
 	if !ok || raw == nil {
 		return nil
@@ -326,16 +326,16 @@ func anthropicToolChoiceFromOptions(options map[string]interface{}) map[string]i
 	}
 	switch value {
 	case "auto", "any", "none":
-		return map[string]interface{}{"type": value}
+		return map[string]any{"type": value}
 	default:
-		return map[string]interface{}{"type": "tool", "name": value}
+		return map[string]any{"type": "tool", "name": value}
 	}
 }
 
-func anthropicOutputConfigFromOptions(options map[string]interface{}) map[string]interface{} {
-	var result map[string]interface{}
+func anthropicOutputConfigFromOptions(options map[string]any) map[string]any {
+	var result map[string]any
 	if outputConfig := modelParamMap(options, "output_config"); len(outputConfig) > 0 {
-		result = make(map[string]interface{}, len(outputConfig))
+		result = make(map[string]any, len(outputConfig))
 		for key, value := range outputConfig {
 			result[key] = value
 		}
@@ -348,7 +348,7 @@ func anthropicOutputConfigFromOptions(options map[string]interface{}) map[string
 	}
 	if len(format) > 0 {
 		if result == nil {
-			result = map[string]interface{}{}
+			result = map[string]any{}
 		}
 		if _, exists := result["format"]; !exists {
 			result["format"] = format
@@ -356,7 +356,7 @@ func anthropicOutputConfigFromOptions(options map[string]interface{}) map[string
 	}
 	if effort := strings.TrimSpace(modelParamString(options, "effort")); effort != "" {
 		if result == nil {
-			result = map[string]interface{}{}
+			result = map[string]any{}
 		}
 		if strings.TrimSpace(getString(result["effort"])) == "" {
 			result["effort"] = effort
@@ -368,17 +368,17 @@ func anthropicOutputConfigFromOptions(options map[string]interface{}) map[string
 	return result
 }
 
-func buildAnthropicTools(tools []portllm.ToolDefinition) []map[string]interface{} {
+func buildAnthropicTools(tools []portllm.ToolDefinition) []map[string]any {
 	if len(tools) == 0 {
 		return nil
 	}
-	items := make([]map[string]interface{}, 0, len(tools))
+	items := make([]map[string]any, 0, len(tools))
 	for _, tool := range tools {
 		name := strings.TrimSpace(tool.Name)
 		if name == "" {
 			continue
 		}
-		items = append(items, map[string]interface{}{
+		items = append(items, map[string]any{
 			"name":         name,
 			"description":  strings.TrimSpace(tool.Description),
 			"input_schema": decodeToolSchema(tool.InputSchema),
@@ -387,7 +387,7 @@ func buildAnthropicTools(tools []portllm.ToolDefinition) []map[string]interface{
 	return items
 }
 
-func normalizeAnthropicNativeTools(payload map[string]interface{}) {
+func normalizeAnthropicNativeTools(payload map[string]any) {
 	if payload == nil {
 		return
 	}
@@ -460,7 +460,7 @@ type anthropicToolClassifier struct {
 	clientToolNames       map[string]struct{}
 }
 
-func newAnthropicToolClassifier(payload map[string]interface{}, clientTools []portllm.ToolDefinition) anthropicToolClassifier {
+func newAnthropicToolClassifier(payload map[string]any, clientTools []portllm.ToolDefinition) anthropicToolClassifier {
 	classifier := anthropicToolClassifier{}
 	for _, tool := range anthropicToolPayloads(payload["tools"]) {
 		toolType := strings.TrimSpace(getString(tool["type"]))
@@ -569,15 +569,15 @@ func extractMessageText(msg portllm.Message) string {
 
 // buildAnthropicContent 将 Message 转换为 Anthropic content 数组。
 // 纯文本消息可简化为字符串（Anthropic 支持简化形式）；多模态保持数组。
-func buildAnthropicContent(msg portllm.Message) interface{} {
+func buildAnthropicContent(msg portllm.Message) any {
 	if len(msg.Parts) == 0 && len(msg.ToolCalls) == 0 && len(msg.ToolResults) == 0 {
 		// 简化形式：纯文本直接用字符串
 		return msg.Content
 	}
 
-	blocks := make([]map[string]interface{}, 0, len(msg.Parts)+len(msg.ToolCalls)+len(msg.ToolResults)+1)
+	blocks := make([]map[string]any, 0, len(msg.Parts)+len(msg.ToolCalls)+len(msg.ToolResults)+1)
 	if text := strings.TrimSpace(msg.Content); text != "" {
-		blocks = append(blocks, map[string]interface{}{
+		blocks = append(blocks, map[string]any{
 			"type": "text",
 			"text": text,
 		})
@@ -592,9 +592,9 @@ func buildAnthropicContent(msg portllm.Message) interface{} {
 			if mime == "" {
 				mime = "image/jpeg"
 			}
-			blocks = append(blocks, map[string]interface{}{
+			blocks = append(blocks, map[string]any{
 				"type": "image",
-				"source": map[string]interface{}{
+				"source": map[string]any{
 					"type":       "base64",
 					"media_type": mime,
 					"data":       base64.StdEncoding.EncodeToString(part.Data),
@@ -605,7 +605,7 @@ func buildAnthropicContent(msg portllm.Message) interface{} {
 			if strings.TrimSpace(text) == "" {
 				continue
 			}
-			blocks = append(blocks, map[string]interface{}{
+			blocks = append(blocks, map[string]any{
 				"type": "text",
 				"text": text,
 			})
@@ -616,11 +616,11 @@ func buildAnthropicContent(msg portllm.Message) interface{} {
 		if args == "" {
 			args = "{}"
 		}
-		input := make(map[string]interface{})
+		input := make(map[string]any)
 		if err := json.Unmarshal([]byte(args), &input); err != nil {
-			input = map[string]interface{}{"arguments": args}
+			input = map[string]any{"arguments": args}
 		}
-		blocks = append(blocks, map[string]interface{}{
+		blocks = append(blocks, map[string]any{
 			"type":  "tool_use",
 			"id":    strings.TrimSpace(item.ToolCallID),
 			"name":  strings.TrimSpace(item.ToolName),
@@ -628,7 +628,7 @@ func buildAnthropicContent(msg portllm.Message) interface{} {
 		})
 	}
 	for _, item := range msg.ToolResults {
-		block := map[string]interface{}{
+		block := map[string]any{
 			"type":        "tool_result",
 			"tool_use_id": strings.TrimSpace(item.ToolCallID),
 			"content":     buildToolResultContent(item),
@@ -670,7 +670,7 @@ func (c *Client) newAnthropicRequest(
 // parseAnthropicError 从 Anthropic 错误响应中提取 error.message。
 // 格式：{"type":"error","error":{"type":"...","message":"..."}}
 func parseAnthropicError(statusCode int, body []byte, debug *portllm.UpstreamDebugSnapshot) error {
-	parsed := make(map[string]interface{})
+	parsed := make(map[string]any)
 	if err := json.Unmarshal(body, &parsed); err == nil {
 		if msg := getStringFromPath(parsed, "error", "message"); msg != "" {
 			return &portllm.UpstreamError{StatusCode: statusCode, Message: msg, Body: string(body), Debug: debug}
@@ -684,7 +684,7 @@ func parseAnthropicError(statusCode int, body []byte, debug *portllm.UpstreamDeb
 	}
 }
 
-func applyAnthropicBetaHeaders(req *http.Request, payload map[string]interface{}, options map[string]interface{}) {
+func applyAnthropicBetaHeaders(req *http.Request, payload map[string]any, options map[string]any) {
 	if req == nil || len(payload) == 0 {
 		return
 	}
@@ -713,12 +713,12 @@ func applyAnthropicBetaHeaders(req *http.Request, payload map[string]interface{}
 	req.Header.Set("anthropic-beta", strings.Join(betas, ","))
 }
 
-func anthropicToolPayloads(raw interface{}) []map[string]interface{} {
+func anthropicToolPayloads(raw any) []map[string]any {
 	switch typed := raw.(type) {
-	case []map[string]interface{}:
-		return append([]map[string]interface{}(nil), typed...)
-	case []interface{}:
-		items := make([]map[string]interface{}, 0, len(typed))
+	case []map[string]any:
+		return append([]map[string]any(nil), typed...)
+	case []any:
+		items := make([]map[string]any, 0, len(typed))
 		for _, item := range typed {
 			if payload := asMap(item); len(payload) > 0 {
 				items = append(items, payload)
@@ -802,7 +802,7 @@ func (c *Client) generateAnthropic(
 //	  }
 //	}
 func parseAnthropicResponse(body []byte, classifier anthropicToolClassifier) (*portllm.GenerateOutput, error) {
-	parsed := make(map[string]interface{})
+	parsed := make(map[string]any)
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return nil, err
 	}
@@ -825,7 +825,7 @@ func parseAnthropicResponse(body []byte, classifier anthropicToolClassifier) (*p
 }
 
 // extractAnthropicText 从 content 数组中提取所有 text block 的文字。
-func extractAnthropicText(parsed map[string]interface{}) string {
+func extractAnthropicText(parsed map[string]any) string {
 	chunks := make([]string, 0)
 	for _, raw := range asSlice(parsed["content"]) {
 		block := asMap(raw)
@@ -838,7 +838,7 @@ func extractAnthropicText(parsed map[string]interface{}) string {
 	return strings.Join(chunks, "")
 }
 
-func extractAnthropicReasoning(parsed map[string]interface{}) *portllm.ReasoningOutput {
+func extractAnthropicReasoning(parsed map[string]any) *portllm.ReasoningOutput {
 	result := &portllm.ReasoningOutput{}
 	for _, raw := range asSlice(parsed["content"]) {
 		block := asMap(raw)
@@ -858,7 +858,7 @@ func extractAnthropicReasoning(parsed map[string]interface{}) *portllm.Reasoning
 }
 
 // parseAnthropicUsage 解析 Anthropic usage 字段。
-func parseAnthropicUsage(parsed map[string]interface{}) portllm.Usage {
+func parseAnthropicUsage(parsed map[string]any) portllm.Usage {
 	cacheReadInputTokens := getInt64FromPath(parsed, "usage", "cache_read_input_tokens")
 	cacheCreation1hInputTokens := getInt64FromPath(parsed, "usage", "cache_creation", "ephemeral_1h_input_tokens")
 	cacheCreation5mInputTokens := getInt64FromPath(parsed, "usage", "cache_creation", "ephemeral_5m_input_tokens")
@@ -879,7 +879,7 @@ func parseAnthropicUsage(parsed map[string]interface{}) portllm.Usage {
 	}
 }
 
-func parseAnthropicServerSideToolUsage(parsed map[string]interface{}) map[string]int64 {
+func parseAnthropicServerSideToolUsage(parsed map[string]any) map[string]int64 {
 	usage := asMap(parsed["usage"])
 	if len(usage) == 0 {
 		return nil
@@ -916,7 +916,7 @@ func normalizeAnthropicServerSideToolUsageKey(key string) string {
 }
 
 // parseAnthropicToolUse 解析需要本地执行的 Anthropic tool_use content block。
-func parseAnthropicToolUse(parsed map[string]interface{}, classifier anthropicToolClassifier, rawBody string) ([]portllm.ToolCall, error) {
+func parseAnthropicToolUse(parsed map[string]any, classifier anthropicToolClassifier, rawBody string) ([]portllm.ToolCall, error) {
 	var result []portllm.ToolCall
 	for _, raw := range asSlice(parsed["content"]) {
 		block := asMap(raw)
@@ -946,7 +946,7 @@ func parseAnthropicToolUse(parsed map[string]interface{}, classifier anthropicTo
 }
 
 // parseAnthropicServerToolUse 解析 Anthropic server-side tool trace。
-func parseAnthropicServerToolUse(parsed map[string]interface{}) []portllm.ToolCall {
+func parseAnthropicServerToolUse(parsed map[string]any) []portllm.ToolCall {
 	items := make([]portllm.ToolCall, 0)
 	indexByID := map[string]int{}
 	for _, raw := range asSlice(parsed["content"]) {
@@ -1086,7 +1086,7 @@ func consumeAnthropicStream(
 		if strings.TrimSpace(ev.data) == "" {
 			return nil
 		}
-		parsed := make(map[string]interface{})
+		parsed := make(map[string]any)
 		if err := json.Unmarshal([]byte(ev.data), &parsed); err != nil {
 			return nil // 单个异常事件不应中断后续流式输出。
 		}
@@ -1142,7 +1142,7 @@ func isAnthropicStreamDone(err error) bool {
 
 // applyAnthropicStreamEvent 处理单个 Anthropic 流式事件 payload。
 func applyAnthropicStreamEvent(
-	parsed map[string]interface{},
+	parsed map[string]any,
 	rawBody string,
 	result *portllm.GenerateOutput,
 	onEvent func(portllm.GenerateStreamEvent) error,
@@ -1356,7 +1356,7 @@ func applyAnthropicStreamEvent(
 	return nil
 }
 
-func anthropicContentBlockIndex(parsed map[string]interface{}) int {
+func anthropicContentBlockIndex(parsed map[string]any) int {
 	return streamToolCallIndex(parsed["index"], 0)
 }
 
@@ -1461,7 +1461,7 @@ func appendAnthropicStreamServerToolInput(result *portllm.GenerateOutput, index 
 	return item, true
 }
 
-func mergeAnthropicStreamServerToolResult(result *portllm.GenerateOutput, block map[string]interface{}) (portllm.ToolCall, bool) {
+func mergeAnthropicStreamServerToolResult(result *portllm.GenerateOutput, block map[string]any) (portllm.ToolCall, bool) {
 	if result == nil {
 		return portllm.ToolCall{}, false
 	}
@@ -1485,14 +1485,14 @@ func mergeAnthropicStreamServerToolResult(result *portllm.GenerateOutput, block 
 	return portllm.ToolCall{}, false
 }
 
-func anthropicServerToolResultOutputJSON(block map[string]interface{}) string {
+func anthropicServerToolResultOutputJSON(block map[string]any) string {
 	return normalizeJSONString(sanitizeAnthropicServerToolResultValue(block))
 }
 
-func sanitizeAnthropicServerToolResultValue(value interface{}) interface{} {
+func sanitizeAnthropicServerToolResultValue(value any) any {
 	switch typed := value.(type) {
-	case map[string]interface{}:
-		result := make(map[string]interface{}, len(typed))
+	case map[string]any:
+		result := make(map[string]any, len(typed))
 		for key, item := range typed {
 			if isAnthropicOpaqueToolResultKey(key) {
 				continue
@@ -1500,8 +1500,8 @@ func sanitizeAnthropicServerToolResultValue(value interface{}) interface{} {
 			result[key] = sanitizeAnthropicServerToolResultValue(item)
 		}
 		return result
-	case []interface{}:
-		items := make([]interface{}, 0, len(typed))
+	case []any:
+		items := make([]any, 0, len(typed))
 		for _, item := range typed {
 			items = append(items, sanitizeAnthropicServerToolResultValue(item))
 		}

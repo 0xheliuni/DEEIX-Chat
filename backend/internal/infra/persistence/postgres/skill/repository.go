@@ -122,7 +122,7 @@ func (r *Repo) PatchSkill(ctx context.Context, id uint, patch repository.SkillPa
 			return dberror.Translate(err)
 		}
 
-		updates := map[string]interface{}{}
+		updates := map[string]any{}
 		if patch.Title != nil {
 			updates["title"] = strings.TrimSpace(*patch.Title)
 		}

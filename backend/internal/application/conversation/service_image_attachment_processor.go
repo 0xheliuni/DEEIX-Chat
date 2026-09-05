@@ -99,7 +99,7 @@ func (s *Service) processImageAttachments(
 		if processor.encoding == domainmcp.AttachmentEncodingDataURL {
 			encodedImage = "data:" + prepared.mimeType + ";base64," + encodedImage
 		}
-		arguments := map[string]interface{}{processor.argument: encodedImage}
+		arguments := map[string]any{processor.argument: encodedImage}
 		if processor.promptArgument != "" {
 			arguments[processor.promptArgument] = strings.TrimSpace(input.UserPrompt)
 		}
@@ -249,7 +249,7 @@ func currentImageAttachments(attachments []AttachmentInput) []AttachmentInput {
 }
 
 func imageAttachmentAuditInput(attachment AttachmentInput, mimeType string, encoding string, byteSize int) string {
-	payload, _ := json.Marshal(map[string]interface{}{
+	payload, _ := json.Marshal(map[string]any{
 		"file_id":   strings.TrimSpace(attachment.FileID),
 		"file_name": strings.TrimSpace(attachment.FileName),
 		"mime_type": strings.TrimSpace(mimeType),
@@ -284,7 +284,7 @@ func imageAttachmentAnalysisText(raw string) string {
 			Type string `json:"type"`
 			Text string `json:"text"`
 		} `json:"content"`
-		StructuredContent interface{} `json:"structuredContent"`
+		StructuredContent any `json:"structuredContent"`
 	}
 	if err := json.Unmarshal([]byte(value), &payload); err == nil {
 		parts := make([]string, 0, len(payload.Content))

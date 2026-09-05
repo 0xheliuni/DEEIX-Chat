@@ -50,7 +50,7 @@ func (r *Repo) RevokeGeneratedFileForModeration(ctx context.Context, fileID stri
 	}
 	err := r.db.WithContext(ctx).Model(&models.FileObject{}).
 		Where("file_id = ? AND status = ?", fileID, "active").
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"status":  "moderation_blocked",
 			"user_id": 0,
 		}).Error
@@ -87,7 +87,7 @@ func (r *Repo) DeleteGeneratedFileArtifactsForModeration(ctx context.Context, fi
 	// Keep status blocked; leave storage_path intact for retryable physical cleanup.
 	if err := r.db.WithContext(ctx).Model(&models.FileObject{}).
 		Where("id = ?", file.ID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"status": "moderation_blocked",
 		}).Error; err != nil {
 		return dberror.Translate(err)

@@ -236,7 +236,7 @@ func buildPromptContextArtifacts(input promptContextArtifactInput) []domainconve
 			ContentHash:    contextArtifactHash(domainconversation.ContextArtifactFileRAGChunk, sourceID, content),
 			TokenEstimate:  tokenestimate.Estimate(content),
 			Score:          float64(chunk.Score),
-			MetadataJSON: contextArtifactMetadata(map[string]interface{}{
+			MetadataJSON: contextArtifactMetadata(map[string]any{
 				"query":       strings.TrimSpace(input.Query),
 				"file_id":     strings.TrimSpace(chunk.FileID),
 				"chunk_index": chunk.ChunkIndex,
@@ -264,7 +264,7 @@ func buildPromptContextArtifacts(input promptContextArtifactInput) []domainconve
 			Content:        contextArtifactExcerpt(content, contextArtifactExcerptChars),
 			ContentHash:    contextArtifactHash(domainconversation.ContextArtifactFileRAGFallback, sourceID, content),
 			TokenEstimate:  tokenestimate.Estimate(content),
-			MetadataJSON: contextArtifactMetadata(map[string]interface{}{
+			MetadataJSON: contextArtifactMetadata(map[string]any{
 				"query":          strings.TrimSpace(input.Query),
 				"reason":         strings.TrimSpace(fallback.Reason),
 				"error":          strings.TrimSpace(fallback.Error),
@@ -298,7 +298,7 @@ func buildPromptContextArtifacts(input promptContextArtifactInput) []domainconve
 			ContentHash:    contextArtifactHash(domainconversation.ContextArtifactUserMemory, key, content),
 			TokenEstimate:  tokenestimate.Estimate(content),
 			Score:          1,
-			MetadataJSON: contextArtifactMetadata(map[string]interface{}{
+			MetadataJSON: contextArtifactMetadata(map[string]any{
 				"memory_key": strings.TrimSpace(memory.MemoryKey),
 				"scope":      scope,
 				"updated_by": strings.TrimSpace(memory.UpdatedBy),
@@ -325,7 +325,7 @@ func buildPromptContextArtifacts(input promptContextArtifactInput) []domainconve
 			ContentHash:    contextArtifactHash(domainconversation.ContextArtifactSemanticRecall, sourceID, content),
 			TokenEstimate:  tokenestimate.Estimate(content),
 			Score:          chunk.Similarity,
-			MetadataJSON: contextArtifactMetadata(map[string]interface{}{
+			MetadataJSON: contextArtifactMetadata(map[string]any{
 				"source_message_id": chunk.MessageID,
 				"chunk_index":       chunk.ChunkIndex,
 				"role":              strings.TrimSpace(chunk.Role),
@@ -363,7 +363,7 @@ func buildToolContextArtifacts(input toolContextArtifactInput) []domainconversat
 			ContentHash:    contextArtifactHash(kind, sourceID, rawContent),
 			TokenEstimate:  tokenestimate.Estimate(content),
 			Score:          1,
-			MetadataJSON: contextArtifactMetadata(map[string]interface{}{
+			MetadataJSON: contextArtifactMetadata(map[string]any{
 				"tool_call_id": strings.TrimSpace(row.ToolCallID),
 				"tool_type":    strings.TrimSpace(row.ToolType),
 				"tool_name":    strings.TrimSpace(row.ToolName),
@@ -409,7 +409,7 @@ func buildSnapshotContextArtifact(input snapshotContextArtifactInput) *domaincon
 		ContentHash:    contextArtifactHash(domainconversation.ContextArtifactSummary, sourceID, content),
 		TokenEstimate:  tokenEstimate,
 		Score:          1,
-		MetadataJSON: contextArtifactMetadata(map[string]interface{}{
+		MetadataJSON: contextArtifactMetadata(map[string]any{
 			"from_turn":      input.Snapshot.FromTurn,
 			"to_turn":        input.Snapshot.ToTurn,
 			"source_tokens":  input.Snapshot.SourceTokens,
@@ -495,7 +495,7 @@ func contextArtifactHash(kind domainconversation.ContextArtifactKind, sourceID s
 	return hex.EncodeToString(sum[:])
 }
 
-func contextArtifactMetadata(value map[string]interface{}) string {
+func contextArtifactMetadata(value map[string]any) string {
 	payload, err := json.Marshal(value)
 	if err != nil {
 		return "{}"

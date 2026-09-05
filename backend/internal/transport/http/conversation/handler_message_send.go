@@ -32,11 +32,11 @@ var reservedMessageOptionKeys = map[string]struct{}{
 	"systemInstruction": {},
 }
 
-func sanitizeMessageOptions(options map[string]interface{}) map[string]interface{} {
+func sanitizeMessageOptions(options map[string]any) map[string]any {
 	if len(options) == 0 {
 		return nil
 	}
-	sanitized := make(map[string]interface{}, len(options))
+	sanitized := make(map[string]any, len(options))
 	for key, value := range options {
 		if _, ok := reservedMessageOptionKeys[key]; ok {
 			continue
@@ -284,7 +284,7 @@ func (h *Handler) StreamMessage(c *gin.Context) {
 	c.Status(http.StatusOK)
 
 	var clientDisconnected atomic.Bool
-	writeStreamEvent := func(payload map[string]interface{}) error {
+	writeStreamEvent := func(payload map[string]any) error {
 		if clientDisconnected.Load() {
 			return nil
 		}
@@ -299,7 +299,7 @@ func (h *Handler) StreamMessage(c *gin.Context) {
 		c.Writer.Flush()
 		return nil
 	}
-	flushStreamEvent := func(payload map[string]interface{}) (bool, error) {
+	flushStreamEvent := func(payload map[string]any) (bool, error) {
 		payload, owned := h.service.PublishMessageGenerationEvent(generationCtx, input.ClientRunID, payload)
 		if !owned {
 			return false, nil
@@ -308,7 +308,7 @@ func (h *Handler) StreamMessage(c *gin.Context) {
 	}
 
 	// 将中间事件（含 moderation_*）通过 NDJSON 推送给客户端。
-	input.OnEvent = func(eventType string, payload map[string]interface{}) error {
+	input.OnEvent = func(eventType string, payload map[string]any) error {
 		owned, flushErr := flushStreamEvent(normalizeStreamEventPayload(eventType, payload))
 		if !owned {
 			return appconversation.ErrMessageGenerationInterrupted
@@ -318,7 +318,7 @@ func (h *Handler) StreamMessage(c *gin.Context) {
 
 	defer h.service.FinishMessageGeneration(generationCtx, input.ClientRunID)
 	result, err := h.service.StreamMessage(generationCtx, input, func(delta string) error {
-		owned, flushErr := flushStreamEvent(map[string]interface{}{
+		owned, flushErr := flushStreamEvent(map[string]any{
 			"type":  "delta",
 			"delta": delta,
 		})
@@ -355,7 +355,7 @@ func (h *Handler) StreamMessage(c *gin.Context) {
 		}
 		return
 	}
-	_, _ = flushStreamEvent(map[string]interface{}{
+	_, _ = flushStreamEvent(map[string]any{
 		"type": "completed",
 		"data": toSendMessageResponse(result),
 	})
@@ -523,12 +523,12 @@ func (h *Handler) ResumeMessageGenerationStream(c *gin.Context) {
 	c.Header("X-Accel-Buffering", "no")
 	c.Status(http.StatusOK)
 
-	isTerminal := func(payload map[string]interface{}) bool {
+	isTerminal := func(payload map[string]any) bool {
 		eventType, _ := payload["type"].(string)
 		return eventType == "completed" || eventType == "error" || eventType == "moderation_blocked"
 	}
 	terminalWritten := false
-	writeEvent := func(payload map[string]interface{}) bool {
+	writeEvent := func(payload map[string]any) bool {
 		encoded, marshalErr := json.Marshal(payload)
 		if marshalErr != nil {
 			return true

@@ -311,7 +311,7 @@ func (r *Repo) CreateModelVendor(ctx context.Context, item *domainchannel.ModelV
 
 // UpdateModelVendor 更新技术厂商的展示名称与图标，稳定 key 不参与修改。
 func (r *Repo) UpdateModelVendor(ctx context.Context, key string, input repository.UpdateModelVendorInput) error {
-	updates := make(map[string]interface{})
+	updates := make(map[string]any)
 	if input.Name != nil {
 		updates["name"] = *input.Name
 	}
@@ -444,7 +444,7 @@ func (r *Repo) CreateModelDisplayGroup(ctx context.Context, item *domainchannel.
 
 // UpdateModelDisplayGroup 更新自定义模型展示分组。
 func (r *Repo) UpdateModelDisplayGroup(ctx context.Context, groupID uint, input repository.UpdateModelDisplayGroupInput) error {
-	updates := make(map[string]interface{})
+	updates := make(map[string]any)
 	if input.Name != nil {
 		updates["name"] = *input.Name
 	}
@@ -518,7 +518,7 @@ func (r *Repo) SetModelsDisplayGroup(ctx context.Context, modelIDs []uint, group
 			return repository.ErrInvalidInput
 		}
 
-		var value interface{}
+		var value any
 		if groupID > 0 {
 			value = groupID
 		}

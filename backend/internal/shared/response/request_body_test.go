@@ -18,7 +18,7 @@ func TestInvalidRequestBodyMessageAndDetails(t *testing.T) {
 	})
 
 	t.Run("json syntax", func(t *testing.T) {
-		var payload map[string]interface{}
+		var payload map[string]any
 		err := json.Unmarshal([]byte(`{"name":`), &payload)
 		got, _ := invalidRequestBodyMessageAndDetails(err)
 		if !strings.Contains(got, "invalid JSON body") {

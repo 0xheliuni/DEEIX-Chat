@@ -135,7 +135,7 @@ func TestEphemeralCoordinatorBlockDoesNotMutateConversationRun(t *testing.T) {
 	service := &Service{repo: repo}
 	coord := newRunCoordinator(context.Background(), service, RunMeta{RunID: "temporary-run", Ephemeral: true}, runtimeConfig{})
 	emitted := false
-	coord.SetLiveEmitter(func(eventType string, _ map[string]interface{}) {
+	coord.SetLiveEmitter(func(eventType string, _ map[string]any) {
 		emitted = eventType == "moderation_blocked"
 	})
 
@@ -159,7 +159,7 @@ func TestKnownHitRemainsBlockedWhenDurableApplyFails(t *testing.T) {
 	coord.blockInfo = BlockInfo{EventID: "cme_hit", Direction: domaincm.DirectionOutput, Categories: []string{"violence"}}
 
 	var emitted string
-	coord.SetLiveEmitter(func(eventType string, _ map[string]interface{}) {
+	coord.SetLiveEmitter(func(eventType string, _ map[string]any) {
 		emitted = eventType
 	})
 
@@ -191,7 +191,7 @@ func TestLateHitRunsFullBlockCompensation(t *testing.T) {
 	coord.settled = true
 
 	var emitted string
-	service.SetEventEmitter(func(_ context.Context, _ string, eventType string, _ map[string]interface{}) {
+	service.SetEventEmitter(func(_ context.Context, _ string, eventType string, _ map[string]any) {
 		emitted = eventType
 	})
 	task := &moderationTask{Coord: coord, Direction: domaincm.DirectionOutput, Modality: domaincm.ModalityText}

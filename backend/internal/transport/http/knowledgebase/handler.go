@@ -344,7 +344,7 @@ func (h *Handler) UploadAdminFile(c *gin.Context) {
 		h.writeUploadError(c, err)
 		return
 	}
-	h.audit(c, "knowledge_base.upload_builtin_file", result.File.FileID, map[string]interface{}{
+	h.audit(c, "knowledge_base.upload_builtin_file", result.File.FileID, map[string]any{
 		"file_name": result.File.FileName, "size_bytes": result.File.SizeBytes,
 	})
 	capability := h.service.ResolveFileVectorizationCapabilities(
@@ -387,7 +387,7 @@ func (h *Handler) SubmitAdminFileEmbeddings(c *gin.Context) {
 		}
 		return
 	}
-	h.audit(c, "knowledge_base.submit_platform_file_embeddings", "", map[string]interface{}{
+	h.audit(c, "knowledge_base.submit_platform_file_embeddings", "", map[string]any{
 		"requested_file_ids": req.FileIDs,
 		"submitted_file_ids": result.SubmittedFileIDs,
 		"skipped_count":      len(result.Skipped),
@@ -418,7 +418,7 @@ func (h *Handler) DeleteAdminFile(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
-	h.audit(c, "knowledge_base.delete_platform_file", fileID, map[string]interface{}{"deleted": true})
+	h.audit(c, "knowledge_base.delete_platform_file", fileID, map[string]any{"deleted": true})
 	response.Success(c, PlatformFileDeleteDataResponse{Deleted: true})
 }
 
@@ -490,7 +490,7 @@ func (h *Handler) CreateAdmin(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
-	h.audit(c, "knowledge_base.create_builtin", item.PublicID, map[string]interface{}{"name": item.Name})
+	h.audit(c, "knowledge_base.create_builtin", item.PublicID, map[string]any{"name": item.Name})
 	response.Success(c, KnowledgeBaseDataResponse{KnowledgeBase: toKnowledgeBaseResponse(*item)})
 }
 
@@ -686,7 +686,7 @@ func (h *Handler) delete(c *gin.Context, admin bool) {
 		return
 	}
 	if admin {
-		h.audit(c, "knowledge_base.delete_builtin", publicID, map[string]interface{}{
+		h.audit(c, "knowledge_base.delete_builtin", publicID, map[string]any{
 			"delete_files":       deleteFiles,
 			"deleted_file_count": result.DeletedFileCount,
 		})
@@ -711,7 +711,7 @@ func (h *Handler) addFiles(c *gin.Context, admin bool) {
 		return
 	}
 	if admin {
-		h.audit(c, "knowledge_base.add_files_builtin", c.Param("id"), map[string]interface{}{"count": len(req.FileIDs)})
+		h.audit(c, "knowledge_base.add_files_builtin", c.Param("id"), map[string]any{"count": len(req.FileIDs)})
 	}
 	response.Success(c, KnowledgeBaseFileMutationDataResponse{Updated: true})
 }
@@ -728,7 +728,7 @@ func (h *Handler) removeFile(c *gin.Context, admin bool) {
 		return
 	}
 	if admin {
-		h.audit(c, "knowledge_base.remove_file_builtin", c.Param("id"), map[string]interface{}{"file_id": c.Param("file_id")})
+		h.audit(c, "knowledge_base.remove_file_builtin", c.Param("id"), map[string]any{"file_id": c.Param("file_id")})
 	}
 	response.Success(c, KnowledgeBaseFileMutationDataResponse{Updated: true})
 }
@@ -842,7 +842,7 @@ func writeError(c *gin.Context, err error) {
 	}
 }
 
-func (h *Handler) audit(c *gin.Context, action string, resourceID string, detail interface{}) {
+func (h *Handler) audit(c *gin.Context, action string, resourceID string, detail any) {
 	h.service.RecordAudit(c.Request.Context(), appknowledgebase.AuditInput{
 		UserID: middleware.MustUserID(c), RequestID: middleware.MustRequestID(c), Action: action, ResourceID: resourceID,
 		ClientIP: c.ClientIP(), UserAgent: c.Request.UserAgent(), Detail: detail,

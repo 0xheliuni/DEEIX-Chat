@@ -41,8 +41,8 @@ type moderationImageURL struct {
 }
 
 type moderationRequest struct {
-	Model string      `json:"model"`
-	Input interface{} `json:"input"`
+	Model string `json:"model"`
+	Input any    `json:"input"`
 }
 
 type moderationCategoryResult struct {
@@ -149,7 +149,7 @@ func (c *Client) ModerateImages(
 	return merged, nil
 }
 
-func (c *Client) moderate(ctx context.Context, config domaincm.ProviderConfig, input interface{}) (*domaincm.ProviderResponse, error) {
+func (c *Client) moderate(ctx context.Context, config domaincm.ProviderConfig, input any) (*domaincm.ProviderResponse, error) {
 	endpoint, err := normalizeBaseURL(config.BaseURL)
 	if err != nil {
 		return nil, err

@@ -133,7 +133,7 @@ func (r *Repo) PatchKnowledgeBase(ctx context.Context, id uint, patch repository
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", id).First(&item).Error; err != nil {
 			return err
 		}
-		updates := make(map[string]interface{})
+		updates := make(map[string]any)
 		if patch.Name != nil {
 			updates["name"] = strings.TrimSpace(*patch.Name)
 		}

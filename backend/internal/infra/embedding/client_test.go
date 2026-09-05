@@ -24,8 +24,8 @@ func TestCallAPITrustsConfiguredPrivateEmbeddingOrigin(t *testing.T) {
 		if body.Dimensions != 3 {
 			t.Fatalf("request dimensions = %d, want 3", body.Dimensions)
 		}
-		_ = json.NewEncoder(responseWriter).Encode(map[string]interface{}{
-			"data": []map[string]interface{}{{"index": 0, "embedding": []float32{1, 2, 3}}},
+		_ = json.NewEncoder(responseWriter).Encode(map[string]any{
+			"data": []map[string]any{{"index": 0, "embedding": []float32{1, 2, 3}}},
 		})
 	}))
 	defer server.Close()
@@ -42,8 +42,8 @@ func TestCallAPITrustsConfiguredPrivateEmbeddingOrigin(t *testing.T) {
 
 func TestCallAPIRejectsUnexpectedEmbeddingDimensions(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(responseWriter).Encode(map[string]interface{}{
-			"data": []map[string]interface{}{{"index": 0, "embedding": []float32{1, 2, 3}}},
+		_ = json.NewEncoder(responseWriter).Encode(map[string]any{
+			"data": []map[string]any{{"index": 0, "embedding": []float32{1, 2, 3}}},
 		})
 	}))
 	defer server.Close()
@@ -61,8 +61,8 @@ func TestCallAPIAcceptsDimensionChangesInBothDirections(t *testing.T) {
 		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
 			t.Fatalf("decode request: %v", err)
 		}
-		_ = json.NewEncoder(responseWriter).Encode(map[string]interface{}{
-			"data": []map[string]interface{}{{"index": 0, "embedding": make([]float32, body.Dimensions)}},
+		_ = json.NewEncoder(responseWriter).Encode(map[string]any{
+			"data": []map[string]any{{"index": 0, "embedding": make([]float32, body.Dimensions)}},
 		})
 	}))
 	defer server.Close()

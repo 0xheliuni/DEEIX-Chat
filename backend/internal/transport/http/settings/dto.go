@@ -102,20 +102,20 @@ type ModelOptionPolicyResponse struct {
 
 // NativeToolDefinitionResponse 返回可由后台开启的官方原生工具定义。
 type NativeToolDefinitionResponse struct {
-	Protocol       string                 `json:"protocol"`
-	Provider       string                 `json:"provider"`
-	Type           string                 `json:"type"`
-	ToolKey        string                 `json:"toolKey"`
-	Label          string                 `json:"label"`
-	Description    string                 `json:"description"`
-	Payload        map[string]interface{} `json:"payload"`
-	DefaultEnabled bool                   `json:"defaultEnabled"`
-	Billable       bool                   `json:"billable"`
-	BillingUnit    string                 `json:"billingUnit"`
-	PriceNanousd   int64                  `json:"priceNanousd"`
-	PriceLabel     string                 `json:"priceLabel"`
-	RiskLevel      string                 `json:"riskLevel"`
-	UsageAliases   []string               `json:"usageAliases"`
+	Protocol       string         `json:"protocol"`
+	Provider       string         `json:"provider"`
+	Type           string         `json:"type"`
+	ToolKey        string         `json:"toolKey"`
+	Label          string         `json:"label"`
+	Description    string         `json:"description"`
+	Payload        map[string]any `json:"payload"`
+	DefaultEnabled bool           `json:"defaultEnabled"`
+	Billable       bool           `json:"billable"`
+	BillingUnit    string         `json:"billingUnit"`
+	PriceNanousd   int64          `json:"priceNanousd"`
+	PriceLabel     string         `json:"priceLabel"`
+	RiskLevel      string         `json:"riskLevel"`
+	UsageAliases   []string       `json:"usageAliases"`
 }
 
 // MCPPolicyResponse 返回聊天侧需要遵守的 MCP 工具运行策略。

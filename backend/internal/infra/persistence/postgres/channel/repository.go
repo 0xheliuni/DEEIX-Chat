@@ -85,8 +85,8 @@ func (r *Repo) UpdateUpstream(ctx context.Context, upstreamID uint, input reposi
 	return nil
 }
 
-func upstreamUpdates(input repository.UpdateChannelUpstreamInput) map[string]interface{} {
-	updates := make(map[string]interface{})
+func upstreamUpdates(input repository.UpdateChannelUpstreamInput) map[string]any {
+	updates := make(map[string]any)
 	if input.Name != nil {
 		updates["name"] = *input.Name
 	}
@@ -272,7 +272,7 @@ func (r *Repo) CreateModel(ctx context.Context, item *domainchannel.PlatformMode
 
 // UpdateModel 更新平台模型。
 func (r *Repo) UpdateModel(ctx context.Context, modelID uint, input repository.UpdateChannelModelInput) error {
-	updates := make(map[string]interface{})
+	updates := make(map[string]any)
 	if input.PlatformModelName != nil {
 		updates["name"] = *input.PlatformModelName
 	}
@@ -777,7 +777,7 @@ func (r *Repo) UpsertUpstreamModel(ctx context.Context, item *domainchannel.Upst
 	if err := r.db.WithContext(ctx).
 		Model(&model.LLMUpstreamModel{}).
 		Where("id = ?", existing.ID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"binding_code":        entity.BindingCode,
 			"upstream_model_name": entity.UpstreamModelName,
 			"vendor":              entity.Vendor,
@@ -1204,7 +1204,7 @@ func (r *Repo) UpsertPlatformModelRoute(ctx context.Context, item *domainchannel
 	if err := r.db.WithContext(ctx).
 		Model(&model.LLMPlatformModelRoute{}).
 		Where("id = ?", existing.ID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"protocol":             entity.Protocol,
 			"status":               entity.Status,
 			"priority":             entity.Priority,
@@ -1666,8 +1666,8 @@ func (r *Repo) UpdatePlatformModelRouteByID(ctx context.Context, routeID uint, u
 	return nil
 }
 
-func platformRouteUpdates(input repository.UpdateChannelPlatformRouteInput) map[string]interface{} {
-	updates := make(map[string]interface{})
+func platformRouteUpdates(input repository.UpdateChannelPlatformRouteInput) map[string]any {
+	updates := make(map[string]any)
 	if input.PlatformModelID != nil {
 		updates["platform_model_id"] = *input.PlatformModelID
 	}
@@ -1979,7 +1979,7 @@ func (r *Repo) UpsertLLMSetting(ctx context.Context, item *domainchannel.LLMSett
 	if err := r.db.WithContext(ctx).
 		Model(&model.SystemSetting{}).
 		Where("id = ?", existing.ID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"value":       entity.Value,
 			"description": entity.Description,
 		}).

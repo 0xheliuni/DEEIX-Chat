@@ -1096,7 +1096,7 @@ func TestAddPeriodUsageAndSettleOverageSplitsCreditAndBalance(t *testing.T) {
 	if ledger.BalanceAfterNanousd == nil || *ledger.BalanceAfterNanousd != 200 {
 		t.Fatalf("ledger balance after = %v, want 200", ledger.BalanceAfterNanousd)
 	}
-	var snapshot map[string]interface{}
+	var snapshot map[string]any
 	if err := json.Unmarshal([]byte(ledger.PricingSnapshotJSON), &snapshot); err != nil {
 		t.Fatalf("decode pricing snapshot: %v", err)
 	}
@@ -1183,7 +1183,7 @@ func TestAddPeriodUsageAndSettleOverageRecordsDebt(t *testing.T) {
 	}
 
 	assertUsageSettlement(t, db, 1, "gpt-period-debt", -300, -400, -300, "")
-	var snapshot map[string]interface{}
+	var snapshot map[string]any
 	if err := json.Unmarshal([]byte(usage.PricingSnapshotJSON), &snapshot); err != nil {
 		t.Fatalf("decode pricing snapshot: %v", err)
 	}

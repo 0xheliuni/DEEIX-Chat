@@ -922,7 +922,7 @@ func sanitizeTracePayloadJSON(raw string) string {
 	if value == "" {
 		return ""
 	}
-	payload := map[string]interface{}{}
+	payload := map[string]any{}
 	if err := json.Unmarshal([]byte(value), &payload); err != nil {
 		return value
 	}
@@ -942,7 +942,7 @@ func sanitizePublicTracePayloadJSON(raw string) string {
 	if value == "" {
 		return ""
 	}
-	payload := map[string]interface{}{}
+	payload := map[string]any{}
 	if err := json.Unmarshal([]byte(value), &payload); err != nil {
 		return ""
 	}
@@ -957,18 +957,18 @@ func sanitizePublicTracePayloadJSON(raw string) string {
 	return string(data)
 }
 
-func deleteUpstreamNameFields(payload map[string]interface{}, parentKey string) {
+func deleteUpstreamNameFields(payload map[string]any, parentKey string) {
 	for key, value := range payload {
 		if isUpstreamNameField(key, parentKey) {
 			delete(payload, key)
 			continue
 		}
 		switch child := value.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			deleteUpstreamNameFields(child, key)
-		case []interface{}:
+		case []any:
 			for _, item := range child {
-				if itemMap, ok := item.(map[string]interface{}); ok {
+				if itemMap, ok := item.(map[string]any); ok {
 					deleteUpstreamNameFields(itemMap, key)
 				}
 			}
@@ -976,18 +976,18 @@ func deleteUpstreamNameFields(payload map[string]interface{}, parentKey string) 
 	}
 }
 
-func deletePublicSensitiveTraceFields(payload map[string]interface{}) {
+func deletePublicSensitiveTraceFields(payload map[string]any) {
 	for key, value := range payload {
 		if isPublicSensitiveTraceField(key) {
 			delete(payload, key)
 			continue
 		}
 		switch child := value.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			deletePublicSensitiveTraceFields(child)
-		case []interface{}:
+		case []any:
 			for _, item := range child {
-				if itemMap, ok := item.(map[string]interface{}); ok {
+				if itemMap, ok := item.(map[string]any); ok {
 					deletePublicSensitiveTraceFields(itemMap)
 				}
 			}
@@ -1020,7 +1020,7 @@ func isUpstreamNameField(key string, parentKey string) bool {
 }
 
 func messageBillingMode(snapshotJSON string) string {
-	snapshot := map[string]interface{}{}
+	snapshot := map[string]any{}
 	if err := json.Unmarshal([]byte(strings.TrimSpace(snapshotJSON)), &snapshot); err != nil {
 		return ""
 	}
@@ -1657,9 +1657,9 @@ type PublicSharedConversationResponseDoc struct {
 
 // ErrorDoc 错误响应文档。
 type ErrorDoc struct {
-	ErrorMsg  string      `json:"errorMsg"`
-	ErrorCode string      `json:"errorCode,omitempty"`
-	Details   interface{} `json:"details,omitempty"`
-	RequestID string      `json:"requestId,omitempty"`
-	Data      interface{} `json:"data"`
+	ErrorMsg  string `json:"errorMsg"`
+	ErrorCode string `json:"errorCode,omitempty"`
+	Details   any    `json:"details,omitempty"`
+	RequestID string `json:"requestId,omitempty"`
+	Data      any    `json:"data"`
 }

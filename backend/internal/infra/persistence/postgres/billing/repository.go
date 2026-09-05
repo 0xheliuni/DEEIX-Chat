@@ -194,7 +194,7 @@ func (r *Repo) UpdatePlanWithDefaultPrice(ctx context.Context, plan *domainbilli
 		return repository.ErrInvalidInput
 	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		planUpdates := map[string]interface{}{
+		planUpdates := map[string]any{
 			"name":                  strings.TrimSpace(plan.Name),
 			"description":           strings.TrimSpace(plan.Description),
 			"period_credit_nanousd": clampNonNegative(plan.PeriodCreditNanousd),
@@ -220,7 +220,7 @@ func (r *Repo) UpdatePlanWithDefaultPrice(ctx context.Context, plan *domainbilli
 			return dberror.Translate(err)
 		}
 
-		updates := map[string]interface{}{
+		updates := map[string]any{
 			"plan_id":            plan.ID,
 			"code":               strings.TrimSpace(price.Code),
 			"billing_interval":   domainbilling.NormalizeInterval(price.BillingInterval),
@@ -297,7 +297,7 @@ func (r *Repo) ReplaceSubscription(ctx context.Context, item *domainbilling.Subs
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&model.Subscription{}).
 			Where("user_id = ? AND status = ?", item.UserID, "active").
-			Updates(map[string]interface{}{
+			Updates(map[string]any{
 				"status":                "expired",
 				"auto_renew":            false,
 				"cancel_at_period_end":  false,
@@ -364,7 +364,7 @@ func (r *Repo) UpdatePaymentOrderCheckout(ctx context.Context, orderNo string, e
 	return dberror.Translate(r.db.WithContext(ctx).
 		Model(&model.PaymentOrder{}).
 		Where("order_no = ?", orderNo).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"external_checkout_id": strings.TrimSpace(externalCheckoutID),
 			"checkout_url":         strings.TrimSpace(checkoutURL),
 		}).Error)
@@ -414,7 +414,7 @@ func (r *Repo) MarkPaymentOrderPaidAndGrantSubscription(
 			return repository.ErrInvalidInput
 		}
 		if order.ExpiredAt != nil && order.ExpiredAt.Before(paidAt) {
-			if err := tx.Model(&order).Updates(map[string]interface{}{
+			if err := tx.Model(&order).Updates(map[string]any{
 				"status": domainbilling.PaymentStatusExpired,
 			}).Error; err != nil {
 				return dberror.Translate(err)
@@ -450,7 +450,7 @@ func (r *Repo) MarkPaymentOrderPaidAndGrantSubscription(
 			return err
 		}
 
-		if err := tx.Model(&order).Updates(map[string]interface{}{
+		if err := tx.Model(&order).Updates(map[string]any{
 			"status":              domainbilling.PaymentStatusPaid,
 			"external_payment_id": strings.TrimSpace(externalPaymentID),
 			"paid_at":             paidAt,
@@ -542,7 +542,7 @@ func (r *Repo) AddUsageAndSettleBalance(ctx context.Context, usage *domainbillin
 			return dberror.Translate(err)
 		}
 		if chargeNanousd > 0 {
-			if err := tx.Model(account).Updates(map[string]interface{}{
+			if err := tx.Model(account).Updates(map[string]any{
 				"balance_nanousd": gorm.Expr("balance_nanousd - ?", chargeNanousd),
 				"currency":        "USD",
 				"status":          "active",
@@ -656,7 +656,7 @@ func (r *Repo) AddPeriodUsageAndSettleOverage(
 
 		ledger := *usage
 		ledger.BalanceAfterNanousd = &nextBalance
-		ledger.PricingSnapshotJSON = withPeriodSettlementSnapshot(ledger.PricingSnapshotJSON, map[string]interface{}{
+		ledger.PricingSnapshotJSON = withPeriodSettlementSnapshot(ledger.PricingSnapshotJSON, map[string]any{
 			"period_credit_nanousd":                   periodCreditNanousd,
 			"period_used_before_nanousd":              usedBeforeNanousd,
 			"period_used_after_nanousd":               addNonNegativeInt64(usedBeforeNanousd, chargeNanousd),
@@ -674,7 +674,7 @@ func (r *Repo) AddPeriodUsageAndSettleOverage(
 		if overageNanousd > 0 {
 			// 超出周期额度的真实用量必须完整入账；预留仅限制并发风险，不改变最终扣费金额。
 			// 扣减使用表达式更新而非内存值写回，避免任何绕开行锁的并发写导致覆盖。
-			if err := tx.Model(account).Updates(map[string]interface{}{
+			if err := tx.Model(account).Updates(map[string]any{
 				"balance_nanousd": gorm.Expr("balance_nanousd - ?", overageNanousd),
 				"currency":        "USD",
 				"status":          "active",
@@ -732,8 +732,8 @@ func restoreSettledUsageLedger(tx *gorm.DB, usageLedgerID uint, usage *domainbil
 	return nil
 }
 
-func withPeriodSettlementSnapshot(raw string, values map[string]interface{}) string {
-	snapshot := map[string]interface{}{}
+func withPeriodSettlementSnapshot(raw string, values map[string]any) string {
+	snapshot := map[string]any{}
 	if trimmed := strings.TrimSpace(raw); trimmed != "" {
 		_ = json.Unmarshal([]byte(trimmed), &snapshot)
 	}
@@ -795,7 +795,7 @@ func (r *Repo) SetBillingAccountBalance(ctx context.Context, userID uint, balanc
 			return err
 		}
 		amount := balanceNanousd - account.BalanceNanousd
-		if err := tx.Model(account).Updates(map[string]interface{}{
+		if err := tx.Model(account).Updates(map[string]any{
 			"balance_nanousd": balanceNanousd,
 			"currency":        "USD",
 			"status":          "active",
@@ -859,7 +859,7 @@ func (r *Repo) MarkPaymentOrderPaidAndCreditBalance(
 			return repository.ErrInvalidInput
 		}
 		if order.ExpiredAt != nil && order.ExpiredAt.Before(paidAt) {
-			if err := tx.Model(&order).Updates(map[string]interface{}{
+			if err := tx.Model(&order).Updates(map[string]any{
 				"status": domainbilling.PaymentStatusExpired,
 			}).Error; err != nil {
 				return dberror.Translate(err)
@@ -872,7 +872,7 @@ func (r *Repo) MarkPaymentOrderPaidAndCreditBalance(
 			return err
 		}
 		nextBalance := account.BalanceNanousd + order.CreditNanousd
-		if err := tx.Model(account).Updates(map[string]interface{}{
+		if err := tx.Model(account).Updates(map[string]any{
 			"balance_nanousd": nextBalance,
 			"currency":        "USD",
 			"status":          "active",
@@ -893,7 +893,7 @@ func (r *Repo) MarkPaymentOrderPaidAndCreditBalance(
 		if err := tx.Create(&transaction).Error; err != nil {
 			return dberror.Translate(err)
 		}
-		if err := tx.Model(&order).Updates(map[string]interface{}{
+		if err := tx.Model(&order).Updates(map[string]any{
 			"status":              domainbilling.PaymentStatusPaid,
 			"external_payment_id": strings.TrimSpace(externalPaymentID),
 			"paid_at":             paidAt,
@@ -1139,7 +1139,7 @@ func (r *Repo) PatchRedemptionCode(ctx context.Context, id uint, patch repositor
 			First(&record).Error; err != nil {
 			return dberror.Translate(err)
 		}
-		updates := map[string]interface{}{}
+		updates := map[string]any{}
 		if patch.Status != nil {
 			status := normalizeRedemptionStatus(*patch.Status)
 			if status == "" {
@@ -1421,7 +1421,7 @@ func (r *Repo) UpsertModelPricing(ctx context.Context, item *domainbilling.Model
 		return nil, dberror.Translate(err)
 	}
 
-	updates := map[string]interface{}{
+	updates := map[string]any{
 		"platform_model_name":              platformModelName,
 		"currency":                         normalizeCurrency(item.Currency),
 		"is_free":                          item.IsFree,
@@ -2450,7 +2450,7 @@ func applyRedemptionBalance(tx *gorm.DB, userID uint, code model.RedemptionCode,
 	if err != nil {
 		return nil, 0, err
 	}
-	if err := tx.Model(account).Updates(map[string]interface{}{
+	if err := tx.Model(account).Updates(map[string]any{
 		"balance_nanousd": gorm.Expr("balance_nanousd + ?", code.CreditNanousd),
 		"currency":        "USD",
 		"status":          "active",
@@ -2680,7 +2680,7 @@ func expireSubscriptionForTimeline(tx *gorm.DB, item model.Subscription, now tim
 	if item.CurrentPeriodEndAt != nil && item.CurrentPeriodEndAt.Before(endAt) {
 		endAt = *item.CurrentPeriodEndAt
 	}
-	return dberror.Translate(tx.Model(&item).Updates(map[string]interface{}{
+	return dberror.Translate(tx.Model(&item).Updates(map[string]any{
 		"status":                "expired",
 		"auto_renew":            false,
 		"cancel_at_period_end":  false,
@@ -2698,7 +2698,7 @@ func updateSubscriptionSegment(tx *gorm.DB, item model.Subscription, segment sub
 		recordStartAt = item.StartAt
 	}
 	endAt := segment.EndAt
-	if err := tx.Model(&item).Updates(map[string]interface{}{
+	if err := tx.Model(&item).Updates(map[string]any{
 		"plan_id":                 segment.PlanID,
 		"price_id":                segment.PriceID,
 		"status":                  "active",
@@ -2990,7 +2990,7 @@ func subscriptionPlanRank(plan model.BillingPlan) int {
 }
 
 func redemptionSnapshotJSON(code model.RedemptionCode) string {
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"code_id":        code.ID,
 		"mode":           code.Mode,
 		"reward_type":    code.RewardType,

@@ -262,7 +262,7 @@ func (h *Handler) CreateAdminSkill(c *gin.Context) {
 		writeSkillError(c, err)
 		return
 	}
-	h.service.RecordAudit(c.Request.Context(), auditInput(c, "skill.create_builtin", item.ID, map[string]interface{}{"trigger": item.Trigger}))
+	h.service.RecordAudit(c.Request.Context(), auditInput(c, "skill.create_builtin", item.ID, map[string]any{"trigger": item.Trigger}))
 	response.Success(c, SkillDataResponse{Skill: toSkillResponse(*item)})
 }
 
@@ -295,7 +295,7 @@ func (h *Handler) PatchAdminSkill(c *gin.Context) {
 		writeSkillError(c, err)
 		return
 	}
-	h.service.RecordAudit(c.Request.Context(), auditInput(c, "skill.update_builtin", item.ID, map[string]interface{}{"trigger": item.Trigger}))
+	h.service.RecordAudit(c.Request.Context(), auditInput(c, "skill.update_builtin", item.ID, map[string]any{"trigger": item.Trigger}))
 	response.Success(c, SkillDataResponse{Skill: toSkillResponse(*item)})
 }
 
@@ -355,7 +355,7 @@ func idParam(c *gin.Context) (uint, bool) {
 	return uint(id), true
 }
 
-func auditInput(c *gin.Context, action string, resourceID uint, detail interface{}) appskill.AuditInput {
+func auditInput(c *gin.Context, action string, resourceID uint, detail any) appskill.AuditInput {
 	return appskill.AuditInput{
 		UserID:     middleware.MustUserID(c),
 		RequestID:  middleware.MustRequestID(c),

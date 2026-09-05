@@ -23,7 +23,7 @@ func (r *cleanupTestRepository) DeleteConversationRuns(_ context.Context, runIDs
 
 type cleanupTestAuditWriter struct {
 	action string
-	detail interface{}
+	detail any
 }
 
 func (w *cleanupTestAuditWriter) Write(_ context.Context, input appaudit.WriteInput) {

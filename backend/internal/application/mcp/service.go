@@ -167,7 +167,7 @@ func (s *Service) SyncServerTools(ctx context.Context, input SyncServerToolsInpu
 			Resource:   "mcp_server",
 			ResourceID: fmt.Sprintf("%d", serverID),
 			Message:    "MCP 工具同步失败",
-			Detail: map[string]interface{}{
+			Detail: map[string]any{
 				"server_id":  serverID,
 				"error":      "MCP 工具同步失败",
 				"error_code": mcpSyncErrorCode(err),
@@ -256,7 +256,7 @@ func (s *Service) SyncServerTools(ctx context.Context, input SyncServerToolsInpu
 		Resource:   "mcp_server",
 		ResourceID: fmt.Sprintf("%d", serverID),
 		Message:    "MCP 工具已同步",
-		Detail: map[string]interface{}{
+		Detail: map[string]any{
 			"server_id":                     serverID,
 			"tool_count":                    len(result),
 			"overwrite_customized_metadata": input.OverwriteCustomizedMetadata,

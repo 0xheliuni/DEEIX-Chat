@@ -48,12 +48,12 @@ func buildOpenRouterResponsesRequestBody(
 	model string,
 	input portllm.GenerateInput,
 	messages []portllm.Message,
-	providerTools []map[string]interface{},
+	providerTools []map[string]any,
 	toolDefinitions []portllm.ToolDefinition,
-	providerStreamOptions map[string]interface{},
+	providerStreamOptions map[string]any,
 	stream bool,
-) map[string]interface{} {
-	payload := map[string]interface{}{
+) map[string]any {
+	payload := map[string]any{
 		"model":  strings.TrimSpace(model),
 		"input":  buildOpenRouterResponsesAPIInput(messages),
 		"stream": stream,
@@ -76,8 +76,8 @@ func buildOpenRouterResponsesRequestBody(
 }
 
 // buildOpenRouterResponsesAPIInput 将内部消息转换为 OpenRouter Responses input items。
-func buildOpenRouterResponsesAPIInput(messages []portllm.Message) []map[string]interface{} {
-	items := make([]map[string]interface{}, 0, len(messages))
+func buildOpenRouterResponsesAPIInput(messages []portllm.Message) []map[string]any {
+	items := make([]map[string]any, 0, len(messages))
 	for _, msg := range messages {
 		if len(msg.ToolCalls) > 0 {
 			for _, item := range msg.ToolCalls {
@@ -87,7 +87,7 @@ func buildOpenRouterResponsesAPIInput(messages []portllm.Message) []map[string]i
 					args = "{}"
 				}
 				callID := strings.TrimSpace(item.ToolCallID)
-				items = append(items, map[string]interface{}{
+				items = append(items, map[string]any{
 					"type":      "function_call",
 					"id":        openRouterResponsesItemID("fc", index, callID),
 					"call_id":   callID,
@@ -101,7 +101,7 @@ func buildOpenRouterResponsesAPIInput(messages []portllm.Message) []map[string]i
 			for _, item := range msg.ToolResults {
 				index := len(items)
 				callID := strings.TrimSpace(item.ToolCallID)
-				items = append(items, map[string]interface{}{
+				items = append(items, map[string]any{
 					"type":    "function_call_output",
 					"id":      openRouterResponsesItemID("fc_output", index, callID),
 					"call_id": callID,
@@ -112,7 +112,7 @@ func buildOpenRouterResponsesAPIInput(messages []portllm.Message) []map[string]i
 		}
 		index := len(items)
 		role := normalizeRole(msg.Role)
-		item := map[string]interface{}{
+		item := map[string]any{
 			"type":    "message",
 			"role":    role,
 			"content": buildResponsesAPIContent(msg, nil),

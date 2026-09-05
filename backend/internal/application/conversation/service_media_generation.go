@@ -53,7 +53,7 @@ type MediaImageInput struct {
 	TaskType              MediaImageTaskType
 	Prompt                string
 	PlatformModelName     string
-	Options               map[string]interface{}
+	Options               map[string]any
 	ClientRunID           string
 	FileIDs               []string
 	MaskFileID            string
@@ -62,7 +62,7 @@ type MediaImageInput struct {
 	BranchReason          string
 	// UsageAuthorization 是请求级计费授权；路由确定后据此把预算预留抬高到按次预估成本。
 	UsageAuthorization *domainbilling.UsageAuthorization
-	OnEvent            func(eventType string, payload map[string]interface{}) error
+	OnEvent            func(eventType string, payload map[string]any) error
 }
 
 // StreamMediaImage 执行图片生成任务并把结果保存为文件对象。
@@ -406,7 +406,7 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 	if mediaImageStreamEnabled(routeConfig.Protocol, routeConfig.UpstreamModel, route.ModelCapabilitiesJSON) {
 		output, err = s.llmClient.GenerateStream(ctx, routeConfig, generateInput, func(event llm.GenerateStreamEvent) error {
 			if event.Usage != (llm.Usage{}) && input.OnEvent != nil {
-				if streamErr := input.OnEvent("usage", map[string]interface{}{
+				if streamErr := input.OnEvent("usage", map[string]any{
 					"input_tokens":       event.Usage.InputTokens,
 					"output_tokens":      event.Usage.OutputTokens,
 					"cache_read_tokens":  event.Usage.CacheReadTokens,
@@ -718,11 +718,11 @@ func (s *Service) readMediaImageEditFile(ctx context.Context, userID uint, fileI
 }
 
 // emitMediaEvent 输出媒体任务状态事件；失败不影响主流程。
-func emitMediaEvent(onEvent func(string, map[string]interface{}) error, status string, message string, contentType ...string) {
+func emitMediaEvent(onEvent func(string, map[string]any) error, status string, message string, contentType ...string) {
 	if onEvent == nil {
 		return
 	}
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"status":  status,
 		"message": message,
 	}
@@ -732,7 +732,7 @@ func emitMediaEvent(onEvent func(string, map[string]interface{}) error, status s
 	_ = onEvent("media_status", payload)
 }
 
-func emitMediaImageDelta(onEvent func(string, map[string]interface{}) error, event llm.GenerateStreamEvent) error {
+func emitMediaImageDelta(onEvent func(string, map[string]any) error, event llm.GenerateStreamEvent) error {
 	if onEvent == nil || event.GeneratedImage == nil {
 		return nil
 	}
@@ -740,7 +740,7 @@ func emitMediaImageDelta(onEvent func(string, map[string]interface{}) error, eve
 	if strings.TrimSpace(image.B64JSON) == "" {
 		return nil
 	}
-	return onEvent("media_image_delta", map[string]interface{}{
+	return onEvent("media_image_delta", map[string]any{
 		"index":          event.GeneratedImageIndex,
 		"b64_json":       image.B64JSON,
 		"mime_type":      strings.TrimSpace(image.MIMEType),
@@ -752,13 +752,13 @@ func mediaImageStreamEnabled(protocol string, upstreamModel string, capabilities
 	return llm.SupportsImageGenerationStream(protocol, upstreamModel) && !mediaImageStreamExplicitlyDisabled(capabilitiesJSON)
 }
 
-func withGeminiInteractionResponseType(options map[string]interface{}, responseType string) map[string]interface{} {
-	next := make(map[string]interface{}, len(options)+1)
+func withGeminiInteractionResponseType(options map[string]any, responseType string) map[string]any {
+	next := make(map[string]any, len(options)+1)
 	for key, value := range options {
 		next[key] = value
 	}
-	format := map[string]interface{}{}
-	if raw, ok := next["response_format"].(map[string]interface{}); ok {
+	format := map[string]any{}
+	if raw, ok := next["response_format"].(map[string]any); ok {
 		for key, value := range raw {
 			format[key] = value
 		}

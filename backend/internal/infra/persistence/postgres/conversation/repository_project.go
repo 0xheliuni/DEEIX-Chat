@@ -102,7 +102,7 @@ func (r *Repo) UpdateConversationProjectMetadataByPublicID(
 	publicID string,
 	patch domainconversation.ConversationProjectPatch,
 ) (*domainconversation.ConversationProject, error) {
-	updates := make(map[string]interface{})
+	updates := make(map[string]any)
 	if patch.Name != nil {
 		updates["name"] = *patch.Name
 	}

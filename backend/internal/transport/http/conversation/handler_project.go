@@ -78,7 +78,7 @@ func (h *Handler) CreateConversationProject(c *gin.Context) {
 		response.InternalError(c)
 		return
 	}
-	h.recordAudit(c, "create_conversation_project", "conversation_project", item.PublicID, map[string]interface{}{
+	h.recordAudit(c, "create_conversation_project", "conversation_project", item.PublicID, map[string]any{
 		"name":                         item.Name,
 		"default_model":                item.DefaultModel,
 		"mcp_default_mode":             item.MCPDefaultMode,
@@ -141,7 +141,7 @@ func (h *Handler) UpdateConversationProject(c *gin.Context) {
 			return
 		}
 	}
-	h.recordAudit(c, "update_conversation_project", "conversation_project", item.PublicID, map[string]interface{}{
+	h.recordAudit(c, "update_conversation_project", "conversation_project", item.PublicID, map[string]any{
 		"name":                         item.Name,
 		"default_model":                item.DefaultModel,
 		"mcp_default_mode":             item.MCPDefaultMode,
@@ -191,7 +191,7 @@ func (h *Handler) DeleteConversationProject(c *gin.Context) {
 		response.InternalError(c)
 		return
 	}
-	h.recordAudit(c, "delete_conversation_project", "conversation_project", publicID, map[string]interface{}{
+	h.recordAudit(c, "delete_conversation_project", "conversation_project", publicID, map[string]any{
 		"deleted":              true,
 		"delete_conversations": deleteConversations,
 		"delete_files":         deleteFiles,

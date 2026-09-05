@@ -152,7 +152,7 @@ func (h *Handler) CreateCheckout(c *gin.Context) {
 		"billing.payment.checkout",
 		"billing_payment_order",
 		order.OrderNo,
-		map[string]interface{}{
+		map[string]any{
 			"provider":          order.Provider,
 			"order_type":        order.OrderType,
 			"plan_id":           order.PlanID,
@@ -525,7 +525,7 @@ func (h *Handler) writePaymentAudit(c *gin.Context, order *domainbilling.Payment
 		"billing.payment.completed",
 		"billing_payment_order",
 		order.OrderNo,
-		map[string]interface{}{
+		map[string]any{
 			"provider":          order.Provider,
 			"order_type":        order.OrderType,
 			"status":            order.Status,

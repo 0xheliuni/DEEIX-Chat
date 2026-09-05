@@ -115,7 +115,7 @@ func (r *Repo) UpdatePermissionGroup(ctx context.Context, id uint, name string, 
 	result := r.db.WithContext(ctx).
 		Model(&model.PermissionGroup{}).
 		Where("id = ?", id).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"name":                    strings.TrimSpace(name),
 			"description":             strings.TrimSpace(description),
 			"rate_multiplier_percent": normalizeRateMultiplierPercent(rateMultiplierPercent),

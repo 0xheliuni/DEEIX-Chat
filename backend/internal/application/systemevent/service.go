@@ -33,7 +33,7 @@ type WriteInput struct {
 	Resource   string
 	ResourceID string
 	Message    string
-	Detail     interface{}
+	Detail     any
 }
 
 // Service 封装系统事件能力。

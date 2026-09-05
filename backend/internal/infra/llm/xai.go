@@ -85,7 +85,7 @@ func isXAIResponsesAdapter(adapter string) bool {
 	return portllm.NormalizeAdapter(adapter) == portllm.AdapterXAIResponses
 }
 
-func xAIResponsesDefaultIncludeValues(stream bool, tools []map[string]interface{}) []string {
+func xAIResponsesDefaultIncludeValues(stream bool, tools []map[string]any) []string {
 	values := make([]string, 0, 3)
 	values = append(values, xAIResponsesToolIncludeValues(tools)...)
 	return appendUniqueStrings(nil, values...)
@@ -95,7 +95,7 @@ func xAIResponsesServerToolIdentifierKeys() []string {
 	return []string{"x_search_call_id"}
 }
 
-func xAIResponsesToolIncludeValues(tools []map[string]interface{}) []string {
+func xAIResponsesToolIncludeValues(tools []map[string]any) []string {
 	values := make([]string, 0, 3)
 	for _, tool := range tools {
 		switch strings.TrimSpace(getString(tool["type"])) {
@@ -110,7 +110,7 @@ func xAIResponsesToolIncludeValues(tools []map[string]interface{}) []string {
 	return appendUniqueStrings(nil, values...)
 }
 
-func xAIResponsesServerToolCallID(item map[string]interface{}, itemType string) (string, bool) {
+func xAIResponsesServerToolCallID(item map[string]any, itemType string) (string, bool) {
 	if itemType == "custom_tool_call" && isXAIResponsesNativeCustomToolName(getString(item["name"])) {
 		return textutil.FirstNonEmpty(
 			getString(item["item_id"]),
@@ -132,7 +132,7 @@ func xAIResponsesServerToolCallID(item map[string]interface{}, itemType string) 
 	), true
 }
 
-func isXAIResponsesNativeCustomToolCall(item map[string]interface{}) bool {
+func isXAIResponsesNativeCustomToolCall(item map[string]any) bool {
 	return strings.TrimSpace(getString(item["type"])) == "custom_tool_call" &&
 		isXAIResponsesNativeCustomToolName(getString(item["name"]))
 }

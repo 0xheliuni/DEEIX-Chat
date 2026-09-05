@@ -138,7 +138,7 @@ func (c *Client) generateXAIImage(ctx context.Context, route portllm.RouteConfig
 }
 
 // buildXAIImageRequest 根据任务端点构造 xAI 图片生成或编辑请求。
-func buildXAIImageRequest(model string, endpoint string, input portllm.GenerateInput) (map[string]interface{}, []byte, error) {
+func buildXAIImageRequest(model string, endpoint string, input portllm.GenerateInput) (map[string]any, []byte, error) {
 	if endpoint == portllm.EndpointImageEdits {
 		return buildXAIImageEditRequestBody(model, input)
 	}
@@ -147,12 +147,12 @@ func buildXAIImageRequest(model string, endpoint string, input portllm.GenerateI
 }
 
 // buildXAIImageRequestBody 只允许 xAI 图片生成端点支持的字段进入上游。
-func buildXAIImageRequestBody(model string, input portllm.GenerateInput) (map[string]interface{}, error) {
+func buildXAIImageRequestBody(model string, input portllm.GenerateInput) (map[string]any, error) {
 	prompt := buildOpenAIImageGenerationPrompt(input.Messages)
 	if strings.TrimSpace(prompt) == "" {
 		return nil, fmt.Errorf("image generation prompt required")
 	}
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"model":  strings.TrimSpace(model),
 		"prompt": prompt,
 	}
@@ -161,7 +161,7 @@ func buildXAIImageRequestBody(model string, input portllm.GenerateInput) (map[st
 }
 
 // buildXAIImageEditRequestBody 只允许 xAI 图片编辑端点支持的字段进入上游。
-func buildXAIImageEditRequestBody(model string, input portllm.GenerateInput) (map[string]interface{}, []byte, error) {
+func buildXAIImageEditRequestBody(model string, input portllm.GenerateInput) (map[string]any, []byte, error) {
 	prompt := buildOpenAIImageGenerationPrompt(input.Messages)
 	if strings.TrimSpace(prompt) == "" {
 		return nil, nil, fmt.Errorf("image edit prompt required")
@@ -173,11 +173,11 @@ func buildXAIImageEditRequestBody(model string, input portllm.GenerateInput) (ma
 	if len(images) > 3 {
 		return nil, nil, fmt.Errorf("too many image edit input images")
 	}
-	imageInputs := make([]map[string]interface{}, 0, len(images))
+	imageInputs := make([]map[string]any, 0, len(images))
 	for _, image := range images {
 		imageInputs = append(imageInputs, xAIImageURLPayload(image))
 	}
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"model":  strings.TrimSpace(model),
 		"prompt": prompt,
 	}
@@ -187,7 +187,7 @@ func buildXAIImageEditRequestBody(model string, input portllm.GenerateInput) (ma
 		payload["images"] = imageInputs
 	}
 	applyXAIImageParams(payload, input.Options)
-	debugBody, _ := json.Marshal(map[string]interface{}{
+	debugBody, _ := json.Marshal(map[string]any{
 		"model":       payload["model"],
 		"prompt":      payload["prompt"],
 		"image_count": len(imageInputs),
@@ -196,19 +196,19 @@ func buildXAIImageEditRequestBody(model string, input portllm.GenerateInput) (ma
 }
 
 // xAIImageURLPayload 将内部图片输入转换为 xAI 文档要求的 image_url 对象。
-func xAIImageURLPayload(image portllm.ContentPart) map[string]interface{} {
+func xAIImageURLPayload(image portllm.ContentPart) map[string]any {
 	mimeType := strings.TrimSpace(image.MimeType)
 	if mimeType == "" {
 		mimeType = "image/jpeg"
 	}
-	return map[string]interface{}{
+	return map[string]any{
 		"url":  "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(image.Data),
 		"type": "image_url",
 	}
 }
 
 // applyXAIImageParams 从 options 中提取 xAI 图片生成官方参数。
-func applyXAIImageParams(payload map[string]interface{}, options map[string]interface{}) {
+func applyXAIImageParams(payload map[string]any, options map[string]any) {
 	if value := xAIImageResponseFormat(options); value != "" {
 		payload["response_format"] = value
 	}
@@ -236,7 +236,7 @@ func isXAIImageResolution(value string) bool {
 	return value == "1k" || value == "2k"
 }
 
-func xAIImageResponseFormat(options map[string]interface{}) string {
+func xAIImageResponseFormat(options map[string]any) string {
 	switch strings.ToLower(modelParamString(options, "response_format")) {
 	case "url":
 		return "url"
@@ -249,7 +249,7 @@ func xAIImageResponseFormat(options map[string]interface{}) string {
 
 // parseXAIImageOutput 解析 xAI 图片响应；图片字节只进入 GeneratedImages。
 func parseXAIImageOutput(body []byte, protocol string) (*portllm.GenerateOutput, error) {
-	parsed := make(map[string]interface{})
+	parsed := make(map[string]any)
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return nil, err
 	}
@@ -284,7 +284,7 @@ func parseXAIImageOutput(body []byte, protocol string) (*portllm.GenerateOutput,
 	return result, nil
 }
 
-func parseXAIImagePayload(payload map[string]interface{}) (portllm.GeneratedImage, bool) {
+func parseXAIImagePayload(payload map[string]any) (portllm.GeneratedImage, bool) {
 	if len(payload) == 0 {
 		return portllm.GeneratedImage{}, false
 	}
@@ -318,7 +318,7 @@ func parseXAIImagePayload(payload map[string]interface{}) (portllm.GeneratedImag
 }
 
 // xAIImageMIMEType 优先采用官方响应中的 MIME；旧代理未返回时回退为 JPEG。
-func xAIImageMIMEType(payload map[string]interface{}) string {
+func xAIImageMIMEType(payload map[string]any) string {
 	if mimeType := strings.ToLower(strings.TrimSpace(getString(payload["mime_type"]))); strings.HasPrefix(mimeType, "image/") {
 		return mimeType
 	}

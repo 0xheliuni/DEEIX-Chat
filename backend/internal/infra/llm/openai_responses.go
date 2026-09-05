@@ -36,18 +36,18 @@ func buildResponsesRequestBody(
 	model string,
 	input portllm.GenerateInput,
 	messages []portllm.Message,
-	providerTools []map[string]interface{},
+	providerTools []map[string]any,
 	toolDefinitions []portllm.ToolDefinition,
 	toolsEnabled bool,
-	providerStreamOptions map[string]interface{},
+	providerStreamOptions map[string]any,
 	stream bool,
-) map[string]interface{} {
+) map[string]any {
 	if adapter == portllm.AdapterOpenRouterResponses {
 		return buildOpenRouterResponsesRequestBody(model, input, messages, providerTools, toolDefinitions, providerStreamOptions, stream)
 	}
 	promptCache := resolveOpenAIPromptCacheConfig(adapter, input)
 	items := buildResponsesAPIInput(messages, &promptCache)
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"model":  strings.TrimSpace(model),
 		"input":  items,
 		"stream": stream,
@@ -67,11 +67,11 @@ func buildResponsesRequestBody(
 	applyOpenAICompatibleSamplingParams(payload, input.Options, false)
 	applyOpenAIResponsesReasoningParams(payload, input.Options)
 	applyOpenAIResponsesTextParams(payload, input.Options, adapter == portllm.AdapterOpenAIResponses)
-	webSearchTools := []map[string]interface{}{}
+	webSearchTools := []map[string]any{}
 	if toolsEnabled && modelParamBool(input.Options, "web_search") && adapter == portllm.AdapterOpenAIResponses {
-		webSearchTools = append(webSearchTools, map[string]interface{}{"type": "web_search"})
+		webSearchTools = append(webSearchTools, map[string]any{"type": "web_search"})
 	}
-	nativeTools := append([]map[string]interface{}{}, providerTools...)
+	nativeTools := append([]map[string]any{}, providerTools...)
 	nativeTools = append(nativeTools, webSearchTools...)
 	applyOpenAIPromptCacheRequestFields(payload, promptCache)
 	appendToolDeclarations(payload, providerTools, webSearchTools, buildOpenAITools(toolDefinitions, false))
@@ -124,19 +124,19 @@ func responsesProtectedProviderOptionKeys(adapter string, hasManagedInstructions
 	return keys
 }
 
-func responsesStreamOptions(options map[string]interface{}) map[string]interface{} {
+func responsesStreamOptions(options map[string]any) map[string]any {
 	if len(options) == 0 {
 		return nil
 	}
-	result := map[string]interface{}{}
+	result := map[string]any{}
 	if value, ok := options["include_obfuscation"]; ok {
 		result["include_obfuscation"] = value
 	}
 	return result
 }
 
-func applyOpenAIResponsesReasoningParams(payload map[string]interface{}, options map[string]interface{}) {
-	reasoning := map[string]interface{}{}
+func applyOpenAIResponsesReasoningParams(payload map[string]any, options map[string]any) {
+	reasoning := map[string]any{}
 	if existing := modelParamMap(options, "reasoning"); len(existing) > 0 {
 		for key, value := range existing {
 			reasoning[key] = value
@@ -151,8 +151,8 @@ func applyOpenAIResponsesReasoningParams(payload map[string]interface{}, options
 	mergeObjectParam(payload, "reasoning", reasoning)
 }
 
-func applyOpenAIResponsesTextParams(payload map[string]interface{}, options map[string]interface{}, allowVerbosity bool) {
-	text := map[string]interface{}{}
+func applyOpenAIResponsesTextParams(payload map[string]any, options map[string]any, allowVerbosity bool) {
+	text := map[string]any{}
 	if existing := modelParamMap(options, "text"); len(existing) > 0 {
 		for key, value := range existing {
 			text[key] = value
@@ -169,10 +169,10 @@ func applyOpenAIResponsesTextParams(payload map[string]interface{}, options map[
 
 type responsesProtocolExtension struct {
 	matchesAdapter                  func(adapter string) bool
-	includeDefaults                 func(stream bool, tools []map[string]interface{}) []string
+	includeDefaults                 func(stream bool, tools []map[string]any) []string
 	serverToolIdentifierKeys        func() []string
-	serverToolCallID                func(item map[string]interface{}, itemType string) (string, bool)
-	isServerToolCallItem            func(item map[string]interface{}) bool
+	serverToolCallID                func(item map[string]any, itemType string) (string, bool)
+	isServerToolCallItem            func(item map[string]any) bool
 	isServerToolCallType            func(itemType string) bool
 	normalizeServerSideToolUsageKey func(value string, original string) (string, bool)
 }
@@ -181,7 +181,7 @@ func supportsResponsesIncludeDefaults(adapter string) bool {
 	return adapter == portllm.AdapterOpenAIResponses || len(responsesProtocolExtensionsForAdapter(adapter)) > 0
 }
 
-func responsesDefaultIncludeValues(adapter string, stream bool, providerTools []map[string]interface{}) []string {
+func responsesDefaultIncludeValues(adapter string, stream bool, providerTools []map[string]any) []string {
 	values := []string{"reasoning.encrypted_content"}
 	if adapter == portllm.AdapterOpenAIResponses {
 		values = append(values, openAIResponsesDefaultIncludeValues(providerTools)...)
@@ -194,14 +194,14 @@ func responsesDefaultIncludeValues(adapter string, stream bool, providerTools []
 	return appendUniqueStrings(nil, values...)
 }
 
-func openAIResponsesDefaultIncludeValues(tools []map[string]interface{}) []string {
+func openAIResponsesDefaultIncludeValues(tools []map[string]any) []string {
 	if !responsesToolsIncludeType(tools, "web_search") {
 		return nil
 	}
 	return []string{"web_search_call.action.sources"}
 }
 
-func responsesToolsIncludeType(tools []map[string]interface{}, toolType string) bool {
+func responsesToolsIncludeType(tools []map[string]any, toolType string) bool {
 	expected := strings.TrimSpace(toolType)
 	if expected == "" {
 		return false
@@ -214,8 +214,8 @@ func responsesToolsIncludeType(tools []map[string]interface{}, toolType string) 
 	return false
 }
 
-func buildResponsesAPIInput(messages []portllm.Message, promptCache *openAIPromptCacheConfig) []map[string]interface{} {
-	items := make([]map[string]interface{}, 0, len(messages))
+func buildResponsesAPIInput(messages []portllm.Message, promptCache *openAIPromptCacheConfig) []map[string]any {
+	items := make([]map[string]any, 0, len(messages))
 	for _, msg := range messages {
 		if len(msg.ToolCalls) > 0 {
 			for _, item := range msg.ToolCalls {
@@ -223,7 +223,7 @@ func buildResponsesAPIInput(messages []portllm.Message, promptCache *openAIPromp
 				if args == "" {
 					args = "{}"
 				}
-				items = append(items, map[string]interface{}{
+				items = append(items, map[string]any{
 					"type":      "function_call",
 					"call_id":   strings.TrimSpace(item.ToolCallID),
 					"name":      strings.TrimSpace(item.ToolName),
@@ -234,7 +234,7 @@ func buildResponsesAPIInput(messages []portllm.Message, promptCache *openAIPromp
 		}
 		if len(msg.ToolResults) > 0 {
 			for _, item := range msg.ToolResults {
-				items = append(items, map[string]interface{}{
+				items = append(items, map[string]any{
 					"type":    "function_call_output",
 					"call_id": strings.TrimSpace(item.ToolCallID),
 					"output":  buildToolResultContent(item),
@@ -242,7 +242,7 @@ func buildResponsesAPIInput(messages []portllm.Message, promptCache *openAIPromp
 			}
 			continue
 		}
-		items = append(items, map[string]interface{}{
+		items = append(items, map[string]any{
 			"role":    normalizeRole(msg.Role),
 			"content": buildResponsesAPIContent(msg, promptCache),
 		})
@@ -251,14 +251,14 @@ func buildResponsesAPIInput(messages []portllm.Message, promptCache *openAIPromp
 }
 
 // buildResponsesAPIContent 将消息内容序列化为 Responses API 格式（content 数组）。
-func buildResponsesAPIContent(msg portllm.Message, promptCache *openAIPromptCacheConfig) []map[string]interface{} {
+func buildResponsesAPIContent(msg portllm.Message, promptCache *openAIPromptCacheConfig) []map[string]any {
 	textType := responsesTextContentType(msg.Role)
 	if len(msg.Parts) == 0 {
-		block := map[string]interface{}{"type": textType, "text": msg.Content}
+		block := map[string]any{"type": textType, "text": msg.Content}
 		appendOpenAIPromptCacheBreakpoint(block, msg.CacheControl, promptCache)
-		return []map[string]interface{}{block}
+		return []map[string]any{block}
 	}
-	parts := make([]map[string]interface{}, 0, len(msg.Parts))
+	parts := make([]map[string]any, 0, len(msg.Parts))
 	for _, part := range msg.Parts {
 		switch part.Kind {
 		case portllm.ContentPartImage:
@@ -273,7 +273,7 @@ func buildResponsesAPIContent(msg portllm.Message, promptCache *openAIPromptCach
 				mime = "image/jpeg"
 			}
 			b64 := base64.StdEncoding.EncodeToString(part.Data)
-			block := map[string]interface{}{
+			block := map[string]any{
 				"type":      "input_image",
 				"image_url": "data:" + mime + ";base64," + b64,
 			}
@@ -284,7 +284,7 @@ func buildResponsesAPIContent(msg portllm.Message, promptCache *openAIPromptCach
 			if strings.TrimSpace(text) == "" {
 				continue
 			}
-			block := map[string]interface{}{
+			block := map[string]any{
 				"type": textType,
 				"text": text,
 			}
@@ -293,9 +293,9 @@ func buildResponsesAPIContent(msg portllm.Message, promptCache *openAIPromptCach
 		}
 	}
 	if len(parts) == 0 {
-		block := map[string]interface{}{"type": textType, "text": msg.Content}
+		block := map[string]any{"type": textType, "text": msg.Content}
 		appendOpenAIPromptCacheBreakpoint(block, msg.CacheControl, promptCache)
-		return []map[string]interface{}{block}
+		return []map[string]any{block}
 	}
 	if msg.CacheControl != nil {
 		for index := len(parts) - 1; index >= 0; index-- {
@@ -317,7 +317,7 @@ func responsesTextContentType(role string) string {
 func applyResponsesStreamEvent(
 	adapter string,
 	eventName string,
-	parsed map[string]interface{},
+	parsed map[string]any,
 	rawBody string,
 	result *portllm.GenerateOutput,
 	onEvent func(portllm.GenerateStreamEvent) error,
@@ -455,7 +455,7 @@ func applyResponsesStreamEvent(
 	return nil
 }
 
-func parseResponsesServerToolStatusEvent(eventType string, parsed map[string]interface{}) (portllm.ToolCall, bool) {
+func parseResponsesServerToolStatusEvent(eventType string, parsed map[string]any) (portllm.ToolCall, bool) {
 	value := strings.TrimSpace(eventType)
 	if !strings.HasPrefix(value, "response.") {
 		return portllm.ToolCall{}, false
@@ -473,7 +473,7 @@ func parseResponsesServerToolStatusEvent(eventType string, parsed map[string]int
 	}
 	item := cloneMap(asMap(parsed["item"]))
 	if len(item) == 0 {
-		item = make(map[string]interface{})
+		item = make(map[string]any)
 	}
 	mergeMapValueIfEmpty(item, "type", value)
 	mergeMapValueIfEmpty(item, "status", status)
@@ -498,7 +498,7 @@ func responseServerToolIdentifierKeys() []string {
 
 func mergeResponsesStreamOutputItem(
 	result *portllm.GenerateOutput,
-	item map[string]interface{},
+	item map[string]any,
 	onEvent func(portllm.GenerateStreamEvent) error,
 ) error {
 	if result == nil || len(item) == 0 {
@@ -522,7 +522,7 @@ func mergeResponsesStreamOutputItem(
 
 func mergeResponsesCustomToolInputEvent(
 	result *portllm.GenerateOutput,
-	parsed map[string]interface{},
+	parsed map[string]any,
 	onEvent func(portllm.GenerateStreamEvent) error,
 ) error {
 	if result == nil {
@@ -547,7 +547,7 @@ func mergeResponsesCustomToolInputEvent(
 	return nil
 }
 
-func parseResponsesStreamErrorEvent(parsed map[string]interface{}, rawBody string) error {
+func parseResponsesStreamErrorEvent(parsed map[string]any, rawBody string) error {
 	errorPayload := asMap(parsed["error"])
 	if len(errorPayload) == 0 {
 		errorPayload = asMap(asMap(parsed["response"])["error"])
@@ -566,7 +566,7 @@ func parseResponsesStreamErrorEvent(parsed map[string]interface{}, rawBody strin
 	}
 }
 
-func parseResponsesOutput(adapter string, parsed map[string]interface{}, result *portllm.GenerateOutput) {
+func parseResponsesOutput(adapter string, parsed map[string]any, result *portllm.GenerateOutput) {
 	result.Text = getString(parsed["output_text"])
 	outputItems := asSlice(parsed["output"])
 	textChunks := make([]string, 0, len(outputItems))
@@ -589,7 +589,7 @@ func parseResponsesOutput(adapter string, parsed map[string]interface{}, result 
 	result.Citations = appendUniqueStrings(result.Citations, parseResponseCitations(parsed)...)
 }
 
-func mergeResponsesTopLevelToolCalls(result *portllm.GenerateOutput, raw interface{}) {
+func mergeResponsesTopLevelToolCalls(result *portllm.GenerateOutput, raw any) {
 	if result == nil {
 		return
 	}
@@ -637,7 +637,7 @@ func mergeReasoningDeltaOutput(dst **portllm.ReasoningOutput, delta *portllm.Rea
 	}
 }
 
-func parseResponsesReasoningDelta(eventType string, parsed map[string]interface{}) *portllm.ReasoningDelta {
+func parseResponsesReasoningDelta(eventType string, parsed map[string]any) *portllm.ReasoningDelta {
 	text := extractReasoningDeltaText(parsed["delta"])
 	if text == "" {
 		return nil
@@ -658,7 +658,7 @@ func parseResponsesReasoningDelta(eventType string, parsed map[string]interface{
 	}
 }
 
-func parseResponsesReasoningDone(eventType string, parsed map[string]interface{}) *portllm.ReasoningDelta {
+func parseResponsesReasoningDone(eventType string, parsed map[string]any) *portllm.ReasoningDelta {
 	text := textutil.FirstNonEmpty(
 		extractReasoningDeltaText(parsed["text"]),
 		extractReasoningDeltaText(parsed["summary"]),
@@ -690,7 +690,7 @@ func reasoningOutputContains(output *portllm.ReasoningOutput, text string) bool 
 	return strings.Contains(output.Text, text) || strings.Contains(output.Summary, text)
 }
 
-func parseReasoningOutputItem(item map[string]interface{}) *portllm.ReasoningOutput {
+func parseReasoningOutputItem(item map[string]any) *portllm.ReasoningOutput {
 	if len(item) == 0 {
 		return nil
 	}
@@ -760,7 +760,7 @@ func mergeReasoningOutput(dst **portllm.ReasoningOutput, src *portllm.ReasoningO
 	}
 }
 
-func mergeResponsesOutputItem(result *portllm.GenerateOutput, item map[string]interface{}, collectText bool) string {
+func mergeResponsesOutputItem(result *portllm.GenerateOutput, item map[string]any, collectText bool) string {
 	if result == nil || len(item) == 0 {
 		return ""
 	}
@@ -785,7 +785,7 @@ func mergeResponsesOutputItem(result *portllm.GenerateOutput, item map[string]in
 	return ""
 }
 
-func parseResponseToolCall(item map[string]interface{}) portllm.ToolCall {
+func parseResponseToolCall(item map[string]any) portllm.ToolCall {
 	arguments := normalizeJSONString(item["arguments"])
 	if arguments == "" {
 		arguments = normalizeJSONString(item["input"])
@@ -823,7 +823,7 @@ func parseResponseToolCall(item map[string]interface{}) portllm.ToolCall {
 	}
 }
 
-func parseResponseServerToolCall(item map[string]interface{}) portllm.ToolCall {
+func parseResponseServerToolCall(item map[string]any) portllm.ToolCall {
 	itemType := strings.TrimSpace(getString(item["type"]))
 	if itemType == "" {
 		itemType = "server_tool_call"
@@ -868,7 +868,7 @@ func parseResponseServerToolCall(item map[string]interface{}) portllm.ToolCall {
 }
 
 // parseResponsesPartialImage 解析 Responses 图片生成过程中的预览帧。
-func parseResponsesPartialImage(parsed map[string]interface{}) (portllm.GeneratedImage, bool) {
+func parseResponsesPartialImage(parsed map[string]any) (portllm.GeneratedImage, bool) {
 	b64 := strings.TrimSpace(getString(parsed["partial_image_b64"]))
 	if b64 == "" {
 		return portllm.GeneratedImage{}, false
@@ -880,7 +880,7 @@ func parseResponsesPartialImage(parsed map[string]interface{}) (portllm.Generate
 }
 
 // parseResponsesGeneratedImage 从最终 image_generation_call 中提取可持久化图片。
-func parseResponsesGeneratedImage(item map[string]interface{}) (portllm.GeneratedImage, bool) {
+func parseResponsesGeneratedImage(item map[string]any) (portllm.GeneratedImage, bool) {
 	if !isResponsesImageGenerationCallType(getString(item["type"])) {
 		return portllm.GeneratedImage{}, false
 	}
@@ -930,8 +930,8 @@ func isResponsesImageGenerationCallType(itemType string) bool {
 }
 
 // responsesImageGenerationToolOutputJSON 只保留图片工具元数据，避免把 base64 写入 trace。
-func responsesImageGenerationToolOutputJSON(item map[string]interface{}) string {
-	payload := make(map[string]interface{})
+func responsesImageGenerationToolOutputJSON(item map[string]any) string {
+	payload := make(map[string]any)
 	for _, key := range []string{"background", "output_format", "quality", "revised_prompt", "size", "status"} {
 		if value, ok := item[key]; ok {
 			payload[key] = value
@@ -948,7 +948,7 @@ func responsesImageGenerationToolOutputJSON(item map[string]interface{}) string 
 	return normalizeJSONString(payload)
 }
 
-func responseServerToolCallID(item map[string]interface{}, itemType string) string {
+func responseServerToolCallID(item map[string]any, itemType string) string {
 	for _, extension := range allResponsesProtocolExtensions() {
 		if extension.serverToolCallID == nil {
 			continue
@@ -973,14 +973,14 @@ func responseServerToolNameFromType(itemType string) string {
 	return value
 }
 
-func splitResponsesServerToolAction(raw interface{}) (string, string) {
+func splitResponsesServerToolAction(raw any) (string, string) {
 	action := asMap(raw)
 	if len(action) == 0 {
 		return normalizeJSONString(raw), ""
 	}
 	input := cloneMap(action)
 	delete(input, "sources")
-	output := make(map[string]interface{})
+	output := make(map[string]any)
 	if query := strings.TrimSpace(getString(action["query"])); query != "" {
 		output["query"] = query
 	}
@@ -997,7 +997,7 @@ func splitResponsesServerToolAction(raw interface{}) (string, string) {
 	return normalizeJSONString(input), outputJSON
 }
 
-func isResponsesServerToolCallItem(item map[string]interface{}) bool {
+func isResponsesServerToolCallItem(item map[string]any) bool {
 	itemType := strings.TrimSpace(getString(item["type"]))
 	if isResponsesServerToolCallType(itemType) {
 		return true
@@ -1056,7 +1056,7 @@ func isResponsesClientToolCallType(itemType string) bool {
 	return strings.HasSuffix(value, "_tool_call") && !isResponsesServerToolCallType(value)
 }
 
-func parseResponseCitations(parsed map[string]interface{}) []string {
+func parseResponseCitations(parsed map[string]any) []string {
 	if len(parsed) == 0 {
 		return nil
 	}
@@ -1072,16 +1072,16 @@ func parseResponseCitations(parsed map[string]interface{}) []string {
 	return appendUniqueStrings(nil, result...)
 }
 
-func collectResponseCitationURLs(raw interface{}, result *[]string) {
+func collectResponseCitationURLs(raw any, result *[]string) {
 	if result == nil {
 		return
 	}
 	switch value := raw.(type) {
-	case []interface{}:
+	case []any:
 		for _, item := range value {
 			collectResponseCitationURLs(item, result)
 		}
-	case map[string]interface{}:
+	case map[string]any:
 		itemType := strings.TrimSpace(getString(value["type"]))
 		switch itemType {
 		case "url_citation", "file_citation":
@@ -1103,7 +1103,7 @@ func collectResponseCitationURLs(raw interface{}, result *[]string) {
 	}
 }
 
-func parseServerSideToolUsage(parsed map[string]interface{}) map[string]int64 {
+func parseServerSideToolUsage(parsed map[string]any) map[string]int64 {
 	usage := asMap(parsed["usage"])
 	if len(usage) == 0 {
 		return nil
@@ -1147,7 +1147,7 @@ func normalizeServerSideToolUsageKey(key string) string {
 	}
 }
 
-func extractOutputTextChunk(item map[string]interface{}) string {
+func extractOutputTextChunk(item map[string]any) string {
 	if chunk := extractContentText(item["content"]); chunk != "" {
 		return chunk
 	}

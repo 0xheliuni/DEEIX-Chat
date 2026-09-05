@@ -91,7 +91,7 @@ func (h *Handler) StreamTemporaryChatMessage(c *gin.Context) {
 	c.Header("X-Accel-Buffering", "no")
 	c.Status(http.StatusOK)
 
-	writeEvent := func(payload map[string]interface{}) error {
+	writeEvent := func(payload map[string]any) error {
 		encoded, marshalErr := json.Marshal(payload)
 		if marshalErr != nil {
 			return marshalErr
@@ -102,12 +102,12 @@ func (h *Handler) StreamTemporaryChatMessage(c *gin.Context) {
 		c.Writer.Flush()
 		return nil
 	}
-	input.OnEvent = func(eventType string, payload map[string]interface{}) error {
+	input.OnEvent = func(eventType string, payload map[string]any) error {
 		return writeEvent(normalizeStreamEventPayload(eventType, payload))
 	}
 
 	result, streamErr := h.service.StreamTemporaryChat(generationCtx, input, func(delta string) error {
-		return writeEvent(map[string]interface{}{"type": "delta", "delta": delta})
+		return writeEvent(map[string]any{"type": "delta", "delta": delta})
 	})
 	clientConnected := func() bool { return c.Request.Context().Err() == nil }
 
@@ -133,7 +133,7 @@ func (h *Handler) StreamTemporaryChatMessage(c *gin.Context) {
 		h.recordTemporaryChatAuditAsync(c, req, len(input.Attachments), "failed")
 		return
 	}
-	_ = writeEvent(map[string]interface{}{
+	_ = writeEvent(map[string]any{
 		"type": "completed",
 		"data": toSendMessageResponse(result),
 	})
@@ -286,7 +286,7 @@ func (h *Handler) recordTemporaryChatAuditAsync(c *gin.Context, req TemporaryCha
 			ResourceID:  resourceID,
 			IP:          clientIP,
 			UserAgent:   userAgent,
-			Detail: map[string]interface{}{
+			Detail: map[string]any{
 				"status":               strings.TrimSpace(status),
 				"message_count":        messageCount,
 				"character_count":      characterCount,

@@ -47,7 +47,7 @@ type BarrierResult struct {
 }
 
 // LiveEmitter delivers events to the active HTTP stream (in addition to recovery storage).
-type LiveEmitter func(eventType string, payload map[string]interface{})
+type LiveEmitter func(eventType string, payload map[string]any)
 
 // RunCoordinator tracks moderation tasks for a single chat/media run.
 type RunCoordinator struct {
@@ -227,7 +227,7 @@ func (c *RunCoordinator) AfterGeneration(ctx context.Context, outputText string,
 			c.service.logWarn("content_moderation_mark_moderating_failed", zap.String("run_id", c.meta.RunID), zap.Error(err))
 		}
 	}
-	c.emit("moderation_checking", map[string]interface{}{
+	c.emit("moderation_checking", map[string]any{
 		"type": "moderation_checking",
 	})
 
@@ -563,7 +563,7 @@ func (c *RunCoordinator) notifyBlocked(info BlockInfo) bool {
 	if c.service.onBlocked != nil {
 		c.service.onBlocked(c.ctx, c.meta.RunID, info)
 	}
-	c.emit("moderation_blocked", map[string]interface{}{
+	c.emit("moderation_blocked", map[string]any{
 		"type":       "moderation_blocked",
 		"eventID":    info.EventID,
 		"direction":  info.Direction,
@@ -572,9 +572,9 @@ func (c *RunCoordinator) notifyBlocked(info BlockInfo) bool {
 	return true
 }
 
-func (c *RunCoordinator) emit(eventType string, payload map[string]interface{}) {
+func (c *RunCoordinator) emit(eventType string, payload map[string]any) {
 	if payload == nil {
-		payload = map[string]interface{}{"type": eventType}
+		payload = map[string]any{"type": eventType}
 	} else if _, ok := payload["type"]; !ok {
 		payload["type"] = eventType
 	}

@@ -51,7 +51,7 @@ func GenerateWithClaims(input GenerateClaimsInput) (string, error) {
 
 // Parse 解析访问令牌。
 func Parse(secret string, tokenString string) (*Claims, error) {
-	tokenObj, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(t *jwt.Token) (interface{}, error) {
+	tokenObj, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}

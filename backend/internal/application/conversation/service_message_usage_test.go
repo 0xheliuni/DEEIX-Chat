@@ -188,15 +188,15 @@ func TestModerationBlockedBilledReason(t *testing.T) {
 
 func TestModerationLiveEmitterAnnotatesOutputBlocksOnly(t *testing.T) {
 	paid := &domainbilling.UsageAuthorization{Mode: "usage", RefNo: "run_1", Reservation: &domainbilling.UsageBalanceReservation{RefNo: "run_1"}}
-	var emitted []map[string]interface{}
-	emit := moderationLiveEmitter(func(_ string, payload map[string]interface{}) error {
+	var emitted []map[string]any
+	emit := moderationLiveEmitter(func(_ string, payload map[string]any) error {
 		emitted = append(emitted, payload)
 		return nil
 	}, paid)
 
-	emit("moderation_blocked", map[string]interface{}{"direction": "output"})
-	emit("moderation_blocked", map[string]interface{}{"direction": "input"})
-	emit("moderation_checking", map[string]interface{}{})
+	emit("moderation_blocked", map[string]any{"direction": "output"})
+	emit("moderation_blocked", map[string]any{"direction": "input"})
+	emit("moderation_checking", map[string]any{})
 
 	if len(emitted) != 3 {
 		t.Fatalf("expected every event to be forwarded, got %d", len(emitted))
@@ -211,11 +211,11 @@ func TestModerationLiveEmitterAnnotatesOutputBlocksOnly(t *testing.T) {
 		t.Fatal("expected non-block events to stay untouched")
 	}
 
-	var unpaid []map[string]interface{}
-	moderationLiveEmitter(func(_ string, payload map[string]interface{}) error {
+	var unpaid []map[string]any
+	moderationLiveEmitter(func(_ string, payload map[string]any) error {
 		unpaid = append(unpaid, payload)
 		return nil
-	}, &domainbilling.UsageAuthorization{Mode: "self"})("moderation_blocked", map[string]interface{}{"direction": "output"})
+	}, &domainbilling.UsageAuthorization{Mode: "self"})("moderation_blocked", map[string]any{"direction": "output"})
 	if _, ok := unpaid[0]["billedReason"]; ok {
 		t.Fatal("expected self-hosted output block to stay unannotated")
 	}
@@ -236,17 +236,17 @@ func TestSendMessageBillingCallCount(t *testing.T) {
 func TestMessageRequestMaxOutputTokensReadsProviderSpecificKeys(t *testing.T) {
 	tests := []struct {
 		name    string
-		options map[string]interface{}
+		options map[string]any
 		want    int64
 	}{
-		{name: "no limit", options: map[string]interface{}{"temperature": 0.7}, want: 0},
-		{name: "openai chat max_tokens", options: map[string]interface{}{"max_tokens": float64(4096)}, want: 4096},
-		{name: "openai responses max_output_tokens", options: map[string]interface{}{"max_output_tokens": 1024}, want: 1024},
-		{name: "openai completions max_completion_tokens", options: map[string]interface{}{"max_completion_tokens": "2048"}, want: 2048},
-		{name: "gemini nested generationConfig", options: map[string]interface{}{"generationConfig": map[string]interface{}{"maxOutputTokens": int64(512)}}, want: 512},
-		{name: "explicit limit wins over other keys", options: map[string]interface{}{"max_output_tokens": 300, "max_tokens": 900}, want: 300},
-		{name: "non-positive limit ignored", options: map[string]interface{}{"max_tokens": 0}, want: 0},
-		{name: "unparseable limit ignored", options: map[string]interface{}{"max_tokens": "many"}, want: 0},
+		{name: "no limit", options: map[string]any{"temperature": 0.7}, want: 0},
+		{name: "openai chat max_tokens", options: map[string]any{"max_tokens": float64(4096)}, want: 4096},
+		{name: "openai responses max_output_tokens", options: map[string]any{"max_output_tokens": 1024}, want: 1024},
+		{name: "openai completions max_completion_tokens", options: map[string]any{"max_completion_tokens": "2048"}, want: 2048},
+		{name: "gemini nested generationConfig", options: map[string]any{"generationConfig": map[string]any{"maxOutputTokens": int64(512)}}, want: 512},
+		{name: "explicit limit wins over other keys", options: map[string]any{"max_output_tokens": 300, "max_tokens": 900}, want: 300},
+		{name: "non-positive limit ignored", options: map[string]any{"max_tokens": 0}, want: 0},
+		{name: "unparseable limit ignored", options: map[string]any{"max_tokens": "many"}, want: 0},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -298,7 +298,7 @@ func TestFollowUpUsageBudgetEstimateAccumulatesObservedAndNextCall(t *testing.T)
 	got := followUpUsageBudgetEstimate(
 		accumulator.billedUsage(),
 		nextInputTokens,
-		map[string]interface{}{"max_tokens": 4096},
+		map[string]any{"max_tokens": 4096},
 	)
 	want := usageBudgetEstimate{
 		InputTokens:      800 + 500 + nextInputTokens,
@@ -812,18 +812,18 @@ func TestSendMessageBillingDurationSeconds(t *testing.T) {
 }
 
 func TestMediaDurationSecondsFromOptions(t *testing.T) {
-	if got := mediaDurationSecondsFromOptions(map[string]interface{}{"durationSeconds": float64(5)}); got != 5 {
+	if got := mediaDurationSecondsFromOptions(map[string]any{"durationSeconds": float64(5)}); got != 5 {
 		t.Fatalf("expected numeric duration seconds, got %d", got)
 	}
-	if got := mediaDurationSecondsFromOptions(map[string]interface{}{"duration": "5.2s"}); got != 6 {
+	if got := mediaDurationSecondsFromOptions(map[string]any{"duration": "5.2s"}); got != 6 {
 		t.Fatalf("expected string duration to round up, got %d", got)
 	}
-	if got := mediaDurationSecondsFromOptions(map[string]interface{}{"duration": "bad"}); got != 0 {
+	if got := mediaDurationSecondsFromOptions(map[string]any{"duration": "bad"}); got != 0 {
 		t.Fatalf("expected invalid duration to be ignored, got %d", got)
 	}
-	if got := mediaDurationSecondsFromOptions(map[string]interface{}{
-		"generation_config": map[string]interface{}{
-			"video_config": map[string]interface{}{"duration_seconds": 7},
+	if got := mediaDurationSecondsFromOptions(map[string]any{
+		"generation_config": map[string]any{
+			"video_config": map[string]any{"duration_seconds": 7},
 		},
 	}); got != 7 {
 		t.Fatalf("expected nested video duration seconds, got %d", got)
@@ -835,7 +835,7 @@ func TestWithDefaultMediaVideoDurationInjectsOnlySupportedProtocol(t *testing.T)
 	if got := mediaDurationSecondsFromOptions(xaiOptions); got != 6 {
 		t.Fatalf("expected xAI request default duration, got %d", got)
 	}
-	explicit := map[string]interface{}{"duration": 9}
+	explicit := map[string]any{"duration": 9}
 	if got := withDefaultMediaVideoDuration(explicit, llm.AdapterXAIVideo); got["duration"] != 9 {
 		t.Fatalf("explicit duration was overwritten: %#v", got)
 	}

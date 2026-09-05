@@ -326,7 +326,7 @@ func (c *conversationCache) EnqueueFileProcessing(ctx context.Context, userID ui
 	if c.client == nil {
 		return nil
 	}
-	values := map[string]interface{}{
+	values := map[string]any{
 		"user_id": userID,
 		"file_id": fileID,
 		"retry":   retry,
@@ -360,7 +360,7 @@ func (c *conversationCache) EnqueueFileEmbedding(
 	}
 	_, err := c.client.XAdd(ctx, &redis.XAddArgs{
 		Stream: fileEmbeddingStreamName,
-		Values: map[string]interface{}{
+		Values: map[string]any{
 			"user_id":             userID,
 			"file_id":             fileID,
 			"retry":               0,
@@ -683,7 +683,7 @@ func redisQueueForMessage(message repository.FileProcessingMessage) fileQueueCon
 	return processingQueueConfig()
 }
 
-func fileProcessingScriptResult(result interface{}, err error) (bool, error) {
+func fileProcessingScriptResult(result any, err error) (bool, error) {
 	if errors.Is(err, redis.Nil) {
 		return false, nil
 	}
@@ -971,7 +971,7 @@ func (c *conversationCache) ListActiveGenerationStreams(ctx context.Context, use
 		return nil, err
 	}
 	items := make([]repository.ActiveGenerationStream, 0, len(runIDs))
-	staleRunIDs := make([]interface{}, 0)
+	staleRunIDs := make([]any, 0)
 	wantedOwner := strconv.FormatUint(uint64(userID), 10)
 	for index, runID := range runIDs {
 		activeExecution, _ := metadata[index*3].(string)
@@ -1089,7 +1089,7 @@ func (c *conversationCache) AppendGenerationStreamEvent(
 	if err != nil {
 		return repository.GenerationStreamMessage{}, false, err
 	}
-	values, ok := result.([]interface{})
+	values, ok := result.([]any)
 	if !ok || len(values) == 0 {
 		return repository.GenerationStreamMessage{}, false, errors.New("invalid generation stream append result")
 	}
@@ -1137,7 +1137,7 @@ func (c *conversationCache) AppendActiveGenerationEvent(
 	if err != nil {
 		return repository.GenerationStreamMessage{}, err
 	}
-	values, ok := result.([]interface{})
+	values, ok := result.([]any)
 	if !ok || len(values) != 2 {
 		return repository.GenerationStreamMessage{}, errors.New("invalid active generation event append result")
 	}
@@ -1165,7 +1165,7 @@ func (c *conversationCache) GetGenerationStreamUpstreamThinkSnapshot(ctx context
 	if err != nil {
 		return repository.GenerationStreamUpstreamThinkSnapshot{}, false, err
 	}
-	values, ok := result.([]interface{})
+	values, ok := result.([]any)
 	if !ok || len(values) == 0 || getStringVal(values[0]) != "1" {
 		return repository.GenerationStreamUpstreamThinkSnapshot{}, false, nil
 	}
@@ -1360,7 +1360,7 @@ func truncateStr(s string, maxLen int) string {
 	return string([]rune(v)[:maxLen])
 }
 
-func getStringVal(raw interface{}) string {
+func getStringVal(raw any) string {
 	switch v := raw.(type) {
 	case string:
 		return v
@@ -1371,7 +1371,7 @@ func getStringVal(raw interface{}) string {
 	}
 }
 
-func getOptionalStringVal(values map[string]interface{}, key string) string {
+func getOptionalStringVal(values map[string]any, key string) string {
 	raw, ok := values[key]
 	if !ok || raw == nil {
 		return ""
@@ -1379,7 +1379,7 @@ func getOptionalStringVal(values map[string]interface{}, key string) string {
 	return getStringVal(raw)
 }
 
-func getInt64Val(raw interface{}) int64 {
+func getInt64Val(raw any) int64 {
 	switch v := raw.(type) {
 	case int64:
 		return v

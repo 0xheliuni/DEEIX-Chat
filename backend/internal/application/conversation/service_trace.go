@@ -95,7 +95,7 @@ type messageTraceRecorder struct {
 	ctx             context.Context
 	cfg             config.Config
 	assistant       *model.Message
-	onEvent         func(string, map[string]interface{}) error
+	onEvent         func(string, map[string]any) error
 	ephemeral       bool
 	process         *messageTraceDraft
 	tools           *messageTraceDraft
@@ -197,7 +197,7 @@ func newMessageTraceRecorder(
 	service *Service,
 	ctx context.Context,
 	assistant *model.Message,
-	onEvent func(string, map[string]interface{}) error,
+	onEvent func(string, map[string]any) error,
 ) *messageTraceRecorder {
 	if service == nil || assistant == nil {
 		return nil
@@ -215,7 +215,7 @@ func newEphemeralMessageTraceRecorder(
 	service *Service,
 	ctx context.Context,
 	assistant *model.Message,
-	onEvent func(string, map[string]interface{}) error,
+	onEvent func(string, map[string]any) error,
 ) *messageTraceRecorder {
 	recorder := newMessageTraceRecorder(service, ctx, assistant, onEvent)
 	if recorder != nil {
@@ -1196,7 +1196,7 @@ func (r *messageTraceRecorder) emitProcessUpdate() {
 	if !r.visible() || r.process == nil {
 		return
 	}
-	emitEvent(r.onEvent, "process_update", map[string]interface{}{
+	emitEvent(r.onEvent, "process_update", map[string]any{
 		"status": r.process.status,
 		"block":  traceDraftToBlock(r.process),
 		"trace":  r.snapshot(),
@@ -1207,7 +1207,7 @@ func (r *messageTraceRecorder) emitToolUpdate() {
 	if !r.visible() || r.tools == nil {
 		return
 	}
-	emitEvent(r.onEvent, "process_update", map[string]interface{}{
+	emitEvent(r.onEvent, "process_update", map[string]any{
 		"status": r.tools.status,
 		"block":  traceDraftToBlock(r.tools),
 		"trace":  r.snapshot(),
@@ -1218,7 +1218,7 @@ func (r *messageTraceRecorder) emitUpstreamThinkDelta(update upstreamThinkLiveUp
 	if !r.visible() || r.upstreamThink == nil {
 		return
 	}
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"status":    r.upstreamThink.status,
 		"title":     r.upstreamThink.title,
 		"summary":   r.upstreamThink.summary,
@@ -2014,7 +2014,7 @@ func toolOutputPreview(raw string, presentation *toolresult.Presentation) string
 	if value == "" {
 		return ""
 	}
-	var payload interface{}
+	var payload any
 	if err := json.Unmarshal([]byte(value), &payload); err == nil {
 		if text := readableMCPToolResultPreview(payload); text != "" {
 			return toolresult.Snippet(text, toolTraceLegacyOutputPreviewMaxChars)
@@ -2044,8 +2044,8 @@ func toolTraceDetail(raw string, maxChars int) string {
 	return toolresult.Snippet(value, maxChars)
 }
 
-func readableMCPToolResultPreview(value interface{}) string {
-	payload, ok := value.(map[string]interface{})
+func readableMCPToolResultPreview(value any) string {
+	payload, ok := value.(map[string]any)
 	if !ok || !looksLikeMCPToolResult(payload) {
 		return ""
 	}
@@ -2065,7 +2065,7 @@ func readableMCPToolResultPreview(value interface{}) string {
 	return strings.Join(parts, "；")
 }
 
-func looksLikeMCPToolResult(payload map[string]interface{}) bool {
+func looksLikeMCPToolResult(payload map[string]any) bool {
 	if _, ok := payload["content"]; ok {
 		return true
 	}
@@ -2078,14 +2078,14 @@ func looksLikeMCPToolResult(payload map[string]interface{}) bool {
 	return false
 }
 
-func readableMCPContentPreview(value interface{}) string {
-	items, ok := value.([]interface{})
+func readableMCPContentPreview(value any) string {
+	items, ok := value.([]any)
 	if !ok || len(items) == 0 {
 		return ""
 	}
 	parts := make([]string, 0, min(len(items), 3))
 	for _, item := range items {
-		block, ok := item.(map[string]interface{})
+		block, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -2099,12 +2099,12 @@ func readableMCPContentPreview(value interface{}) string {
 	return strings.Join(parts, "；")
 }
 
-func readableMCPTextBlock(block map[string]interface{}) string {
+func readableMCPTextBlock(block map[string]any) string {
 	text := stringFromJSONValue(block["text"])
 	if text == "" {
 		return ""
 	}
-	var parsed interface{}
+	var parsed any
 	if err := json.Unmarshal([]byte(text), &parsed); err == nil {
 		if preview := toolresult.ReadablePreview(parsed); preview != "" {
 			return preview
@@ -2113,14 +2113,14 @@ func readableMCPTextBlock(block map[string]interface{}) string {
 	return text
 }
 
-func summarizeMCPContent(value interface{}) string {
-	items, ok := value.([]interface{})
+func summarizeMCPContent(value any) string {
+	items, ok := value.([]any)
 	if !ok || len(items) == 0 {
 		return ""
 	}
 	counts := map[string]int{}
 	for _, item := range items {
-		block, ok := item.(map[string]interface{})
+		block, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -2143,7 +2143,7 @@ func summarizeMCPContent(value interface{}) string {
 	return strings.Join(summaries, "；")
 }
 
-func stringFromJSONValue(value interface{}) string {
+func stringFromJSONValue(value any) string {
 	text, ok := value.(string)
 	if !ok {
 		return ""

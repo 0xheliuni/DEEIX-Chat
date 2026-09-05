@@ -15,14 +15,14 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/toolresult"
 )
 
-func normalizeTraceToolCalls(value interface{}) []map[string]interface{} {
+func normalizeTraceToolCalls(value any) []map[string]any {
 	switch typed := value.(type) {
-	case []map[string]interface{}:
+	case []map[string]any:
 		return typed
-	case []interface{}:
-		items := make([]map[string]interface{}, 0, len(typed))
+	case []any:
+		items := make([]map[string]any, 0, len(typed))
 		for _, item := range typed {
-			if call, ok := item.(map[string]interface{}); ok {
+			if call, ok := item.(map[string]any); ok {
 				items = append(items, call)
 			}
 		}
@@ -32,12 +32,12 @@ func normalizeTraceToolCalls(value interface{}) []map[string]interface{} {
 	}
 }
 
-func getTraceString(value interface{}) string {
+func getTraceString(value any) string {
 	text, _ := value.(string)
 	return text
 }
 
-func traceInt64(value interface{}) int64 {
+func traceInt64(value any) int64 {
 	switch typed := value.(type) {
 	case int64:
 		return typed
@@ -50,7 +50,7 @@ func traceInt64(value interface{}) int64 {
 	}
 }
 
-func normalizeTraceToolCallsFromPayload(payload *tracePayload) []map[string]interface{} {
+func normalizeTraceToolCallsFromPayload(payload *tracePayload) []map[string]any {
 	if payload == nil {
 		return nil
 	}
@@ -58,7 +58,7 @@ func normalizeTraceToolCallsFromPayload(payload *tracePayload) []map[string]inte
 	if err != nil {
 		return nil
 	}
-	var calls []map[string]interface{}
+	var calls []map[string]any
 	if err := json.Unmarshal(raw, &calls); err != nil {
 		return nil
 	}
@@ -151,14 +151,14 @@ func TestBuildToolTraceStoresBoundedPreviewInsteadOfFullOutput(t *testing.T) {
 }
 
 func TestBuildToolTracePrioritizesSemanticContentBeforeTraversalLimit(t *testing.T) {
-	output := make(map[string]interface{}, 601)
+	output := make(map[string]any, 601)
 	for index := 0; index < 600; index++ {
-		output[fmt.Sprintf("metadata_%03d", index)] = map[string]interface{}{
+		output[fmt.Sprintf("metadata_%03d", index)] = map[string]any{
 			"value": fmt.Sprintf("noise-%03d", index),
 		}
 	}
-	output["content"] = []interface{}{
-		map[string]interface{}{
+	output["content"] = []any{
+		map[string]any{
 			"type": "text",
 			"text": "## 完整结果\n\n- 第一项\n- 第二项",
 		},
@@ -879,9 +879,9 @@ func traceEventsByType(events []model.MessageTraceEvent, eventType string) []mod
 	return filtered
 }
 
-func traceEventPayload(t *testing.T, event model.MessageTraceEvent) map[string]interface{} {
+func traceEventPayload(t *testing.T, event model.MessageTraceEvent) map[string]any {
 	t.Helper()
-	payload := make(map[string]interface{})
+	payload := make(map[string]any)
 	if err := json.Unmarshal([]byte(event.PayloadJSON), &payload); err != nil {
 		t.Fatalf("decode trace event payload: %v", err)
 	}
@@ -890,7 +890,7 @@ func traceEventPayload(t *testing.T, event model.MessageTraceEvent) map[string]i
 
 func TestUpstreamThinkingDeltaIsCoalescedBetweenFlushes(t *testing.T) {
 	eventCount := 0
-	var events []map[string]interface{}
+	var events []map[string]any
 	recorder := &messageTraceRecorder{
 		cfg: config.Config{
 			ProcessTraceEnabled:            true,
@@ -898,7 +898,7 @@ func TestUpstreamThinkingDeltaIsCoalescedBetweenFlushes(t *testing.T) {
 			ProcessTraceStoreUpstreamThink: true,
 		},
 		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_1"},
-		onEvent: func(eventType string, payload map[string]interface{}) error {
+		onEvent: func(eventType string, payload map[string]any) error {
 			if eventType == "upstream_think_delta" {
 				eventCount++
 				events = append(events, payload)
@@ -953,7 +953,7 @@ func TestUpstreamThinkingDeltaIsCoalescedBetweenFlushes(t *testing.T) {
 }
 
 func TestFailedUpstreamThinkingFlushesBufferedContent(t *testing.T) {
-	var events []map[string]interface{}
+	var events []map[string]any
 	recorder := &messageTraceRecorder{
 		cfg: config.Config{
 			ProcessTraceEnabled:            true,
@@ -961,7 +961,7 @@ func TestFailedUpstreamThinkingFlushesBufferedContent(t *testing.T) {
 			ProcessTraceStoreUpstreamThink: true,
 		},
 		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_cancel"},
-		onEvent: func(eventType string, payload map[string]interface{}) error {
+		onEvent: func(eventType string, payload map[string]any) error {
 			if eventType == "upstream_think_delta" {
 				events = append(events, payload)
 			}
@@ -989,7 +989,7 @@ func TestFailedUpstreamThinkingFlushesBufferedContent(t *testing.T) {
 }
 
 func TestUpstreamThinkingLiveDeltaSkipsOversizedContent(t *testing.T) {
-	var events []map[string]interface{}
+	var events []map[string]any
 	recorder := &messageTraceRecorder{
 		cfg: config.Config{
 			ProcessTraceEnabled:            true,
@@ -997,7 +997,7 @@ func TestUpstreamThinkingLiveDeltaSkipsOversizedContent(t *testing.T) {
 			ProcessTraceStoreUpstreamThink: true,
 		},
 		assistant: &model.Message{ID: 1, ConversationID: 2, UserID: 3, RunID: "run_1"},
-		onEvent: func(eventType string, payload map[string]interface{}) error {
+		onEvent: func(eventType string, payload map[string]any) error {
 			if eventType == "upstream_think_delta" {
 				events = append(events, payload)
 			}
@@ -1023,7 +1023,7 @@ func TestUpstreamThinkingLiveDeltaSkipsOversizedContent(t *testing.T) {
 }
 
 func TestBuildMessageProcessTraceDTOExtractsPromptTrace(t *testing.T) {
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"prompt_trace": tracePayloadFromPromptTrace(&model.MessagePromptTrace{
 			Mode:                  "stateful",
 			PromptFingerprint:     "fp_1",
@@ -1214,7 +1214,7 @@ func TestTraceRecorderContinuesProcessTraceAfterRequestCompletion(t *testing.T) 
 			ProcessTraceVisibleToUser: true,
 		},
 		assistant: &model.Message{},
-		onEvent:   func(string, map[string]interface{}) error { return nil },
+		onEvent:   func(string, map[string]any) error { return nil },
 	}
 	recorder.appendProcessSection("准备完成", "**准备**：请求已完成。", nil, messageTraceStatusStreaming)
 
@@ -1252,7 +1252,7 @@ func TestTraceRecorderKeepsAndReplacesPendingCompactionStage(t *testing.T) {
 			ProcessTraceVisibleToUser: true,
 		},
 		assistant: &model.Message{},
-		onEvent:   func(string, map[string]interface{}) error { return nil },
+		onEvent:   func(string, map[string]any) error { return nil },
 	}
 	recorder.appendProcessSection("准备完成", "**准备**：请求已完成。", nil, messageTraceStatusStreaming)
 	pendingSummary, pendingPayload := buildPendingCompactionProcessTrace()

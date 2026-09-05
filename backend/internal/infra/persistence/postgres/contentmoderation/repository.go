@@ -95,7 +95,7 @@ func (r *Repo) ListEvents(ctx context.Context, filter domaincm.EventListFilter) 
 					)
 			)`,
 		}
-		args := []interface{}{terms, terms, terms, terms, terms, terms, terms, terms, terms}
+		args := []any{terms, terms, terms, terms, terms, terms, terms, terms, terms}
 		normalized := strings.ToLower(v)
 		args = append(args, normalized, normalized, normalized)
 		if userID, err := strconv.ParseUint(v, 10, 64); err == nil && userID > 0 {
@@ -162,7 +162,7 @@ func (r *Repo) ClearExpiredContentByPublicIDs(ctx context.Context, publicIDs []s
 	}
 	res := r.db.WithContext(ctx).Model(&model.ContentModerationEvent{}).
 		Where("public_id IN ?", publicIDs).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"encrypted_text":  "",
 			"image_count":     0,
 			"image_meta_json": "[]",
@@ -228,7 +228,7 @@ func (r *Repo) IncrementDailyStat(ctx context.Context, input repository.DailySta
 			{Name: "result"},
 			{Name: "category"},
 		},
-		DoUpdates: clause.Assignments(map[string]interface{}{
+		DoUpdates: clause.Assignments(map[string]any{
 			"check_count":    gorm.Expr("check_count + ?", input.CheckCount),
 			"content_items":  gorm.Expr("content_items + ?", input.ContentItems),
 			"hit_count":      gorm.Expr("hit_count + ?", input.HitCount),
@@ -268,7 +268,7 @@ func (r *Repo) UpdateRunModeration(ctx context.Context, runID string, state stri
 	if runID == "" {
 		return nil
 	}
-	updates := map[string]interface{}{
+	updates := map[string]any{
 		"moderation_state": strings.TrimSpace(state),
 	}
 	if eventPublicID != "" {
@@ -327,7 +327,7 @@ func (r *Repo) ApplyRunBlock(ctx context.Context, runID string, includeUser bool
 			if len(fileIDs) > 0 {
 				if err := tx.Model(&model.FileObject{}).
 					Where("file_id IN ?", fileIDs).
-					Updates(map[string]interface{}{
+					Updates(map[string]any{
 						"status":  "moderation_blocked",
 						"user_id": 0,
 					}).Error; err != nil {
@@ -336,7 +336,7 @@ func (r *Repo) ApplyRunBlock(ctx context.Context, runID string, includeUser bool
 			}
 		}
 
-		msgUpdates := map[string]interface{}{
+		msgUpdates := map[string]any{
 			"status":                     domaincm.StatusBlocked,
 			"moderation_event_id":        eventPublicID,
 			"moderation_categories_json": categoriesJSON,
@@ -352,7 +352,7 @@ func (r *Repo) ApplyRunBlock(ctx context.Context, runID string, includeUser bool
 		}
 		if err := tx.Model(&model.Message{}).
 			Where("run_id = ? AND role = ?", runID, "assistant").
-			Updates(map[string]interface{}{
+			Updates(map[string]any{
 				"content":           "",
 				"reasoning_content": "",
 				"content_type":      "text",
@@ -364,7 +364,7 @@ func (r *Repo) ApplyRunBlock(ctx context.Context, runID string, includeUser bool
 			Delete(&model.ChatRunEvent{}).Error; err != nil {
 			return err
 		}
-		runUpdates := map[string]interface{}{
+		runUpdates := map[string]any{
 			"moderation_state":           domaincm.ModerationStateBlocked,
 			"moderation_event_id":        eventPublicID,
 			"moderation_categories_json": categoriesJSON,
