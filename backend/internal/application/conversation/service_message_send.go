@@ -135,31 +135,13 @@ func buildRAGFallbackProcessTracePayload(
 	reason string,
 	hasFullTextFallback bool,
 	err error,
-) map[string]interface{} {
-	stage := map[string]interface{}{
-		"kind":            processTraceKindRetrieval,
-		"status":          processTraceRetrievalStatus(reason),
-		"fallback":        processTraceFallbackMode(hasFullTextFallback),
-		"file_count":      len(fileObjs),
-		"candidate_count": result.CandidateCount,
-		"filtered_count":  result.FilteredCount,
-		"max_score":       result.MaxScore,
-	}
-	if normalizedReason := strings.TrimSpace(textutil.FirstNonEmpty(reason, result.Reason)); normalizedReason != "" {
-		stage["reason"] = normalizedReason
-	}
-	payload := map[string]interface{}{
-		"query":                  textutil.CompactSnippet(query, 240),
-		"file_names":             ragFileObjectNames(fileObjs),
-		"status":                 strings.TrimSpace(reason),
-		"reason":                 strings.TrimSpace(result.Reason),
-		"candidate_count":        result.CandidateCount,
-		"filtered_count":         result.FilteredCount,
-		"max_score":              result.MaxScore,
-		processTracePayloadStage: stage,
-	}
+
+) *tracePayload {
+	normalizedReason := strings.TrimSpace(textutil.FirstNonEmpty(reason, result.Reason))
+	stage := traceStage{Kind: processTraceKindRetrieval, Status: processTraceRetrievalStatus(reason), Fallback: processTraceFallbackMode(hasFullTextFallback), FileCount: len(fileObjs), CandidateCount: result.CandidateCount, FilteredCount: result.FilteredCount, MaxScore: result.MaxScore, Reason: normalizedReason}
+	payload := &tracePayload{Query: textutil.CompactSnippet(query, 240), FileNames: ragFileObjectNames(fileObjs), Status: strings.TrimSpace(reason), Reason: strings.TrimSpace(result.Reason), CandidateCount: result.CandidateCount, FilteredCount: result.FilteredCount, MaxScore: result.MaxScore, Stages: []traceStage{stage}}
 	if err != nil {
-		payload["error"] = ragFallbackErrorMessage(result.Status, err)
+		payload.Error = ragFallbackErrorMessage(result.Status, err)
 	}
 	return payload
 }

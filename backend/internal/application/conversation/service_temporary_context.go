@@ -70,10 +70,7 @@ func (s *Service) prepareTemporaryKnowledgeContext(
 			traceRecorder.appendProcessSection(
 				"知识库未检索到相关内容",
 				formatTraceStep("内容检索", "已检索所选知识库，但没有足够相关的片段。"),
-				map[string]interface{}{
-					"query":  strings.TrimSpace(query),
-					"status": strings.TrimSpace(string(result.Status)),
-				},
+				&tracePayload{Query: strings.TrimSpace(query), Status: strings.TrimSpace(string(result.Status))},
 				messageTraceStatusCompleted,
 			)
 		}

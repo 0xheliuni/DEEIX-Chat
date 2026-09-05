@@ -78,7 +78,7 @@ type messageTraceDraft struct {
 	title           string
 	summary         string
 	contentMarkdown string
-	payload         map[string]interface{}
+	payload         *tracePayload
 	seq             int
 	startedAt       time.Time
 	endedAt         *time.Time
@@ -112,7 +112,7 @@ type messageTraceRecorder struct {
 	upstreamThinkPendingText    strings.Builder
 	upstreamThinkPendingReplace string
 	upstreamThinkPendingKind    string
-	upstreamThinkPendingReason  map[string]interface{}
+	upstreamThinkPendingReason  *traceReasoning
 	upstreamThinkBufferedByte   int
 	failed                      bool
 	compactionPreviousSummary   string
@@ -261,7 +261,7 @@ func (r *messageTraceRecorder) completeForBackgroundContinuation() {
 	r.onEvent = nil
 }
 
-func (r *messageTraceRecorder) setCompactionProcessStage(summary string, markdown string, payload map[string]interface{}) {
+func (r *messageTraceRecorder) setCompactionProcessStage(summary string, markdown string, payload *tracePayload) {
 	if !r.enabled() {
 		return
 	}
@@ -275,8 +275,11 @@ func (r *messageTraceRecorder) setCompactionProcessStage(summary string, markdow
 		}
 		draft.contentMarkdown += value
 	}
-	stage, _ := payload[processTracePayloadStage].(map[string]interface{})
-	stageStatus, _ := stage["status"].(string)
+	stage := firstTraceStage(payload)
+	stageStatus := ""
+	if stage != nil {
+		stageStatus = stage.Status
+	}
 	if strings.TrimSpace(stageStatus) == processTraceStatusPending &&
 		!processTraceStageHasStatus(draft.payload, processTraceKindCompaction, processTraceStatusPending) {
 		r.compactionPreviousSummary = draft.summary
@@ -284,13 +287,14 @@ func (r *messageTraceRecorder) setCompactionProcessStage(summary string, markdow
 	if value := strings.TrimSpace(summary); value != "" {
 		draft.summary = value
 	}
-	if len(stage) > 0 {
+	if stage != nil {
 		upsertProcessTraceStagePayload(draft.payload, stage)
 	}
-	for key, value := range payload {
-		if key != processTracePayloadStage && key != processTracePayloadStages {
-			draft.payload[key] = value
-		}
+	if payload != nil {
+		metadata := payload.clone()
+		metadata.TraceStage = nil
+		metadata.Stages = nil
+		mergeTracePayload(draft.payload, metadata)
 	}
 	draft.status = messageTraceStatusStreaming
 	draft.endedAt = nil
@@ -302,15 +306,14 @@ func (r *messageTraceRecorder) removeProcessStage(kind string) {
 	if !r.enabled() || r.process == nil {
 		return
 	}
-	stages := normalizeProcessTraceStagePayloads(r.process.payload[processTracePayloadStages])
+	stages := append([]traceStage(nil), r.process.payload.Stages...)
 	filtered := stages[:0]
 	for _, stage := range stages {
-		stageKind, _ := stage["kind"].(string)
-		if strings.TrimSpace(stageKind) != strings.TrimSpace(kind) {
+		if strings.TrimSpace(stage.Kind) != strings.TrimSpace(kind) {
 			filtered = append(filtered, stage)
 		}
 	}
-	r.process.payload[processTracePayloadStages] = filtered
+	r.process.payload.Stages = filtered
 	if value := strings.TrimSpace(r.compactionPreviousSummary); value != "" {
 		r.process.summary = value
 	}
@@ -368,7 +371,7 @@ func (r *messageTraceRecorder) newTraceDraft(traceType string, eventType string,
 		title:         title,
 		seq:           blockSeq,
 		startedAt:     time.Now(),
-		payload:       make(map[string]interface{}),
+		payload:       &tracePayload{},
 	}
 }
 
@@ -390,7 +393,7 @@ func (r *messageTraceRecorder) nextTraceEventIdentity(traceType string) (string,
 	return fmt.Sprintf("%s_%d", traceType, r.eventCounters[traceType]), r.nextEventSeq
 }
 
-func (r *messageTraceRecorder) appendProcessSection(summary string, markdown string, payload map[string]interface{}, status string) {
+func (r *messageTraceRecorder) appendProcessSection(summary string, markdown string, payload *tracePayload, status string) {
 	if !r.enabled() {
 		return
 	}
@@ -421,7 +424,7 @@ func (r *messageTraceRecorder) appendProcessSection(summary string, markdown str
 	r.emitProcessUpdate()
 }
 
-func (r *messageTraceRecorder) appendToolSection(summary string, markdown string, payload map[string]interface{}, status string) {
+func (r *messageTraceRecorder) appendToolSection(summary string, markdown string, payload *tracePayload, status string) {
 	if !r.enabled() {
 		return
 	}
@@ -464,7 +467,7 @@ func (r *messageTraceRecorder) appendToolSection(summary string, markdown string
 	r.flushToolDraft(draft)
 }
 
-func (r *messageTraceRecorder) syncToolSection(summary string, markdown string, payload map[string]interface{}, status string) {
+func (r *messageTraceRecorder) syncToolSection(summary string, markdown string, payload *tracePayload, status string) {
 	if !r.enabled() {
 		return
 	}
@@ -492,7 +495,7 @@ func (r *messageTraceRecorder) syncToolSection(summary string, markdown string, 
 		}
 	} else {
 		draft.contentMarkdown = value
-		draft.payload = cloneTracePayload(payload)
+		draft.payload = payload.clone()
 		if strings.TrimSpace(summary) != "" {
 			draft.summary = strings.TrimSpace(summary)
 		} else if aggregateSummary := summarizeToolTracePayload(payload); aggregateSummary != "" {
@@ -567,7 +570,7 @@ func (r *messageTraceRecorder) currentToolTraceBinding() (string, string) {
 	return r.nextTraceRoundID(), ""
 }
 
-func (r *messageTraceRecorder) appendUpstreamReasoning(kind string, text string, payload map[string]interface{}) {
+func (r *messageTraceRecorder) appendUpstreamReasoning(kind string, text string, payload *tracePayload) {
 	if !r.enabled() {
 		return
 	}
@@ -602,7 +605,7 @@ func (r *messageTraceRecorder) appendUpstreamReasoning(kind string, text string,
 	r.queueUpstreamThinkLiveUpdate(draft, kind, text, "", payload)
 }
 
-func (r *messageTraceRecorder) syncStructuredThink(content string, summary string, payload map[string]interface{}) {
+func (r *messageTraceRecorder) syncStructuredThink(content string, summary string, payload *tracePayload) {
 	if !r.enabled() {
 		return
 	}
@@ -625,7 +628,7 @@ func (r *messageTraceRecorder) syncStructuredThink(content string, summary strin
 // event already emitted for the same item. A completed stream event is still the
 // canonical event for that item; final response reconciliation must not create a
 // second round merely because the live event has already completed.
-func (r *messageTraceRecorder) reconcileStructuredThink(content string, summary string, payload map[string]interface{}) {
+func (r *messageTraceRecorder) reconcileStructuredThink(content string, summary string, payload *tracePayload) {
 	if !r.enabled() || (content == "" && summary == "") {
 		return
 	}
@@ -650,7 +653,7 @@ func (r *messageTraceRecorder) reconcileStructuredThink(content string, summary 
 	}
 }
 
-func (r *messageTraceRecorder) updateStructuredThinkDraft(draft *messageTraceDraft, content string, summary string, payload map[string]interface{}) {
+func (r *messageTraceRecorder) updateStructuredThinkDraft(draft *messageTraceDraft, content string, summary string, payload *tracePayload) {
 	if draft == nil {
 		return
 	}
@@ -675,16 +678,21 @@ func (r *messageTraceRecorder) updateStructuredThinkDraft(draft *messageTraceDra
 	r.queueUpstreamThinkLiveUpdate(draft, messageTraceThinkKindContent, deltaText, replaceText, payload)
 }
 
-func reasoningItemChanged(draft *messageTraceDraft, payload map[string]interface{}) bool {
+func reasoningItemChanged(draft *messageTraceDraft, payload *tracePayload) bool {
 	if draft == nil {
 		return false
 	}
-	nextItemID := strings.TrimSpace(getTraceString(payload["item_id"]))
+	if payload == nil {
+		return false
+	}
+	nextItemID := strings.TrimSpace(payload.ReasoningItemID())
 	if nextItemID == "" {
 		return false
 	}
-	reasoning, _ := draft.payload["reasoning"].(map[string]interface{})
-	currentItemID := strings.TrimSpace(getTraceString(reasoning["item_id"]))
+	currentItemID := ""
+	if draft.payload != nil && draft.payload.Reasoning != nil {
+		currentItemID = strings.TrimSpace(draft.payload.Reasoning.ItemID)
+	}
 	return currentItemID != "" && currentItemID != nextItemID
 }
 
@@ -699,9 +707,9 @@ func (r *messageTraceRecorder) recordPromptTrace(trace *model.MessagePromptTrace
 	}
 	r.promptTrace = cloneMessagePromptTrace(trace)
 	if draft.payload == nil {
-		draft.payload = make(map[string]interface{})
+		draft.payload = &tracePayload{}
 	}
-	draft.payload["prompt_trace"] = messagePromptTracePayload(trace)
+	draft.payload.PromptTrace = tracePayloadFromPromptTrace(trace)
 	if strings.TrimSpace(draft.summary) == "" {
 		draft.summary = buildPromptTraceSummary(trace)
 	}
@@ -786,12 +794,14 @@ func (r *messageTraceRecorder) failWithContext(ctx context.Context, err error) {
 		if summary != "" {
 			process.summary = summary
 		}
-		payload := map[string]interface{}{}
+		payload := &tracePayload{}
 		if detail != "" {
-			payload["error"] = detail
+			payload.Error = detail
 		}
 		if debug := messageErrorDebug(err); debug != nil {
-			payload["upstream_debug"] = debug
+			if raw, marshalErr := json.Marshal(debug); marshalErr == nil {
+				payload.UpstreamDebug = raw
+			}
 		}
 		mergeTracePayload(process.payload, payload)
 		process.endedAt = &now
@@ -847,17 +857,6 @@ func (r *messageTraceRecorder) snapshot() *model.MessageProcessTrace {
 
 func (r *messageTraceRecorder) persistDraft(draft *messageTraceDraft, force bool) {
 	r.persistDraftCtx(r.ctx, draft, force)
-}
-
-func cloneTracePayload(payload map[string]interface{}) map[string]interface{} {
-	if payload == nil {
-		return make(map[string]interface{})
-	}
-	cloned := make(map[string]interface{}, len(payload))
-	for key, value := range payload {
-		cloned[key] = value
-	}
-	return cloned
 }
 
 // enqueueDraftPersistence serializes terminal trace writes in event order. The
@@ -955,10 +954,10 @@ type upstreamThinkLiveUpdate struct {
 	kind            string
 	delta           string
 	contentMarkdown string
-	reasoning       map[string]interface{}
+	reasoning       *traceReasoning
 }
 
-func (r *messageTraceRecorder) queueUpstreamThinkLiveUpdate(draft *messageTraceDraft, kind string, deltaText string, replaceText string, payload map[string]interface{}) {
+func (r *messageTraceRecorder) queueUpstreamThinkLiveUpdate(draft *messageTraceDraft, kind string, deltaText string, replaceText string, payload *tracePayload) {
 	if !r.enabled() || draft == nil {
 		return
 	}
@@ -980,7 +979,7 @@ func (r *messageTraceRecorder) queueUpstreamThinkLiveUpdate(draft *messageTraceD
 	if strings.TrimSpace(kind) != "" {
 		r.upstreamThinkPendingKind = strings.TrimSpace(kind)
 	}
-	if reasoning := liveUpstreamReasoningPayload(kind, payload); len(reasoning) > 0 {
+	if reasoning := liveUpstreamReasoningPayload(kind, payload); reasoning != nil {
 		r.upstreamThinkPendingReason = reasoning
 	}
 	if !r.shouldFlushUpstreamThinkLiveUpdate() {
@@ -1025,7 +1024,7 @@ func (r *messageTraceRecorder) flushUpstreamThinkLiveUpdate(draft *messageTraceD
 		contentMarkdown: r.upstreamThinkPendingReplace,
 		reasoning:       r.upstreamThinkPendingReason,
 	}
-	if !force && update.delta == "" && update.contentMarkdown == "" && len(update.reasoning) == 0 {
+	if !force && update.delta == "" && update.contentMarkdown == "" && update.reasoning == nil {
 		return
 	}
 	if persistSnapshot {
@@ -1082,8 +1081,8 @@ func (r *messageTraceRecorder) persistMessageTraceRow(ctx context.Context, draft
 	}
 }
 
-func tracePayloadJSON(payload map[string]interface{}) string {
-	if len(payload) == 0 {
+func tracePayloadJSON(payload *tracePayload) string {
+	if payload == nil {
 		return "{}"
 	}
 	raw, err := json.Marshal(payload)
@@ -1097,13 +1096,19 @@ func tracePayloadJSON(payload map[string]interface{}) string {
 }
 
 func tracePayloadOmittedJSON(originalBytes int) string {
-	raw, err := json.Marshal(map[string]interface{}{
-		"_trace": map[string]interface{}{
-			"payloadOmitted": true,
-			"originalBytes":  originalBytes,
-			"reason":         "payload_too_large",
-		},
-	})
+	type tracePayloadOmitted struct {
+		PayloadOmitted bool   `json:"payloadOmitted"`
+		OriginalBytes  int    `json:"originalBytes"`
+		Reason         string `json:"reason"`
+	}
+	type tracePayloadOmittedEnvelope struct {
+		Trace tracePayloadOmitted `json:"_trace"`
+	}
+	raw, err := json.Marshal(tracePayloadOmittedEnvelope{Trace: tracePayloadOmitted{
+		PayloadOmitted: true,
+		OriginalBytes:  originalBytes,
+		Reason:         "payload_too_large",
+	}})
 	if err != nil {
 		return "{}"
 	}
@@ -1231,7 +1236,7 @@ func (r *messageTraceRecorder) emitUpstreamThinkDelta(update upstreamThinkLiveUp
 	if update.contentMarkdown != "" {
 		payload["contentMarkdown"] = update.contentMarkdown
 	}
-	if len(update.reasoning) > 0 {
+	if update.reasoning != nil {
 		payload["reasoning"] = update.reasoning
 	}
 	if r.upstreamThink.endedAt != nil {
@@ -1252,7 +1257,7 @@ func traceDraftToBlock(draft *messageTraceDraft) *model.MessageTraceBlock {
 		updatedAt = *draft.endedAt
 	}
 	payloadJSON := ""
-	if len(draft.payload) > 0 {
+	if draft.payload != nil {
 		payloadJSON = tracePayloadJSON(draft.payload)
 	}
 	return &model.MessageTraceBlock{
@@ -1294,236 +1299,318 @@ func aggregateTraceStatus(drafts ...*messageTraceDraft) string {
 	return ""
 }
 
-func mergeTracePayload(dst map[string]interface{}, src map[string]interface{}) {
-	if dst == nil || len(src) == 0 {
+func mergeTracePayload(dst *tracePayload, src *tracePayload) {
+	if dst == nil || src == nil {
 		return
 	}
-	for key, value := range src {
-		if key == processTracePayloadStage {
-			appendProcessTraceStagePayload(dst, value)
-			continue
+	if dst.TraceStage != nil {
+		dst.Stages = append(dst.Stages, *dst.TraceStage)
+		dst.TraceStage = nil
+	}
+	if src.FileMode != "" {
+		dst.FileMode = src.FileMode
+	}
+	if src.FileNames != nil {
+		dst.FileNames = append([]string(nil), src.FileNames...)
+	}
+	if src.FileRefs != nil {
+		dst.FileRefs = append([]attachmentTraceFileRef(nil), src.FileRefs...)
+	}
+	if src.FileGroups != nil {
+		dst.FileGroups = cloneTraceFileGroups(src.FileGroups)
+	}
+	if src.FileGroupRefs != nil {
+		dst.FileGroupRefs = cloneTraceFileRefGroups(src.FileGroupRefs)
+	}
+	if src.Query != "" {
+		dst.Query = src.Query
+	}
+	if src.HitChunkCount != 0 {
+		dst.HitChunkCount = src.HitChunkCount
+	}
+	if src.CandidateCount != 0 {
+		dst.CandidateCount = src.CandidateCount
+	}
+	if src.FilteredCount != 0 {
+		dst.FilteredCount = src.FilteredCount
+	}
+	if src.MaxScore != 0 {
+		dst.MaxScore = src.MaxScore
+	}
+	if src.Fallback != "" {
+		dst.Fallback = src.Fallback
+	}
+	if src.Citations != nil {
+		dst.Citations = append([]traceCitation(nil), src.Citations...)
+	}
+	if src.TraceStage != nil {
+		stage := *src.TraceStage
+		dst.Stages = append(dst.Stages, stage)
+	}
+	if src.Strategy != "" {
+		dst.Strategy = src.Strategy
+	}
+	if src.FromTurn != 0 {
+		dst.FromTurn = src.FromTurn
+	}
+	if src.ToTurn != 0 {
+		dst.ToTurn = src.ToTurn
+	}
+	if src.SourceTokens != 0 {
+		dst.SourceTokens = src.SourceTokens
+	}
+	if src.SummaryTokens != 0 {
+		dst.SummaryTokens = src.SummaryTokens
+	}
+	if src.Error != "" {
+		dst.Error = src.Error
+	}
+	if src.ToolID != 0 {
+		dst.ToolID = src.ToolID
+	}
+	if src.ToolName != "" {
+		dst.ToolName = src.ToolName
+	}
+	if src.SkillCount != 0 {
+		dst.SkillCount = src.SkillCount
+	}
+	if src.SkillIDs != nil {
+		dst.SkillIDs = append([]uint(nil), src.SkillIDs...)
+	}
+	if src.SkillTitles != nil {
+		dst.SkillTitles = append([]string(nil), src.SkillTitles...)
+	}
+	if src.SkillTriggers != nil {
+		dst.SkillTriggers = append([]string(nil), src.SkillTriggers...)
+	}
+	if src.Reason != "" {
+		dst.Reason = src.Reason
+	}
+	if src.Status != "" {
+		dst.Status = src.Status
+	}
+	if src.UpstreamDebug != nil {
+		dst.UpstreamDebug = append(json.RawMessage(nil), src.UpstreamDebug...)
+	}
+	if src.PromptTrace != nil {
+		prompt := *src.PromptTrace
+		prompt.Blocks = make([]promptTraceBlockPayload, len(src.PromptTrace.Blocks))
+		for index, block := range src.PromptTrace.Blocks {
+			prompt.Blocks[index] = block
+			prompt.Blocks[index].SourceRefs = append([]promptTraceSourcePayload(nil), block.SourceRefs...)
 		}
-		if key == processTracePayloadStages {
-			appendProcessTraceStagePayloads(dst, value)
-			continue
+		dst.PromptTrace = &prompt
+	}
+	if src.Reasoning != nil {
+		if dst.Reasoning == nil {
+			dst.Reasoning = &traceReasoning{}
 		}
-		if key == "tool_calls" {
-			if existing, ok := dst[key].([]map[string]interface{}); ok {
-				if incoming, ok := value.([]map[string]interface{}); ok {
-					dst[key] = append(existing, incoming...)
-					continue
+		mergeTraceReasoning(dst.Reasoning, src.Reasoning)
+	}
+	for _, stage := range src.Stages {
+		if stage.Kind != "" {
+			dst.Stages = append(dst.Stages, stage)
+		}
+	}
+	for _, call := range src.ToolCalls {
+		mergeTraceToolCall(dst, call)
+	}
+}
+
+func mergeTraceReasoning(dst *traceReasoning, src *traceReasoning) {
+	if dst == nil || src == nil {
+		return
+	}
+	if src.Kind != "" {
+		dst.Kind = src.Kind
+	}
+	if src.EventType != "" {
+		dst.EventType = src.EventType
+	}
+	if src.ItemID != "" {
+		dst.ItemID = src.ItemID
+	}
+	if src.Status != "" {
+		dst.Status = src.Status
+	}
+	if src.Signature != "" {
+		dst.Signature = src.Signature
+	}
+	if src.EncryptedContent != "" {
+		dst.EncryptedContent = src.EncryptedContent
+	}
+}
+
+func cloneTraceFileGroups(groups *attachmentTraceFileGroups) *attachmentTraceFileGroups {
+	if groups == nil {
+		return nil
+	}
+	clone := *groups
+	clone.DirectImages = append([]string(nil), groups.DirectImages...)
+	clone.Adaptive = append([]string(nil), groups.Adaptive...)
+	clone.Retrieval = append([]string(nil), groups.Retrieval...)
+	clone.FullContext = append([]string(nil), groups.FullContext...)
+	clone.Skipped = append([]string(nil), groups.Skipped...)
+	return &clone
+}
+
+func cloneTraceFileRefGroups(groups *attachmentTraceRefGroups) *attachmentTraceRefGroups {
+	if groups == nil {
+		return nil
+	}
+	clone := *groups
+	clone.DirectImages = append([]attachmentTraceFileRef(nil), groups.DirectImages...)
+	clone.Adaptive = append([]attachmentTraceFileRef(nil), groups.Adaptive...)
+	clone.Retrieval = append([]attachmentTraceFileRef(nil), groups.Retrieval...)
+	clone.FullContext = append([]attachmentTraceFileRef(nil), groups.FullContext...)
+	clone.Skipped = append([]attachmentTraceFileRef(nil), groups.Skipped...)
+	return &clone
+}
+
+func upsertProcessTraceStagePayload(dst *tracePayload, stage *traceStage) {
+	if dst == nil || stage == nil || stage.Kind == "" {
+		return
+	}
+	stageCopy := *stage
+	dst.TraceStage = nil
+	for index := range dst.Stages {
+		if dst.Stages[index].Kind == stage.Kind {
+			dst.Stages[index] = stageCopy
+			if index+1 < len(dst.Stages) {
+				stages := make([]traceStage, 0, len(dst.Stages))
+				for currentIndex, current := range dst.Stages {
+					if current.Kind != stage.Kind || currentIndex == index {
+						stages = append(stages, current)
+					}
 				}
+				dst.Stages = stages
 			}
-		}
-		dst[key] = value
-	}
-}
-
-func appendProcessTraceStagePayload(dst map[string]interface{}, value interface{}) {
-	stage, ok := value.(map[string]interface{})
-	if !ok || len(stage) == 0 {
-		return
-	}
-	existing := normalizeProcessTraceStagePayloads(dst[processTracePayloadStages])
-	dst[processTracePayloadStages] = append(existing, stage)
-}
-
-func appendProcessTraceStagePayloads(dst map[string]interface{}, value interface{}) {
-	stages := normalizeProcessTraceStagePayloads(value)
-	if len(stages) == 0 {
-		return
-	}
-	existing := normalizeProcessTraceStagePayloads(dst[processTracePayloadStages])
-	dst[processTracePayloadStages] = append(existing, stages...)
-}
-
-func upsertProcessTraceStagePayload(dst map[string]interface{}, stage map[string]interface{}) {
-	if dst == nil || len(stage) == 0 {
-		return
-	}
-	kind, _ := stage["kind"].(string)
-	kind = strings.TrimSpace(kind)
-	existing := normalizeProcessTraceStagePayloads(dst[processTracePayloadStages])
-	if kind != "" {
-		for index := len(existing) - 1; index >= 0; index-- {
-			existingKind, _ := existing[index]["kind"].(string)
-			if strings.TrimSpace(existingKind) == kind {
-				existing[index] = stage
-				dst[processTracePayloadStages] = existing
-				return
-			}
+			return
 		}
 	}
-	dst[processTracePayloadStages] = append(existing, stage)
+	dst.Stages = append(dst.Stages, stageCopy)
 }
 
-func processTraceStageHasStatus(payload map[string]interface{}, kind string, status string) bool {
-	for _, stage := range normalizeProcessTraceStagePayloads(payload[processTracePayloadStages]) {
-		stageKind, _ := stage["kind"].(string)
-		stageStatus, _ := stage["status"].(string)
-		if strings.TrimSpace(stageKind) == strings.TrimSpace(kind) &&
-			strings.TrimSpace(stageStatus) == strings.TrimSpace(status) {
+func processTraceStageHasStatus(payload *tracePayload, kind string, status string) bool {
+	if payload == nil {
+		return false
+	}
+	for _, stage := range payload.Stages {
+		if strings.TrimSpace(stage.Kind) == strings.TrimSpace(kind) && strings.TrimSpace(stage.Status) == strings.TrimSpace(status) {
 			return true
 		}
 	}
 	return false
 }
 
-func normalizeProcessTraceStagePayloads(value interface{}) []map[string]interface{} {
-	switch items := value.(type) {
-	case []map[string]interface{}:
-		return append([]map[string]interface{}{}, items...)
-	case []interface{}:
-		result := make([]map[string]interface{}, 0, len(items))
-		for _, item := range items {
-			if stage, ok := item.(map[string]interface{}); ok && len(stage) > 0 {
-				result = append(result, stage)
-			}
-		}
-		return result
-	default:
-		return nil
-	}
+func isToolTracePayload(payload *tracePayload) bool {
+	return payload != nil && len(payload.ToolCalls) > 0
 }
 
-func isToolTracePayload(payload map[string]interface{}) bool {
-	if payload == nil {
-		return false
-	}
-	return len(normalizeTraceToolCalls(payload["tool_calls"])) > 0
-}
-
-func mergeToolTracePayload(dst map[string]interface{}, src map[string]interface{}) {
-	if dst == nil || len(src) == 0 {
+func mergeToolTracePayload(dst *tracePayload, src *tracePayload) {
+	if dst == nil || src == nil {
 		return
 	}
-	for key, value := range src {
-		if key != "tool_calls" {
-			dst[key] = value
-			continue
-		}
-		existing := normalizeTraceToolCalls(dst[key])
-		incoming := normalizeTraceToolCalls(value)
-		for _, call := range incoming {
-			merged := false
-			for idx, current := range existing {
-				if !shouldMergeTraceToolCall(current, call) {
-					continue
-				}
-				existing[idx] = mergeTraceToolCall(current, call)
-				merged = true
-				break
-			}
-			if !merged {
-				existing = append(existing, cloneTraceToolCall(call))
-			}
-		}
-		dst[key] = existing
-	}
+	mergeTracePayload(dst, src)
 }
 
-func shouldMergeTraceToolCall(existing map[string]interface{}, incoming map[string]interface{}) bool {
-	existingID := traceToolCallID(existing)
-	incomingID := traceToolCallID(incoming)
-	if existingID != "" && incomingID != "" {
-		return existingID == incomingID
+func shouldMergeTraceToolCall(existing traceToolCall, incoming traceToolCall) bool {
+	if existing.ToolCallID != "" && incoming.ToolCallID != "" {
+		return existing.ToolCallID == incoming.ToolCallID
 	}
-	if !sameTraceToolKind(existing, incoming) {
+	if existing.Name != "" && incoming.Name != "" && existing.Name != incoming.Name {
 		return false
 	}
-	existingInput := traceToolInputKey(existing)
-	incomingInput := traceToolInputKey(incoming)
-	if existingInput == "" || incomingInput == "" {
+	if existing.Type != "" && incoming.Type != "" && existing.Type != incoming.Type {
+		return false
+	}
+	existingActive := isActiveTraceToolStatus(existing.Status)
+	incomingActive := isActiveTraceToolStatus(incoming.Status)
+	if existing.ToolCallID == "" && incoming.ToolCallID != "" && existingActive && existing.InputPreview == "" {
 		return true
 	}
-	return existingInput == incomingInput
-}
-
-func mergeTraceToolCall(existing map[string]interface{}, incoming map[string]interface{}) map[string]interface{} {
-	merged := cloneTraceToolCall(existing)
-	for key, value := range incoming {
-		if key == "status" {
-			merged[key] = mergeTraceToolStatus(getTraceString(merged[key]), getTraceString(value))
-			continue
-		}
-		if traceValueIsEmpty(value) {
-			continue
-		}
-		merged[key] = value
-	}
-	if getTraceString(merged["status"]) == "" {
-		merged["status"] = getTraceString(incoming["status"])
-	}
-	return merged
-}
-
-func cloneTraceToolCall(item map[string]interface{}) map[string]interface{} {
-	cloned := make(map[string]interface{}, len(item))
-	for key, value := range item {
-		cloned[key] = value
-	}
-	return cloned
-}
-
-func traceToolCallID(item map[string]interface{}) string {
-	return firstTraceString(item, "tool_call_id", "id", "call_id")
-}
-
-func traceToolInputKey(item map[string]interface{}) string {
-	return firstTraceString(item, "input_preview", "input")
-}
-
-func sameTraceToolKind(left map[string]interface{}, right map[string]interface{}) bool {
-	leftName := strings.TrimSpace(getTraceString(left["name"]))
-	rightName := strings.TrimSpace(getTraceString(right["name"]))
-	leftType := strings.TrimSpace(getTraceString(left["type"]))
-	rightType := strings.TrimSpace(getTraceString(right["type"]))
-	if leftName != "" && rightName != "" {
-		return leftName == rightName
-	}
-	if leftType != "" && rightType != "" {
-		return leftType == rightType
-	}
-	return false
-}
-
-func traceValueIsEmpty(value interface{}) bool {
-	switch typed := value.(type) {
-	case nil:
+	if incoming.ToolCallID == "" && existing.ToolCallID != "" && incomingActive && incoming.InputPreview == "" {
 		return true
-	case string:
-		return strings.TrimSpace(typed) == ""
-	case []interface{}:
-		return len(typed) == 0
-	case []map[string]interface{}:
-		return len(typed) == 0
-	case map[string]interface{}:
-		return len(typed) == 0
+	}
+	if existing.InputPreview == "" || incoming.InputPreview == "" {
+		return existingActive || incomingActive
+	}
+	if existing.InputPreview != incoming.InputPreview {
+		return false
+	}
+	return existingActive || incomingActive
+}
+
+func isActiveTraceToolStatus(status string) bool {
+	switch strings.TrimSpace(status) {
+	case "requested", "streaming", "in_progress", "queued", "searching":
+		return true
 	default:
 		return false
 	}
 }
 
-func mergeTraceToolStatus(existing string, incoming string) string {
-	current := strings.TrimSpace(existing)
-	next := strings.TrimSpace(incoming)
-	if next == "" {
-		return current
+func mergeTraceToolCall(dst *tracePayload, incoming traceToolCall) {
+	for index := range dst.ToolCalls {
+		if !shouldMergeTraceToolCall(dst.ToolCalls[index], incoming) {
+			continue
+		}
+		current := &dst.ToolCalls[index]
+		if traceToolStatusRank(incoming.Status) >= traceToolStatusRank(current.Status) {
+			current.Status = incoming.Status
+		}
+		if incoming.ToolCallID != "" {
+			current.ToolCallID = incoming.ToolCallID
+		}
+		if incoming.Name != "" {
+			current.Name = incoming.Name
+		}
+		if incoming.Type != "" {
+			current.Type = incoming.Type
+		}
+		if incoming.LatencyMS != 0 {
+			current.LatencyMS = incoming.LatencyMS
+		}
+		if incoming.Error != "" {
+			current.Error = incoming.Error
+		}
+		if incoming.InputPreview != "" {
+			current.InputPreview = incoming.InputPreview
+		}
+		if incoming.InputDetail != "" {
+			current.InputDetail = incoming.InputDetail
+		}
+		if incoming.InputSize != 0 {
+			current.InputSize = incoming.InputSize
+		}
+		if incoming.OutputPreview != "" {
+			current.OutputPreview = incoming.OutputPreview
+		}
+		if incoming.OutputDetail != "" {
+			current.OutputDetail = incoming.OutputDetail
+		}
+		if incoming.DetailRunID != "" {
+			current.DetailRunID = incoming.DetailRunID
+		}
+		if incoming.OutputPresentation != nil {
+			current.OutputPresentation = incoming.OutputPresentation
+		}
+		return
 	}
-	if current == "" || traceToolStatusRank(next) >= traceToolStatusRank(current) {
-		return next
-	}
-	return current
+	dst.ToolCalls = append(dst.ToolCalls, incoming)
 }
 
-func toolTracePayloadStatus(payload map[string]interface{}) string {
-	calls := normalizeTraceToolCalls(payload["tool_calls"])
+func toolTracePayloadStatus(payload *tracePayload) string {
+	if payload == nil {
+		return ""
+	}
+	calls := payload.ToolCalls
 	if len(calls) == 0 {
 		return ""
 	}
 	hasError := false
 	for _, call := range calls {
-		switch strings.TrimSpace(getTraceString(call["status"])) {
+		switch strings.TrimSpace(call.Status) {
 		case "error", "failed":
 			hasError = true
 		case "success", "completed", "reused", "":
@@ -1550,70 +1637,39 @@ func traceToolStatusRank(status string) int {
 	}
 }
 
-func renderToolTraceMarkdownFromPayload(payload map[string]interface{}) string {
+func renderToolTraceMarkdownFromPayload(payload *tracePayload) string {
 	summary, markdown, _ := buildToolTrace(toolTraceRowsFromPayload(payload))
 	_ = summary
 	return markdown
 }
 
-func toolTraceRowsFromPayload(payload map[string]interface{}) []model.ToolCall {
-	items := normalizeTraceToolCalls(payload["tool_calls"])
+func toolTraceRowsFromPayload(payload *tracePayload) []model.ToolCall {
+	if payload == nil {
+		return nil
+	}
+	items := payload.ToolCalls
 	rows := make([]model.ToolCall, 0, len(items))
 	for _, item := range items {
 		rows = append(rows, model.ToolCall{
-			ToolCallID: firstTraceString(item, "tool_call_id", "id", "call_id"),
-			ToolType:   strings.TrimSpace(getTraceString(item["type"])),
-			ToolName:   strings.TrimSpace(getTraceString(item["name"])),
-			Status:     strings.TrimSpace(getTraceString(item["status"])),
-			LatencyMS:  traceInt64(item["latency_ms"]),
-			InputJSON:  firstTraceString(item, "input_preview", "input"),
-			OutputJSON: firstTraceString(item, "output_preview", "output_text", "output"),
-			ErrorJSON:  strings.TrimSpace(getTraceString(item["error"])),
+			ToolCallID: item.ToolCallID, ToolType: item.Type, ToolName: item.Name,
+			Status: item.Status, LatencyMS: item.LatencyMS, InputJSON: item.InputPreview,
+			OutputJSON: item.OutputPreview, ErrorJSON: item.Error,
 		})
 	}
 	return rows
 }
 
-func firstTraceString(item map[string]interface{}, keys ...string) string {
-	for _, key := range keys {
-		if value := strings.TrimSpace(getTraceString(item[key])); value != "" {
-			return value
-		}
-	}
-	return ""
-}
-
-func traceInt64(value interface{}) int64 {
-	switch typed := value.(type) {
-	case int64:
-		return typed
-	case int:
-		return int64(typed)
-	case int32:
-		return int64(typed)
-	case float64:
-		return int64(typed)
-	case float32:
-		return int64(typed)
-	case json.Number:
-		result, _ := typed.Int64()
-		return result
-	default:
-		return 0
-	}
-}
-
-func summarizeToolTracePayload(payload map[string]interface{}) string {
+func summarizeToolTracePayload(payload *tracePayload) string {
 	if payload == nil {
 		return ""
 	}
-	items := normalizeTraceToolCalls(payload["tool_calls"])
+	items := payload.ToolCalls
 	if len(items) == 0 {
 		return ""
 	}
 	errorCount := 0
 	for _, item := range items {
-		switch strings.TrimSpace(getTraceString(item["status"])) {
+		switch strings.TrimSpace(item.Status) {
 		case "error", "failed":
 			errorCount++
 		}
@@ -1626,7 +1682,10 @@ func summarizeToolTraceDraft(draft *messageTraceDraft) string {
 		return ""
 	}
 	contentTotal, contentErrors := countToolTraceMarkdownRows(draft.contentMarkdown)
-	payloadTotal := len(normalizeTraceToolCalls(draft.payload["tool_calls"]))
+	payloadTotal := 0
+	if draft.payload != nil {
+		payloadTotal = len(draft.payload.ToolCalls)
+	}
 	if contentTotal > payloadTotal {
 		return formatToolTraceSummary(contentTotal, contentErrors)
 	}
@@ -1659,31 +1718,6 @@ func countToolTraceMarkdownRows(markdown string) (int, int) {
 	return total, errorCount
 }
 
-func normalizeTraceToolCalls(value interface{}) []map[string]interface{} {
-	switch typed := value.(type) {
-	case []map[string]interface{}:
-		return typed
-	case []interface{}:
-		items := make([]map[string]interface{}, 0, len(typed))
-		for _, item := range typed {
-			if payload, ok := item.(map[string]interface{}); ok {
-				items = append(items, payload)
-			}
-		}
-		return items
-	default:
-		return nil
-	}
-}
-
-func getTraceString(value interface{}) string {
-	text, ok := value.(string)
-	if !ok {
-		return ""
-	}
-	return text
-}
-
 func diffUpstreamThinkContent(previous string, next string) (string, string) {
 	if next == "" || next == previous {
 		return "", ""
@@ -1697,41 +1731,39 @@ func diffUpstreamThinkContent(previous string, next string) (string, string) {
 	return "", next
 }
 
-func liveUpstreamReasoningPayload(kind string, payload map[string]interface{}) map[string]interface{} {
-	reasoning := map[string]interface{}{}
-	if strings.TrimSpace(kind) != "" {
-		reasoning["kind"] = strings.TrimSpace(kind)
+func liveUpstreamReasoningPayload(kind string, payload *tracePayload) *traceReasoning {
+	reasoning := &traceReasoning{Kind: strings.TrimSpace(kind)}
+	if payload != nil && payload.Reasoning != nil {
+		reasoning.EventType = payload.Reasoning.EventType
+		reasoning.ItemID = payload.Reasoning.ItemID
+		reasoning.Status = payload.Reasoning.Status
 	}
-	for _, key := range []string{"event_type", "item_id", "status"} {
-		if value, ok := payload[key]; ok {
-			if text, ok := value.(string); ok && strings.TrimSpace(text) != "" {
-				reasoning[key] = strings.TrimSpace(text)
-			}
-		}
-	}
-	return reasoning
+	return trimTraceReasoning(reasoning)
 }
 
-func mergeUpstreamReasoningPayload(draft *messageTraceDraft, kind string, payload map[string]interface{}) {
+func mergeUpstreamReasoningPayload(draft *messageTraceDraft, kind string, payload *tracePayload) {
 	if draft == nil {
 		return
 	}
-	reasoning := make(map[string]interface{}, 4)
-	if existing, ok := draft.payload["reasoning"].(map[string]interface{}); ok {
-		for _, key := range []string{"event_type", "item_id", "status"} {
-			if value, ok := existing[key]; ok {
-				reasoning[key] = value
-			}
+	if draft.payload == nil {
+		draft.payload = &tracePayload{}
+	}
+	reasoning := liveUpstreamReasoningPayload(kind, payload)
+	if reasoning == nil {
+		return
+	}
+	if draft.payload.Reasoning != nil {
+		if reasoning.EventType == "" {
+			reasoning.EventType = draft.payload.Reasoning.EventType
+		}
+		if reasoning.ItemID == "" {
+			reasoning.ItemID = draft.payload.Reasoning.ItemID
+		}
+		if reasoning.Status == "" {
+			reasoning.Status = draft.payload.Reasoning.Status
 		}
 	}
-	for key, value := range liveUpstreamReasoningPayload(kind, payload) {
-		reasoning[key] = value
-	}
-	if len(reasoning) == 0 {
-		delete(draft.payload, "reasoning")
-	} else {
-		draft.payload["reasoning"] = reasoning
-	}
+	draft.payload.Reasoning = reasoning
 }
 
 func summarizeThinkText(value string) string {
@@ -1767,25 +1799,27 @@ type attachmentTraceRefGroups struct {
 }
 
 type attachmentTracePayload struct {
-	FileMode      string                    `json:"file_mode"`
-	FileNames     []string                  `json:"file_names"`
-	FileRefs      []attachmentTraceFileRef  `json:"file_refs"`
-	FileGroups    attachmentTraceFileGroups `json:"file_groups"`
-	FileGroupRefs attachmentTraceRefGroups  `json:"file_group_refs"`
+	FileMode      string                     `json:"file_mode"`
+	FileNames     []string                   `json:"file_names"`
+	FileRefs      []attachmentTraceFileRef   `json:"file_refs"`
+	FileGroups    *attachmentTraceFileGroups `json:"file_groups"`
+	FileGroupRefs *attachmentTraceRefGroups  `json:"file_group_refs"`
 }
 
 func buildAttachmentProcessTrace(
 	fileMode string,
 	attachments []AttachmentInput,
-) (string, string, map[string]interface{}) {
+) (string, string, *tracePayload) {
 	if len(attachments) == 0 {
 		return "", "", nil
 	}
 
 	payload := attachmentTracePayload{
-		FileMode:  strings.TrimSpace(fileMode),
-		FileNames: make([]string, 0, len(attachments)),
-		FileRefs:  make([]attachmentTraceFileRef, 0, len(attachments)),
+		FileMode:      strings.TrimSpace(fileMode),
+		FileNames:     make([]string, 0, len(attachments)),
+		FileRefs:      make([]attachmentTraceFileRef, 0, len(attachments)),
+		FileGroups:    &attachmentTraceFileGroups{},
+		FileGroupRefs: &attachmentTraceRefGroups{},
 	}
 	for _, item := range attachments {
 		name := strings.TrimSpace(item.FileName)
@@ -1858,23 +1892,16 @@ func newAttachmentTraceFileRef(item AttachmentInput, fallbackName string) attach
 	}
 }
 
-func attachmentTracePayloadMap(payload attachmentTracePayload) map[string]interface{} {
+func attachmentTracePayloadMap(payload attachmentTracePayload) *tracePayload {
 	includedCount := len(payload.FileRefs) - len(payload.FileGroupRefs.Skipped)
 	if includedCount < 0 {
 		includedCount = 0
 	}
-	return map[string]interface{}{
-		"file_mode":       payload.FileMode,
-		"file_names":      payload.FileNames,
-		"file_refs":       payload.FileRefs,
-		"file_groups":     payload.FileGroups,
-		"file_group_refs": payload.FileGroupRefs,
-		processTracePayloadStage: map[string]interface{}{
-			"kind":           processTraceKindFileContext,
-			"status":         processTraceStatusReady,
-			"included_count": includedCount,
-			"skipped_count":  len(payload.FileGroupRefs.Skipped),
-		},
+	stage := traceStage{Kind: processTraceKindFileContext, Status: processTraceStatusReady, IncludedCount: includedCount, SkippedCount: len(payload.FileGroupRefs.Skipped)}
+	return &tracePayload{
+		FileMode: payload.FileMode, FileNames: payload.FileNames, FileRefs: payload.FileRefs,
+		FileGroups: payload.FileGroups, FileGroupRefs: payload.FileGroupRefs,
+		TraceStage: &stage,
 	}
 }
 
@@ -1882,7 +1909,7 @@ func buildRAGProcessTrace(
 	query string,
 	fileObjs []model.FileObject,
 	chunks []model.RAGChunk,
-) (string, string, map[string]interface{}) {
+) (string, string, *tracePayload) {
 	if len(fileObjs) == 0 {
 		return "", "", nil
 	}
@@ -1894,36 +1921,23 @@ func buildRAGProcessTrace(
 		}
 		names = append(names, name)
 	}
-	citations := make([]map[string]interface{}, 0, len(chunks))
+	citations := make([]traceCitation, 0, len(chunks))
 	for _, chunk := range chunks {
-		citations = append(citations, map[string]interface{}{
-			"file_name":   chunk.FileName,
-			"file_id":     chunk.FileID,
-			"chunk_index": chunk.ChunkIndex,
-			"score":       chunk.Score,
-			"preview":     textutil.CompactSnippet(chunk.Content, 100),
-		})
+		citations = append(citations, traceCitation{FileName: chunk.FileName, FileID: chunk.FileID, ChunkIndex: chunk.ChunkIndex, Score: chunk.Score, Preview: textutil.CompactSnippet(chunk.Content, 100)})
 	}
 	detail := fmt.Sprintf("检索已完成，共检索 %d 个文件，命中 %d 个段落。", len(names), len(chunks))
-	return fmt.Sprintf("检索到 %d 段相关内容", len(chunks)), formatTraceStep("内容检索", detail), map[string]interface{}{
-		"query":           textutil.CompactSnippet(query, 240),
-		"file_names":      names,
-		"hit_chunk_count": len(chunks),
-		"citations":       citations,
-		processTracePayloadStage: map[string]interface{}{
-			"kind":        processTraceKindRetrieval,
-			"status":      processTraceStatusCompleted,
-			"file_count":  len(names),
-			"chunk_count": len(chunks),
-		},
+	stage := traceStage{Kind: processTraceKindRetrieval, Status: processTraceStatusCompleted, FileCount: len(names), ChunkCount: len(chunks)}
+	return fmt.Sprintf("检索到 %d 段相关内容", len(chunks)), formatTraceStep("内容检索", detail), &tracePayload{
+		Query: textutil.CompactSnippet(query, 240), FileNames: names, HitChunkCount: len(chunks), Citations: citations,
+		TraceStage: &stage,
 	}
 }
 
-func buildToolTrace(rows []model.ToolCall) (string, string, map[string]interface{}) {
+func buildToolTrace(rows []model.ToolCall) (string, string, *tracePayload) {
 	if len(rows) == 0 {
 		return "", "", nil
 	}
-	toolCalls := make([]map[string]interface{}, 0, len(rows))
+	toolCalls := make([]traceToolCall, 0, len(rows))
 	lines := make([]string, 0, len(rows))
 	successCount := 0
 	errorCount := 0
@@ -1972,24 +1986,12 @@ func buildToolTrace(rows []model.ToolCall) (string, string, map[string]interface
 		}
 		lines = append(lines, formatTraceStep(toolName, joinTraceParts(parts...)))
 		toolCallID := strings.TrimSpace(row.ToolCallID)
-		toolCall := map[string]interface{}{
-			"tool_call_id":   toolCallID,
-			"name":           toolName,
-			"type":           strings.TrimSpace(row.ToolType),
-			"status":         status,
-			"latency_ms":     row.LatencyMS,
-			"error":          errorDetail,
-			"input_preview":  inputPreview,
-			"input_detail":   inputDetail,
-			"input_size":     len(input),
-			"output_preview": outputPreview,
-			"output_detail":  outputDetail,
-		}
+		toolCall := traceToolCall{ToolCallID: toolCallID, Name: toolName, Type: strings.TrimSpace(row.ToolType), Status: status, LatencyMS: row.LatencyMS, Error: errorDetail, InputPreview: inputPreview, InputDetail: inputDetail, InputSize: len(input), OutputPreview: outputPreview, OutputDetail: outputDetail}
 		if detailRunID := strings.TrimSpace(row.RunID); detailRunID != "" {
-			toolCall["detail_run_id"] = detailRunID
+			toolCall.DetailRunID = detailRunID
 		}
 		if outputPresentation != nil {
-			toolCall["output_presentation"] = outputPresentation
+			toolCall.OutputPresentation = outputPresentation
 		}
 		toolCalls = append(toolCalls, toolCall)
 	}
@@ -2001,9 +2003,7 @@ func buildToolTrace(rows []model.ToolCall) (string, string, map[string]interface
 	} else if successCount == len(rows) {
 		summary = fmt.Sprintf("%d 次工具调用已完成", len(rows))
 	}
-	return summary, strings.Join(lines, "\n"), map[string]interface{}{
-		"tool_calls": toolCalls,
-	}
+	return summary, strings.Join(lines, "\n"), &tracePayload{ToolCalls: toolCalls}
 }
 
 func toolOutputPreview(raw string, presentation *toolresult.Presentation) string {
@@ -2155,7 +2155,7 @@ func collapseWhitespace(value string) string {
 	return strings.Join(strings.Fields(value), " ")
 }
 
-func buildCompactionProcessTrace(snapshot *model.ContextSnapshot) (string, string, map[string]interface{}) {
+func buildCompactionProcessTrace(snapshot *model.ContextSnapshot) (string, string, *tracePayload) {
 	if snapshot == nil {
 		return "", "", nil
 	}
@@ -2164,39 +2164,22 @@ func buildCompactionProcessTrace(snapshot *model.ContextSnapshot) (string, strin
 		fmt.Sprintf("- 压缩区间：第 %d-%d 轮。", snapshot.FromTurn, snapshot.ToTurn),
 		fmt.Sprintf("- Tokens 缩减：%d → %d。", snapshot.SourceTokens, snapshot.SummaryTokens),
 	}, "\n")
-	return fmt.Sprintf("已压缩第 %d-%d 轮上下文", snapshot.FromTurn, snapshot.ToTurn), formatTraceStep("上下文压缩", detail), map[string]interface{}{
-		"strategy":       snapshot.Strategy,
-		"from_turn":      snapshot.FromTurn,
-		"to_turn":        snapshot.ToTurn,
-		"source_tokens":  snapshot.SourceTokens,
-		"summary_tokens": snapshot.SummaryTokens,
-		processTracePayloadStage: map[string]interface{}{
-			"kind":           processTraceKindCompaction,
-			"status":         processTraceStatusCompleted,
-			"from_turn":      snapshot.FromTurn,
-			"to_turn":        snapshot.ToTurn,
-			"source_tokens":  snapshot.SourceTokens,
-			"summary_tokens": snapshot.SummaryTokens,
-		},
+	stage := traceStage{Kind: processTraceKindCompaction, Status: processTraceStatusCompleted, FromTurn: snapshot.FromTurn, ToTurn: snapshot.ToTurn, SourceTokens: snapshot.SourceTokens, SummaryTokens: snapshot.SummaryTokens}
+	return fmt.Sprintf("已压缩第 %d-%d 轮上下文", snapshot.FromTurn, snapshot.ToTurn), formatTraceStep("上下文压缩", detail), &tracePayload{
+		Strategy: snapshot.Strategy, FromTurn: snapshot.FromTurn, ToTurn: snapshot.ToTurn,
+		SourceTokens: snapshot.SourceTokens, SummaryTokens: snapshot.SummaryTokens,
+		TraceStage: &stage,
 	}
 }
 
-func buildPendingCompactionProcessTrace() (string, map[string]interface{}) {
-	return "正在压缩上下文", map[string]interface{}{
-		processTracePayloadStage: map[string]interface{}{
-			"kind":   processTraceKindCompaction,
-			"status": processTraceStatusPending,
-		},
-	}
+func buildPendingCompactionProcessTrace() (string, *tracePayload) {
+	stage := traceStage{Kind: processTraceKindCompaction, Status: processTraceStatusPending}
+	return "正在压缩上下文", &tracePayload{TraceStage: &stage}
 }
 
-func buildFailedCompactionProcessTrace() (string, map[string]interface{}) {
-	return "上下文压缩未完成", map[string]interface{}{
-		processTracePayloadStage: map[string]interface{}{
-			"kind":   processTraceKindCompaction,
-			"status": processTraceStatusFailed,
-		},
-	}
+func buildFailedCompactionProcessTrace() (string, *tracePayload) {
+	stage := traceStage{Kind: processTraceKindCompaction, Status: processTraceStatusFailed}
+	return "上下文压缩未完成", &tracePayload{TraceStage: &stage}
 }
 
 func buildPromptTraceSummary(trace *model.MessagePromptTrace) string {

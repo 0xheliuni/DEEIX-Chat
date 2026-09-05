@@ -61,7 +61,7 @@ func TestTerminalTracePersistencePreservesReconciliationOrder(t *testing.T) {
 		service:   &Service{repo: repo},
 	}
 
-	payload := map[string]interface{}{"item_id": "reasoning_1", "status": "in_progress"}
+	payload := &tracePayload{Reasoning: &traceReasoning{ItemID: "reasoning_1", Status: "in_progress"}}
 	recorder.appendUpstreamReasoning(messageTraceThinkKindContent, "stream snapshot", payload)
 	recorder.completeUpstreamThink()
 
@@ -74,7 +74,7 @@ func TestTerminalTracePersistencePreservesReconciliationOrder(t *testing.T) {
 	recorder.reconcileStructuredThink(
 		"final snapshot",
 		"",
-		map[string]interface{}{"item_id": "reasoning_1", "status": "completed"},
+		&tracePayload{Reasoning: &traceReasoning{ItemID: "reasoning_1", Status: "completed"}},
 	)
 	recorder.ctx = context.WithValue(context.Background(), tracePersistenceContextKey{}, "replacement")
 	close(repo.releaseFirst)

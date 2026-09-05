@@ -89,8 +89,8 @@ func TestBuildRAGFallbackProcessTracePayloadRedactsRetrievalError(t *testing.T) 
 		secret,
 	)
 
-	if got, ok := payload["error"].(string); !ok || got != ragFallbackErrorFailed {
-		t.Fatalf("payload error = %#v, want %q", payload["error"], ragFallbackErrorFailed)
+	if payload.Error != ragFallbackErrorFailed {
+		t.Fatalf("payload error = %#v, want %q", payload.Error, ragFallbackErrorFailed)
 	}
 	if strings.Contains(fmt.Sprint(payload), secret.Error()) {
 		t.Fatalf("payload leaked retrieval error: %#v", payload)

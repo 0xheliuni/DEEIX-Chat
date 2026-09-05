@@ -368,16 +368,7 @@ func appendRAGFallbackSkippedTrace(traceRecorder *messageTraceRecorder, skipped 
 			"内容检索",
 			fmt.Sprintf("%s，文件超出预算或没有可用提取文本，暂未纳入%s。", ragFallbackReasonLabel(reason), traceNameScope(names)),
 		),
-		map[string]interface{}{
-			"reason":     strings.TrimSpace(reason),
-			"file_names": names,
-			processTracePayloadStage: map[string]interface{}{
-				"kind":       processTraceKindRetrieval,
-				"status":     processTraceStatusSkipped,
-				"reason":     strings.TrimSpace(reason),
-				"file_count": len(names),
-			},
-		},
+		&tracePayload{Reason: strings.TrimSpace(reason), FileNames: names, Stages: []traceStage{{Kind: processTraceKindRetrieval, Status: processTraceStatusSkipped, FileCount: len(names)}}},
 		messageTraceStatusStreaming,
 	)
 }

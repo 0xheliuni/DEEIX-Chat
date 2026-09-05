@@ -189,16 +189,7 @@ func (s *Service) processImageAttachments(
 		input.TraceRecorder.appendProcessSection(
 			fmt.Sprintf("已通过 %s 处理 %d 张图片", processor.displayName, len(result.Analyses)),
 			formatTraceStep("图片附件", fmt.Sprintf("图片已交由 %s 分析，主模型仅接收分析结果。", processor.displayName)),
-			map[string]interface{}{
-				"tool_id":    processor.toolID,
-				"tool_name":  processor.toolName,
-				"file_names": fileNames,
-				processTracePayloadStage: map[string]interface{}{
-					"kind":       "mcp_attachment_processor",
-					"status":     messageTraceStatusCompleted,
-					"file_count": len(result.Analyses),
-				},
-			},
+			&tracePayload{ToolID: processor.toolID, ToolName: processor.toolName, FileNames: fileNames, Stages: []traceStage{{Kind: "mcp_attachment_processor", Status: messageTraceStatusCompleted, FileCount: len(result.Analyses)}}},
 			messageTraceStatusCompleted,
 		)
 	}

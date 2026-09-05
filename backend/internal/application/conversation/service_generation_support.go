@@ -73,20 +73,16 @@ func (s *Service) embedMessagePair(ctx context.Context, conversationID uint, use
 	}
 }
 
-func reasoningPayload(delta *llm.ReasoningDelta) map[string]interface{} {
+func reasoningPayload(delta *llm.ReasoningDelta) *tracePayload {
 	if delta == nil {
 		return nil
 	}
-	payload := map[string]interface{}{
-		"event_type": delta.EventType,
-		"item_id":    delta.ItemID,
-		"status":     delta.Status,
-	}
+	payload := &tracePayload{Reasoning: &traceReasoning{EventType: delta.EventType, ItemID: delta.ItemID, Status: delta.Status}}
 	if strings.TrimSpace(delta.Signature) != "" {
-		payload["signature"] = strings.TrimSpace(delta.Signature)
+		payload.Reasoning.Signature = strings.TrimSpace(delta.Signature)
 	}
 	if strings.TrimSpace(delta.EncryptedContent) != "" {
-		payload["encrypted_content"] = strings.TrimSpace(delta.EncryptedContent)
+		payload.Reasoning.EncryptedContent = strings.TrimSpace(delta.EncryptedContent)
 	}
 	return payload
 }
