@@ -470,10 +470,16 @@ func (s *Service) sendMessageInternal(
 			compactPolicy,
 			reasoningContentPassback,
 		),
-		ContextModelName:  route.UpstreamModel,
-		CapabilitiesJSON:  route.ModelCapabilitiesJSON,
-		PlatformModelName: s.resolveTextTaskModel(ctx, cfg.CompactTaskModel, conversation.Model, input.UserID, input.ConversationID, strings.TrimSpace(input.RequestID)),
-		Force:             true,
+		ContextModelName: route.UpstreamModel,
+		CapabilitiesJSON: route.ModelCapabilitiesJSON,
+		PlatformModelName: s.resolveTextTaskModel(ctx, textTaskRouteInput{
+			ConfiguredModel:   cfg.CompactTaskModel,
+			ConversationModel: conversation.Model,
+			UserID:            input.UserID,
+			ConversationID:    input.ConversationID,
+			RequestID:         input.RequestID,
+		}),
+		Force: true,
 	}
 	if compactPolicy.EffectiveEnabled() && s.compactSvc.ContextBudgetExceeded(preflightCompactInput) {
 		preflightSnapshot, compactErr := s.compactSvc.MaybeCompactConversation(ctx, preflightCompactInput)
@@ -645,15 +651,14 @@ func (s *Service) sendMessageInternal(
 	if recallCh != nil {
 		userCtx.RecallChunks = <-recallCh // 阻塞等待，最多 semanticRecallDeadline（200ms）
 	}
-	userCtx.HistoricalArtifacts = s.recallHistoricalContextArtifacts(
-		ctx,
-		historicalScope,
-		promptScope.Snapshot != nil,
-		input.Content,
-		ragContextChunks,
-		ragFallbackEvidenceAttachments(ragFallbacks),
-		userCtx.RecallChunks,
-	)
+	userCtx.HistoricalArtifacts = s.recallHistoricalContextArtifacts(ctx, historicalContextRecallInput{
+		Scope:              historicalScope,
+		HasCurrentSnapshot: promptScope.Snapshot != nil,
+		Query:              input.Content,
+		CurrentRAGChunks:   ragContextChunks,
+		CurrentFallbacks:   ragFallbackEvidenceAttachments(ragFallbacks),
+		CurrentRecall:      userCtx.RecallChunks,
+	})
 	userCtx.CurrentArtifacts = s.persistPromptContextArtifacts(ctx, promptContextArtifactInput{
 		ConversationID: input.ConversationID,
 		UserID:         input.UserID,
@@ -707,7 +712,14 @@ func (s *Service) sendMessageInternal(
 		attributionReferer:     attributionReferer,
 		attributionTitle:       attributionTitle,
 	}
-	plan = s.prepareRouteGeneration(ctx, gen, route, promptPlan, reasoningContentPassback, routeGenerationInitial, traceRecorder)
+	plan = s.prepareRouteGeneration(ctx, routeGenerationPreparationInput{
+		Generation:               gen,
+		Route:                    route,
+		PromptPlan:               promptPlan,
+		ReasoningContentPassback: reasoningContentPassback,
+		Mode:                     routeGenerationInitial,
+		TraceRecorder:            traceRecorder,
+	})
 	runner.routeConfig = plan.routeConfig
 	if plan.generateInput.ResponsesBackground {
 		sendSpan.SetAttributes(attribute.Bool("conversation.responses_background", true))
@@ -768,7 +780,14 @@ func (s *Service) sendMessageInternal(
 			return nil, buildErr
 		}
 		runState.applyRoute(route)
-		plan = s.prepareRouteGeneration(ctx, gen, route, nextPromptPlan, nextReasoningContentPassback, routeGenerationFailover, traceRecorder)
+		plan = s.prepareRouteGeneration(ctx, routeGenerationPreparationInput{
+			Generation:               gen,
+			Route:                    route,
+			PromptPlan:               nextPromptPlan,
+			ReasoningContentPassback: nextReasoningContentPassback,
+			Mode:                     routeGenerationFailover,
+			TraceRecorder:            traceRecorder,
+		})
 		runner.beginRouteFailover(plan.routeConfig)
 		sendSpan.SetAttributes(
 			attribute.Bool("conversation.route_failover", true),
@@ -1135,7 +1154,13 @@ func (s *Service) sendMessageInternal(
 			traceRecorder.attachToMessage(assistantMessage)
 		}
 	} else {
-		compactPlatformModelName := s.resolveTextTaskModel(ctx, compactCfg.CompactTaskModel, conversation.Model, input.UserID, input.ConversationID, strings.TrimSpace(input.RequestID))
+		compactPlatformModelName := s.resolveTextTaskModel(ctx, textTaskRouteInput{
+			ConfiguredModel:   compactCfg.CompactTaskModel,
+			ConversationModel: conversation.Model,
+			UserID:            input.UserID,
+			ConversationID:    input.ConversationID,
+			RequestID:         input.RequestID,
+		})
 		compactInput.PlatformModelName = compactPlatformModelName
 		postBillingCompaction = &postBillingCompactionTask{
 			Async:          compactCfg.CompactAsyncEnabled,
@@ -1195,15 +1220,14 @@ func (s *Service) sendMessageInternal(
 	// Soft moderation barrier: show checking, then block or pass.
 	if moderationCoord != nil {
 		outputImages := s.loadOutputImagesForModeration(ctx, moderationCoord, input.UserID, assistantMessage.Attachments)
-		s.completeModerationAfterSuccess(
-			ctx,
-			moderationCoord,
-			result,
-			moderationOutputText(assistantText, assistantReasoningContent, traceRecorder.upstreamThinkContent()),
-			outputImages,
-			input,
-			reuseUserMessage,
-		)
+		s.completeModerationAfterSuccess(ctx, completeModerationAfterSuccessInput{
+			Coordinator:      moderationCoord,
+			Result:           result,
+			OutputText:       moderationOutputText(assistantText, assistantReasoningContent, traceRecorder.upstreamThinkContent()),
+			OutputImages:     outputImages,
+			EmbedInput:       input,
+			ReuseUserMessage: reuseUserMessage,
+		})
 	}
 	return result, nil
 }

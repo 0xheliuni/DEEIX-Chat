@@ -643,19 +643,18 @@ func TestBuildCompactionSummaryLiteFallbackKeepsPreviousSummary(t *testing.T) {
 		return "merged summary", nil
 	})
 
-	summary := svc.buildCompactionSummary(
-		t.Context(),
-		[]domainconversation.Message{
+	summary := svc.buildCompactionSummary(t.Context(), compactionSummaryInput{
+		Messages: []domainconversation.Message{
 			{ID: 3, Role: "user", Content: "new user"},
 			{ID: 4, Role: "assistant", Content: "new assistant"},
 		},
-		"previous summary",
-		"turn_cap",
-		1,
-		2,
-		1,
-		"model",
-	)
+		PreviousSummary:   "previous summary",
+		Strategy:          "turn_cap",
+		FromTurn:          1,
+		ToTurn:            2,
+		PreserveTurns:     1,
+		PlatformModelName: "model",
+	})
 
 	if summary != "merged summary" {
 		t.Fatalf("expected lite LLM summary, got %q", summary)

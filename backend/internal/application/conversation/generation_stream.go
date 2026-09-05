@@ -35,6 +35,27 @@ type generationStreamOptions struct {
 	SubscriberBuffer int
 }
 
+type readStoreEventsInput struct {
+	Store                    repository.GenerationStreamCacheRepository
+	UserID                   uint
+	RunID                    string
+	Cursor                   string
+	AfterSeq                 int64
+	TextSnapshotSeq          int64
+	UpstreamThinkSnapshotSeq int64
+	Output                   chan<- GenerationStreamEvent
+}
+
+type retainedStreamEventsInput struct {
+	Records                  []repository.GenerationStreamMessage
+	AfterSeq                 int64
+	TextSnapshot             repository.GenerationStreamTextSnapshot
+	HasTextSnapshot          bool
+	UpstreamThinkSnapshot    repository.GenerationStreamUpstreamThinkSnapshot
+	HasUpstreamThinkSnapshot bool
+	IncludeSnapshots         bool
+}
+
 func defaultGenerationStreamOptions() generationStreamOptions {
 	return generationStreamOptions{
 		Retention:        generationStreamRetention,
@@ -601,15 +622,15 @@ func (r *generationStreamRegistry) subscribeStore(
 	if !r.authorized(ctx, store, runID, userID) {
 		return nil, nil, nil, false
 	}
-	replay, cursor, terminal, safe := retainedStreamEvents(
-		retained,
-		afterSeq,
-		textSnapshot,
-		hasTextSnapshot,
-		upstreamThinkSnapshot,
-		hasUpstreamThinkSnapshot,
-		includeSnapshots,
-	)
+	replay, cursor, terminal, safe := retainedStreamEvents(retainedStreamEventsInput{
+		Records:                  retained,
+		AfterSeq:                 afterSeq,
+		TextSnapshot:             textSnapshot,
+		HasTextSnapshot:          hasTextSnapshot,
+		UpstreamThinkSnapshot:    upstreamThinkSnapshot,
+		HasUpstreamThinkSnapshot: hasUpstreamThinkSnapshot,
+		IncludeSnapshots:         includeSnapshots,
+	})
 	if !safe {
 		return nil, nil, nil, false
 	}
@@ -620,24 +641,23 @@ func (r *generationStreamRegistry) subscribeStore(
 	}
 
 	readCtx, cancel := context.WithCancel(ctx)
-	go r.readStoreEvents(readCtx, store, userID, runID, cursor, afterSeq, textSnapshot.Seq, upstreamThinkSnapshot.Seq, events)
+	go r.readStoreEvents(readCtx, readStoreEventsInput{
+		Store:                    store,
+		UserID:                   userID,
+		RunID:                    runID,
+		Cursor:                   cursor,
+		AfterSeq:                 afterSeq,
+		TextSnapshotSeq:          textSnapshot.Seq,
+		UpstreamThinkSnapshotSeq: upstreamThinkSnapshot.Seq,
+		Output:                   events,
+	})
 	return replay, events, cancel, true
 }
 
-func (r *generationStreamRegistry) readStoreEvents(
-	ctx context.Context,
-	store repository.GenerationStreamCacheRepository,
-	userID uint,
-	runID string,
-	cursor string,
-	afterSeq int64,
-	textSnapshotSeq int64,
-	upstreamThinkSnapshotSeq int64,
-	out chan<- GenerationStreamEvent,
-) {
-	defer close(out)
-	if strings.TrimSpace(cursor) == "" {
-		cursor = "0-0"
+func (r *generationStreamRegistry) readStoreEvents(ctx context.Context, input readStoreEventsInput) {
+	defer close(input.Output)
+	if strings.TrimSpace(input.Cursor) == "" {
+		input.Cursor = "0-0"
 	}
 	for {
 		select {
@@ -645,35 +665,35 @@ func (r *generationStreamRegistry) readStoreEvents(
 			return
 		default:
 		}
-		records, err := store.ReadGenerationStreamEvents(ctx, runID, cursor, generationStreamReadBlock, int64(r.options.SubscriberBuffer))
+		records, err := input.Store.ReadGenerationStreamEvents(ctx, input.RunID, input.Cursor, generationStreamReadBlock, int64(r.options.SubscriberBuffer))
 		if err != nil {
 			return
 		}
-		if !r.authorized(ctx, store, runID, userID) {
+		if !r.authorized(ctx, input.Store, input.RunID, input.UserID) {
 			return
 		}
 		for _, record := range records {
 			if strings.TrimSpace(record.ID) != "" {
-				cursor = record.ID
+				input.Cursor = record.ID
 			}
-			if record.Seq <= afterSeq {
+			if record.Seq <= input.AfterSeq {
 				continue
 			}
 			event, ok := decodeStreamRecord(record)
 			if !ok {
 				continue
 			}
-			if streamString(event.Payload["type"]) == "delta" && event.Seq <= textSnapshotSeq {
+			if streamString(event.Payload["type"]) == "delta" && event.Seq <= input.TextSnapshotSeq {
 				continue
 			}
-			if streamString(event.Payload["type"]) == "upstream_think_delta" && event.Seq <= upstreamThinkSnapshotSeq {
+			if streamString(event.Payload["type"]) == "upstream_think_delta" && event.Seq <= input.UpstreamThinkSnapshotSeq {
 				continue
 			}
-			afterSeq = event.Seq
+			input.AfterSeq = event.Seq
 			select {
 			case <-ctx.Done():
 				return
-			case out <- event:
+			case input.Output <- event:
 			}
 			if isTerminalStreamPayload(event.Payload) {
 				return
@@ -874,30 +894,22 @@ func stopActiveWorker(active *activeGeneration) {
 	}
 }
 
-func retainedStreamEvents(
-	records []repository.GenerationStreamMessage,
-	afterSeq int64,
-	textSnapshot repository.GenerationStreamTextSnapshot,
-	hasTextSnapshot bool,
-	upstreamThinkSnapshot repository.GenerationStreamUpstreamThinkSnapshot,
-	hasUpstreamThinkSnapshot bool,
-	includeSnapshots bool,
-) ([]GenerationStreamEvent, string, bool, bool) {
-	replay := make([]GenerationStreamEvent, 0, len(records)+2)
+func retainedStreamEvents(input retainedStreamEventsInput) ([]GenerationStreamEvent, string, bool, bool) {
+	replay := make([]GenerationStreamEvent, 0, len(input.Records)+2)
 	cursor := "0-0"
 	terminal := false
-	textSnapshotPending := includeSnapshots && hasTextSnapshot
-	upstreamThinkSnapshotPending := includeSnapshots && hasUpstreamThinkSnapshot
+	textSnapshotPending := input.IncludeSnapshots && input.HasTextSnapshot
+	upstreamThinkSnapshotPending := input.IncludeSnapshots && input.HasUpstreamThinkSnapshot
 	appendTextSnapshot := func() {
 		if !textSnapshotPending {
 			return
 		}
 		replay = append(replay, GenerationStreamEvent{
-			Seq: textSnapshot.Seq,
+			Seq: input.TextSnapshot.Seq,
 			Payload: map[string]interface{}{
 				"type":    "delta",
-				"seq":     textSnapshot.Seq,
-				"delta":   textSnapshot.Content,
+				"seq":     input.TextSnapshot.Seq,
+				"delta":   input.TextSnapshot.Content,
 				"replace": true,
 			},
 		})
@@ -908,22 +920,22 @@ func retainedStreamEvents(
 			return
 		}
 		replay = append(replay, GenerationStreamEvent{
-			Seq:     upstreamThinkSnapshot.Seq,
-			Payload: generationStreamUpstreamThinkSnapshotPayload(upstreamThinkSnapshot),
+			Seq:     input.UpstreamThinkSnapshot.Seq,
+			Payload: generationStreamUpstreamThinkSnapshotPayload(input.UpstreamThinkSnapshot),
 		})
 		upstreamThinkSnapshotPending = false
 	}
 	appendSnapshotsBefore := func(seq int64) {
-		for (textSnapshotPending && textSnapshot.Seq < seq) ||
-			(upstreamThinkSnapshotPending && upstreamThinkSnapshot.Seq < seq) {
-			if textSnapshotPending && (!upstreamThinkSnapshotPending || textSnapshot.Seq <= upstreamThinkSnapshot.Seq) {
+		for (textSnapshotPending && input.TextSnapshot.Seq < seq) ||
+			(upstreamThinkSnapshotPending && input.UpstreamThinkSnapshot.Seq < seq) {
+			if textSnapshotPending && (!upstreamThinkSnapshotPending || input.TextSnapshot.Seq <= input.UpstreamThinkSnapshot.Seq) {
 				appendTextSnapshot()
 				continue
 			}
 			appendUpstreamThinkSnapshot()
 		}
 	}
-	for _, record := range records {
+	for _, record := range input.Records {
 		if strings.TrimSpace(record.ID) != "" {
 			cursor = record.ID
 		}
@@ -938,27 +950,27 @@ func retainedStreamEvents(
 		if streamString(event.Payload["type"]) == "delta" {
 			// A text delta without a cumulative checkpoint cannot be replayed
 			// safely once the bounded event window has trimmed older chunks.
-			if includeSnapshots && !hasTextSnapshot {
+			if input.IncludeSnapshots && !input.HasTextSnapshot {
 				return nil, cursor, terminal, false
 			}
-			if includeSnapshots && event.Seq <= textSnapshot.Seq {
+			if input.IncludeSnapshots && event.Seq <= input.TextSnapshot.Seq {
 				continue
 			}
 		}
 		if streamString(event.Payload["type"]) == "upstream_think_delta" {
-			if includeSnapshots && !hasUpstreamThinkSnapshot && upstreamThinkPayloadHasContent(event.Payload) {
+			if input.IncludeSnapshots && !input.HasUpstreamThinkSnapshot && upstreamThinkPayloadHasContent(event.Payload) {
 				return nil, cursor, terminal, false
 			}
-			if includeSnapshots && event.Seq <= upstreamThinkSnapshot.Seq {
+			if input.IncludeSnapshots && event.Seq <= input.UpstreamThinkSnapshot.Seq {
 				continue
 			}
 		}
-		if event.Seq > afterSeq {
+		if event.Seq > input.AfterSeq {
 			replay = append(replay, event)
 		}
 	}
 	if textSnapshotPending && upstreamThinkSnapshotPending {
-		if textSnapshot.Seq <= upstreamThinkSnapshot.Seq {
+		if input.TextSnapshot.Seq <= input.UpstreamThinkSnapshot.Seq {
 			appendTextSnapshot()
 		} else {
 			appendUpstreamThinkSnapshot()

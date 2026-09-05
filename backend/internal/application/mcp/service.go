@@ -159,10 +159,19 @@ func (s *Service) DeleteServer(ctx context.Context, serverID uint) error {
 func (s *Service) SyncServerTools(ctx context.Context, input SyncServerToolsInput) ([]domainmcp.Tool, error) {
 	serverID := input.ServerID
 	fail := func(err error) ([]domainmcp.Tool, error) {
-		s.writeToolSyncEvent(ctx, input.RequestID, "error", "mcp.tools_sync_failed", serverID, "MCP 工具同步失败", map[string]interface{}{
-			"server_id":  serverID,
-			"error":      "MCP 工具同步失败",
-			"error_code": mcpSyncErrorCode(err),
+		s.writeToolSyncEvent(ctx, systemeventapp.WriteInput{
+			RequestID:  input.RequestID,
+			Level:      "error",
+			Source:     "mcp",
+			Event:      "mcp.tools_sync_failed",
+			Resource:   "mcp_server",
+			ResourceID: fmt.Sprintf("%d", serverID),
+			Message:    "MCP 工具同步失败",
+			Detail: map[string]interface{}{
+				"server_id":  serverID,
+				"error":      "MCP 工具同步失败",
+				"error_code": mcpSyncErrorCode(err),
+			},
 		})
 		return nil, err
 	}
@@ -239,10 +248,19 @@ func (s *Service) SyncServerTools(ctx context.Context, input SyncServerToolsInpu
 	if err != nil {
 		return fail(err)
 	}
-	s.writeToolSyncEvent(ctx, input.RequestID, "info", "mcp.tools_synced", serverID, "MCP 工具已同步", map[string]interface{}{
-		"server_id":                     serverID,
-		"tool_count":                    len(result),
-		"overwrite_customized_metadata": input.OverwriteCustomizedMetadata,
+	s.writeToolSyncEvent(ctx, systemeventapp.WriteInput{
+		RequestID:  input.RequestID,
+		Level:      "info",
+		Source:     "mcp",
+		Event:      "mcp.tools_synced",
+		Resource:   "mcp_server",
+		ResourceID: fmt.Sprintf("%d", serverID),
+		Message:    "MCP 工具已同步",
+		Detail: map[string]interface{}{
+			"server_id":                     serverID,
+			"tool_count":                    len(result),
+			"overwrite_customized_metadata": input.OverwriteCustomizedMetadata,
+		},
 	})
 	return result, nil
 }
@@ -273,20 +291,12 @@ func preserveCompatibleToolAttachmentConfig(discovered *domainmcp.Tool, existing
 	discovered.AttachmentPromptArgument = config.PromptArgument
 }
 
-func (s *Service) writeToolSyncEvent(ctx context.Context, requestID string, level string, event string, serverID uint, message string, detail interface{}) {
+func (s *Service) writeToolSyncEvent(ctx context.Context, input systemeventapp.WriteInput) {
 	if s.systemEventWriter == nil {
 		return
 	}
-	s.systemEventWriter.Write(ctx, systemeventapp.WriteInput{
-		RequestID:  strings.TrimSpace(requestID),
-		Level:      level,
-		Source:     "mcp",
-		Event:      event,
-		Resource:   "mcp_server",
-		ResourceID: fmt.Sprintf("%d", serverID),
-		Message:    message,
-		Detail:     detail,
-	})
+	input.RequestID = strings.TrimSpace(input.RequestID)
+	s.systemEventWriter.Write(ctx, input)
 }
 
 func (s *Service) ListTools(ctx context.Context, serverID uint, onlyActive bool) ([]domainmcp.Tool, error) {

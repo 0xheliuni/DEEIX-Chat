@@ -269,7 +269,12 @@ func TestRegisterWithEmailRequiresTurnstileWhenEmailVerificationDisabled(t *test
 		TurnstileSecretKey:           "secret-key",
 	}, nil, nil)
 
-	_, err := service.RegisterWithEmail(context.Background(), "user@example.com", "securepass1", "", "", "127.0.0.1", "", requestmeta.SessionAuditContext{})
+	_, err := service.RegisterWithEmail(context.Background(), RegisterWithEmailInput{
+		Email:        "user@example.com",
+		Password:     "securepass1",
+		RemoteIP:     "127.0.0.1",
+		AuditContext: requestmeta.SessionAuditContext{},
+	})
 	if err == nil || err.Error() != "turnstile verification is required" {
 		t.Fatalf("expected turnstile required error, got %v", err)
 	}
@@ -285,7 +290,12 @@ func TestRegisterWithEmailDoesNotRequireTurnstileWhenEmailVerificationEnabled(t 
 		TurnstileSecretKey:           "secret-key",
 	}, &emailRegistrationRepo{}, nil)
 
-	_, err := service.RegisterWithEmail(context.Background(), "user@example.com", "securepass1", "", "", "127.0.0.1", "", requestmeta.SessionAuditContext{})
+	_, err := service.RegisterWithEmail(context.Background(), RegisterWithEmailInput{
+		Email:        "user@example.com",
+		Password:     "securepass1",
+		RemoteIP:     "127.0.0.1",
+		AuditContext: requestmeta.SessionAuditContext{},
+	})
 	if err == nil || err.Error() != "verification code is invalid or expired" {
 		t.Fatalf("expected verification code error instead of turnstile error, got %v", err)
 	}
@@ -361,7 +371,11 @@ func TestCompleteEmailChangeDoesNotVerifyEmailWhenEmailVerificationDisabled(t *t
 	}
 	service := newTestService(config.Config{EmailVerificationEnabled: false}, repo, nil)
 
-	updated, err := service.CompleteEmailChange(context.Background(), 1, "new@example.com", "", "", "", "", requestmeta.SessionAuditContext{})
+	updated, err := service.CompleteEmailChange(context.Background(), CompleteEmailChangeInput{
+		UserID:       1,
+		NewEmail:     "new@example.com",
+		AuditContext: requestmeta.SessionAuditContext{},
+	})
 	if err != nil {
 		t.Fatalf("CompleteEmailChange() error = %v", err)
 	}
@@ -431,7 +445,7 @@ func (r *emailRegistrationRepo) GetByEmail(ctx context.Context, email string) (*
 	return nil, repository.ErrNotFound
 }
 
-func (r *emailRegistrationRepo) RecordAuthEvent(ctx context.Context, userID uint, requestID string, eventType string, result string, reason string, clientIP string, userAgent string, detailJSON string) error {
+func (r *emailRegistrationRepo) RecordAuthEvent(ctx context.Context, input repository.AuthEventInput) error {
 	return nil
 }
 
@@ -538,6 +552,6 @@ func (r *securityVerificationRepo) MarkContactVerificationVerified(ctx context.C
 	return repository.ErrNotFound
 }
 
-func (r *securityVerificationRepo) RecordAuthEvent(ctx context.Context, userID uint, requestID string, eventType string, result string, reason string, clientIP string, userAgent string, detailJSON string) error {
+func (r *securityVerificationRepo) RecordAuthEvent(ctx context.Context, input repository.AuthEventInput) error {
 	return nil
 }

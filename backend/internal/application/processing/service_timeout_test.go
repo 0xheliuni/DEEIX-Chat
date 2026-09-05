@@ -12,7 +12,10 @@ import (
 )
 
 func TestExtractTextForProcessingRequiresExtractionService(t *testing.T) {
-	service := NewServiceWithRuntime(config.NewRuntime(config.Config{}), nil, nil, nil, nil, nil, "pipeline-v1")
+	service := NewServiceWithRuntime(Dependencies{
+		Config:           config.NewRuntime(config.Config{}),
+		ExtractorVersion: "pipeline-v1",
+	})
 	if service.extractSvc != nil {
 		t.Fatal("expected nil extraction dependency to remain explicit")
 	}
@@ -186,7 +189,11 @@ func TestProcessFileFinalizesImageWhenOCRIsDisabled(t *testing.T) {
 					ProcessingStatus: testCase.status,
 				},
 			}
-			service := NewServiceWithRuntime(config.NewRuntime(config.Config{}), repo, nil, nil, nil, nil, "pipeline-v1")
+			service := NewServiceWithRuntime(Dependencies{
+				Config:           config.NewRuntime(config.Config{}),
+				Repository:       repo,
+				ExtractorVersion: "pipeline-v1",
+			})
 
 			claimed, err := service.processFile(context.Background(), 7, "file_1", testCase.allowRecovery, "attempt_1")
 			if err != nil {

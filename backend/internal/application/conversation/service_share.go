@@ -608,13 +608,22 @@ func (s *Service) cloneSharedMessageTrace(
 		return nil
 	}
 	startedAt := time.Now().UTC()
-	if err := s.cloneSharedTraceBlock(ctx, userID, conversationID, messageID, runID, messageTraceTypeProcess, 1, startedAt, trace.Process); err != nil {
+	if err := s.cloneSharedTraceBlock(ctx, cloneSharedTraceBlockInput{
+		UserID: userID, ConversationID: conversationID, MessageID: messageID, RunID: runID,
+		TraceType: messageTraceTypeProcess, Sequence: 1, StartedAt: startedAt, Block: trace.Process,
+	}); err != nil {
 		return err
 	}
-	if err := s.cloneSharedTraceBlock(ctx, userID, conversationID, messageID, runID, messageTraceTypeTools, 2, startedAt, trace.Tools); err != nil {
+	if err := s.cloneSharedTraceBlock(ctx, cloneSharedTraceBlockInput{
+		UserID: userID, ConversationID: conversationID, MessageID: messageID, RunID: runID,
+		TraceType: messageTraceTypeTools, Sequence: 2, StartedAt: startedAt, Block: trace.Tools,
+	}); err != nil {
 		return err
 	}
-	if err := s.cloneSharedTraceBlock(ctx, userID, conversationID, messageID, runID, messageTraceTypeUpstreamThink, 3, startedAt, trace.UpstreamThink); err != nil {
+	if err := s.cloneSharedTraceBlock(ctx, cloneSharedTraceBlockInput{
+		UserID: userID, ConversationID: conversationID, MessageID: messageID, RunID: runID,
+		TraceType: messageTraceTypeUpstreamThink, Sequence: 3, StartedAt: startedAt, Block: trace.UpstreamThink,
+	}); err != nil {
 		return err
 	}
 	for _, event := range trace.Events {
@@ -653,39 +662,40 @@ func (s *Service) cloneSharedMessageTrace(
 	return nil
 }
 
-func (s *Service) cloneSharedTraceBlock(
-	ctx context.Context,
-	userID uint,
-	conversationID uint,
-	messageID uint,
-	runID string,
-	traceType string,
-	seq int,
-	startedAt time.Time,
-	block *model.MessageTraceBlock,
-) error {
-	if block == nil {
+type cloneSharedTraceBlockInput struct {
+	UserID         uint
+	ConversationID uint
+	MessageID      uint
+	RunID          string
+	TraceType      string
+	Sequence       int
+	StartedAt      time.Time
+	Block          *model.MessageTraceBlock
+}
+
+func (s *Service) cloneSharedTraceBlock(ctx context.Context, input cloneSharedTraceBlockInput) error {
+	if input.Block == nil {
 		return nil
 	}
-	rowStartedAt := block.UpdatedAt
+	rowStartedAt := input.Block.UpdatedAt
 	if rowStartedAt.IsZero() {
-		rowStartedAt = startedAt
+		rowStartedAt = input.StartedAt
 	}
 	return s.repo.UpsertConversationMessageTrace(ctx, &model.MessageTrace{
-		MessageID:       messageID,
-		ConversationID:  conversationID,
-		UserID:          userID,
-		RunID:           runID,
-		TraceType:       traceType,
-		Status:          block.Status,
-		Stage:           block.Stage,
-		RoundID:         block.RoundID,
-		ParentEventID:   block.ParentEventID,
-		Title:           block.Title,
-		Summary:         block.Summary,
-		ContentMarkdown: block.ContentMarkdown,
-		PayloadJSON:     sanitizeSharedTracePayloadJSON(block.PayloadJSON),
-		Seq:             seq,
+		MessageID:       input.MessageID,
+		ConversationID:  input.ConversationID,
+		UserID:          input.UserID,
+		RunID:           input.RunID,
+		TraceType:       input.TraceType,
+		Status:          input.Block.Status,
+		Stage:           input.Block.Stage,
+		RoundID:         input.Block.RoundID,
+		ParentEventID:   input.Block.ParentEventID,
+		Title:           input.Block.Title,
+		Summary:         input.Block.Summary,
+		ContentMarkdown: input.Block.ContentMarkdown,
+		PayloadJSON:     sanitizeSharedTracePayloadJSON(input.Block.PayloadJSON),
+		Seq:             input.Sequence,
 		StartedAt:       rowStartedAt,
 	})
 }

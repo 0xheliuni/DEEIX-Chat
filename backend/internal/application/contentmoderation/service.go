@@ -250,7 +250,14 @@ func (s *Service) BeginRun(ctx context.Context, meta RunMeta) *RunCoordinator {
 			domaincm.ErrorCodeConfigMissing,
 			0,
 		)
-		s.bumpDailyStat(ctx, domaincm.DirectionInput, domaincm.ModalityText, domaincm.ResultFailedOpen, "", 1, 1, 0, 1, 0)
+		s.bumpDailyStat(ctx, repository.DailyStatIncrement{
+			Direction:    domaincm.DirectionInput,
+			Modality:     domaincm.ModalityText,
+			Result:       domaincm.ResultFailedOpen,
+			CheckCount:   1,
+			ContentItems: 1,
+			FailureCount: 1,
+		})
 		s.logWarn("content_moderation_config_load_failed", zap.String("run_id", meta.RunID), zap.Error(err))
 		return coord
 	}

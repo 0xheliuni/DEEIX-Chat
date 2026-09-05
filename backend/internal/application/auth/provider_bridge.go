@@ -213,7 +213,6 @@ func (s *Service) CompleteProviderAuthBridgeCallback(
 					strings.TrimSpace(input.Code),
 					callbackURL,
 					transaction.ProviderCodeVerifier,
-					transaction.Intent,
 				)
 			}
 		}

@@ -36,6 +36,30 @@ type avatarFileValidator interface {
 	ValidateImageFile(ctx context.Context, userID uint, fileID string) error
 }
 
+// CreateUserInput 描述管理员创建普通用户所需的账号与订阅信息。
+type CreateUserInput struct {
+	Username              string
+	Password              string
+	AvatarURL             string
+	DisplayName           string
+	Email                 string
+	Phone                 string
+	Timezone              string
+	Locale                string
+	BillingMode           string
+	SubscriptionTier      string
+	SubscriptionExpiresAt *time.Time
+}
+
+// AuthEventListInput 描述管理员查询认证事件的筛选与分页条件。
+type AuthEventListInput struct {
+	UserID    uint
+	EventType string
+	Result    string
+	Page      int
+	PageSize  int
+}
+
 // NewService 创建服务。
 func NewService(repo repository.UserRepository) *Service {
 	return &Service{repo: repo}
@@ -178,21 +202,8 @@ func (s *Service) ImportUsersWithCredentialsAndBalances(ctx context.Context, rec
 }
 
 // CreateUser 创建普通用户账号。
-func (s *Service) CreateUser(
-	ctx context.Context,
-	username string,
-	password string,
-	avatarURL string,
-	displayName string,
-	email string,
-	phone string,
-	timezone string,
-	locale string,
-	billingMode string,
-	subscriptionTier string,
-	subscriptionExpiresAt *time.Time,
-) (*domainuser.User, error) {
-	normalizedUsername, err := NormalizeUsername(username)
+func (s *Service) CreateUser(ctx context.Context, input CreateUserInput) (*domainuser.User, error) {
+	normalizedUsername, err := NormalizeUsername(input.Username)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +215,7 @@ func (s *Service) CreateUser(
 		return nil, err
 	}
 
-	normalizedPassword, err := NormalizePassword(password)
+	normalizedPassword, err := NormalizePassword(input.Password)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +225,7 @@ func (s *Service) CreateUser(
 	}
 	now := time.Now()
 
-	normalizedAvatarURL := strings.TrimSpace(avatarURL)
+	normalizedAvatarURL := strings.TrimSpace(input.AvatarURL)
 	if !domainuser.IsValidAvatarURL(normalizedAvatarURL) {
 		return nil, ErrInvalidAvatarURL
 	}
@@ -222,7 +233,7 @@ func (s *Service) CreateUser(
 		return nil, ErrInvalidAvatarURL
 	}
 
-	normalizedDisplayName := strings.TrimSpace(displayName)
+	normalizedDisplayName := strings.TrimSpace(input.DisplayName)
 	if normalizedDisplayName == "" {
 		normalizedDisplayName = normalizedUsername
 	}
@@ -231,17 +242,17 @@ func (s *Service) CreateUser(
 		return nil, err
 	}
 
-	normalizedEmail, err := NormalizeEmail(email)
+	normalizedEmail, err := NormalizeEmail(input.Email)
 	if err != nil {
 		return nil, err
 	}
 
-	normalizedPhone, err := NormalizePhone(phone)
+	normalizedPhone, err := NormalizePhone(input.Phone)
 	if err != nil {
 		return nil, err
 	}
 
-	normalizedTimezone := strings.TrimSpace(timezone)
+	normalizedTimezone := strings.TrimSpace(input.Timezone)
 	if normalizedTimezone == "" {
 		normalizedTimezone = "Etc/UTC"
 	}
@@ -249,18 +260,18 @@ func (s *Service) CreateUser(
 		return nil, ErrInvalidTimeZone
 	}
 
-	normalizedLocale, err := normalizeLocale(locale)
+	normalizedLocale, err := normalizeLocale(input.Locale)
 	if err != nil {
 		return nil, err
 	}
 
-	normalizedBillingMode := strings.ToLower(strings.TrimSpace(billingMode))
+	normalizedBillingMode := strings.ToLower(strings.TrimSpace(input.BillingMode))
 	var subscriptionPlanID uint
 	var subscriptionPriceID uint
 	var normalizedSubscriptionEndAt *time.Time
 	autoRenew := false
 	if normalizedBillingMode == "period" {
-		normalizedSubscriptionTier := strings.ToLower(strings.TrimSpace(subscriptionTier))
+		normalizedSubscriptionTier := strings.ToLower(strings.TrimSpace(input.SubscriptionTier))
 		if normalizedSubscriptionTier == "" {
 			normalizedSubscriptionTier = defaultFreePlanCode
 		}
@@ -284,10 +295,10 @@ func (s *Service) CreateUser(
 		subscriptionPlanID = plan.ID
 		subscriptionPriceID = price.ID
 		if plan.Code != defaultFreePlanCode {
-			if subscriptionExpiresAt == nil {
+			if input.SubscriptionExpiresAt == nil {
 				return nil, ErrSubscriptionExpiryRequired
 			}
-			expiresAt := subscriptionExpiresAt.UTC()
+			expiresAt := input.SubscriptionExpiresAt.UTC()
 			if !expiresAt.After(time.Now().UTC()) {
 				return nil, ErrInvalidSubscriptionExpiry
 			}
@@ -311,10 +322,9 @@ func (s *Service) CreateUser(
 		Locale:      normalizedLocale,
 	}
 
-	if err = s.repo.CreateWithCredential(
-		ctx,
-		item,
-		domainuser.Credential{
+	if err = s.repo.CreateWithCredential(ctx, repository.CreateWithCredentialInput{
+		User: item,
+		Credential: domainuser.Credential{
 			PasswordHash:      string(passwordHash),
 			PasswordAlgo:      "bcrypt",
 			PasswordEnabled:   true,
@@ -322,11 +332,11 @@ func (s *Service) CreateUser(
 			PasswordSetAt:     &now,
 			PasswordOrigin:    domainuser.PasswordOriginAdminCreated,
 		},
-		subscriptionPlanID,
-		subscriptionPriceID,
-		normalizedSubscriptionEndAt,
-		autoRenew,
-	); err != nil {
+		SubscriptionPlanID:  subscriptionPlanID,
+		SubscriptionPriceID: subscriptionPriceID,
+		SubscriptionEndAt:   normalizedSubscriptionEndAt,
+		AutoRenew:           autoRenew,
+	}); err != nil {
 		return nil, err
 	}
 	return item, nil
@@ -411,49 +421,20 @@ func (s *Service) DeleteAccountHard(ctx context.Context, userID uint) error {
 }
 
 // ListAuthEvents 查询认证事件列表。
-func (s *Service) ListAuthEvents(
-	ctx context.Context,
-	userID uint,
-	eventType string,
-	result string,
-	page int,
-	pageSize int,
-) ([]domainuser.AuthEvent, int64, error) {
-	offset, limit := pagination.Offset(page, pageSize)
-
-	return s.repo.ListAuthEvents(
-		ctx,
-		userID,
-		strings.TrimSpace(eventType),
-		strings.TrimSpace(result),
-		offset,
-		limit,
-	)
+func (s *Service) ListAuthEvents(ctx context.Context, input AuthEventListInput) ([]domainuser.AuthEvent, int64, error) {
+	offset, limit := pagination.Offset(input.Page, input.PageSize)
+	return s.repo.ListAuthEvents(ctx, repository.AuthEventListInput{
+		UserID:    input.UserID,
+		EventType: strings.TrimSpace(input.EventType),
+		Result:    strings.TrimSpace(input.Result),
+		Offset:    offset,
+		Limit:     limit,
+	})
 }
 
 // RecordAuthEvent 写入认证事件。
-func (s *Service) RecordAuthEvent(
-	ctx context.Context,
-	userID uint,
-	requestID string,
-	eventType string,
-	result string,
-	reason string,
-	clientIP string,
-	userAgent string,
-	detailJSON string,
-) error {
-	return s.repo.RecordAuthEvent(
-		ctx,
-		userID,
-		requestID,
-		eventType,
-		result,
-		reason,
-		clientIP,
-		userAgent,
-		detailJSON,
-	)
+func (s *Service) RecordAuthEvent(ctx context.Context, input repository.AuthEventInput) error {
+	return s.repo.RecordAuthEvent(ctx, input)
 }
 
 func normalizePublicID(raw string) string {

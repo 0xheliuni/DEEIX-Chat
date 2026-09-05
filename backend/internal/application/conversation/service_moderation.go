@@ -35,6 +35,15 @@ type MessageModerationOutcome struct {
 	TerminalEmitted bool
 }
 
+type completeModerationAfterSuccessInput struct {
+	Coordinator      *appcm.RunCoordinator
+	Result           *SendMessageResult
+	OutputText       string
+	OutputImages     []appcm.OutputImageSource
+	EmbedInput       SendMessageInput
+	ReuseUserMessage bool
+}
+
 // IsModerationBlocked reports whether the turn was blocked after a safety check.
 func (r *SendMessageResult) IsModerationBlocked() bool {
 	return r != nil && r.Moderation != nil && r.Moderation.Blocked
@@ -159,28 +168,20 @@ func (s *Service) startModerationRun(
 // completeModerationAfterSuccess runs the post-generation barrier.
 // On block it mutates result into a blocked snapshot and sets result.Moderation.
 // Callers branch on result.IsModerationBlocked(); embed only runs on pass/fail-open.
-func (s *Service) completeModerationAfterSuccess(
-	ctx context.Context,
-	coord *appcm.RunCoordinator,
-	result *SendMessageResult,
-	outputText string,
-	outputImages []appcm.OutputImageSource,
-	embedInput SendMessageInput,
-	reuseUserMessage bool,
-) {
-	if coord == nil || result == nil {
+func (s *Service) completeModerationAfterSuccess(ctx context.Context, input completeModerationAfterSuccessInput) {
+	if input.Coordinator == nil || input.Result == nil {
 		return
 	}
-	barrier := coord.AfterGeneration(ctx, outputText, outputImages)
-	applyBarrierOutcome(result, barrier)
-	if result.IsModerationBlocked() {
+	barrier := input.Coordinator.AfterGeneration(ctx, input.OutputText, input.OutputImages)
+	applyBarrierOutcome(input.Result, barrier)
+	if input.Result.IsModerationBlocked() {
 		return
 	}
 	// Pass / fail-open: embed now (persist path skipped embed while barrier was active).
-	if reuseUserMessage {
-		s.embedMessagePairAsync(ctx, embedInput, nil, &result.AssistantMessage)
+	if input.ReuseUserMessage {
+		s.embedMessagePairAsync(ctx, input.EmbedInput, nil, &input.Result.AssistantMessage)
 	} else {
-		s.embedMessagePairAsync(ctx, embedInput, &result.UserMessage, &result.AssistantMessage)
+		s.embedMessagePairAsync(ctx, input.EmbedInput, &input.Result.UserMessage, &input.Result.AssistantMessage)
 	}
 }
 

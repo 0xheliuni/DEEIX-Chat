@@ -37,6 +37,18 @@ type ConversationSearchResult struct {
 	Conversation model.Conversation
 }
 
+// ListConversationsInput 描述用户会话列表的分页与筛选条件。
+type ListConversationsInput struct {
+	UserID        uint
+	Page          int
+	PageSize      int
+	StatusFilter  string
+	StarredFilter string
+	ShareFilter   string
+	ProjectFilter string
+	SearchQuery   string
+}
+
 // CreateConversation 创建用户新会话。
 func (s *Service) CreateConversation(ctx context.Context, userID uint, title string, modelName string, projectPublicID string) (*model.Conversation, error) {
 	normalizedTitle := strings.TrimSpace(title)
@@ -98,19 +110,18 @@ func (s *Service) CreateConversation(ctx context.Context, userID uint, title str
 }
 
 // ListConversations 分页查询会话。
-func (s *Service) ListConversations(
-	ctx context.Context,
-	userID uint,
-	page int,
-	pageSize int,
-	statusFilter string,
-	starredFilter string,
-	shareFilter string,
-	projectFilter string,
-	searchQuery string,
-) ([]model.Conversation, int64, error) {
-	offset, limit := pagination.Offset(page, pageSize)
-	return s.repo.ListConversationsByUser(ctx, userID, offset, limit, statusFilter, starredFilter, shareFilter, normalizeConversationProjectFilter(projectFilter), searchQuery)
+func (s *Service) ListConversations(ctx context.Context, input ListConversationsInput) ([]model.Conversation, int64, error) {
+	offset, limit := pagination.Offset(input.Page, input.PageSize)
+	return s.repo.ListConversationsByUser(ctx, repository.ConversationListInput{
+		UserID:        input.UserID,
+		Offset:        offset,
+		Limit:         limit,
+		StatusFilter:  input.StatusFilter,
+		StarredFilter: input.StarredFilter,
+		ShareFilter:   input.ShareFilter,
+		ProjectFilter: normalizeConversationProjectFilter(input.ProjectFilter),
+		SearchQuery:   input.SearchQuery,
+	})
 }
 
 // SearchConversations 分页搜索当前用户的会话，并通过前瞻记录判断是否还有下一页。

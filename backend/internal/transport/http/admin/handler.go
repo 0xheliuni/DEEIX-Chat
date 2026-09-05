@@ -113,19 +113,18 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	item, err := h.service.CreateUser(
-		c.Request.Context(),
-		req.Username,
-		req.Password,
-		req.AvatarURL,
-		req.DisplayName,
-		req.Email,
-		req.Phone,
-		req.Timezone,
-		req.Locale,
-		req.SubscriptionTier,
-		req.SubscriptionExpiresAt,
-	)
+	item, err := h.service.CreateUser(c.Request.Context(), appadmin.CreateUserInput{
+		Username:              req.Username,
+		Password:              req.Password,
+		AvatarURL:             req.AvatarURL,
+		DisplayName:           req.DisplayName,
+		Email:                 req.Email,
+		Phone:                 req.Phone,
+		Timezone:              req.Timezone,
+		Locale:                req.Locale,
+		SubscriptionTier:      req.SubscriptionTier,
+		SubscriptionExpiresAt: req.SubscriptionExpiresAt,
+	})
 	if err != nil {
 		switch {
 		case errors.Is(err, user.ErrUsernameTaken):
@@ -152,15 +151,14 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		}
 	}
 
-	h.service.WriteAdminCreateUserAudit(
-		c.Request.Context(),
-		middleware.MustRequestID(c),
-		actorUserID,
-		item.ID,
-		item.Username,
-		c.ClientIP(),
-		c.Request.UserAgent(),
-	)
+	h.service.WriteAdminCreateUserAudit(c.Request.Context(), appadmin.CreateUserAuditInput{
+		RequestID:     middleware.MustRequestID(c),
+		ActorUserID:   actorUserID,
+		CreatedUserID: item.ID,
+		Username:      item.Username,
+		IP:            c.ClientIP(),
+		UserAgent:     c.Request.UserAgent(),
+	})
 
 	view, err := h.service.BuildUserView(c.Request.Context(), *item)
 	if err != nil {
@@ -261,15 +259,14 @@ func (h *Handler) PatchUser(c *gin.Context) {
 		return
 	}
 
-	item, err := h.service.PatchUserByAdmin(
-		c.Request.Context(),
-		middleware.MustRequestID(c),
-		actorUserID,
-		uint(parsedID),
-		toAppPatchUserInput(req),
-		c.ClientIP(),
-		c.Request.UserAgent(),
-	)
+	item, err := h.service.PatchUserByAdmin(c.Request.Context(), appadmin.PatchUserByAdminInput{
+		RequestID:    middleware.MustRequestID(c),
+		ActorUserID:  actorUserID,
+		TargetUserID: uint(parsedID),
+		Patch:        toAppPatchUserInput(req),
+		IP:           c.ClientIP(),
+		UserAgent:    c.Request.UserAgent(),
+	})
 	if err != nil {
 		switch {
 		case errors.Is(err, appadmin.ErrInvalidUserEmail),
@@ -1026,16 +1023,15 @@ func (h *Handler) UpdateUserStatus(c *gin.Context) {
 		return
 	}
 
-	item, err := h.service.UpdateUserStatusByAdmin(
-		c.Request.Context(),
-		middleware.MustRequestID(c),
-		actorUserID,
-		uint(parsedID),
-		req.Status,
-		req.Reason,
-		c.ClientIP(),
-		c.Request.UserAgent(),
-	)
+	item, err := h.service.UpdateUserStatusByAdmin(c.Request.Context(), appadmin.UpdateUserStatusInput{
+		RequestID:    middleware.MustRequestID(c),
+		ActorUserID:  actorUserID,
+		TargetUserID: uint(parsedID),
+		Status:       req.Status,
+		Reason:       req.Reason,
+		IP:           c.ClientIP(),
+		UserAgent:    c.Request.UserAgent(),
+	})
 	if err != nil {
 		if errors.Is(err, appadmin.ErrInvalidUserStatus) {
 			response.ErrorFrom(c, http.StatusBadRequest, err)
@@ -1102,16 +1098,15 @@ func (h *Handler) ResetUserPassword(c *gin.Context) {
 		mustResetPassword = *req.MustResetPassword
 	}
 
-	if err = h.service.ResetUserPasswordByAdmin(
-		c.Request.Context(),
-		middleware.MustRequestID(c),
-		actorUserID,
-		uint(parsedID),
-		req.NewPassword,
-		mustResetPassword,
-		c.ClientIP(),
-		c.Request.UserAgent(),
-	); err != nil {
+	if err = h.service.ResetUserPasswordByAdmin(c.Request.Context(), appadmin.ResetUserPasswordInput{
+		RequestID:         middleware.MustRequestID(c),
+		ActorUserID:       actorUserID,
+		TargetUserID:      uint(parsedID),
+		NewPassword:       req.NewPassword,
+		MustResetPassword: mustResetPassword,
+		IP:                c.ClientIP(),
+		UserAgent:         c.Request.UserAgent(),
+	}); err != nil {
 		if errors.Is(err, user.ErrUserNotFound) {
 			response.ErrorFrom(c, http.StatusNotFound, err)
 			return
@@ -1253,14 +1248,13 @@ func (h *Handler) ListUserAuthEvents(c *gin.Context) {
 	}
 
 	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
-	items, total, err := h.service.ListUserAuthEventsByAdmin(
-		c.Request.Context(),
-		userID,
-		c.Query("event_type"),
-		c.Query("result"),
-		page,
-		pageSize,
-	)
+	items, total, err := h.service.ListUserAuthEventsByAdmin(c.Request.Context(), user.AuthEventListInput{
+		UserID:    userID,
+		EventType: c.Query("event_type"),
+		Result:    c.Query("result"),
+		Page:      page,
+		PageSize:  pageSize,
+	})
 	if err != nil {
 		response.InternalError(c)
 		return
@@ -1295,7 +1289,14 @@ func (h *Handler) ExportConversations(c *gin.Context) {
 	}
 
 	actorUserID := middleware.MustUserID(c)
-	h.service.WriteAuditLog(c.Request.Context(), middleware.MustRequestID(c), actorUserID, "admin_export_conversations", "conversation", "", c.ClientIP(), c.Request.UserAgent(), nil)
+	h.service.WriteAuditLog(c.Request.Context(), auditapp.WriteInput{
+		RequestID:   middleware.MustRequestID(c),
+		ActorUserID: actorUserID,
+		Action:      "admin_export_conversations",
+		Resource:    "conversation",
+		IP:          c.ClientIP(),
+		UserAgent:   c.Request.UserAgent(),
+	})
 
 	c.Header("Content-Type", "application/x-ndjson")
 	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="conversations-export-%s.jsonl"`, time.Now().UTC().Format("20060102-150405")))

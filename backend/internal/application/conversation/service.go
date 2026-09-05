@@ -263,42 +263,45 @@ type MessageFeedbackResult struct {
 	ThumbsDownCount int64
 }
 
+// Dependencies 描述会话服务运行所需的应用依赖。
+type Dependencies struct {
+	Config            *config.Runtime
+	Repository        repository.ConversationRepository
+	Cache             repository.ConversationCacheRepository
+	RouteResolver     routeResolver
+	MemoryRecorder    memoryRecorder
+	LLMClient         llmGateway
+	MediaDownloader   generatedMediaDownloader
+	MCPClient         mcpToolCaller
+	CompactService    *appcompact.Service
+	EmbeddingService  *appembedding.Service
+	ProcessingService *appprocessing.Service
+	UploadService     *appupload.Service
+	ExtractService    *extraction.Service
+	RAGService        *apprag.Service
+	Logger            *zap.Logger
+}
+
 // NewServiceWithRuntime 创建使用运行时配置容器的服务。
 // 压缩、embedding、处理流水线、上传、抽取与 RAG 服务全部由组合根装配后注入。
-func NewServiceWithRuntime(
-	cfg *config.Runtime,
-	repo repository.ConversationRepository,
-	cache repository.ConversationCacheRepository,
-	routeResolver routeResolver,
-	memoryRecorder memoryRecorder,
-	llmClient llmGateway,
-	mediaDownloader generatedMediaDownloader,
-	mcpClient mcpToolCaller,
-	compactSvc *appcompact.Service,
-	embeddingSvc *appembedding.Service,
-	processingSvc *appprocessing.Service,
-	uploadSvc *appupload.Service,
-	extractSvc *extraction.Service,
-	ragSvc *apprag.Service,
-	logger *zap.Logger,
-) *Service {
+func NewServiceWithRuntime(deps Dependencies) *Service {
 	svc := &Service{
-		cfg:               cfg,
-		repo:              repo,
-		cache:             cache,
-		routeResolver:     routeResolver,
-		memoryRecorder:    memoryRecorder,
-		llmClient:         llmClient,
-		mediaDownloader:   mediaDownloader,
-		mcpClient:         mcpClient,
-		compactSvc:        compactSvc,
-		embeddingSvc:      embeddingSvc,
-		processingSvc:     processingSvc,
-		uploadSvc:         uploadSvc,
-		extractSvc:        extractSvc,
-		ragSvc:            ragSvc,
-		logger:            logger,
-		generationStreams: newGenerationStreamRegistry(cache, defaultGenerationStreamOptions()),
+		cfg:               deps.Config,
+		repo:              deps.Repository,
+		cache:             deps.Cache,
+		routeResolver:     deps.RouteResolver,
+		memoryRecorder:    deps.MemoryRecorder,
+		llmClient:         deps.LLMClient,
+		mediaDownloader:   deps.MediaDownloader,
+		mcpClient:         deps.MCPClient,
+		compactSvc:        deps.CompactService,
+		embeddingSvc:      deps.EmbeddingService,
+		processingSvc:     deps.ProcessingService,
+		uploadSvc:         deps.UploadService,
+		extractSvc:        deps.ExtractService,
+		ragSvc:            deps.RAGService,
+		logger:            deps.Logger,
+		generationStreams: newGenerationStreamRegistry(deps.Cache, defaultGenerationStreamOptions()),
 		imageContextCache: defaultPreparedConversationImageCache(),
 	}
 	// 注入 LLM 语义压缩回调（在 svc 完全初始化后绑定）

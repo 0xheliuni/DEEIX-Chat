@@ -63,6 +63,15 @@ type UserListFilter struct {
 	IdentityProvider   string
 }
 
+// AuthEventListInput 描述认证事件查询的筛选与分页条件。
+type AuthEventListInput struct {
+	UserID    uint
+	EventType string
+	Result    string
+	Offset    int
+	Limit     int
+}
+
 // UpdateSessionActivityInput 定义会话活动元数据更新字段。
 type UpdateSessionActivityInput struct {
 	LastSeenAt       *time.Time
@@ -217,34 +226,16 @@ type UserRepository interface {
 	CountSuperAdmins(ctx context.Context) (int64, error)
 	GetActivePlanByCode(ctx context.Context, code string) (*domainbilling.Plan, error)
 	GetActiveDefaultPriceByPlanID(ctx context.Context, planID uint) (*domainbilling.Price, error)
-	CreateWithCredential(
-		ctx context.Context,
-		user *domainuser.User,
-		credential domainuser.Credential,
-		subscriptionPlanID uint,
-		subscriptionPriceID uint,
-		subscriptionEndAt *time.Time,
-		autoRenew bool,
-	) error
+	CreateWithCredential(ctx context.Context, input CreateWithCredentialInput) error
 	ImportUsersWithCredentialsAndBalances(ctx context.Context, records []UserImportRecord) ([]domainuser.User, error)
 	ResetLoginFailure(ctx context.Context, userID uint) error
 	UpdateUserStatus(ctx context.Context, userID uint, status string) error
 	ResetPasswordByAdmin(ctx context.Context, userID uint, passwordHash string, mustResetPassword bool) error
 	ListLatestSessionActivityByUserIDs(ctx context.Context, userIDs []uint) (map[uint]time.Time, error)
 	DeleteAccountHard(ctx context.Context, userID uint) error
-	RecordAuthEvent(
-		ctx context.Context,
-		userID uint,
-		requestID string,
-		eventType string,
-		result string,
-		reason string,
-		clientIP string,
-		userAgent string,
-		detailJSON string,
-	) error
+	RecordAuthEvent(ctx context.Context, input AuthEventInput) error
 	RevokeAllSessions(ctx context.Context, userID uint, reason string) error
-	ListAuthEvents(ctx context.Context, userID uint, eventType string, result string, offset int, limit int) ([]domainuser.AuthEvent, int64, error)
+	ListAuthEvents(ctx context.Context, input AuthEventListInput) ([]domainuser.AuthEvent, int64, error)
 	ListIdentityProviders(ctx context.Context, includeDisabled bool) ([]domainuser.IdentityProvider, error)
 	ListUserIdentitiesByUserIDs(ctx context.Context, userIDs []uint) (map[uint][]domainuser.UserIdentity, error)
 }

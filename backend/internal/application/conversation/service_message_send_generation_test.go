@@ -38,7 +38,9 @@ func TestPrepareRouteGenerationFailoverAlwaysSendsFullContext(t *testing.T) {
 	route := &channel.ResolvedRoute{Protocol: llm.AdapterOpenAIResponses, BaseURL: "https://api.openai.com/v1", UpstreamModel: "gpt-test"}
 	conversation := &model.Conversation{PublicID: "conv_1", LastResponseID: "resp_123", LastPromptFingerprint: "fp_stale"}
 
-	plan := service.prepareRouteGeneration(context.Background(), testRouteGenerationContext(conversation), route, testRoutePromptPlan(), false, routeGenerationFailover, nil)
+	plan := service.prepareRouteGeneration(context.Background(), routeGenerationPreparationInput{
+		Generation: testRouteGenerationContext(conversation), Route: route, PromptPlan: testRoutePromptPlan(), Mode: routeGenerationFailover,
+	})
 
 	if plan.promptMode != "route_failover" || plan.statefulDecision.DisabledReason != "route_failover" {
 		t.Fatalf("failover plan must be labelled as such, got mode=%q decision=%#v", plan.promptMode, plan.statefulDecision)
@@ -67,10 +69,14 @@ func TestPrepareRouteGenerationInitialContinuesMatchingStatefulResponse(t *testi
 	gen := testRouteGenerationContext(conversation)
 
 	// 指纹由完整请求形状推导；先按同样输入计算一次，再模拟数据库中存有匹配指纹的上一轮。
-	probe := service.prepareRouteGeneration(context.Background(), gen, route, testRoutePromptPlan(), false, routeGenerationFailover, nil)
+	probe := service.prepareRouteGeneration(context.Background(), routeGenerationPreparationInput{
+		Generation: gen, Route: route, PromptPlan: testRoutePromptPlan(), Mode: routeGenerationFailover,
+	})
 	conversation.LastPromptFingerprint = probe.statefulPrefixFingerprint
 
-	plan := service.prepareRouteGeneration(context.Background(), gen, route, testRoutePromptPlan(), false, routeGenerationInitial, nil)
+	plan := service.prepareRouteGeneration(context.Background(), routeGenerationPreparationInput{
+		Generation: gen, Route: route, PromptPlan: testRoutePromptPlan(), Mode: routeGenerationInitial,
+	})
 	if plan.promptMode != "stateful" || !plan.statefulContinuation || plan.generateInput.PreviousResponseID != "resp_123" {
 		t.Fatalf("expected stateful continuation, got mode=%q continuation=%v input=%#v", plan.promptMode, plan.statefulContinuation, plan.generateInput)
 	}
@@ -79,7 +85,9 @@ func TestPrepareRouteGenerationInitialContinuesMatchingStatefulResponse(t *testi
 	}
 
 	conversation.LastPromptFingerprint = "fp_other"
-	fullPlan := service.prepareRouteGeneration(context.Background(), gen, route, testRoutePromptPlan(), false, routeGenerationInitial, nil)
+	fullPlan := service.prepareRouteGeneration(context.Background(), routeGenerationPreparationInput{
+		Generation: gen, Route: route, PromptPlan: testRoutePromptPlan(), Mode: routeGenerationInitial,
+	})
 	if fullPlan.promptMode != "full" || fullPlan.statefulDecision.DisabledReason != "prompt_fingerprint_mismatch" {
 		t.Fatalf("mismatched fingerprint must fall back to the full prompt, got mode=%q decision=%#v", fullPlan.promptMode, fullPlan.statefulDecision)
 	}

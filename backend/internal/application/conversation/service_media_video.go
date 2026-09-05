@@ -542,15 +542,12 @@ func (s *Service) StreamMediaVideo(ctx context.Context, input MediaVideoInput) (
 	if moderationCoord != nil {
 		// Omni Moderation has no video modality. The prompt and optional input
 		// image participate in the barrier; an extension source is intentionally excluded.
-		s.completeModerationAfterSuccess(
-			ctx,
-			moderationCoord,
-			result,
-			"",
-			nil,
-			SendMessageInput{UserID: input.UserID, ConversationID: input.ConversationID},
-			reuseUserMessage,
-		)
+		s.completeModerationAfterSuccess(ctx, completeModerationAfterSuccessInput{
+			Coordinator:      moderationCoord,
+			Result:           result,
+			EmbedInput:       SendMessageInput{UserID: input.UserID, ConversationID: input.ConversationID},
+			ReuseUserMessage: reuseUserMessage,
+		})
 	}
 	return result, nil
 }

@@ -107,6 +107,26 @@ type ListFilesResult struct {
 	Quota domainconversation.StorageQuota
 }
 
+// ListFilesInput 定义用户文件列表的分页、筛选与排序条件。
+type ListFilesInput struct {
+	UserID      uint
+	Page        int
+	PageSize    int
+	SearchQuery string
+	FilterKind  string
+	SortBy      string
+}
+
+type saveUploadedFileInput struct {
+	Store          objectstore.Store
+	Reader         io.Reader
+	UserPublicID   string
+	FileID         string
+	FileName       string
+	MaxUploadBytes int64
+	DeclaredMIME   string
+}
+
 // FileContentResult 定义文件内容读取结果。
 type FileContentResult struct {
 	File        domainconversation.FileObject
@@ -148,27 +168,26 @@ const (
 )
 
 // ListFiles 分页查询用户文件。
-func (s *Service) ListFiles(
-	ctx context.Context,
-	userID uint,
-	page int,
-	pageSize int,
-	searchQuery string,
-	filterKind string,
-	sortBy string,
-) (*ListFilesResult, error) {
-	offset, limit := pagination.Offset(page, pageSize)
+func (s *Service) ListFiles(ctx context.Context, input ListFilesInput) (*ListFilesResult, error) {
+	offset, limit := pagination.Offset(input.Page, input.PageSize)
 	_, _ = s.repo.MarkTimedOutFileEmbeddingsFailed(
 		ctx,
-		userID,
+		input.UserID,
 		time.Now().Add(-embeddingTimeoutStaleAfter),
 		"向量化超时，请检查向量化服务配置后重试",
 	)
-	items, total, err := s.repo.ListFileObjectsByUserWithFilter(ctx, userID, offset, limit, searchQuery, filterKind, sortBy)
+	items, total, err := s.repo.ListFileObjectsByUserWithFilter(ctx, repository.ListFileObjectsInput{
+		UserID:      input.UserID,
+		Offset:      offset,
+		Limit:       limit,
+		SearchQuery: input.SearchQuery,
+		FilterKind:  input.FilterKind,
+		SortBy:      input.SortBy,
+	})
 	if err != nil {
 		return nil, err
 	}
-	quota, err := s.repo.GetOrInitUserStorageQuota(ctx, userID, s.cfg.Snapshot().UserStorageQuotaBytes)
+	quota, err := s.repo.GetOrInitUserStorageQuota(ctx, input.UserID, s.cfg.Snapshot().UserStorageQuotaBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -229,16 +248,15 @@ func (s *Service) UploadFile(ctx context.Context, input UploadFileInput) (*Uploa
 	if err != nil {
 		return nil, err
 	}
-	relativePath, detectedMIME, shaValue, sizeBytes, err := saveUploadedFile(
-		ctx,
-		store,
-		input.Reader,
-		storageOwner,
-		fileID,
-		normalizedName,
-		maxUploadBytes,
-		normalizedMIME,
-	)
+	relativePath, detectedMIME, shaValue, sizeBytes, err := saveUploadedFile(ctx, saveUploadedFileInput{
+		Store:          store,
+		Reader:         input.Reader,
+		UserPublicID:   storageOwner,
+		FileID:         fileID,
+		FileName:       normalizedName,
+		MaxUploadBytes: maxUploadBytes,
+		DeclaredMIME:   normalizedMIME,
+	})
 	if err != nil {
 		if errors.Is(err, errLocalFileTooLarge) {
 			return nil, s.errFileTooLarge()
@@ -913,25 +931,16 @@ func isDangerousMIME(mimeType string) bool {
 	return blocked
 }
 
-func saveUploadedFile(
-	ctx context.Context,
-	store objectstore.Store,
-	reader io.Reader,
-	userPublicID string,
-	fileID string,
-	fileName string,
-	maxUploadBytes int64,
-	declaredMIME string,
-) (string, string, string, int64, error) {
-	normalizedUserID := strings.TrimSpace(userPublicID)
+func saveUploadedFile(ctx context.Context, input saveUploadedFileInput) (string, string, string, int64, error) {
+	normalizedUserID := strings.TrimSpace(input.UserPublicID)
 	if normalizedUserID == "" {
 		normalizedUserID = "unknown_user"
 	}
-	if maxUploadBytes <= 0 {
-		maxUploadBytes = 20 * 1024 * 1024
+	if input.MaxUploadBytes <= 0 {
+		input.MaxUploadBytes = 20 * 1024 * 1024
 	}
 
-	staged, err := stageUploadedFile(reader, fileID, fileName, maxUploadBytes, declaredMIME)
+	staged, err := stageUploadedFile(input.Reader, input.FileID, input.FileName, input.MaxUploadBytes, input.DeclaredMIME)
 	if err != nil {
 		return "", "", "", 0, err
 	}
@@ -942,7 +951,7 @@ func saveUploadedFile(
 		normalizedUserID,
 		now.Format("2006"),
 		now.Format("01"),
-		fileID+"_"+sanitizeFileName(fileName),
+		input.FileID+"_"+sanitizeFileName(input.FileName),
 	)
 	relativePath = filepath.ToSlash(relativePath)
 	tmpFile, err := os.Open(staged.absolutePath)
@@ -950,7 +959,7 @@ func saveUploadedFile(
 		return "", "", "", 0, err
 	}
 	defer tmpFile.Close() //nolint:errcheck
-	if _, err = store.Put(ctx, relativePath, tmpFile, objectstore.PutOptions{
+	if _, err = input.Store.Put(ctx, relativePath, tmpFile, objectstore.PutOptions{
 		SizeBytes:   staged.sizeBytes,
 		ContentType: staged.detectedMIME,
 	}); err != nil {

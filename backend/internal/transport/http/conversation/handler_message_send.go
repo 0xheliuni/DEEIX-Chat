@@ -138,14 +138,17 @@ func billableResult(result *appconversation.SendMessageResult) bool {
 
 // recordSendMessageAudit 记录审计日志（同步，供非流式路径使用）。
 func (h *Handler) recordSendMessageAudit(c *gin.Context, conversation *model.Conversation, req *SendMessageRequest, result *appconversation.SendMessageResult, action string) {
-	h.recordSendMessageAuditCtx(
-		c.Request.Context(),
-		middleware.MustUserID(c),
-		middleware.MustRequestID(c),
-		c.ClientIP(),
-		c.Request.UserAgent(),
-		conversation, req, result, action,
-	)
+	h.recordSendMessageAuditCtx(c.Request.Context(), appconversation.SendMessageAuditInput{
+		UserID:         middleware.MustUserID(c),
+		RequestID:      middleware.MustRequestID(c),
+		ClientIP:       c.ClientIP(),
+		UserAgent:      c.Request.UserAgent(),
+		Action:         action,
+		ContentType:    req.ContentType,
+		ConversationID: conversation.ID,
+		FileIDs:        req.FileIDs,
+		Result:         result,
+	})
 }
 
 // recordStreamSendMessageAuditAsync 在 Handler 返回前提取 gin.Context 值，goroutine 内不持有 gin.Context。
@@ -164,40 +167,23 @@ func (h *Handler) recordStreamSendMessageAuditAsync(
 	go func() {
 		auditCtx, cancel := background.WithTimeout(requestCtx, asyncAuditTimeout)
 		defer cancel()
-		h.recordSendMessageAuditCtx(
-			auditCtx,
-			bgUserID, bgRequestID, bgClientIP, bgUserAgent,
-			conversation, req, result, action,
-		)
-	}()
-}
-
-// recordSendMessageAuditCtx 接受显式参数，可在 goroutine 中安全调用（不依赖 gin.Context）。
-func (h *Handler) recordSendMessageAuditCtx(
-	ctx context.Context,
-	userID uint,
-	requestID string,
-	clientIP string,
-	userAgent string,
-	conversation *model.Conversation,
-	req *SendMessageRequest,
-	result *appconversation.SendMessageResult,
-	action string,
-) {
-	h.service.RecordSendMessageAudit(
-		ctx,
-		appconversation.SendMessageAuditInput{
-			UserID:         userID,
-			RequestID:      requestID,
-			ClientIP:       clientIP,
-			UserAgent:      userAgent,
+		h.recordSendMessageAuditCtx(auditCtx, appconversation.SendMessageAuditInput{
+			UserID:         bgUserID,
+			RequestID:      bgRequestID,
+			ClientIP:       bgClientIP,
+			UserAgent:      bgUserAgent,
 			Action:         action,
 			ContentType:    req.ContentType,
 			ConversationID: conversation.ID,
 			FileIDs:        req.FileIDs,
 			Result:         result,
-		},
-	)
+		})
+	}()
+}
+
+// recordSendMessageAuditCtx 接受结构化审计输入，可在 goroutine 中安全调用（不依赖 gin.Context）。
+func (h *Handler) recordSendMessageAuditCtx(ctx context.Context, input appconversation.SendMessageAuditInput) {
+	h.service.RecordSendMessageAudit(ctx, input)
 }
 
 // handleSendMessageError 把消息发送 / 生成 / 计费路径上的错误写成 HTTP 错误响应，映射规则见 describeSendMessageError。

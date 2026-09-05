@@ -198,17 +198,16 @@ func (s *Service) StreamTemporaryChat(
 		return nil, err
 	}
 
-	generation, generateErr := s.runTemporaryGeneration(
-		ctx,
-		input,
-		route,
-		routeConfig,
-		generateInput,
-		toolRuntime,
-		traceRecorder,
-		startedAt,
-		onDelta,
-	)
+	generation, generateErr := s.runTemporaryGeneration(ctx, temporaryGenerationInput{
+		Request:       input,
+		Route:         route,
+		RouteConfig:   routeConfig,
+		InitialInput:  generateInput,
+		ToolRuntime:   toolRuntime,
+		TraceRecorder: traceRecorder,
+		StartedAt:     startedAt,
+		OnDelta:       onDelta,
+	})
 	output := generation.Output
 	if generateErr != nil {
 		if output == nil || output.Text == "" && generation.Usage == (llm.Usage{}) {

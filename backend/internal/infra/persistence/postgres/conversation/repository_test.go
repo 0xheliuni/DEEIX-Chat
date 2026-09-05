@@ -1260,7 +1260,16 @@ func TestListConversationsByUserSearchesMetadataProjectsAndMessages(t *testing.T
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			items, total, err := repo.ListConversationsByUser(ctx, 1, 0, 10, "active", "all", "all", "all", tt.query)
+			items, total, err := repo.ListConversationsByUser(ctx, repository.ConversationListInput{
+				UserID:        1,
+				Offset:        0,
+				Limit:         10,
+				StatusFilter:  "active",
+				StarredFilter: "all",
+				ShareFilter:   "all",
+				ProjectFilter: "all",
+				SearchQuery:   tt.query,
+			})
 			if err != nil {
 				t.Fatalf("ListConversationsByUser() error = %v", err)
 			}

@@ -18,6 +18,15 @@ const (
 	SecurityVerificationMethodEmail     SecurityVerificationMethod = "email"
 )
 
+type verifySecurityCodeInput struct {
+	User       *domainuser.User
+	Method     SecurityVerificationMethod
+	Purpose    string
+	Target     string
+	Code       string
+	VerifiedAt time.Time
+}
+
 func hasVerifiedEmail(item *domainuser.User) bool {
 	return item != nil && strings.TrimSpace(item.Email) != "" && item.EmailVerifiedAt != nil
 }
@@ -69,19 +78,12 @@ func (s *Service) resolveSecurityVerificationMethods(ctx context.Context, item *
 	return methods, nil
 }
 
-func (s *Service) verifySecurityCodeWithMethod(
-	ctx context.Context,
-	item *domainuser.User,
-	method SecurityVerificationMethod,
-	purpose string,
-	target string,
-	code string,
-	now time.Time,
-) error {
-	methods, err := s.resolveSecurityVerificationMethods(ctx, item)
+func (s *Service) verifySecurityCodeWithMethod(ctx context.Context, input verifySecurityCodeInput) error {
+	methods, err := s.resolveSecurityVerificationMethods(ctx, input.User)
 	if err != nil {
 		return err
 	}
+	method := input.Method
 	if method == "" {
 		if len(methods) == 0 {
 			method = SecurityVerificationMethodNone
@@ -94,12 +96,12 @@ func (s *Service) verifySecurityCodeWithMethod(
 	}
 	switch method {
 	case SecurityVerificationMethodTwoFactor:
-		if err = s.verifyCurrentTwoFactorCode(ctx, item.ID, code); err != nil {
+		if err = s.verifyCurrentTwoFactorCode(ctx, input.User.ID, input.Code); err != nil {
 			return ErrSecurityVerificationCodeInvalid
 		}
 		return nil
 	case SecurityVerificationMethodEmail:
-		return s.verifyEmailCode(ctx, item.ID, purpose, target, strings.TrimSpace(code), now)
+		return s.verifyEmailCode(ctx, input.User.ID, input.Purpose, input.Target, strings.TrimSpace(input.Code), input.VerifiedAt)
 	default:
 		return nil
 	}

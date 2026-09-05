@@ -137,7 +137,12 @@ func TestSubmitFileEmbeddingsKeepsPerFileFailuresIsolated(t *testing.T) {
 		infraembedding.New(security.OutboundPolicy{}),
 		nil,
 	)
-	service := NewServiceWithRuntime(config.NewRuntime(cfg), nil, queue, nil, embeddingSvc, nil, DefaultExtractorVersion)
+	service := NewServiceWithRuntime(Dependencies{
+		Config:           config.NewRuntime(cfg),
+		Cache:            queue,
+		EmbeddingService: embeddingSvc,
+		ExtractorVersion: DefaultExtractorVersion,
+	})
 
 	result, err := service.SubmitFileEmbeddings(
 		context.Background(),
@@ -182,7 +187,12 @@ func TestEmbeddingDeadLetterFinalizesFileStatus(t *testing.T) {
 		infraembedding.New(security.OutboundPolicy{}),
 		nil,
 	)
-	service := NewServiceWithRuntime(config.NewRuntime(cfg), nil, queue, nil, embeddingSvc, nil, DefaultExtractorVersion)
+	service := NewServiceWithRuntime(Dependencies{
+		Config:           config.NewRuntime(cfg),
+		Cache:            queue,
+		EmbeddingService: embeddingSvc,
+		ExtractorVersion: DefaultExtractorVersion,
+	})
 	signature := appembedding.ComputeModelSignature(cfg.RAGModel, cfg.EmbeddingOutputDimensions)
 	if err := queue.EnqueueFileEmbedding(context.Background(), 7, "file_1", signature, cfg.EmbeddingHost); err != nil {
 		t.Fatalf("enqueue embedding: %v", err)

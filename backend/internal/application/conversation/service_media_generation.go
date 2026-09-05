@@ -605,18 +605,17 @@ func (s *Service) StreamMediaImage(ctx context.Context, input MediaImageInput) (
 	}
 	if moderationCoord != nil {
 		outputImages := loadOutputImagesFromFiles(moderationCoord, uploaded, generatedBytesByFileID)
-		s.completeModerationAfterSuccess(
-			ctx,
-			moderationCoord,
-			result,
-			moderationOutputText(output.Text, traceRecorder.upstreamThinkContent()),
-			outputImages,
-			SendMessageInput{
+		s.completeModerationAfterSuccess(ctx, completeModerationAfterSuccessInput{
+			Coordinator:  moderationCoord,
+			Result:       result,
+			OutputText:   moderationOutputText(output.Text, traceRecorder.upstreamThinkContent()),
+			OutputImages: outputImages,
+			EmbedInput: SendMessageInput{
 				UserID:         input.UserID,
 				ConversationID: input.ConversationID,
 			},
-			reuseUserMessage,
-		)
+			ReuseUserMessage: reuseUserMessage,
+		})
 	}
 	return result, nil
 }

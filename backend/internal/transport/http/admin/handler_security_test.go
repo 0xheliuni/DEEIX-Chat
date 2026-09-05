@@ -11,6 +11,7 @@ import (
 	appadmin "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/admin"
 	auditapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/audit"
 	appbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/billing"
+	userapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/user"
 	domainaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/audit"
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	domainknowledgebase "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/knowledgebase"
@@ -182,20 +183,7 @@ func (s *handlerUserServiceFake) CountSuperAdmins(context.Context) (int64, error
 	return count, nil
 }
 
-func (s *handlerUserServiceFake) CreateUser(
-	context.Context,
-	string,
-	string,
-	string,
-	string,
-	string,
-	string,
-	string,
-	string,
-	string,
-	string,
-	*time.Time,
-) (*domainuser.User, error) {
+func (s *handlerUserServiceFake) CreateUser(context.Context, userapp.CreateUserInput) (*domainuser.User, error) {
 	return nil, nil
 }
 
@@ -231,11 +219,11 @@ func (s *handlerUserServiceFake) DeleteAccountHard(context.Context, uint) error 
 	return s.deleteErr
 }
 
-func (s *handlerUserServiceFake) RecordAuthEvent(context.Context, uint, string, string, string, string, string, string, string) error {
+func (s *handlerUserServiceFake) RecordAuthEvent(context.Context, repository.AuthEventInput) error {
 	return nil
 }
 
-func (s *handlerUserServiceFake) ListAuthEvents(context.Context, uint, string, string, int, int) ([]domainuser.AuthEvent, int64, error) {
+func (s *handlerUserServiceFake) ListAuthEvents(context.Context, userapp.AuthEventListInput) ([]domainuser.AuthEvent, int64, error) {
 	return nil, 0, nil
 }
 

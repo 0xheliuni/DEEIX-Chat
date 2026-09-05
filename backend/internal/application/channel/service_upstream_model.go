@@ -25,6 +25,16 @@ type ListUpstreamModelsInput struct {
 	Sort           string
 }
 
+type ensureUpstreamCatalogModelInput struct {
+	UpstreamID        uint
+	UpstreamModelName string
+	SuggestedProtocol string
+	KindsJSON         string
+	Vendor            string
+	Icon              string
+	Source            string
+}
+
 // ListUpstreamModels 分页查询上游真实模型及路由绑定。
 func (s *Service) ListUpstreamModels(ctx context.Context, upstreamID uint, page int, pageSize int, input ListUpstreamModelsInput) ([]UpstreamModelView, int64, error) {
 	if _, err := s.repo.GetUpstreamByID(ctx, upstreamID); err != nil {
@@ -111,17 +121,15 @@ func (s *Service) UpsertUpstreamModel(ctx context.Context, upstreamID uint, inpu
 		} else if input.Source != nil {
 			upstreamModelSource = normalizeSource(*input.Source)
 		}
-		upstreamModel, txErr := ensureUpstreamCatalogModel(
-			ctx,
-			txRepo,
-			upstream.ID,
-			upstreamModelName,
-			protocols[0],
-			kindsJSON,
-			upstreamModelVendor,
-			upstreamModelIcon,
-			upstreamModelSource,
-		)
+		upstreamModel, txErr := ensureUpstreamCatalogModel(ctx, txRepo, ensureUpstreamCatalogModelInput{
+			UpstreamID:        upstream.ID,
+			UpstreamModelName: upstreamModelName,
+			SuggestedProtocol: protocols[0],
+			KindsJSON:         kindsJSON,
+			Vendor:            upstreamModelVendor,
+			Icon:              upstreamModelIcon,
+			Source:            upstreamModelSource,
+		})
 		if txErr != nil {
 			return txErr
 		}
@@ -301,38 +309,28 @@ func ensurePlatformModel(ctx context.Context, repo repository.ChannelRepository,
 	return item, true, nil
 }
 
-func ensureUpstreamCatalogModel(
-	ctx context.Context,
-	repo repository.ChannelRepository,
-	upstreamID uint,
-	upstreamModelName string,
-	suggestedProtocol string,
-	kindsJSON string,
-	vendor string,
-	icon string,
-	source string,
-) (*domainchannel.UpstreamModel, error) {
-	if existing, err := repo.GetUpstreamModelByUpstreamName(ctx, upstreamID, upstreamModelName); err == nil {
+func ensureUpstreamCatalogModel(ctx context.Context, repo repository.ChannelRepository, input ensureUpstreamCatalogModelInput) (*domainchannel.UpstreamModel, error) {
+	if existing, err := repo.GetUpstreamModelByUpstreamName(ctx, input.UpstreamID, input.UpstreamModelName); err == nil {
 		return existing, nil
 	} else if !errors.Is(err, ErrUpstreamModelNotFound) {
 		return nil, err
 	}
 
 	item := &domainchannel.UpstreamModel{
-		UpstreamID:        upstreamID,
+		UpstreamID:        input.UpstreamID,
 		BindingCode:       generateBindingCode(),
-		UpstreamModelName: upstreamModelName,
-		SuggestedProtocol: suggestedProtocol,
-		KindsJSON:         kindsJSON,
+		UpstreamModelName: input.UpstreamModelName,
+		SuggestedProtocol: input.SuggestedProtocol,
+		KindsJSON:         input.KindsJSON,
 		Status:            "active",
-		Source:            normalizeSource(source),
+		Source:            normalizeSource(input.Source),
 		RawJSON:           "{}",
 	}
-	item.Vendor = normalizeModelVendor(vendor, upstreamModelName)
-	item.Icon = normalizeModelIcon(icon, item.Vendor, upstreamModelName)
+	item.Vendor = normalizeModelVendor(input.Vendor, input.UpstreamModelName)
+	item.Icon = normalizeModelIcon(input.Icon, item.Vendor, input.UpstreamModelName)
 	if err := repo.CreateUpstreamModel(ctx, item); err != nil {
 		if errors.Is(err, repository.ErrDuplicate) {
-			return repo.GetUpstreamModelByUpstreamName(ctx, upstreamID, upstreamModelName)
+			return repo.GetUpstreamModelByUpstreamName(ctx, input.UpstreamID, input.UpstreamModelName)
 		}
 		return nil, err
 	}

@@ -632,7 +632,7 @@ func newUploadTestRepo() *uploadTestRepo {
 	}
 }
 
-func (r *uploadTestRepo) ListFileObjectsByUserWithFilter(context.Context, uint, int, int, string, string, string) ([]domainconversation.FileObject, int64, error) {
+func (r *uploadTestRepo) ListFileObjectsByUserWithFilter(context.Context, repository.ListFileObjectsInput) ([]domainconversation.FileObject, int64, error) {
 	return nil, 0, nil
 }
 

@@ -162,13 +162,15 @@ func (h *Handler) CompleteEmailRegistration(c *gin.Context) {
 	}
 	result, err := h.service.RegisterWithEmail(
 		c.Request.Context(),
-		req.Email,
-		req.Password,
-		req.Code,
-		req.TurnstileToken,
-		c.ClientIP(),
-		middleware.MustRequestID(c),
-		middleware.ResolveSessionAuditContext(c),
+		appauth.RegisterWithEmailInput{
+			Email:          req.Email,
+			Password:       req.Password,
+			Code:           req.Code,
+			TurnstileToken: req.TurnstileToken,
+			RemoteIP:       c.ClientIP(),
+			RequestID:      middleware.MustRequestID(c),
+			AuditContext:   middleware.ResolveSessionAuditContext(c),
+		},
 	)
 	if err != nil {
 		response.ErrorFrom(c, http.StatusBadRequest, err)
@@ -285,13 +287,15 @@ func (h *Handler) ChangePassword(c *gin.Context) {
 	}
 	err := h.service.ChangePassword(
 		c.Request.Context(),
-		userID,
-		req.CurrentPassword,
-		req.NewPassword,
-		req.VerificationMethod,
-		req.Code,
-		middleware.MustRequestID(c),
-		middleware.ResolveSessionAuditContext(c),
+		appauth.ChangePasswordInput{
+			UserID:             userID,
+			CurrentPassword:    req.CurrentPassword,
+			NewPassword:        req.NewPassword,
+			VerificationMethod: req.VerificationMethod,
+			Code:               req.Code,
+			RequestID:          middleware.MustRequestID(c),
+			AuditContext:       middleware.ResolveSessionAuditContext(c),
+		},
 	)
 	if err != nil {
 		if errors.Is(err, appauth.ErrInvalidCredentials) {
@@ -435,7 +439,15 @@ func (h *Handler) CompleteEmailChange(c *gin.Context) {
 		response.InvalidRequestBody(c, err)
 		return
 	}
-	item, err := h.service.CompleteEmailChange(c.Request.Context(), userID, req.Email, req.CurrentVerificationMethod, req.CurrentCode, req.NewCode, middleware.MustRequestID(c), middleware.ResolveSessionAuditContext(c))
+	item, err := h.service.CompleteEmailChange(c.Request.Context(), appauth.CompleteEmailChangeInput{
+		UserID:                    userID,
+		NewEmail:                  req.Email,
+		CurrentVerificationMethod: req.CurrentVerificationMethod,
+		CurrentCode:               req.CurrentCode,
+		NewCode:                   req.NewCode,
+		RequestID:                 middleware.MustRequestID(c),
+		AuditContext:              middleware.ResolveSessionAuditContext(c),
+	})
 	if err != nil {
 		if errors.Is(err, appauth.ErrInvalidCredentials) {
 			response.ErrorFrom(c, http.StatusUnauthorized, errInvalidCurrentPassword)
@@ -506,14 +518,16 @@ func (h *Handler) CompleteProviderBind(c *gin.Context) {
 	}
 	identity, err := h.service.CompleteProviderBind(
 		c.Request.Context(),
-		userID,
-		c.Param("slug"),
-		req.Code,
-		req.State,
-		req.RedirectURI,
-		req.CodeVerifier,
-		middleware.MustRequestID(c),
-		middleware.ResolveSessionAuditContext(c),
+		appauth.CompleteProviderBindInput{
+			UserID:       userID,
+			Slug:         c.Param("slug"),
+			Code:         req.Code,
+			State:        req.State,
+			RedirectURI:  req.RedirectURI,
+			CodeVerifier: req.CodeVerifier,
+			RequestID:    middleware.MustRequestID(c),
+			AuditContext: middleware.ResolveSessionAuditContext(c),
+		},
 	)
 	if err != nil {
 		response.ErrorFrom(c, http.StatusBadRequest, err)
@@ -643,14 +657,16 @@ func (h *Handler) CompleteProviderLogin(c *gin.Context) {
 	}
 	result, err := h.service.CompleteProviderLogin(
 		c.Request.Context(),
-		c.Param("slug"),
-		req.Code,
-		req.State,
-		req.RedirectURI,
-		req.CodeVerifier,
-		req.Intent,
-		middleware.MustRequestID(c),
-		middleware.ResolveSessionAuditContext(c),
+		appauth.CompleteProviderLoginInput{
+			Slug:         c.Param("slug"),
+			Code:         req.Code,
+			State:        req.State,
+			RedirectURI:  req.RedirectURI,
+			CodeVerifier: req.CodeVerifier,
+			Intent:       req.Intent,
+			RequestID:    middleware.MustRequestID(c),
+			AuditContext: middleware.ResolveSessionAuditContext(c),
+		},
 	)
 	if err != nil {
 		var emailConflictErr *appauth.ProviderEmailConflictError

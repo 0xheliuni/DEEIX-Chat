@@ -142,7 +142,14 @@ func (s *Service) enqueue(task *moderationTask) error {
 		if task.Coord != nil {
 			bg, cancel := context.WithTimeout(task.Coord.ctx, 5*time.Second)
 			s.recordFailedOpen(bg, task.Coord.meta, task.Direction, task.Modality, domaincm.ErrorCodeQueueFull, 0)
-			s.bumpDailyStat(bg, task.Direction, task.Modality, domaincm.ResultFailedOpen, "", 1, contentItemCount(task), 0, 1, 0)
+			s.bumpDailyStat(bg, repository.DailyStatIncrement{
+				Direction:    task.Direction,
+				Modality:     task.Modality,
+				Result:       domaincm.ResultFailedOpen,
+				CheckCount:   1,
+				ContentItems: contentItemCount(task),
+				FailureCount: 1,
+			})
 			cancel()
 		}
 		return ErrQueueFull
@@ -158,7 +165,14 @@ func (s *Service) enqueue(task *moderationTask) error {
 		if task.Coord != nil {
 			bg, cancel := context.WithTimeout(task.Coord.ctx, 5*time.Second)
 			s.recordFailedOpen(bg, task.Coord.meta, task.Direction, task.Modality, domaincm.ErrorCodeQueueFull, 0)
-			s.bumpDailyStat(bg, task.Direction, task.Modality, domaincm.ResultFailedOpen, "", 1, contentItemCount(task), 0, 1, 0)
+			s.bumpDailyStat(bg, repository.DailyStatIncrement{
+				Direction:    task.Direction,
+				Modality:     task.Modality,
+				Result:       domaincm.ResultFailedOpen,
+				CheckCount:   1,
+				ContentItems: contentItemCount(task),
+				FailureCount: 1,
+			})
 			cancel()
 		}
 		return ErrQueueFull
@@ -225,7 +239,15 @@ func (s *Service) executeTask(parent context.Context, task *moderationTask) {
 			zap.Error(err),
 		)
 		s.recordFailedOpen(persistCtx, task.Coord.meta, task.Direction, task.Modality, code, latency)
-		s.bumpDailyStat(persistCtx, task.Direction, task.Modality, domaincm.ResultFailedOpen, "", 1, contentItemCount(task), 0, 1, latency)
+		s.bumpDailyStat(persistCtx, repository.DailyStatIncrement{
+			Direction:    task.Direction,
+			Modality:     task.Modality,
+			Result:       domaincm.ResultFailedOpen,
+			CheckCount:   1,
+			ContentItems: contentItemCount(task),
+			FailureCount: 1,
+			LatencyMS:    latency,
+		})
 		task.Coord.onTaskResult(task, taskResult{
 			Err:       err,
 			ErrorCode: code,
@@ -239,7 +261,14 @@ func (s *Service) executeTask(parent context.Context, task *moderationTask) {
 		if _, recordErr := s.recordPass(persistCtx, task, latency, resp); recordErr != nil {
 			s.logWarn("content_moderation_record_pass_failed", zap.Error(recordErr))
 		}
-		s.bumpDailyStat(persistCtx, task.Direction, task.Modality, domaincm.ResultPassed, "", 1, contentItemCount(task), 0, 0, latency)
+		s.bumpDailyStat(persistCtx, repository.DailyStatIncrement{
+			Direction:    task.Direction,
+			Modality:     task.Modality,
+			Result:       domaincm.ResultPassed,
+			CheckCount:   1,
+			ContentItems: contentItemCount(task),
+			LatencyMS:    latency,
+		})
 		task.Coord.onTaskResult(task, taskResult{LatencyMS: latency})
 		return
 	}
@@ -248,9 +277,23 @@ func (s *Service) executeTask(parent context.Context, task *moderationTask) {
 	if recordErr != nil {
 		s.logWarn("content_moderation_record_hit_failed", zap.Error(recordErr))
 	}
-	s.bumpDailyStat(persistCtx, task.Direction, task.Modality, domaincm.ResultHit, "", 1, contentItemCount(task), 1, 0, latency)
+	s.bumpDailyStat(persistCtx, repository.DailyStatIncrement{
+		Direction:    task.Direction,
+		Modality:     task.Modality,
+		Result:       domaincm.ResultHit,
+		CheckCount:   1,
+		ContentItems: contentItemCount(task),
+		HitCount:     1,
+		LatencyMS:    latency,
+	})
 	for _, cat := range eval.Categories {
-		s.bumpDailyStat(persistCtx, task.Direction, task.Modality, domaincm.ResultHit, cat, 0, 0, 1, 0, 0)
+		s.bumpDailyStat(persistCtx, repository.DailyStatIncrement{
+			Direction: task.Direction,
+			Modality:  task.Modality,
+			Result:    domaincm.ResultHit,
+			Category:  cat,
+			HitCount:  1,
+		})
 	}
 	lateBlock := task.Coord.onTaskResult(task, taskResult{
 		Hit:        true,
@@ -546,27 +589,12 @@ func (s *Service) recordHit(ctx context.Context, task *moderationTask, eval HitE
 	return publicID, nil
 }
 
-func (s *Service) bumpDailyStat(
-	ctx context.Context,
-	direction, modality, result, category string,
-	checkCount, contentItems, hitCount, failureCount, latencyMS int64,
-) {
+func (s *Service) bumpDailyStat(ctx context.Context, input repository.DailyStatIncrement) {
 	if s.repo == nil {
 		return
 	}
-	day := time.Now().UTC().Truncate(24 * time.Hour)
-	if err := s.repo.IncrementDailyStat(ctx, repository.DailyStatIncrement{
-		StatDate:     day,
-		Direction:    direction,
-		Modality:     modality,
-		Result:       result,
-		Category:     category,
-		CheckCount:   checkCount,
-		ContentItems: contentItems,
-		HitCount:     hitCount,
-		FailureCount: failureCount,
-		LatencyMS:    latencyMS,
-	}); err != nil {
+	input.StatDate = time.Now().UTC().Truncate(24 * time.Hour)
+	if err := s.repo.IncrementDailyStat(ctx, input); err != nil {
 		s.logWarn("content_moderation_increment_daily_stat_failed", zap.Error(err))
 	}
 }

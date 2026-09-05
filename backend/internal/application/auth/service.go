@@ -196,15 +196,18 @@ func (s *Service) EnsureBootstrapSuperAdmin(ctx context.Context) (*BootstrapSupe
 		Locale:      "en-US",
 	}
 
-	if err = s.repo.CreateWithCredential(ctx, item, domainuser.Credential{
-		PasswordHash:      string(passwordHash),
-		PasswordAlgo:      "bcrypt",
-		PasswordEnabled:   true,
-		PasswordUpdatedAt: &now,
-		PasswordSetAt:     &now,
-		PasswordOrigin:    domainuser.PasswordOriginAdminCreated,
-		MustResetPassword: true,
-	}, 0, 0, nil, false); err != nil {
+	if err = s.repo.CreateWithCredential(ctx, repository.CreateWithCredentialInput{
+		User: item,
+		Credential: domainuser.Credential{
+			PasswordHash:      string(passwordHash),
+			PasswordAlgo:      "bcrypt",
+			PasswordEnabled:   true,
+			PasswordUpdatedAt: &now,
+			PasswordSetAt:     &now,
+			PasswordOrigin:    domainuser.PasswordOriginAdminCreated,
+			MustResetPassword: true,
+		},
+	}); err != nil {
 		return nil, err
 	}
 	return &BootstrapSuperAdmin{Username: username, Password: bootstrapPassword}, nil
@@ -234,29 +237,55 @@ func (s *Service) Login(
 			reason = "account_locked"
 		}
 		s.RecordAuthEvent(
-			ctx, 0, requestID, "login", "failure", reason,
-			normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent,
-			marshalAuthEventDetail(map[string]string{"username": strings.TrimSpace(username)}),
+			ctx,
+			repository.AuthEventInput{
+				RequestID: requestID,
+				EventType: "login",
+				Result:    "failure",
+				Reason:    reason,
+				ClientIP:  normalizedAuditCtx.ClientIP,
+				UserAgent: normalizedAuditCtx.UserAgent,
+				DetailJSON: marshalAuthEventDetail(map[string]string{
+					"username": strings.TrimSpace(username),
+				}),
+			},
 		)
 		return nil, err
 	}
 	if result.TwoFactorRequired {
 		s.RecordAuthEvent(
-			ctx, result.User.ID, requestID, "login", "challenge", "two_factor_required",
-			normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent,
-			marshalAuthEventDetail(map[string]string{"username": result.User.Username}),
+			ctx,
+			repository.AuthEventInput{
+				UserID:    result.User.ID,
+				RequestID: requestID,
+				EventType: "login",
+				Result:    "challenge",
+				Reason:    "two_factor_required",
+				ClientIP:  normalizedAuditCtx.ClientIP,
+				UserAgent: normalizedAuditCtx.UserAgent,
+				DetailJSON: marshalAuthEventDetail(map[string]string{
+					"username": result.User.Username,
+				}),
+			},
 		)
 		return result, nil
 	}
 	s.RecordAuthEvent(
-		ctx, result.User.ID, requestID, "login", "success", "",
-		normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent,
-		marshalAuthEventDetail(map[string]interface{}{
-			"username":       result.User.Username,
-			"session_id":     result.SessionID,
-			"client_ip":      normalizedAuditCtx.ClientIP,
-			"location_label": normalizedAuditCtx.LocationLabel(),
-		}),
+		ctx,
+		repository.AuthEventInput{
+			UserID:    result.User.ID,
+			RequestID: requestID,
+			EventType: "login",
+			Result:    "success",
+			ClientIP:  normalizedAuditCtx.ClientIP,
+			UserAgent: normalizedAuditCtx.UserAgent,
+			DetailJSON: marshalAuthEventDetail(map[string]interface{}{
+				"username":       result.User.Username,
+				"session_id":     result.SessionID,
+				"client_ip":      normalizedAuditCtx.ClientIP,
+				"location_label": normalizedAuditCtx.LocationLabel(),
+			}),
+		},
 	)
 	return result, nil
 }
@@ -567,9 +596,18 @@ func (s *Service) CompleteOnboarding(
 		}
 		normalizedAuditCtx := s.resolveSessionAuditContext(ctx, auditCtx)
 		s.RecordAuthEvent(
-			ctx, userID, requestID, "password_change", "success", "",
-			normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent,
-			marshalAuthEventDetail(map[string]interface{}{"initial_onboarding": true}),
+			ctx,
+			repository.AuthEventInput{
+				UserID:    userID,
+				RequestID: requestID,
+				EventType: "password_change",
+				Result:    "success",
+				ClientIP:  normalizedAuditCtx.ClientIP,
+				UserAgent: normalizedAuditCtx.UserAgent,
+				DetailJSON: marshalAuthEventDetail(map[string]interface{}{
+					"initial_onboarding": true,
+				}),
+			},
 		)
 	}
 	return updated, passwordChanged, nil
@@ -907,7 +945,14 @@ func (s *Service) DeleteAccount(
 			return ErrSecurityVerificationEmailInvalid
 		}
 	}
-	if err = s.verifySecurityCodeWithMethod(ctx, item, method, domainuser.ContactVerificationPurposeAccountDelete, normalizedEmail, code, time.Now()); err != nil {
+	if err = s.verifySecurityCodeWithMethod(ctx, verifySecurityCodeInput{
+		User:       item,
+		Method:     method,
+		Purpose:    domainuser.ContactVerificationPurposeAccountDelete,
+		Target:     normalizedEmail,
+		Code:       code,
+		VerifiedAt: time.Now(),
+	}); err != nil {
 		return ErrSecurityVerificationCodeInvalid
 	}
 
@@ -916,18 +961,20 @@ func (s *Service) DeleteAccount(
 	if err != nil {
 		s.RecordAuthEvent(
 			ctx,
-			userID,
-			requestID,
-			"account_delete",
-			"failure",
-			"list_storage_paths_failed",
-			normalizedAuditCtx.ClientIP,
-			normalizedAuditCtx.UserAgent,
-			marshalAuthEventDetail(map[string]interface{}{
-				"user_id":   userID,
-				"username":  item.Username,
-				"public_id": item.PublicID,
-			}),
+			repository.AuthEventInput{
+				UserID:    userID,
+				RequestID: requestID,
+				EventType: "account_delete",
+				Result:    "failure",
+				Reason:    "list_storage_paths_failed",
+				ClientIP:  normalizedAuditCtx.ClientIP,
+				UserAgent: normalizedAuditCtx.UserAgent,
+				DetailJSON: marshalAuthEventDetail(map[string]interface{}{
+					"user_id":   userID,
+					"username":  item.Username,
+					"public_id": item.PublicID,
+				}),
+			},
 		)
 		return err
 	}
@@ -935,19 +982,21 @@ func (s *Service) DeleteAccount(
 	if err = s.repo.DeleteAccountHard(ctx, userID); err != nil {
 		s.RecordAuthEvent(
 			ctx,
-			userID,
-			requestID,
-			"account_delete",
-			"failure",
-			"delete_account_failed",
-			normalizedAuditCtx.ClientIP,
-			normalizedAuditCtx.UserAgent,
-			marshalAuthEventDetail(map[string]interface{}{
-				"user_id":            userID,
-				"username":           item.Username,
-				"public_id":          item.PublicID,
-				"storage_file_count": len(storagePaths),
-			}),
+			repository.AuthEventInput{
+				UserID:    userID,
+				RequestID: requestID,
+				EventType: "account_delete",
+				Result:    "failure",
+				Reason:    "delete_account_failed",
+				ClientIP:  normalizedAuditCtx.ClientIP,
+				UserAgent: normalizedAuditCtx.UserAgent,
+				DetailJSON: marshalAuthEventDetail(map[string]interface{}{
+					"user_id":            userID,
+					"username":           item.Username,
+					"public_id":          item.PublicID,
+					"storage_file_count": len(storagePaths),
+				}),
+			},
 		)
 		return err
 	}
@@ -955,38 +1004,41 @@ func (s *Service) DeleteAccount(
 	failedPaths := s.cleanupDeletedAccountFiles(ctx, storagePaths)
 	s.RecordAuthEvent(
 		ctx,
-		userID,
-		requestID,
-		"account_delete",
-		"success",
-		"",
-		normalizedAuditCtx.ClientIP,
-		normalizedAuditCtx.UserAgent,
-		marshalAuthEventDetail(map[string]interface{}{
-			"user_id":                  userID,
-			"username":                 item.Username,
-			"public_id":                item.PublicID,
-			"client_ip":                normalizedAuditCtx.ClientIP,
-			"location":                 normalizedAuditCtx.LocationLabel(),
-			"storage_file_count":       len(storagePaths),
-			"storage_cleanup_failures": len(failedPaths),
-		}),
+		repository.AuthEventInput{
+			UserID:    userID,
+			RequestID: requestID,
+			EventType: "account_delete",
+			Result:    "success",
+			ClientIP:  normalizedAuditCtx.ClientIP,
+			UserAgent: normalizedAuditCtx.UserAgent,
+			DetailJSON: marshalAuthEventDetail(map[string]interface{}{
+				"user_id":                  userID,
+				"username":                 item.Username,
+				"public_id":                item.PublicID,
+				"client_ip":                normalizedAuditCtx.ClientIP,
+				"location":                 normalizedAuditCtx.LocationLabel(),
+				"storage_file_count":       len(storagePaths),
+				"storage_cleanup_failures": len(failedPaths),
+			}),
+		},
 	)
 	if len(failedPaths) > 0 {
 		s.RecordAuthEvent(
 			ctx,
-			userID,
-			requestID,
-			"account_delete_cleanup",
-			"failure",
-			"storage_cleanup_failed",
-			normalizedAuditCtx.ClientIP,
-			normalizedAuditCtx.UserAgent,
-			marshalAuthEventDetail(map[string]interface{}{
-				"user_id":           userID,
-				"failed_path_count": len(failedPaths),
-				"failed_paths":      trimStringSlice(failedPaths, 10),
-			}),
+			repository.AuthEventInput{
+				UserID:    userID,
+				RequestID: requestID,
+				EventType: "account_delete_cleanup",
+				Result:    "failure",
+				Reason:    "storage_cleanup_failed",
+				ClientIP:  normalizedAuditCtx.ClientIP,
+				UserAgent: normalizedAuditCtx.UserAgent,
+				DetailJSON: marshalAuthEventDetail(map[string]interface{}{
+					"user_id":           userID,
+					"failed_path_count": len(failedPaths),
+					"failed_paths":      trimStringSlice(failedPaths, 10),
+				}),
+			},
 		)
 	}
 
@@ -1023,7 +1075,14 @@ func (s *Service) RequestAccountDeleteVerification(ctx context.Context, userID u
 	if err != nil {
 		return nil, ErrSecurityVerificationEmailInvalid
 	}
-	return s.requestEmailVerificationCode(ctx, userID, domainuser.ContactVerificationPurposeAccountDelete, normalizedEmail, "account_delete_code", requestID, auditCtx)
+	return s.requestEmailVerificationCode(ctx, requestEmailVerificationCodeInput{
+		UserID:       userID,
+		Purpose:      domainuser.ContactVerificationPurposeAccountDelete,
+		Target:       normalizedEmail,
+		EventType:    "account_delete_code",
+		RequestID:    requestID,
+		AuditContext: auditCtx,
+	})
 }
 
 // cleanupDeletedAccountFiles 从对象存储删除用户文件，返回删除失败的路径列表。
@@ -1075,24 +1134,24 @@ func (s *Service) Refresh(
 	cfg := s.cfg.Snapshot()
 	claims, err := token.Parse(cfg.JWTSecret, trimmedRefreshToken)
 	if err != nil {
-		s.RecordAuthEvent(ctx, 0, requestID, "token_refresh", "failure", "invalid_refresh_token_parse", normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent, "")
+		s.RecordAuthEvent(ctx, repository.AuthEventInput{RequestID: requestID, EventType: "token_refresh", Result: "failure", Reason: "invalid_refresh_token_parse", ClientIP: normalizedAuditCtx.ClientIP, UserAgent: normalizedAuditCtx.UserAgent})
 		return nil, ErrInvalidRefreshToken
 	}
 	if claims.TokenType != "refresh" || claims.SessionID == "" || claims.UserID == 0 {
-		s.RecordAuthEvent(ctx, claims.UserID, requestID, "token_refresh", "failure", "invalid_refresh_claims", normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent, "")
+		s.RecordAuthEvent(ctx, repository.AuthEventInput{UserID: claims.UserID, RequestID: requestID, EventType: "token_refresh", Result: "failure", Reason: "invalid_refresh_claims", ClientIP: normalizedAuditCtx.ClientIP, UserAgent: normalizedAuditCtx.UserAgent})
 		return nil, ErrInvalidRefreshToken
 	}
 
 	session, err := s.repo.GetSessionByUserAndSessionID(ctx, claims.UserID, claims.SessionID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			s.RecordAuthEvent(ctx, claims.UserID, requestID, "token_refresh", "failure", "session_not_found", normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent, "")
+			s.RecordAuthEvent(ctx, repository.AuthEventInput{UserID: claims.UserID, RequestID: requestID, EventType: "token_refresh", Result: "failure", Reason: "session_not_found", ClientIP: normalizedAuditCtx.ClientIP, UserAgent: normalizedAuditCtx.UserAgent})
 			return nil, ErrInvalidRefreshToken
 		}
 		return nil, err
 	}
 	if session.RevokedAt != nil || time.Now().After(session.ExpiresAt) {
-		s.RecordAuthEvent(ctx, claims.UserID, requestID, "token_refresh", "failure", "session_revoked_or_expired", normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent, "")
+		s.RecordAuthEvent(ctx, repository.AuthEventInput{UserID: claims.UserID, RequestID: requestID, EventType: "token_refresh", Result: "failure", Reason: "session_revoked_or_expired", ClientIP: normalizedAuditCtx.ClientIP, UserAgent: normalizedAuditCtx.UserAgent})
 		return nil, ErrSessionRevoked
 	}
 
@@ -1101,7 +1160,7 @@ func (s *Service) Refresh(
 		return nil, err
 	}
 	if userItem.Status != domainuser.StatusActive {
-		s.RecordAuthEvent(ctx, claims.UserID, requestID, "token_refresh", "failure", "user_not_active", normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent, "")
+		s.RecordAuthEvent(ctx, repository.AuthEventInput{UserID: claims.UserID, RequestID: requestID, EventType: "token_refresh", Result: "failure", Reason: "user_not_active", ClientIP: normalizedAuditCtx.ClientIP, UserAgent: normalizedAuditCtx.UserAgent})
 		return nil, ErrSessionRevoked
 	}
 
@@ -1126,7 +1185,7 @@ func (s *Service) Refresh(
 		},
 	); err != nil {
 		if errors.Is(err, repository.ErrInvalidInput) {
-			s.RecordAuthEvent(ctx, claims.UserID, requestID, "token_refresh", "failure", "refresh_token_hash_mismatch", normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent, "")
+			s.RecordAuthEvent(ctx, repository.AuthEventInput{UserID: claims.UserID, RequestID: requestID, EventType: "token_refresh", Result: "failure", Reason: "refresh_token_hash_mismatch", ClientIP: normalizedAuditCtx.ClientIP, UserAgent: normalizedAuditCtx.UserAgent})
 			return nil, ErrInvalidRefreshToken
 		}
 		return nil, err
@@ -1140,14 +1199,15 @@ func (s *Service) Refresh(
 
 	s.RecordAuthEvent(
 		ctx,
-		userItem.ID,
-		requestID,
-		"token_refresh",
-		"success",
-		"",
-		sessionSnapshot.ClientIP,
-		sessionSnapshot.UserAgent,
-		marshalSessionAuthEventDetail(claims.SessionID, sessionSnapshot),
+		repository.AuthEventInput{
+			UserID:     userItem.ID,
+			RequestID:  requestID,
+			EventType:  "token_refresh",
+			Result:     "success",
+			ClientIP:   sessionSnapshot.ClientIP,
+			UserAgent:  sessionSnapshot.UserAgent,
+			DetailJSON: marshalSessionAuthEventDetail(claims.SessionID, sessionSnapshot),
+		},
 	)
 
 	userView, err := s.buildUserView(ctx, *userItem)
@@ -1183,28 +1243,31 @@ func (s *Service) Logout(
 	if err := s.repo.RevokeSession(ctx, userID, normalizedSessionID, "user_logout"); err != nil {
 		s.RecordAuthEvent(
 			ctx,
-			userID,
-			requestID,
-			"logout",
-			"failure",
-			"revoke_session_failed",
-			normalizedAuditCtx.ClientIP,
-			normalizedAuditCtx.UserAgent,
-			marshalSessionAuthEventDetail(normalizedSessionID, sessionSnapshot),
+			repository.AuthEventInput{
+				UserID:     userID,
+				RequestID:  requestID,
+				EventType:  "logout",
+				Result:     "failure",
+				Reason:     "revoke_session_failed",
+				ClientIP:   normalizedAuditCtx.ClientIP,
+				UserAgent:  normalizedAuditCtx.UserAgent,
+				DetailJSON: marshalSessionAuthEventDetail(normalizedSessionID, sessionSnapshot),
+			},
 		)
 		return err
 	}
 
 	s.RecordAuthEvent(
 		ctx,
-		userID,
-		requestID,
-		"logout",
-		"success",
-		"",
-		normalizedAuditCtx.ClientIP,
-		normalizedAuditCtx.UserAgent,
-		marshalSessionAuthEventDetail(normalizedSessionID, sessionSnapshot),
+		repository.AuthEventInput{
+			UserID:     userID,
+			RequestID:  requestID,
+			EventType:  "logout",
+			Result:     "success",
+			ClientIP:   normalizedAuditCtx.ClientIP,
+			UserAgent:  normalizedAuditCtx.UserAgent,
+			DetailJSON: marshalSessionAuthEventDetail(normalizedSessionID, sessionSnapshot),
+		},
 	)
 
 	return nil
@@ -1219,11 +1282,11 @@ func (s *Service) LogoutAll(
 ) error {
 	normalizedAuditCtx := auditCtx.Normalize()
 	if err := s.repo.RevokeAllSessions(ctx, userID, "user_logout_all"); err != nil {
-		s.RecordAuthEvent(ctx, userID, requestID, "logout_all", "failure", "revoke_all_sessions_failed", normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent, "")
+		s.RecordAuthEvent(ctx, repository.AuthEventInput{UserID: userID, RequestID: requestID, EventType: "logout_all", Result: "failure", Reason: "revoke_all_sessions_failed", ClientIP: normalizedAuditCtx.ClientIP, UserAgent: normalizedAuditCtx.UserAgent})
 		return err
 	}
 
-	s.RecordAuthEvent(ctx, userID, requestID, "logout_all", "success", "", normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent, "")
+	s.RecordAuthEvent(ctx, repository.AuthEventInput{UserID: userID, RequestID: requestID, EventType: "logout_all", Result: "success", ClientIP: normalizedAuditCtx.ClientIP, UserAgent: normalizedAuditCtx.UserAgent})
 	return nil
 }
 
@@ -1436,15 +1499,22 @@ func (s *Service) UpdateCurrentSessionLocation(
 			session := item
 			normalizedAuditCtx := s.resolveSessionAuditContext(ctx, auditCtx)
 			s.RecordAuthEvent(
-				ctx, userID, requestID, "session_location_update", "success", "",
-				normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent,
-				marshalAuthEventDetail(map[string]interface{}{
-					"session_id":              normalizedSessionID,
-					"precise_latitude":        session.PreciseLatitude,
-					"precise_longitude":       session.PreciseLongitude,
-					"precise_accuracy_meters": session.PreciseAccuracyM,
-					"timezone_name":           session.TimezoneName,
-				}),
+				ctx,
+				repository.AuthEventInput{
+					UserID:    userID,
+					RequestID: requestID,
+					EventType: "session_location_update",
+					Result:    "success",
+					ClientIP:  normalizedAuditCtx.ClientIP,
+					UserAgent: normalizedAuditCtx.UserAgent,
+					DetailJSON: marshalAuthEventDetail(map[string]interface{}{
+						"session_id":              normalizedSessionID,
+						"precise_latitude":        session.PreciseLatitude,
+						"precise_longitude":       session.PreciseLongitude,
+						"precise_accuracy_meters": session.PreciseAccuracyM,
+						"timezone_name":           session.TimezoneName,
+					}),
+				},
 			)
 			return &session, nil
 		}
@@ -1453,31 +1523,11 @@ func (s *Service) UpdateCurrentSessionLocation(
 }
 
 // RecordAuthEvent 写入认证事件。
-func (s *Service) RecordAuthEvent(
-	ctx context.Context,
-	userID uint,
-	requestID string,
-	eventType string,
-	result string,
-	reason string,
-	clientIP string,
-	userAgent string,
-	detailJSON string,
-) {
-	if err := s.repo.RecordAuthEvent(
-		ctx,
-		userID,
-		requestID,
-		eventType,
-		result,
-		reason,
-		clientIP,
-		userAgent,
-		detailJSON,
-	); err != nil {
+func (s *Service) RecordAuthEvent(ctx context.Context, input repository.AuthEventInput) {
+	if err := s.repo.RecordAuthEvent(ctx, input); err != nil {
 		s.warn("record_auth_event_failed",
-			zap.Uint("user_id", userID),
-			zap.String("event", eventType),
+			zap.Uint("user_id", input.UserID),
+			zap.String("event", input.EventType),
 			zap.Error(err),
 		)
 	}
@@ -1536,29 +1586,29 @@ func (s *Service) buildSessionTokenPair(user *domainuser.User, sessionID string,
 	accessJTI := conv.NormalizePublicID(uuid.NewString())
 	refreshJTI := conv.NormalizePublicID(uuid.NewString())
 
-	accessToken, err := token.GenerateWithClaims(
-		cfg.JWTSecret,
-		user.ID,
-		user.Username,
-		user.Role,
-		sessionID,
-		accessJTI,
-		"access",
-		accessTTL,
-	)
+	accessToken, err := token.GenerateWithClaims(token.GenerateClaimsInput{
+		Secret:    cfg.JWTSecret,
+		UserID:    user.ID,
+		Username:  user.Username,
+		Role:      user.Role,
+		SessionID: sessionID,
+		TokenID:   accessJTI,
+		TokenType: "access",
+		TTL:       accessTTL,
+	})
 	if err != nil {
 		return nil, err
 	}
-	refreshToken, err := token.GenerateWithClaims(
-		cfg.JWTSecret,
-		user.ID,
-		user.Username,
-		user.Role,
-		sessionID,
-		refreshJTI,
-		"refresh",
-		refreshTTL,
-	)
+	refreshToken, err := token.GenerateWithClaims(token.GenerateClaimsInput{
+		Secret:    cfg.JWTSecret,
+		UserID:    user.ID,
+		Username:  user.Username,
+		Role:      user.Role,
+		SessionID: sessionID,
+		TokenID:   refreshJTI,
+		TokenType: "refresh",
+		TTL:       refreshTTL,
+	})
 	if err != nil {
 		return nil, err
 	}

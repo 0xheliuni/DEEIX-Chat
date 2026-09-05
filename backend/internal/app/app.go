@@ -334,7 +334,15 @@ func NewApp() (*App, error) {
 	embeddingService := appembedding.NewServiceWithRuntime(runtimeCfg, conversationRepo, extractionService, embedClient, log)
 	memoryService.SetEmbeddingProvider(embeddingService)
 	settingsHandler.SetEmbeddingService(embeddingService)
-	processingService := appprocessing.NewServiceWithRuntime(runtimeCfg, conversationRepo, conversationCache, extractionService, embeddingService, log, appprocessing.DefaultExtractorVersion)
+	processingService := appprocessing.NewServiceWithRuntime(appprocessing.Dependencies{
+		Config:           runtimeCfg,
+		Repository:       conversationRepo,
+		Cache:            conversationCache,
+		ExtractService:   extractionService,
+		EmbeddingService: embeddingService,
+		Logger:           log,
+		ExtractorVersion: appprocessing.DefaultExtractorVersion,
+	})
 	uploadService := appupload.NewServiceWithRuntime(
 		runtimeCfg,
 		conversationRepo,
@@ -345,23 +353,23 @@ func NewApp() (*App, error) {
 	)
 	uploadService.SetObjectStoreProvider(objectStoreProvider)
 	ragService := apprag.NewServiceWithRuntime(runtimeCfg, conversationRepo, conversationCache, embedClient)
-	conversationService := conversation.NewServiceWithRuntime(
-		runtimeCfg,
-		conversationRepo,
-		conversationCache,
-		channelService,
-		memoryService,
-		llmClient,
-		mediaArtifactClient,
-		mcpClient,
-		compactService,
-		embeddingService,
-		processingService,
-		uploadService,
-		extractionService,
-		ragService,
-		log,
-	)
+	conversationService := conversation.NewServiceWithRuntime(conversation.Dependencies{
+		Config:            runtimeCfg,
+		Repository:        conversationRepo,
+		Cache:             conversationCache,
+		RouteResolver:     channelService,
+		MemoryRecorder:    memoryService,
+		LLMClient:         llmClient,
+		MediaDownloader:   mediaArtifactClient,
+		MCPClient:         mcpClient,
+		CompactService:    compactService,
+		EmbeddingService:  embeddingService,
+		ProcessingService: processingService,
+		UploadService:     uploadService,
+		ExtractService:    extractionService,
+		RAGService:        ragService,
+		Logger:            log,
+	})
 	conversationService.SetBillingService(billingService)
 	conversationService.SetAuditWriter(auditService)
 	conversationService.SetObjectStoreProvider(objectStoreProvider)

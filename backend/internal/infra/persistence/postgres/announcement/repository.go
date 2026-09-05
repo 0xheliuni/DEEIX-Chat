@@ -18,6 +18,15 @@ type Repo struct {
 	db *gorm.DB
 }
 
+type announcementUserStateInput struct {
+	UserID                uint
+	AnnouncementID        uint
+	AnnouncementUpdatedAt time.Time
+	Now                   time.Time
+	DismissedUntil        *time.Time
+	ClosedAt              *time.Time
+}
+
 // NewRepo 创建公告仓储。
 func NewRepo(db *gorm.DB) *Repo {
 	return &Repo{db: db}
@@ -219,7 +228,13 @@ func (r *Repo) DismissAnnouncementToday(ctx context.Context, userID uint, announ
 	if userID == 0 || announcementID == 0 || announcementUpdatedAt.IsZero() || !dismissedUntil.After(now) {
 		return repository.ErrInvalidInput
 	}
-	return r.saveUserState(ctx, userID, announcementID, announcementUpdatedAt, now, &dismissedUntil, nil)
+	return r.saveUserState(ctx, announcementUserStateInput{
+		UserID:                userID,
+		AnnouncementID:        announcementID,
+		AnnouncementUpdatedAt: announcementUpdatedAt,
+		Now:                   now,
+		DismissedUntil:        &dismissedUntil,
+	})
 }
 
 // CloseAnnouncement 记录用户关闭指定公告版本。
@@ -227,34 +242,40 @@ func (r *Repo) CloseAnnouncement(ctx context.Context, userID uint, announcementI
 	if userID == 0 || announcementID == 0 || announcementUpdatedAt.IsZero() {
 		return repository.ErrInvalidInput
 	}
-	return r.saveUserState(ctx, userID, announcementID, announcementUpdatedAt, now, nil, &now)
+	return r.saveUserState(ctx, announcementUserStateInput{
+		UserID:                userID,
+		AnnouncementID:        announcementID,
+		AnnouncementUpdatedAt: announcementUpdatedAt,
+		Now:                   now,
+		ClosedAt:              &now,
+	})
 }
 
-func (r *Repo) saveUserState(ctx context.Context, userID uint, announcementID uint, announcementUpdatedAt time.Time, now time.Time, dismissedUntil *time.Time, closedAt *time.Time) error {
+func (r *Repo) saveUserState(ctx context.Context, input announcementUserStateInput) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var announcement model.Announcement
 		if err := tx.
-			Where("id = ?", announcementID).
-			Where("updated_at = ?", announcementUpdatedAt).
+			Where("id = ?", input.AnnouncementID).
+			Where("updated_at = ?", input.AnnouncementUpdatedAt).
 			Where("status = ?", domainannouncement.StatusActive).
-			Where("(starts_at IS NULL OR starts_at <= ?)", now).
-			Where("(expires_at IS NULL OR expires_at > ?)", now).
+			Where("(starts_at IS NULL OR starts_at <= ?)", input.Now).
+			Where("(expires_at IS NULL OR expires_at > ?)", input.Now).
 			First(&announcement).Error; err != nil {
 			return dberror.Translate(err)
 		}
 
 		state := model.AnnouncementUserState{
 			AnnouncementID:        announcement.ID,
-			UserID:                userID,
+			UserID:                input.UserID,
 			AnnouncementUpdatedAt: announcement.UpdatedAt,
-			DismissedUntil:        dismissedUntil,
-			ClosedAt:              closedAt,
+			DismissedUntil:        input.DismissedUntil,
+			ClosedAt:              input.ClosedAt,
 		}
 		assignments := []string{"updated_at", "deleted_at"}
-		if dismissedUntil != nil {
+		if input.DismissedUntil != nil {
 			assignments = append(assignments, "dismissed_until")
 		}
-		if closedAt != nil {
+		if input.ClosedAt != nil {
 			assignments = append(assignments, "closed_at")
 		}
 		if err := tx.Clauses(clause.OnConflict{

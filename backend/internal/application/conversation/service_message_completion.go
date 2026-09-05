@@ -119,7 +119,11 @@ func (s *Service) persistSuccessfulMessageGeneration(ctx context.Context, input 
 		background.Go(s.logger, "user_message_usage_update", func() {
 			bgCtx, cancel := background.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
-			_ = s.repo.UpdateMessageUsage(bgCtx, msgID, inputTokens, 0, cacheReadTokens, cacheWriteTokens, 0)
+			_ = s.repo.UpdateMessageUsage(bgCtx, msgID, repository.MessageUsageUpdate{
+				InputTokens:      inputTokens,
+				CacheReadTokens:  cacheReadTokens,
+				CacheWriteTokens: cacheWriteTokens,
+			})
 		})
 	}
 
@@ -185,24 +189,22 @@ func (s *Service) persistAssistantImagePayloadIfPresent(ctx context.Context, inp
 		if input.Route != nil {
 			trustedProviderEndpoint = input.Route.BaseURL
 		}
-		normalized, err = s.normalizeAssistantGeneratedImages(
-			ctx,
-			input.SendInput.UserID,
-			input.SendInput.ConversationID,
-			input.AssistantMessage.ID,
-			successfulMessageGenerationModelName(input),
-			trustedProviderEndpoint,
-			input.GeneratedImages,
-		)
+		normalized, err = s.normalizeAssistantGeneratedImages(ctx, assistantGeneratedImagesInput{
+			UserID:                  input.SendInput.UserID,
+			ConversationID:          input.SendInput.ConversationID,
+			AssistantMessageID:      input.AssistantMessage.ID,
+			ModelName:               successfulMessageGenerationModelName(input),
+			TrustedProviderEndpoint: trustedProviderEndpoint,
+			GeneratedImages:         input.GeneratedImages,
+		})
 	} else {
-		normalized, err = s.normalizeAssistantImageContent(
-			ctx,
-			input.SendInput.UserID,
-			input.SendInput.ConversationID,
-			input.AssistantMessage.ID,
-			successfulMessageGenerationModelName(input),
-			input.AssistantText,
-		)
+		normalized, err = s.normalizeAssistantImageContent(ctx, assistantImageContentInput{
+			UserID:             input.SendInput.UserID,
+			ConversationID:     input.SendInput.ConversationID,
+			AssistantMessageID: input.AssistantMessage.ID,
+			ModelName:          successfulMessageGenerationModelName(input),
+			Content:            input.AssistantText,
+		})
 	}
 	if err != nil || normalized == nil {
 		return false, err
@@ -338,11 +340,11 @@ func (s *Service) persistInterruptedMessageGeneration(ctx context.Context, input
 		if err := s.repo.UpdateMessageUsage(
 			persistCtx,
 			input.UserMessage.ID,
-			metrics.InputTokens,
-			0,
-			metrics.CacheReadTokens,
-			metrics.CacheWriteTokens,
-			0,
+			repository.MessageUsageUpdate{
+				InputTokens:      metrics.InputTokens,
+				CacheReadTokens:  metrics.CacheReadTokens,
+				CacheWriteTokens: metrics.CacheWriteTokens,
+			},
 		); err != nil {
 			s.logger.Warn("persist_interrupted_user_usage_failed",
 				zap.String("trace_id", traceid.FromContext(ctx)),

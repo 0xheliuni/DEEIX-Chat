@@ -38,6 +38,15 @@ type routeGenerationContext struct {
 	attributionTitle       string
 }
 
+type routeGenerationPreparationInput struct {
+	Generation               routeGenerationContext
+	Route                    *channel.ResolvedRoute
+	PromptPlan               PromptPlan
+	ReasoningContentPassback bool
+	Mode                     routeGenerationMode
+	TraceRecorder            *messageTraceRecorder
+}
+
 // routeGenerationPlan 是一条路由上首次上游调用的完整请求形状。
 type routeGenerationPlan struct {
 	route                    *channel.ResolvedRoute
@@ -62,17 +71,15 @@ type routeGenerationPlan struct {
 // prepareRouteGeneration 把路由级提示词规划固化为一次上游调用的请求形状：过滤模型参数、配置提示词
 // 缓存、按模型上下文预算裁剪历史、剥离 Responses instructions，并计算有状态续传指纹。
 // 首个路由额外决定是否沿用 previous_response_id；故障转移后的路由总是发送完整上下文。
-func (s *Service) prepareRouteGeneration(
-	ctx context.Context,
-	gen routeGenerationContext,
-	route *channel.ResolvedRoute,
-	promptPlan PromptPlan,
-	reasoningContentPassback bool,
-	mode routeGenerationMode,
-	traceRecorder *messageTraceRecorder,
-) routeGenerationPlan {
+func (s *Service) prepareRouteGeneration(ctx context.Context, input routeGenerationPreparationInput) routeGenerationPlan {
+	gen := input.Generation
+	route := input.Route
+	promptPlan := input.PromptPlan
+	reasoningContentPassback := input.ReasoningContentPassback
+	mode := input.Mode
+	traceRecorder := input.TraceRecorder
 	cfg := gen.cfg
-	input := gen.input
+	messageInput := gen.input
 	conversation := gen.conversation
 	plan := routeGenerationPlan{
 		route:                    route,
@@ -82,7 +89,7 @@ func (s *Service) prepareRouteGeneration(
 	}
 
 	llmMessages := promptPlan.Messages
-	filteredOptions := filterModelOptions(input.Options, route.Protocol, modelOptionPolicyConfig{
+	filteredOptions := filterModelOptions(messageInput.Options, route.Protocol, modelOptionPolicyConfig{
 		Mode:                  cfg.ModelOptionPolicyMode,
 		AllowedPathsJSON:      cfg.ModelOptionAllowedPaths,
 		DeniedPathsJSON:       cfg.ModelOptionDeniedPaths,
@@ -90,7 +97,7 @@ func (s *Service) prepareRouteGeneration(
 	})
 	filteredOptions = withMessageRouteReasoningPassbackOptions(
 		filteredOptions,
-		input.Options,
+		messageInput.Options,
 		route,
 		reasoningContentPassback,
 		llmMessages,
@@ -103,8 +110,8 @@ func (s *Service) prepareRouteGeneration(
 		llmMessages,
 	)
 	generateInput := llm.GenerateInput{
-		RequestID:              strings.TrimSpace(input.RequestID),
-		ConversationID:         input.ConversationID,
+		RequestID:              strings.TrimSpace(messageInput.RequestID),
+		ConversationID:         messageInput.ConversationID,
 		ConversationPublicID:   strings.TrimSpace(conversation.PublicID),
 		ConversationSessionKey: strings.TrimSpace(conversation.SessionKey),
 		PromptCacheKey:         promptCacheKey,

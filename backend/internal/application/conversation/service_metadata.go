@@ -76,6 +76,15 @@ type conversationMetadataLLMResult struct {
 	Authorization     *domainbilling.UsageAuthorization
 }
 
+type conversationMetadataLLMInput struct {
+	ConfiguredModel   string
+	ConversationModel string
+	UserID            uint
+	ConversationID    uint
+	ServiceCode       string
+	Prompt            string
+}
+
 type conversationMetadataGenerationPlan struct {
 	replaceTitle   bool
 	generateTitle  bool
@@ -142,11 +151,34 @@ func (s *Service) generateConversationMetadata(
 	}
 	if s.routeResolver != nil && s.llmClient != nil && shouldGenerateTitle && hasTitleableMessages {
 		prompt := renderConversationMetadataPrompt(cfg.ConversationTitlePrompt, conversationMetadataTitlePrompt, messages)
-		out, err := s.callConversationMetadataLLM(ctx, cfg.ConversationTaskModel, conversation.Model, conversation.UserID, conversation.ID, "title", prompt)
+		out, err := s.callConversationMetadataLLM(ctx, conversationMetadataLLMInput{
+			ConfiguredModel:   cfg.ConversationTaskModel,
+			ConversationModel: conversation.Model,
+			UserID:            conversation.UserID,
+			ConversationID:    conversation.ID,
+			ServiceCode:       "title",
+			Prompt:            prompt,
+		})
 		if err != nil {
 			titleErr = err
 		} else {
-			if err = s.recordBasicServiceUsage(ctx, out.Authorization, conversation.UserID, conversation.ID, "title", "标题", out.PlatformModelName, out.RoutedBindingCode, out.ProviderProtocol, out.UpstreamName, out.UpstreamModel, "5m", out.Usage, out.Messages, out.Text, out.LatencyMS); err != nil {
+			if err = s.recordBasicServiceUsage(ctx, basicServiceUsageInput{
+				Authorization:     out.Authorization,
+				UserID:            conversation.UserID,
+				ConversationID:    conversation.ID,
+				ServiceCode:       "title",
+				ServiceName:       "标题",
+				PlatformModelName: out.PlatformModelName,
+				RoutedBindingCode: out.RoutedBindingCode,
+				ProviderProtocol:  out.ProviderProtocol,
+				UpstreamName:      out.UpstreamName,
+				UpstreamModelName: out.UpstreamModel,
+				CacheTimeout:      "5m",
+				Usage:             out.Usage,
+				FallbackMessages:  out.Messages,
+				FallbackOutput:    out.Text,
+				LatencyMS:         out.LatencyMS,
+			}); err != nil {
 				// 上游费用已经产生但账单未落地时立即终止后续辅助调用，避免继续扩大待核对金额。
 				return nil, err
 			}
@@ -175,11 +207,34 @@ func (s *Service) generateConversationMetadata(
 	}
 	if s.routeResolver != nil && s.llmClient != nil && shouldGenerateLabels && hasTitleableMessages {
 		labelsPrompt := renderConversationMetadataPrompt(cfg.ConversationLabelsPrompt, conversationMetadataLabelsPrompt, messages)
-		labelsOut, err := s.callConversationMetadataLLM(ctx, cfg.ConversationTaskModel, conversation.Model, conversation.UserID, conversation.ID, "labels", labelsPrompt)
+		labelsOut, err := s.callConversationMetadataLLM(ctx, conversationMetadataLLMInput{
+			ConfiguredModel:   cfg.ConversationTaskModel,
+			ConversationModel: conversation.Model,
+			UserID:            conversation.UserID,
+			ConversationID:    conversation.ID,
+			ServiceCode:       "labels",
+			Prompt:            labelsPrompt,
+		})
 		if err != nil {
 			labelsErr = err
 		} else {
-			if err = s.recordBasicServiceUsage(ctx, labelsOut.Authorization, conversation.UserID, conversation.ID, "labels", "标签", labelsOut.PlatformModelName, labelsOut.RoutedBindingCode, labelsOut.ProviderProtocol, labelsOut.UpstreamName, labelsOut.UpstreamModel, "5m", labelsOut.Usage, labelsOut.Messages, labelsOut.Text, labelsOut.LatencyMS); err != nil {
+			if err = s.recordBasicServiceUsage(ctx, basicServiceUsageInput{
+				Authorization:     labelsOut.Authorization,
+				UserID:            conversation.UserID,
+				ConversationID:    conversation.ID,
+				ServiceCode:       "labels",
+				ServiceName:       "标签",
+				PlatformModelName: labelsOut.PlatformModelName,
+				RoutedBindingCode: labelsOut.RoutedBindingCode,
+				ProviderProtocol:  labelsOut.ProviderProtocol,
+				UpstreamName:      labelsOut.UpstreamName,
+				UpstreamModelName: labelsOut.UpstreamModel,
+				CacheTimeout:      "5m",
+				Usage:             labelsOut.Usage,
+				FallbackMessages:  labelsOut.Messages,
+				FallbackOutput:    labelsOut.Text,
+				LatencyMS:         labelsOut.LatencyMS,
+			}); err != nil {
 				return nil, err
 			}
 			labels := sanitizeGeneratedConversationLabels(parseGeneratedConversationLabels(labelsOut.Text))
@@ -244,7 +299,14 @@ func (s *Service) RegenerateConversationTitle(ctx context.Context, userID uint, 
 	title := ""
 	if s.routeResolver != nil && s.llmClient != nil && metadataMessages != "" {
 		prompt := renderConversationMetadataPrompt(cfg.ConversationTitlePrompt, conversationManualTitlePrompt, metadataMessages)
-		out, generateErr := s.callConversationMetadataLLM(ctx, cfg.ConversationTaskModel, conversation.Model, conversation.UserID, conversation.ID, "title", prompt)
+		out, generateErr := s.callConversationMetadataLLM(ctx, conversationMetadataLLMInput{
+			ConfiguredModel:   cfg.ConversationTaskModel,
+			ConversationModel: conversation.Model,
+			UserID:            conversation.UserID,
+			ConversationID:    conversation.ID,
+			ServiceCode:       "title",
+			Prompt:            prompt,
+		})
 		if generateErr != nil {
 			if s.logger != nil {
 				s.logger.Warn("conversation_title_regeneration_failed",
@@ -253,7 +315,23 @@ func (s *Service) RegenerateConversationTitle(ctx context.Context, userID uint, 
 					zap.Error(generateErr),
 				)
 			}
-		} else if usageErr := s.recordBasicServiceUsage(ctx, out.Authorization, conversation.UserID, conversation.ID, "title", "标题", out.PlatformModelName, out.RoutedBindingCode, out.ProviderProtocol, out.UpstreamName, out.UpstreamModel, "5m", out.Usage, out.Messages, out.Text, out.LatencyMS); usageErr != nil {
+		} else if usageErr := s.recordBasicServiceUsage(ctx, basicServiceUsageInput{
+			Authorization:     out.Authorization,
+			UserID:            conversation.UserID,
+			ConversationID:    conversation.ID,
+			ServiceCode:       "title",
+			ServiceName:       "标题",
+			PlatformModelName: out.PlatformModelName,
+			RoutedBindingCode: out.RoutedBindingCode,
+			ProviderProtocol:  out.ProviderProtocol,
+			UpstreamName:      out.UpstreamName,
+			UpstreamModelName: out.UpstreamModel,
+			CacheTimeout:      "5m",
+			Usage:             out.Usage,
+			FallbackMessages:  out.Messages,
+			FallbackOutput:    out.Text,
+			LatencyMS:         out.LatencyMS,
+		}); usageErr != nil {
 			if s.logger != nil {
 				s.logger.Warn("conversation_title_billing_failed",
 					zap.Uint("conversation_id", conversation.ID),
@@ -485,8 +563,13 @@ func renderConversationMetadataPrompt(raw string, fallback string, messages stri
 
 // callConversationMetadataLLM 使用内部文本任务路由生成会话标题或标签。
 // 即使会话当前模型是图片模型，也只会解析聊天路由。
-func (s *Service) callConversationMetadataLLM(ctx context.Context, configuredModel string, conversationModel string, userID uint, conversationID uint, serviceCode string, prompt string) (*conversationMetadataLLMResult, error) {
-	routes, err := s.resolveTextTaskRouteCandidates(ctx, configuredModel, conversationModel, userID, conversationID, "")
+func (s *Service) callConversationMetadataLLM(ctx context.Context, input conversationMetadataLLMInput) (*conversationMetadataLLMResult, error) {
+	routes, err := s.resolveTextTaskRouteCandidates(ctx, textTaskRouteInput{
+		ConfiguredModel:   input.ConfiguredModel,
+		ConversationModel: input.ConversationModel,
+		UserID:            input.UserID,
+		ConversationID:    input.ConversationID,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("metadata route resolve: %w", err)
 	}
@@ -494,7 +577,7 @@ func (s *Service) callConversationMetadataLLM(ctx context.Context, configuredMod
 		return nil, ErrModelRouteNotConfigured
 	}
 	attributionReferer, attributionTitle := s.llmAttribution()
-	messages := []llm.Message{{Role: "user", Content: prompt}}
+	messages := []llm.Message{{Role: "user", Content: input.Prompt}}
 	var lastErr error
 	for _, route := range routes {
 		if route == nil || strings.TrimSpace(route.PlatformModelName) == "" {
@@ -515,7 +598,7 @@ func (s *Service) callConversationMetadataLLM(ctx context.Context, configuredMod
 		}
 		startedAt := time.Now()
 		generateInput := buildTextTaskGenerateInput(route, s.cfg.Snapshot(), messages)
-		authorization, authorizeErr := s.authorizeBasicServiceUsage(ctx, userID, route.PlatformModelName, serviceCode)
+		authorization, authorizeErr := s.authorizeBasicServiceUsage(ctx, input.UserID, route.PlatformModelName, input.ServiceCode)
 		if authorizeErr != nil {
 			lastErr = fmt.Errorf("metadata usage authorization: %w", authorizeErr)
 			continue

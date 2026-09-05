@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	portembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/embedding"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/security"
 )
 
@@ -30,7 +31,7 @@ func TestCallAPITrustsConfiguredPrivateEmbeddingOrigin(t *testing.T) {
 	defer server.Close()
 
 	client := New(security.NewStrictOutboundPolicy(true))
-	result, err := client.CallAPI(context.Background(), server.URL+"/v1", "", "test", []string{"hello"}, 3, 5)
+	result, err := client.CallAPI(context.Background(), portembedding.Request{APIBase: server.URL + "/v1", Model: "test", Texts: []string{"hello"}, Dimensions: 3, TimeoutSeconds: 5})
 	if err != nil {
 		t.Fatalf("call configured private embedding endpoint: %v", err)
 	}
@@ -48,7 +49,7 @@ func TestCallAPIRejectsUnexpectedEmbeddingDimensions(t *testing.T) {
 	defer server.Close()
 
 	client := New(security.NewStrictOutboundPolicy(true))
-	_, err := client.CallAPI(context.Background(), server.URL+"/v1", "", "test", []string{"hello"}, 4, 5)
+	_, err := client.CallAPI(context.Background(), portembedding.Request{APIBase: server.URL + "/v1", Model: "test", Texts: []string{"hello"}, Dimensions: 4, TimeoutSeconds: 5})
 	if err == nil || !strings.Contains(err.Error(), "has 3 dimensions, expected 4") {
 		t.Fatalf("expected explicit dimension mismatch, got %v", err)
 	}
@@ -68,7 +69,7 @@ func TestCallAPIAcceptsDimensionChangesInBothDirections(t *testing.T) {
 
 	client := New(security.NewStrictOutboundPolicy(true))
 	for _, dimensions := range []int{4096, 1536, 4096} {
-		result, err := client.CallAPI(context.Background(), server.URL+"/v1", "", "test", []string{"hello"}, dimensions, 5)
+		result, err := client.CallAPI(context.Background(), portembedding.Request{APIBase: server.URL + "/v1", Model: "test", Texts: []string{"hello"}, Dimensions: dimensions, TimeoutSeconds: 5})
 		if err != nil {
 			t.Fatalf("CallAPI(%d) error = %v", dimensions, err)
 		}

@@ -69,22 +69,12 @@ func (r *Repo) CreateConversation(ctx context.Context, item *domainconversation.
 }
 
 // ListConversationsByUser 分页查询用户会话。
-func (r *Repo) ListConversationsByUser(
-	ctx context.Context,
-	userID uint,
-	offset int,
-	limit int,
-	statusFilter string,
-	starredFilter string,
-	shareFilter string,
-	projectFilter string,
-	searchQuery string,
-) ([]domainconversation.Conversation, int64, error) {
+func (r *Repo) ListConversationsByUser(ctx context.Context, input repository.ConversationListInput) ([]domainconversation.Conversation, int64, error) {
 	items := make([]models.Conversation, 0)
 	var total int64
-	query := r.db.WithContext(ctx).Model(&models.Conversation{}).Where("user_id = ?", userID)
+	query := r.db.WithContext(ctx).Model(&models.Conversation{}).Where("user_id = ?", input.UserID)
 
-	switch statusFilter {
+	switch input.StatusFilter {
 	case "archived":
 		query = query.Where("status = ?", "archived")
 	case "all":
@@ -93,7 +83,7 @@ func (r *Repo) ListConversationsByUser(
 		query = query.Where("status <> ?", "archived")
 	}
 
-	switch starredFilter {
+	switch input.StarredFilter {
 	case "starred":
 		query = query.Where("is_starred = ?", true)
 	case "unstarred":
@@ -107,20 +97,20 @@ func (r *Repo) ListConversationsByUser(
 			AND shares.user_id = chat_conversations.user_id
 			AND shares.status = ?
 	)`
-	switch shareFilter {
+	switch input.ShareFilter {
 	case "shared":
 		query = query.Where(activeShareExistsSQL, "active")
 	case "unshared":
 		query = query.Where("NOT "+activeShareExistsSQL, "active")
 	}
 
-	switch normalizedProjectFilter := strings.TrimSpace(projectFilter); normalizedProjectFilter {
+	switch normalizedProjectFilter := strings.TrimSpace(input.ProjectFilter); normalizedProjectFilter {
 	case "", "all":
 		// 保留全部项目归属。
 	case "unassigned":
 		query = query.Where("project_id IS NULL")
 	default:
-		project, err := r.GetConversationProjectByPublicID(ctx, userID, normalizedProjectFilter)
+		project, err := r.GetConversationProjectByPublicID(ctx, input.UserID, normalizedProjectFilter)
 		if err != nil {
 			if errors.Is(err, repository.ErrNotFound) {
 				return []domainconversation.Conversation{}, 0, nil
@@ -130,13 +120,13 @@ func (r *Repo) ListConversationsByUser(
 		query = query.Where("project_id = ?", project.ID)
 	}
 
-	query = applyConversationSearchFilter(query, searchQuery)
+	query = applyConversationSearchFilter(query, input.SearchQuery)
 
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, dberror.Translate(err)
 	}
 	orderedQuery := query.Session(&gorm.Session{})
-	if starredFilter == "starred" {
+	if input.StarredFilter == "starred" {
 		orderedQuery = orderedQuery.
 			Order("starred_at DESC").
 			Order("id DESC")
@@ -145,8 +135,8 @@ func (r *Repo) ListConversationsByUser(
 			Order("updated_at DESC").
 			Order("id DESC")
 	}
-	if err := orderedQuery.Offset(offset).
-		Limit(limit).
+	if err := orderedQuery.Offset(input.Offset).
+		Limit(input.Limit).
 		Find(&items).Error; err != nil {
 		return nil, 0, dberror.Translate(err)
 	}
@@ -1047,13 +1037,9 @@ func (r *Repo) GetMessageByPublicIDForUser(ctx context.Context, userID uint, pub
 func (r *Repo) UpdateMessageUsage(
 	ctx context.Context,
 	messageID uint,
-	inputTokens int64,
-	outputTokens int64,
-	cacheReadTokens int64,
-	cacheWriteTokens int64,
-	reasoningTokens int64,
+	usage repository.MessageUsageUpdate,
 ) error {
-	tokenUsage := inputTokens + cacheReadTokens + cacheWriteTokens + outputTokens + reasoningTokens
+	tokenUsage := usage.InputTokens + usage.CacheReadTokens + usage.CacheWriteTokens + usage.OutputTokens + usage.ReasoningTokens
 	if tokenUsage < 0 {
 		tokenUsage = 0
 	}
@@ -1062,11 +1048,11 @@ func (r *Repo) UpdateMessageUsage(
 		Where("id = ?", messageID).
 		Updates(map[string]interface{}{
 			"token_usage":        tokenUsage,
-			"input_tokens":       inputTokens,
-			"output_tokens":      outputTokens,
-			"cache_read_tokens":  cacheReadTokens,
-			"cache_write_tokens": cacheWriteTokens,
-			"reasoning_tokens":   reasoningTokens,
+			"input_tokens":       usage.InputTokens,
+			"output_tokens":      usage.OutputTokens,
+			"cache_read_tokens":  usage.CacheReadTokens,
+			"cache_write_tokens": usage.CacheWriteTokens,
+			"reasoning_tokens":   usage.ReasoningTokens,
 		}).
 		Error)
 }
@@ -2382,25 +2368,23 @@ func (r *Repo) GetLatestContextSnapshot(ctx context.Context, conversationID uint
 
 // ListFileObjectsByUser 分页查询用户文件。
 func (r *Repo) ListFileObjectsByUser(ctx context.Context, userID uint, offset int, limit int) ([]domainconversation.FileObject, int64, error) {
-	return r.ListFileObjectsByUserWithFilter(ctx, userID, offset, limit, "", "all", "created")
+	return r.ListFileObjectsByUserWithFilter(ctx, repository.ListFileObjectsInput{
+		UserID:     userID,
+		Offset:     offset,
+		Limit:      limit,
+		FilterKind: "all",
+		SortBy:     "created",
+	})
 }
 
-func (r *Repo) ListFileObjectsByUserWithFilter(
-	ctx context.Context,
-	userID uint,
-	offset int,
-	limit int,
-	searchQuery string,
-	filterKind string,
-	sortBy string,
-) ([]domainconversation.FileObject, int64, error) {
+func (r *Repo) ListFileObjectsByUserWithFilter(ctx context.Context, input repository.ListFileObjectsInput) ([]domainconversation.FileObject, int64, error) {
 	items := make([]models.FileObject, 0)
 	var total int64
 
 	query := r.db.WithContext(ctx).
 		Model(&models.FileObject{}).
-		Where("user_id = ? AND status = ?", userID, "active")
-	normalizedQuery := strings.TrimSpace(searchQuery)
+		Where("user_id = ? AND status = ?", input.UserID, "active")
+	normalizedQuery := strings.TrimSpace(input.SearchQuery)
 	if normalizedQuery != "" {
 		pattern := "%" + strings.ToLower(normalizedQuery) + "%"
 		query = query.Where(
@@ -2412,14 +2396,14 @@ func (r *Repo) ListFileObjectsByUserWithFilter(
 			pattern,
 		)
 	}
-	if condition, args := buildFileKindWhereClause(filterKind); condition != "" {
+	if condition, args := buildFileKindWhereClause(input.FilterKind); condition != "" {
 		query = query.Where(condition, args...)
 	}
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, dberror.Translate(err)
 	}
 	orderQuery := query
-	switch sortBy {
+	switch input.SortBy {
 	case "name":
 		orderQuery = orderQuery.Order("file_name ASC").Order("id DESC")
 	case "size":
@@ -2430,8 +2414,8 @@ func (r *Repo) ListFileObjectsByUserWithFilter(
 		orderQuery = orderQuery.Order("created_at DESC").Order("id DESC")
 	}
 	if err := orderQuery.
-		Offset(offset).
-		Limit(limit).
+		Offset(input.Offset).
+		Limit(input.Limit).
 		Find(&items).Error; err != nil {
 		return nil, 0, dberror.Translate(err)
 	}

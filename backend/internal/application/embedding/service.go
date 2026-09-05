@@ -13,6 +13,7 @@ import (
 	domainconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/filetype"
+	portembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/embedding"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
@@ -135,7 +136,7 @@ type Service struct {
 
 // EmbeddingClient 调用外部服务将文本批量转换为向量。
 type EmbeddingClient interface {
-	CallAPI(ctx context.Context, apiBase, apiKey, model string, texts []string, dimensions int, timeoutSeconds int) ([][]float32, error)
+	CallAPI(ctx context.Context, input portembedding.Request) ([][]float32, error)
 }
 
 // NewServiceWithRuntime 创建使用运行时配置容器的 embedding 服务。
@@ -697,7 +698,14 @@ func (s *Service) embedTextsWithConfig(ctx context.Context, texts []string, cfg 
 		if end > len(texts) {
 			end = len(texts)
 		}
-		batchEmbeddings, batchErr := s.embedClient.CallAPI(ctx, apiBase, apiKey, model, texts[start:end], cfg.EmbeddingOutputDimensions, cfg.EmbeddingTimeoutSeconds)
+		batchEmbeddings, batchErr := s.embedClient.CallAPI(ctx, portembedding.Request{
+			APIBase:        apiBase,
+			APIKey:         apiKey,
+			Model:          model,
+			Texts:          texts[start:end],
+			Dimensions:     cfg.EmbeddingOutputDimensions,
+			TimeoutSeconds: cfg.EmbeddingTimeoutSeconds,
+		})
 		if batchErr != nil {
 			return nil, batchErr
 		}

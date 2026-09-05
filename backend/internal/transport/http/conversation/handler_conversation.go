@@ -86,7 +86,16 @@ func (h *Handler) ListConversations(c *gin.Context) {
 	projectFilter := c.Query("project")
 	searchQuery := c.Query("q")
 
-	items, total, err := h.service.ListConversations(c.Request.Context(), userID, page, pageSize, statusFilter, starredFilter, shareFilter, projectFilter, searchQuery)
+	items, total, err := h.service.ListConversations(c.Request.Context(), appconversation.ListConversationsInput{
+		UserID:        userID,
+		Page:          page,
+		PageSize:      pageSize,
+		StatusFilter:  statusFilter,
+		StarredFilter: starredFilter,
+		ShareFilter:   shareFilter,
+		ProjectFilter: projectFilter,
+		SearchQuery:   searchQuery,
+	})
 	if err != nil {
 		response.InternalError(c)
 		return

@@ -59,10 +59,22 @@ type ConversationMetadataPatch struct {
 	ReplaceableTitles []string
 }
 
+// ConversationListInput 描述用户会话列表的分页与筛选条件。
+type ConversationListInput struct {
+	UserID        uint
+	Offset        int
+	Limit         int
+	StatusFilter  string
+	StarredFilter string
+	ShareFilter   string
+	ProjectFilter string
+	SearchQuery   string
+}
+
 // ConversationMetadataRepository 封装会话元信息与用户访问能力。
 type ConversationMetadataRepository interface {
 	CreateConversation(ctx context.Context, item *domainconversation.Conversation) error
-	ListConversationsByUser(ctx context.Context, userID uint, offset int, limit int, statusFilter string, starredFilter string, shareFilter string, projectFilter string, searchQuery string) ([]domainconversation.Conversation, int64, error)
+	ListConversationsByUser(ctx context.Context, input ConversationListInput) ([]domainconversation.Conversation, int64, error)
 	ListConversationsForSearch(ctx context.Context, userID uint, offset int, limit int, searchQuery string) ([]domainconversation.Conversation, error)
 	GetConversationByUser(ctx context.Context, conversationID uint, userID uint) (*domainconversation.Conversation, error)
 	GetConversationByPublicID(ctx context.Context, publicID string, userID uint) (*domainconversation.Conversation, error)
@@ -103,7 +115,7 @@ type MessageRepository interface {
 	CompleteAssistantMessageWithGeneratedAttachments(ctx context.Context, assistantMessageID uint, assistantCompletion AssistantMessageCompletionUpdate, assistantAttachments []domainconversation.Attachment) error
 	GetMessageByPublicID(ctx context.Context, conversationID uint, userID uint, publicID string) (*domainconversation.Message, error)
 	GetMessageByPublicIDForUser(ctx context.Context, userID uint, publicID string) (*domainconversation.Message, error)
-	UpdateMessageUsage(ctx context.Context, messageID uint, inputTokens int64, outputTokens int64, cacheReadTokens int64, cacheWriteTokens int64, reasoningTokens int64) error
+	UpdateMessageUsage(ctx context.Context, messageID uint, usage MessageUsageUpdate) error
 	UpdateMessageState(ctx context.Context, messageID uint, status string, errorCode string, errorMessage string) error
 	UpdateAssistantMessageContent(ctx context.Context, userID uint, publicID string, content string, editedAt time.Time) (*domainconversation.Message, error)
 	CancelPendingGenerationMessagesByRunID(ctx context.Context, userID uint, runID string, errorCode string, errorMessage string) (bool, error)

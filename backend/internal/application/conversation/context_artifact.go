@@ -66,6 +66,15 @@ type historicalContextArtifactInput struct {
 	MaxTokens          int64
 }
 
+type historicalContextRecallInput struct {
+	Scope              repository.HistoricalMessageScope
+	HasCurrentSnapshot bool
+	Query              string
+	CurrentRAGChunks   []domainconversation.RAGChunk
+	CurrentFallbacks   []AttachmentInput
+	CurrentRecall      []domainconversation.MessageChunk
+}
+
 type historicalScoredArtifact struct {
 	item  domainconversation.ContextArtifact
 	score int
@@ -165,16 +174,8 @@ func (s *Service) applyContextArtifactRetention(items []domainconversation.Conte
 }
 
 // recallHistoricalContextArtifacts 读取近期上下文证据并按当前问题筛选。
-func (s *Service) recallHistoricalContextArtifacts(
-	ctx context.Context,
-	scope repository.HistoricalMessageScope,
-	hasCurrentSnapshot bool,
-	query string,
-	currentRAGChunks []domainconversation.RAGChunk,
-	currentFallbacks []AttachmentInput,
-	currentRecall []domainconversation.MessageChunk,
-) []domainconversation.ContextArtifact {
-	if !scope.Valid() || strings.TrimSpace(query) == "" {
+func (s *Service) recallHistoricalContextArtifacts(ctx context.Context, input historicalContextRecallInput) []domainconversation.ContextArtifact {
+	if !input.Scope.Valid() || strings.TrimSpace(input.Query) == "" {
 		return nil
 	}
 	kinds := []domainconversation.ContextArtifactKind{
@@ -184,11 +185,11 @@ func (s *Service) recallHistoricalContextArtifacts(
 		domainconversation.ContextArtifactNativeTool,
 		domainconversation.ContextArtifactImageAnalysis,
 	}
-	if !hasCurrentSnapshot {
+	if !input.HasCurrentSnapshot {
 		kinds = append(kinds, domainconversation.ContextArtifactSummary)
 	}
 	candidates, err := s.repo.ListRecentContextArtifacts(ctx, repository.ContextArtifactListFilter{
-		Scope: scope,
+		Scope: input.Scope,
 		Kinds: kinds,
 		Limit: historicalArtifactScanLimit,
 	})
@@ -196,20 +197,20 @@ func (s *Service) recallHistoricalContextArtifacts(
 		if s.logger != nil {
 			s.logger.Warn("historical_context_artifact_recall_failed",
 				zap.String("trace_id", traceid.FromContext(ctx)),
-				zap.Uint("conversation_id", scope.ConversationID),
+				zap.Uint("conversation_id", input.Scope.ConversationID),
 				zap.Error(err),
 			)
 		}
 		return nil
 	}
 	return selectHistoricalContextArtifacts(historicalContextArtifactInput{
-		CurrentMessageID:   scope.LeafMessageID,
-		HasCurrentSnapshot: hasCurrentSnapshot,
-		Query:              query,
+		CurrentMessageID:   input.Scope.LeafMessageID,
+		HasCurrentSnapshot: input.HasCurrentSnapshot,
+		Query:              input.Query,
 		Candidates:         candidates,
-		CurrentRAGChunks:   currentRAGChunks,
-		CurrentFallbacks:   currentFallbacks,
-		CurrentRecall:      currentRecall,
+		CurrentRAGChunks:   input.CurrentRAGChunks,
+		CurrentFallbacks:   input.CurrentFallbacks,
+		CurrentRecall:      input.CurrentRecall,
 	})
 }
 

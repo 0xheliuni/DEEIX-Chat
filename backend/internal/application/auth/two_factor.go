@@ -48,16 +48,14 @@ func (s *Service) buildTwoFactorChallenge(ctx context.Context, item *user.User) 
 	if err != nil {
 		return nil, err
 	}
-	challengeToken, err := token.GenerateWithClaims(
-		s.cfg.Snapshot().JWTSecret,
-		item.ID,
-		item.Username,
-		item.Role,
-		"",
-		"",
-		twoFactorChallengeTokenType,
-		twoFactorChallengeTTL,
-	)
+	challengeToken, err := token.GenerateWithClaims(token.GenerateClaimsInput{
+		Secret:    s.cfg.Snapshot().JWTSecret,
+		UserID:    item.ID,
+		Username:  item.Username,
+		Role:      item.Role,
+		TokenType: twoFactorChallengeTokenType,
+		TTL:       twoFactorChallengeTTL,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -102,14 +100,14 @@ func (s *Service) VerifyLoginTwoFactor(
 		if errors.Is(err, jwt.ErrTokenExpired) {
 			reason = "expired_challenge"
 		}
-		s.RecordAuthEvent(ctx, 0, requestID, "two_factor_verify", "failure", reason, normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent, "")
+		s.RecordAuthEvent(ctx, repository.AuthEventInput{RequestID: requestID, EventType: "two_factor_verify", Result: "failure", Reason: reason, ClientIP: normalizedAuditCtx.ClientIP, UserAgent: normalizedAuditCtx.UserAgent})
 		if errors.Is(err, jwt.ErrTokenExpired) {
 			return nil, ErrTwoFactorChallengeExpired
 		}
 		return nil, ErrInvalidCredentials
 	}
 	if claims.TokenType != twoFactorChallengeTokenType || claims.UserID == 0 {
-		s.RecordAuthEvent(ctx, 0, requestID, "two_factor_verify", "failure", "invalid_challenge", normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent, "")
+		s.RecordAuthEvent(ctx, repository.AuthEventInput{RequestID: requestID, EventType: "two_factor_verify", Result: "failure", Reason: "invalid_challenge", ClientIP: normalizedAuditCtx.ClientIP, UserAgent: normalizedAuditCtx.UserAgent})
 		return nil, ErrInvalidCredentials
 	}
 	item, err := s.repo.GetByID(ctx, claims.UserID)
@@ -128,7 +126,7 @@ func (s *Service) VerifyLoginTwoFactor(
 		return nil, err
 	}
 	if method == SecurityVerificationMethodNone || !containsSecurityVerificationMethod(methods, method) {
-		s.RecordAuthEvent(ctx, item.ID, requestID, "two_factor_verify", "failure", "unavailable_method", normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent, "")
+		s.RecordAuthEvent(ctx, repository.AuthEventInput{UserID: item.ID, RequestID: requestID, EventType: "two_factor_verify", Result: "failure", Reason: "unavailable_method", ClientIP: normalizedAuditCtx.ClientIP, UserAgent: normalizedAuditCtx.UserAgent})
 		if err = s.markTwoFactorLoginFailure(ctx, item); err != nil {
 			return nil, err
 		}
@@ -146,7 +144,7 @@ func (s *Service) VerifyLoginTwoFactor(
 		}
 	}
 	if err != nil {
-		s.RecordAuthEvent(ctx, item.ID, requestID, "two_factor_verify", "failure", "invalid_code", normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent, "")
+		s.RecordAuthEvent(ctx, repository.AuthEventInput{UserID: item.ID, RequestID: requestID, EventType: "two_factor_verify", Result: "failure", Reason: "invalid_code", ClientIP: normalizedAuditCtx.ClientIP, UserAgent: normalizedAuditCtx.UserAgent})
 		if lockErr := s.markTwoFactorLoginFailure(ctx, item); lockErr != nil {
 			return nil, lockErr
 		}
@@ -161,14 +159,17 @@ func (s *Service) VerifyLoginTwoFactor(
 	}
 	s.RecordAuthEvent(
 		ctx,
-		item.ID,
-		requestID,
-		"two_factor_verify",
-		"success",
-		"",
-		normalizedAuditCtx.ClientIP,
-		normalizedAuditCtx.UserAgent,
-		marshalAuthEventDetail(map[string]interface{}{"session_id": result.SessionID}),
+		repository.AuthEventInput{
+			UserID:    item.ID,
+			RequestID: requestID,
+			EventType: "two_factor_verify",
+			Result:    "success",
+			ClientIP:  normalizedAuditCtx.ClientIP,
+			UserAgent: normalizedAuditCtx.UserAgent,
+			DetailJSON: marshalAuthEventDetail(map[string]interface{}{
+				"session_id": result.SessionID,
+			}),
+		},
 	)
 	return result, nil
 }
@@ -202,7 +203,7 @@ func (s *Service) RequestLoginEmailVerification(
 	normalizedAuditCtx := s.resolveSessionAuditContext(ctx, auditCtx)
 	claims, err := token.Parse(s.cfg.Snapshot().JWTSecret, strings.TrimSpace(challengeToken))
 	if err != nil || claims.TokenType != twoFactorChallengeTokenType || claims.UserID == 0 {
-		s.RecordAuthEvent(ctx, 0, requestID, "login_email_code", "failure", "invalid_challenge", normalizedAuditCtx.ClientIP, normalizedAuditCtx.UserAgent, "")
+		s.RecordAuthEvent(ctx, repository.AuthEventInput{RequestID: requestID, EventType: "login_email_code", Result: "failure", Reason: "invalid_challenge", ClientIP: normalizedAuditCtx.ClientIP, UserAgent: normalizedAuditCtx.UserAgent})
 		if errors.Is(err, jwt.ErrTokenExpired) {
 			return nil, ErrTwoFactorChallengeExpired
 		}
@@ -226,7 +227,14 @@ func (s *Service) RequestLoginEmailVerification(
 	if err != nil {
 		return nil, ErrSecurityVerificationEmailInvalid
 	}
-	return s.requestEmailVerificationCode(ctx, item.ID, user.ContactVerificationPurposeLogin, normalizedEmail, "login_email_code", requestID, auditCtx)
+	return s.requestEmailVerificationCode(ctx, requestEmailVerificationCodeInput{
+		UserID:       item.ID,
+		Purpose:      user.ContactVerificationPurposeLogin,
+		Target:       normalizedEmail,
+		EventType:    "login_email_code",
+		RequestID:    requestID,
+		AuditContext: auditCtx,
+	})
 }
 
 func (s *Service) GetCurrentTwoFactorStatus(ctx context.Context, userID uint) (*TwoFactorStatusResult, error) {

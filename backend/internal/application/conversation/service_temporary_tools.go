@@ -20,17 +20,26 @@ type temporaryGenerationResult struct {
 	LLMCallCount int
 }
 
-func (s *Service) runTemporaryGeneration(
-	ctx context.Context,
-	input TemporaryChatInput,
-	route *channel.ResolvedRoute,
-	routeConfig llm.RouteConfig,
-	initialInput llm.GenerateInput,
-	toolRuntime selectedToolRuntime,
-	traceRecorder *messageTraceRecorder,
-	startedAt time.Time,
-	onDelta func(string) error,
-) (temporaryGenerationResult, error) {
+type temporaryGenerationInput struct {
+	Request       TemporaryChatInput
+	Route         *channel.ResolvedRoute
+	RouteConfig   llm.RouteConfig
+	InitialInput  llm.GenerateInput
+	ToolRuntime   selectedToolRuntime
+	TraceRecorder *messageTraceRecorder
+	StartedAt     time.Time
+	OnDelta       func(string) error
+}
+
+func (s *Service) runTemporaryGeneration(ctx context.Context, input temporaryGenerationInput) (temporaryGenerationResult, error) {
+	request := input.Request
+	route := input.Route
+	routeConfig := input.RouteConfig
+	initialInput := input.InitialInput
+	toolRuntime := input.ToolRuntime
+	traceRecorder := input.TraceRecorder
+	startedAt := input.StartedAt
+	onDelta := input.OnDelta
 	cfg := s.cfg.Snapshot()
 	totalUsage := llm.Usage{}
 	totalServerToolUsage := map[string]int64(nil)
@@ -58,7 +67,7 @@ func (s *Service) runTemporaryGeneration(
 		output, err := s.llmClient.GenerateStream(ctx, routeConfig, currentInput, func(event llm.GenerateStreamEvent) error {
 			if event.Usage != (llm.Usage{}) {
 				observedUsage = event.Usage
-				if emitErr := emitLLMUsageEvent(input.OnEvent, addLLMUsage(totalUsage, observedUsage)); emitErr != nil {
+				if emitErr := emitLLMUsageEvent(request.OnEvent, addLLMUsage(totalUsage, observedUsage)); emitErr != nil {
 					return emitErr
 				}
 			}
@@ -128,7 +137,7 @@ func (s *Service) runTemporaryGeneration(
 	// 工具回灌的每次上游调用都独立计费：按已产生的用量加本次调用的预估成本校验预留，
 	// 余额不足时在发起调用前终止，已产生的用量由调用方结算。临时对话每次调用都发送完整上下文。
 	ensureFollowUpBudget := func(nextInput llm.GenerateInput) error {
-		return s.ensureUsageBudgetCoversEstimate(ctx, input.UsageAuthorization, route, initialInput.Options, followUpUsageBudgetEstimate(
+		return s.ensureUsageBudgetCoversEstimate(ctx, request.UsageAuthorization, route, initialInput.Options, followUpUsageBudgetEstimate(
 			totalUsage,
 			estimateGenerateInputTokens(nextInput),
 			initialInput.Options,
@@ -153,11 +162,11 @@ func (s *Service) runTemporaryGeneration(
 			cfg.ContextWindowFallbackTokens,
 		)
 		toolResult := s.executeAssistantToolCalls(ctx, executeAssistantToolCallsInput{
-			UserID:            input.UserID,
+			UserID:            request.UserID,
 			ConversationID:    0,
 			MessageID:         0,
-			RequestID:         input.RequestID,
-			RunID:             input.ClientRunID,
+			RequestID:         request.RequestID,
+			RunID:             request.ClientRunID,
 			ToolCalls:         pending,
 			ToolCallLimit:     remainingToolCalls,
 			TraceRecorder:     traceRecorder,

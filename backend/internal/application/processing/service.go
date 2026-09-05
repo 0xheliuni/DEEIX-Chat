@@ -96,24 +96,27 @@ type Service struct {
 	fallbackSlots chan struct{}
 }
 
+// Dependencies 描述文件处理服务的运行时依赖。
+type Dependencies struct {
+	Config           *config.Runtime
+	Repository       repository.FileProcessingStatusRepository
+	Cache            repository.FileProcessingQueueRepository
+	ExtractService   *extraction.Service
+	EmbeddingService *appembedding.Service
+	Logger           *zap.Logger
+	ExtractorVersion string
+}
+
 // NewServiceWithRuntime 创建使用运行时配置容器的文件处理服务。
-func NewServiceWithRuntime(
-	cfg *config.Runtime,
-	repo repository.FileProcessingStatusRepository,
-	cache repository.FileProcessingQueueRepository,
-	extractSvc *extraction.Service,
-	embeddingSvc *appembedding.Service,
-	logger *zap.Logger,
-	extractorVersion string,
-) *Service {
+func NewServiceWithRuntime(deps Dependencies) *Service {
 	return &Service{
-		cfg:              cfg,
-		repo:             repo,
-		cache:            cache,
-		extractSvc:       extractSvc,
-		embeddingSvc:     embeddingSvc,
-		logger:           logger,
-		extractorVersion: strings.TrimSpace(extractorVersion),
+		cfg:              deps.Config,
+		repo:             deps.Repository,
+		cache:            deps.Cache,
+		extractSvc:       deps.ExtractService,
+		embeddingSvc:     deps.EmbeddingService,
+		logger:           deps.Logger,
+		extractorVersion: strings.TrimSpace(deps.ExtractorVersion),
 		fallbackSlots:    make(chan struct{}, fallbackProcessingConcurrency),
 	}
 }

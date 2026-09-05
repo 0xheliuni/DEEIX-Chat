@@ -9,6 +9,7 @@ import (
 
 	domaincm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/contentmoderation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"go.uber.org/zap"
 )
@@ -340,7 +341,14 @@ func (c *RunCoordinator) recordSurfaceFailure(direction, modality, fileID string
 	ctx, cancel := background.WithTimeout(c.ctx, 5*time.Second)
 	defer cancel()
 	c.service.recordFailedOpen(ctx, c.meta, direction, modality, domaincm.ErrorCodeServiceError, 0)
-	c.service.bumpDailyStat(ctx, direction, modality, domaincm.ResultFailedOpen, "", 1, 1, 0, 1, 0)
+	c.service.bumpDailyStat(ctx, repository.DailyStatIncrement{
+		Direction:    direction,
+		Modality:     modality,
+		Result:       domaincm.ResultFailedOpen,
+		CheckCount:   1,
+		ContentItems: 1,
+		FailureCount: 1,
+	})
 }
 
 func (c *RunCoordinator) enqueueOutputText(text string) {
