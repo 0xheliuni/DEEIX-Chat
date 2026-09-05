@@ -48,6 +48,46 @@ func TestBuildVerificationEmailMessageEncodesChineseSubject(t *testing.T) {
 	}
 }
 
+func TestBuildVerificationEmailMessageEscapesDynamicHTMLContent(t *testing.T) {
+	template := verificationEmailTemplate{
+		Subject:      "验证码",
+		Title:        `<script>alert("title")</script>`,
+		SecurityNote: `<img src=x onerror=alert("note")>`,
+	}
+	message := buildVerificationEmailMessage(
+		"DEEIX Chat <no-reply@example.com>",
+		"user@example.com",
+		"123456",
+		template,
+		`https://deeix.example/logo.svg?a="quoted"`,
+	)
+	htmlBody := buildVerificationHTML("123456", template, `https://deeix.example/logo.svg?a="quoted"`)
+
+	if strings.Contains(htmlBody, `<script>alert("title")</script>`) || strings.Contains(htmlBody, `<img src=x onerror=alert("note")>`) {
+		t.Fatalf("expected dynamic HTML content to be escaped, got:\n%s", htmlBody)
+	}
+	if !strings.Contains(message, `&lt;script&gt;alert(&#34;title&#34;)&lt;/script&gt;`) {
+		t.Fatalf("expected escaped title in HTML body, got:\n%s", message)
+	}
+	if !strings.Contains(message, `&lt;img src=x onerror=alert(&#34;note&#34;)&gt;`) {
+		t.Fatalf("expected escaped security note in HTML body, got:\n%s", message)
+	}
+	if !strings.Contains(message, `a=&#34;quoted&#34;`) {
+		t.Fatalf("expected escaped logo URL attribute, got:\n%s", message)
+	}
+}
+
+func TestNormalizeRegistrationEmailRejectsHeaderInjection(t *testing.T) {
+	for _, raw := range []string{
+		"attacker@example.com\r\nBcc: victim@example.com",
+		"attacker@example.com\nCc: victim@example.com",
+	} {
+		if _, err := normalizeRegistrationEmail(raw); err == nil {
+			t.Fatalf("expected header injection payload %q to be rejected", raw)
+		}
+	}
+}
+
 func TestSendRegistrationVerificationEmailRejectsInvalidFrom(t *testing.T) {
 	service := newTestService(config.Config{
 		Env:          "production",

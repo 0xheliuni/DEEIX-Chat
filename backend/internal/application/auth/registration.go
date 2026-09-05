@@ -1353,15 +1353,14 @@ func (s *Service) sendEmailVerificationCode(to string, code string, template ver
 		auth = smtp.PlainAuth("", strings.TrimSpace(cfg.SMTPUsername), strings.TrimSpace(cfg.SMTPPassword), strings.TrimSpace(cfg.SMTPHost))
 	}
 	message := buildVerificationEmailMessage(parsedFrom.String(), normalizedTo, code, template, publicAssetURL(cfg.PublicWebBaseURL, "logo.svg"))
-	if err := sendSMTPMail(smtpMailInput{
-		Addr:    addr,
-		Host:    strings.TrimSpace(cfg.SMTPHost),
-		Port:    cfg.SMTPPort,
-		Auth:    auth,
-		From:    parsedFrom.Address,
-		To:      []string{normalizedTo},
-		Message: []byte(message),
-	}); err != nil {
+	if err := sendSMTPMail(smtpConnection{
+		Addr: addr,
+		Host: strings.TrimSpace(cfg.SMTPHost),
+		Port: cfg.SMTPPort,
+		Auth: auth,
+		From: parsedFrom.Address,
+		To:   []string{normalizedTo},
+	}, []byte(message)); err != nil {
 		s.warn("email_verification_send_failed",
 			zap.String("label", strings.TrimSpace(logLabel)),
 			zap.String("email", normalizedTo),
@@ -1483,60 +1482,62 @@ func publicAssetURL(publicWebBaseURL string, assetPath string) string {
 	return baseURL + "/" + strings.TrimLeft(strings.TrimSpace(assetPath), "/")
 }
 
-type smtpMailInput struct {
-	Addr    string
-	Host    string
-	Port    int
-	Auth    smtp.Auth
-	From    string
-	To      []string
-	Message []byte
+// smtpConnection contains the SMTP session settings and envelope addresses.
+// The message payload is passed separately so transport configuration cannot
+// be confused with untrusted mail content at the SMTP DATA boundary.
+type smtpConnection struct {
+	Addr string
+	Host string
+	Port int
+	Auth smtp.Auth
+	From string
+	To   []string
 }
 
-func sendSMTPMail(input smtpMailInput) error {
+func sendSMTPMail(connection smtpConnection, message []byte) error {
 	dialer := net.Dialer{Timeout: emailSMTPTimeout}
 	var conn net.Conn
 	var err error
-	if input.Port == 465 {
-		conn, err = tls.DialWithDialer(&dialer, "tcp", input.Addr, &tls.Config{
-			ServerName:         input.Host,
+	if connection.Port == 465 {
+		conn, err = tls.DialWithDialer(&dialer, "tcp", connection.Addr, &tls.Config{
+			ServerName:         connection.Host,
 			MinVersion:         tls.VersionTLS12,
 			InsecureSkipVerify: false,
 		})
 	} else {
-		conn, err = dialer.Dial("tcp", input.Addr)
+		conn, err = dialer.Dial("tcp", connection.Addr)
 	}
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
 
-	client, err := smtp.NewClient(conn, input.Host)
+	client, err := smtp.NewClient(conn, connection.Host)
 	if err != nil {
 		return err
 	}
 	defer client.Close()
 
-	if input.Port != 465 {
+	if connection.Port != 465 {
 		if ok, _ := client.Extension("STARTTLS"); ok {
-			if err = client.StartTLS(&tls.Config{ServerName: input.Host, MinVersion: tls.VersionTLS12}); err != nil {
+			if err = client.StartTLS(&tls.Config{ServerName: connection.Host, MinVersion: tls.VersionTLS12}); err != nil {
 				return err
 			}
 		}
 	}
-	if input.Auth != nil {
+	if connection.Auth != nil {
 		if ok, _ := client.Extension("AUTH"); ok {
-			if err = client.Auth(input.Auth); err != nil {
+			if err = client.Auth(connection.Auth); err != nil {
 				return err
 			}
 		} else {
 			return ErrSMTPAuthUnsupported
 		}
 	}
-	if err = client.Mail(input.From); err != nil {
+	if err = client.Mail(connection.From); err != nil {
 		return err
 	}
-	for _, recipient := range input.To {
+	for _, recipient := range connection.To {
 		if err = client.Rcpt(recipient); err != nil {
 			return err
 		}
@@ -1545,7 +1546,7 @@ func sendSMTPMail(input smtpMailInput) error {
 	if err != nil {
 		return err
 	}
-	if _, err = writer.Write(input.Message); err != nil {
+	if _, err = writer.Write(message); err != nil {
 		_ = writer.Close()
 		return err
 	}

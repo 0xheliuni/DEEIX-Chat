@@ -69,15 +69,17 @@ go vet ./...
 
 echo "Running staticcheck..."
 set +e
-go tool staticcheck ./... > "$work_dir/staticcheck.raw" 2>&1
+go tool staticcheck ./... \
+  > "$work_dir/staticcheck.output" \
+  2> "$work_dir/staticcheck.error"
 staticcheck_status=$?
 set -e
 
 sed -E \
-  -e 's|^\./||' \
-  -e 's|^([^:]+):[0-9]+:[0-9]+: |\1: |' \
-  "$work_dir/staticcheck.raw" \
-  | LC_ALL=C sort > "$work_dir/staticcheck.current"
+	-e 's|^\./||' \
+	-e 's|^([^:]+):[0-9]+:[0-9]+: |\1: |' \
+	"$work_dir/staticcheck.output" \
+	| LC_ALL=C sort > "$work_dir/staticcheck.current"
 LC_ALL=C sort "$staticcheck_baseline_file" > "$work_dir/staticcheck.baseline"
 
 if ! cmp -s "$staticcheck_baseline_file" "$work_dir/staticcheck.baseline"; then
@@ -97,16 +99,34 @@ if [[ -s "$work_dir/staticcheck.new" || -s "$work_dir/staticcheck.resolved" ]]; 
     echo "Resolved staticcheck findings must be removed from $staticcheck_baseline_file:" >&2
     cat "$work_dir/staticcheck.resolved" >&2
   fi
-  if [[ -s "$work_dir/staticcheck.raw" ]]; then
+  if [[ -s "$work_dir/staticcheck.output" ]]; then
     echo "Full staticcheck output:" >&2
-    cat "$work_dir/staticcheck.raw" >&2
+    cat "$work_dir/staticcheck.output" >&2
   fi
   exit 1
 fi
 
-if [[ $staticcheck_status -ne 0 && ! -s "$work_dir/staticcheck.raw" ]]; then
-  echo "staticcheck exited with status $staticcheck_status without diagnostics" >&2
+if [[ -s "$work_dir/staticcheck.error" ]]; then
+  # Go may print module/toolchain download progress to stderr on a clean runner.
+  # Keep that bootstrap noise out of the finding baseline, but never hide a
+  # substantive staticcheck or tool execution error.
+  sed '/^go: downloading /d' "$work_dir/staticcheck.error" > "$work_dir/staticcheck.error.filtered"
+  if [[ -s "$work_dir/staticcheck.error.filtered" ]]; then
+    echo "staticcheck failed:" >&2
+    cat "$work_dir/staticcheck.error.filtered" >&2
+    exit 1
+  fi
+fi
+
+if [[ $staticcheck_status -gt 1 ]]; then
+  echo "staticcheck exited with status $staticcheck_status" >&2
+  cat "$work_dir/staticcheck.output" >&2
   exit "$staticcheck_status"
+fi
+
+if [[ $staticcheck_status -eq 1 && ! -s "$work_dir/staticcheck.output" ]]; then
+  echo "staticcheck exited with status 1 without diagnostics" >&2
+  exit 1
 fi
 
 echo "Running deadcode..."
