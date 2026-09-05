@@ -396,9 +396,27 @@ function resolveSettingsValidationMessage(error: ApiError, locale: AppLocale): s
       case "epay_url":
         return `${displayLabel}必须是有效的 HTTP(S) 易支付地址。`;
       case "dependency":
+        if (param === "username_or_email_login") {
+          return "关闭用户名和邮箱登录前，必须先启用第三方登录。";
+        }
+        if (param === "superadmin_identity") {
+          return "启用第三方登录前，必须先绑定管理员身份。";
+        }
+        if (param === "embedding_service_ready") {
+          return "启用向量化前，必须先配置并启用向量服务。";
+        }
+        if (param === "vector_store_available") {
+          return "启用向量化前，必须先配置可用的向量存储。";
+        }
         return `${displayLabel}依赖条件未满足。`;
       case "clear_not_allowed":
         return `${displayLabel}不支持清空。`;
+      case "invalid_namespace":
+        return "设置命名空间无效。";
+      case "invalid_key":
+        return "设置项无效。";
+      case "invalid_value":
+        return "设置值无效。";
       default:
         return `${displayLabel}无效。`;
     }
@@ -466,9 +484,27 @@ function resolveSettingsValidationMessage(error: ApiError, locale: AppLocale): s
     case "epay_url":
       return `${displayLabel} must be a valid HTTP(S) EPay URL.`;
     case "dependency":
+      if (param === "username_or_email_login") {
+        return "Enable third-party sign-in before disabling both username and email sign-in.";
+      }
+      if (param === "superadmin_identity") {
+        return "Bind a super administrator identity before enabling third-party sign-in.";
+      }
+      if (param === "embedding_service_ready") {
+        return "Configure and enable the embedding service before enabling vectorization.";
+      }
+      if (param === "vector_store_available") {
+        return "Configure an available vector store before enabling vectorization.";
+      }
       return `${displayLabel} has an unmet dependency.`;
     case "clear_not_allowed":
       return `${displayLabel} cannot be cleared.`;
+    case "invalid_namespace":
+      return "Invalid setting namespace.";
+    case "invalid_key":
+      return "Invalid setting key.";
+    case "invalid_value":
+      return "Invalid setting value.";
     default:
       return `${displayLabel} is invalid.`;
   }
