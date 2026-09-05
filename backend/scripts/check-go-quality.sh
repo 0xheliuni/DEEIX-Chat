@@ -131,12 +131,24 @@ fi
 
 echo "Running deadcode..."
 set +e
-go tool deadcode ./... > "$work_dir/deadcode.txt" 2>&1
+go tool deadcode ./... \
+  > "$work_dir/deadcode.output" \
+  2> "$work_dir/deadcode.error"
 deadcode_status=$?
 set -e
-if [[ $deadcode_status -ne 0 || -s "$work_dir/deadcode.txt" ]]; then
+
+if [[ -s "$work_dir/deadcode.error" ]]; then
+  sed '/^go: downloading /d' "$work_dir/deadcode.error" > "$work_dir/deadcode.error.filtered"
+  if [[ -s "$work_dir/deadcode.error.filtered" ]]; then
+    echo "deadcode failed:" >&2
+    cat "$work_dir/deadcode.error.filtered" >&2
+    exit 1
+  fi
+fi
+
+if [[ $deadcode_status -ne 0 || -s "$work_dir/deadcode.output" ]]; then
   echo "Dead code detected or deadcode failed:" >&2
-  cat "$work_dir/deadcode.txt" >&2
+  cat "$work_dir/deadcode.output" >&2
   exit 1
 fi
 
