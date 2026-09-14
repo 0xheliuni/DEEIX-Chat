@@ -372,6 +372,7 @@ export function normalizeNestedCodeFences(source: string): string {
     let depth = 0;
     let closer = -1;
     let innerTagged = false;
+    let hasLongerInnerMarker = false;
     let maxInnerMarker = open.marker.length;
     for (let cursor = index + 1; cursor < events.length; cursor += 1) {
       const event = events[cursor];
@@ -386,12 +387,15 @@ export function normalizeNestedCodeFences(source: string): string {
         depth -= 1;
       } else {
         innerTagged = true;
+        // A longer inner marker is already explicit syntax; leave this shape
+        // untouched instead of guessing that the outer fence should grow.
+        hasLongerInnerMarker ||= event.marker.length > open.marker.length;
         depth += 1;
         maxInnerMarker = Math.max(maxInnerMarker, event.marker.length);
       }
     }
 
-    if (closer > 0 && innerTagged) {
+    if (closer > 0 && innerTagged && !hasLongerInnerMarker) {
       upgrades.push({ openIdx: index, closeIdx: closer, markerLength: maxInnerMarker + 1 });
       index = closer + 1;
       continue;
