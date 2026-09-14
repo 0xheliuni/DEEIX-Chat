@@ -138,9 +138,13 @@
   "conversation": {
     "invalidId": "对话 ID 无效。",
     "invalidTitle": "对话标题无效。",
+    "messageDeleteRootInvalid": "会话的第一条消息不能删除。",
+    "messageDeleteStateInvalid": "请等待当前消息生成完成后再删除。",
+    "messageDeleteTargetInvalid": "这条消息不能删除。",
     "messageForkHistoryIncomplete": "当前对话层级过深或消息历史不完整，无法从此处分支到新聊天。",
     "messageForkStateInvalid": "请等待当前消息生成完成后再分支到新聊天。",
     "messageForkTargetInvalid": "只能从助手回复处分支到新聊天。",
+    "messageParentDeleted": "回复的目标消息已被删除，请重试。",
     "noTitleableContent": "当前对话没有可用于生成标题的内容。",
     "projectLimitExceeded": "已达到对话项目数量上限。",
     "notFound": "对话不存在。"
