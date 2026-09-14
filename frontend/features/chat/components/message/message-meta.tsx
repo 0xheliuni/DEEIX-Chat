@@ -59,6 +59,7 @@ import {
 
 export type ChatMetaMessage = {
   publicID: string;
+  parentPublicID?: string | null;
   status?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -411,7 +412,8 @@ export function UserMessageMeta({
               <Copy size={14} strokeWidth={1.8} animateOnHover="default" />
             )}
           </MetaIconButton>
-          {onDelete && hasPersistedMessage ? (
+          {/* 根消息（parentPublicID 为空）后端禁止删除，前端直接不展示入口。 */}
+          {onDelete && hasPersistedMessage && item.parentPublicID ? (
             <DeleteMessageButton
               disabled={messagePending}
               label={t("deleteMessage")}
@@ -1098,7 +1100,8 @@ export function AssistantMessageMeta({
   const canEdit = Boolean(canRetry && !busy && onEdit);
   const canContinue = Boolean(canRetry && !busy && item.status === "interrupted");
   const canFork = Boolean(canRetry && onFork);
-  const canDelete = Boolean(canRetry && !busy && onDelete);
+  // 根消息（parentPublicID 为空）后端禁止删除，前端直接不展示入口。
+  const canDelete = Boolean(canRetry && !busy && onDelete && item.parentPublicID);
   const canShowBranchNavigator = Boolean(showBranchNavigator && item.branchNavigator);
   const hasTokenUsage = Boolean(
     (item.inputTokens ?? 0) > 0 ||
@@ -1198,6 +1201,16 @@ export function AssistantMessageMeta({
                     <RotateCcw size={14} strokeWidth={1.8} animateOnHover="default" />
                   </MetaIconButton>
                 ) : null}
+                {canDelete && onDelete ? (
+                  <DeleteMessageButton
+                    label={t("deleteMessage")}
+                    confirmTitle={t("deleteConfirmTitle")}
+                    confirmDescription={t("deleteConfirmDescription")}
+                    confirmAction={t("deleteConfirmAction")}
+                    cancelAction={t("deleteCancelAction")}
+                    onDelete={onDelete}
+                  />
+                ) : null}
                 {canContinue && onContinue ? (
                   <MetaIconButton
                     label={t("continueReply")}
@@ -1210,16 +1223,6 @@ export function AssistantMessageMeta({
                   <ForkMessageButton
                     label={t("forkMessage")}
                     onFork={onFork}
-                  />
-                ) : null}
-                {canDelete && onDelete ? (
-                  <DeleteMessageButton
-                    label={t("deleteReply")}
-                    confirmTitle={t("deleteConfirmTitle")}
-                    confirmDescription={t("deleteConfirmDescription")}
-                    confirmAction={t("deleteConfirmAction")}
-                    cancelAction={t("deleteCancelAction")}
-                    onDelete={onDelete}
                   />
                 ) : null}
                 <QuickMemoryPin disabled={messagePending} />
