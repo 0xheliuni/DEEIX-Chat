@@ -3,6 +3,7 @@ package conversation
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -145,6 +146,16 @@ func TestMapStreamErrorClassifiesGeneratedMediaArtifactFailure(t *testing.T) {
 	}
 	if mapped.Message != appconversation.ErrGeneratedMediaArtifactUnavailable.Error() {
 		t.Fatalf("unexpected public artifact message: %#v", mapped)
+	}
+}
+
+func TestMapStreamErrorClassifiesMessageParentDeletedAsConflict(t *testing.T) {
+	mapped := mapStreamError(fmt.Errorf("create message pair: %w", appconversation.ErrMessageParentDeleted))
+	if mapped.Status != http.StatusConflict {
+		t.Fatalf("expected parent deleted conflict status, got %d", mapped.Status)
+	}
+	if mapped.Code != messageParentDeletedErrorCode {
+		t.Fatalf("unexpected parent deleted error code: %#v", mapped)
 	}
 }
 

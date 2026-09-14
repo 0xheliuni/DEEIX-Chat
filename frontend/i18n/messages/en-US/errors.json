@@ -123,9 +123,13 @@
   "conversation": {
     "invalidId": "Invalid conversation ID.",
     "invalidTitle": "Invalid conversation title.",
+    "messageDeleteRootInvalid": "The first message of a conversation cannot be deleted.",
+    "messageDeleteStateInvalid": "Wait for this message to finish generating before deleting it.",
+    "messageDeleteTargetInvalid": "This message cannot be deleted.",
     "messageForkHistoryIncomplete": "This conversation is too deep or its message history is incomplete, so it cannot be forked here.",
     "messageForkStateInvalid": "Wait for this message to finish generating before forking the conversation.",
     "messageForkTargetInvalid": "Only assistant messages can be forked into a new conversation.",
+    "messageParentDeleted": "The message being replied to was deleted. Please try again.",
     "noTitleableContent": "This conversation has no content that can be used to generate a title.",
     "notFound": "Conversation not found."
   },

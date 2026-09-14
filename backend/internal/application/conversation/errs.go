@@ -93,11 +93,12 @@ var (
 	ErrMessageForkHistoryIncomplete = errors.New("message fork history incomplete")
 	// ErrMessageDeleteTargetInvalid 当前消息角色不允许删除。
 	ErrMessageDeleteTargetInvalid = errors.New("invalid message delete target")
-	// ErrMessageDeleteStateInvalid 当前消息状态不允许删除。
+	// ErrMessageDeleteStateInvalid 当前消息状态不允许删除。与仓储层共享哨兵（仓储层持锁后
+	// 复核时也会直接返回），与 ErrStorageQuotaExceeded 等既有别名保持同一约定。
 	ErrMessageDeleteStateInvalid = repository.ErrMessageDeleteStateInvalid
-	// ErrMessageDeleteRootInvalid 会话第一条消息不允许删除，否则历史将以助手消息开头。
+	// ErrMessageDeleteRootInvalid 会话第一条消息不允许删除，否则历史将以助手消息开头。共享哨兵，同上。
 	ErrMessageDeleteRootInvalid = repository.ErrMessageDeleteRootInvalid
-	// ErrMessageParentDeleted 父消息已被删除，无法再挂在其下创建新消息。
+	// ErrMessageParentDeleted 父消息已被删除，无法再挂在其下创建新消息。共享哨兵，同上。
 	ErrMessageParentDeleted = repository.ErrMessageParentDeleted
 	// ErrModelRouteNotConfigured 模型路由未配置。
 	ErrModelRouteNotConfigured = errors.New("model route not configured")

@@ -413,6 +413,7 @@ export function UserMessageMeta({
           </MetaIconButton>
           {onDelete && hasPersistedMessage ? (
             <DeleteMessageButton
+              disabled={messagePending}
               label={t("deleteMessage")}
               confirmTitle={t("deleteConfirmTitle")}
               confirmDescription={t("deleteConfirmDescription")}

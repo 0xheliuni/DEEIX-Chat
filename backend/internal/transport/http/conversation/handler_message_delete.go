@@ -62,12 +62,12 @@ func (h *Handler) DeleteMessage(c *gin.Context) {
 		messageID,
 		map[string]interface{}{
 			"conversation_id":  conversationID,
-			"reparented_count": result.ReparentedCount,
+			"reparented_count": result.ReparentedMessageCount,
 		},
 	)
 
 	response.Success(c, MessageDeleteResponse{
 		Deleted:                true,
-		ReparentedMessageCount: result.ReparentedCount,
+		ReparentedMessageCount: result.ReparentedMessageCount,
 	})
 }

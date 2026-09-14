@@ -10,8 +10,8 @@ import (
 
 // DeleteMessageResult 返回消息删除结果。
 type DeleteMessageResult struct {
-	// ReparentedCount 被重接到被删消息父节点上的子消息数量。
-	ReparentedCount int64
+	// ReparentedMessageCount 被重接到被删消息父节点上的子消息数量。
+	ReparentedMessageCount int64
 }
 
 // DeleteMessage 删除会话中任意位置的一条消息（splice 语义）：被删消息的子消息
@@ -58,16 +58,11 @@ func (s *Service) DeleteMessage(ctx context.Context, userID uint, conversationPu
 
 	reparented, err := s.repo.DeleteMessageAndReparentChildren(ctx, userID, conversation.ID, message.ID)
 	if err != nil {
-		switch {
-		case errors.Is(err, repository.ErrNotFound):
+		if errors.Is(err, repository.ErrNotFound) {
 			return nil, ErrMessageNotFound
-		case errors.Is(err, repository.ErrMessageDeleteStateInvalid):
-			return nil, ErrMessageDeleteStateInvalid
-		case errors.Is(err, repository.ErrMessageDeleteRootInvalid):
-			return nil, ErrMessageDeleteRootInvalid
-		default:
-			return nil, err
 		}
+		// 状态与根消息守卫错误是应用层与仓储层共享的哨兵（见 errs.go 别名），直接透传。
+		return nil, err
 	}
-	return &DeleteMessageResult{ReparentedCount: reparented}, nil
+	return &DeleteMessageResult{ReparentedMessageCount: reparented}, nil
 }

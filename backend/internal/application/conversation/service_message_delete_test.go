@@ -65,8 +65,8 @@ func TestDeleteMessageSplicesAndReturnsReparentedCount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("delete message: %v", err)
 	}
-	if result.ReparentedCount != 2 {
-		t.Fatalf("reparented = %d, want 2", result.ReparentedCount)
+	if result.ReparentedMessageCount != 2 {
+		t.Fatalf("reparented = %d, want 2", result.ReparentedMessageCount)
 	}
 	if repo.deleteCalls != 1 || repo.deleteUserID != 7 || repo.deleteConvID != 10 || repo.deleteMsgID != 22 {
 		t.Fatalf("unexpected repo call: calls=%d user=%d conv=%d msg=%d", repo.deleteCalls, repo.deleteUserID, repo.deleteConvID, repo.deleteMsgID)

@@ -107,6 +107,13 @@ func pageParamsWithMax(c *gin.Context, maxPageSize int) (int, int) {
 	return page, pageSize
 }
 
+// 发送路径与并发消息删除冲突时的错误码与文案。流式与非流式两条入口共用，
+// 保证客户端无论走哪条通道都能拿到同一个机器码做重试提示。
+const (
+	messageParentDeletedErrorCode    = "conversation.message_parent_deleted"
+	messageParentDeletedErrorMessage = "the message being replied to was deleted, please retry"
+)
+
 type streamError struct {
 	Status  int
 	Code    string
@@ -213,6 +220,10 @@ func mapStreamError(err error) streamError {
 	case errors.Is(err, appconversation.ErrDuplicateMessageGenerationRun):
 		status = http.StatusConflict
 		message = "message generation run already exists"
+	case errors.Is(err, appconversation.ErrMessageParentDeleted):
+		status = http.StatusConflict
+		code = messageParentDeletedErrorCode
+		message = messageParentDeletedErrorMessage
 	case errors.Is(err, appconversation.ErrUpstreamRequestFailed):
 		status = http.StatusBadGateway
 		code = appconversation.MessageErrorCode(err)
