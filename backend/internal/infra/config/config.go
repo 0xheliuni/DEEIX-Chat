@@ -244,6 +244,7 @@ type yamlConfig struct {
 	} `yaml:"server"`
 	Security struct {
 		JWTSecret              string `yaml:"jwt_secret"`
+		MCPUserContextSecret   string `yaml:"mcp_user_context_secret"`
 		DataEncryptionKey      string `yaml:"data_encryption_key"`
 		SSRFProtectionEnabled  *bool  `yaml:"ssrf_protection_enabled"`
 		SSRFAllowedHosts       string `yaml:"ssrf_allowed_hosts"`
@@ -345,6 +346,7 @@ type Config struct {
 	HTTPMaxHeaderBytes           int
 	HTTPShutdownTimeoutSeconds   int
 	JWTSecret                    string
+	MCPUserContextSecret         string
 	DataEncryptionKey            string
 	SSRFProtectionEnabled        bool
 	SSRFAllowedHosts             string
@@ -439,6 +441,8 @@ type Config struct {
 	ModelOptionPolicyMode        string
 	ModelOptionAllowedPaths      string
 	ModelOptionDeniedPaths       string
+	// 知识库配置
+	KnowledgeBaseEnabled bool
 	// 存储配置
 	UserStorageQuotaBytes int64
 	MaxUploadFileBytes    int64
@@ -585,6 +589,7 @@ func Load() Config {
 		HTTPMaxHeaderBytes:           envOrInt("HTTP_MAX_HEADER_BYTES", yc.Server.MaxHeaderBytes, defaultHTTPMaxHeaderBytes),
 		HTTPShutdownTimeoutSeconds:   envOrInt("HTTP_SHUTDOWN_TIMEOUT_SECONDS", yc.Server.ShutdownTimeoutSeconds, defaultHTTPShutdownTimeoutSeconds),
 		JWTSecret:                    envOr("JWT_SECRET", yc.Security.JWTSecret, defaultJWTSecret),
+		MCPUserContextSecret:         envOr("MCP_USER_CONTEXT_SECRET", yc.Security.MCPUserContextSecret, ""),
 		DataEncryptionKey:            envOr("DATA_ENCRYPTION_KEY", yc.Security.DataEncryptionKey, defaultDataEncryptionKey),
 		SSRFProtectionEnabled:        envOrBoolPtr("SSRF_PROTECTION_ENABLED", yc.Security.SSRFProtectionEnabled, false),
 		SSRFAllowedHosts:             envOr("SSRF_ALLOWED_HOSTS", yc.Security.SSRFAllowedHosts, ""),
@@ -677,6 +682,7 @@ func Load() Config {
 		ModelOptionPolicyMode:             "allowlist",
 		ModelOptionAllowedPaths:           DefaultModelOptionAllowedPathsJSON(),
 		ModelOptionDeniedPaths:            DefaultModelOptionDeniedPathsJSON(),
+		KnowledgeBaseEnabled:              true,
 		UserStorageQuotaBytes:             104857600,
 		MaxUploadFileBytes:                20971520,
 		MaxMessageFiles:                   10,
@@ -970,6 +976,11 @@ func normalizeEnv(value string) string {
 	}
 }
 
+// IsProduction 判断配置是否使用生产环境语义。
+func (c Config) IsProduction() bool {
+	return normalizeEnv(c.Env) == "prod"
+}
+
 func normalizeDatabaseDriver(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "", "postgres", "postgresql", "pg":
@@ -1180,7 +1191,7 @@ func (c Config) StrictOutboundPolicy() sharedsecurity.OutboundPolicy {
 }
 
 func (c Config) ssrfProtectionEnforced() bool {
-	return normalizeEnv(c.Env) == "prod" && c.SSRFProtectionEnabled
+	return c.IsProduction() && c.SSRFProtectionEnabled
 }
 
 func splitCommaSeparated(raw string) []string {

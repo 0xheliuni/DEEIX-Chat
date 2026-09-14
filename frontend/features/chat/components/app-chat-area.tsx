@@ -283,7 +283,6 @@ export function AppChatArea() {
     appendAttachmentsForKey,
   } = useChatComposerState(conversationID, {
     preserveDrafts: preserveConversationDrafts,
-    resetToken: newConversationRevision,
     storageScope: user?.publicID ?? "",
     transient: temporaryMode,
   });
@@ -824,6 +823,7 @@ export function AppChatArea() {
                   messages={displayMessages}
                   attachmentContentLoader={temporaryMode ? temporaryRuntime.loadAttachmentContent : undefined}
                   persistMessageFeedback={!temporaryMode}
+                  allowFullToolResults={!temporaryMode}
                   busy={composerSending}
                   messageContentRef={messageContentRef}
                   onScroll={onScroll}

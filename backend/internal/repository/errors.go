@@ -39,6 +39,8 @@ var (
 	ErrFileNotFound = errors.New("file not found")
 	// ErrStorageQuotaExceeded 用户存储配额超限。
 	ErrStorageQuotaExceeded = errors.New("storage quota exceeded")
+	// ErrConversationShareSchemaOutdated 会话分享存储结构未更新。
+	ErrConversationShareSchemaOutdated = errors.New("conversation share schema outdated")
 
 	// ErrMessageDeleteStateInvalid 消息仍在生成中，不允许删除。
 	ErrMessageDeleteStateInvalid = errors.New("message delete state invalid")

@@ -1027,6 +1027,7 @@ html[data-branding-pending] body {
   .data-table-header {
     --data-table-header-bg: var(--accent);
     background-color: var(--data-table-header-bg);
+    box-shadow: 0 -1px 0 0 var(--data-table-header-bg);
   }
 
   .data-table-sticky-end-head {
@@ -1114,8 +1115,8 @@ html[data-branding-pending] body {
   }
 
   .markdown-table-scroll:focus-visible {
-    outline: 2px solid color-mix(in oklch, var(--ring) 55%, transparent);
-    outline-offset: 2px;
+    outline: none;
+    background-color: color-mix(in oklch, var(--muted) 55%, transparent);
   }
 
   .markdown-table {

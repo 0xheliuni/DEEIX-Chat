@@ -827,7 +827,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "从 storage 缓存读取 OpenRouter 模型标识、定价和上下文限制；缓存不存在、过期或 refresh=true 时由后端刷新。",
+                "description": "从 storage 缓存读取 OpenRouter 模型标识、基础定价、输入 token 阶梯覆盖和上下文限制；无法映射到当前 token 计费模型的附加字段会在 unsupportedFields 中标记，快速配置会忽略这些字段并继续导入可识别的 token 价格。由原生工具计费负责的按次字段（例如 web_search）会被忽略。",
                 "consumes": [
                     "application/json"
                 ],
@@ -10131,6 +10131,68 @@ const docTemplate = `{
                 }
             }
         },
+        "/conversation-runs/{run_id}/tool-calls/{tool_call_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "查询当前用户指定会话运行内的持久化工具调用结果；超限字段仅返回原始大小与省略标记",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "查询工具调用结果详情",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "运行 ID",
+                        "name": "run_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "工具调用 ID",
+                        "name": "tool_call_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationToolCallDetailResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/conversations": {
             "get": {
                 "security": [
@@ -13815,6 +13877,30 @@ const docTemplate = `{
                 }
             }
         },
+        "/settings/feature-policy": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "查询用户侧功能开关策略",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/settings/login-page": {
             "get": {
                 "produces": [
@@ -16061,7 +16147,9 @@ const docTemplate = `{
                 "periodUsedNanousd",
                 "periodUsedUSD",
                 "plan",
-                "subscriptionEntitlements"
+                "subscriptionEntitlements",
+                "totalSpentNanousd",
+                "totalSpentUSD"
             ],
             "properties": {
                 "account": {
@@ -16118,6 +16206,12 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/SubscriptionEntitlementResponse"
                     }
+                },
+                "totalSpentNanousd": {
+                    "type": "integer"
+                },
+                "totalSpentUSD": {
+                    "type": "number"
                 }
             }
         },
@@ -16152,7 +16246,6 @@ const docTemplate = `{
             "required": [
                 "code",
                 "description",
-                "discountPercent",
                 "featureJSON",
                 "id",
                 "isActive",
@@ -16169,9 +16262,6 @@ const docTemplate = `{
                 },
                 "description": {
                     "type": "string"
-                },
-                "discountPercent": {
-                    "type": "integer"
                 },
                 "featureJSON": {
                     "type": "string"
@@ -17444,14 +17534,20 @@ const docTemplate = `{
                 "createdAt",
                 "endedAt",
                 "errorJSON",
+                "errorOmitted",
+                "errorSizeBytes",
                 "eventID",
                 "eventScope",
                 "eventType",
                 "id",
                 "inputJSON",
+                "inputOmitted",
+                "inputSizeBytes",
                 "latencyMS",
                 "messageID",
                 "outputJSON",
+                "outputOmitted",
+                "outputSizeBytes",
                 "parentEventID",
                 "payloadJSON",
                 "payloadOmitted",
@@ -17496,6 +17592,12 @@ const docTemplate = `{
                 "errorJSON": {
                     "type": "string"
                 },
+                "errorOmitted": {
+                    "type": "boolean"
+                },
+                "errorSizeBytes": {
+                    "type": "integer"
+                },
                 "eventID": {
                     "type": "string"
                 },
@@ -17511,6 +17613,12 @@ const docTemplate = `{
                 "inputJSON": {
                     "type": "string"
                 },
+                "inputOmitted": {
+                    "type": "boolean"
+                },
+                "inputSizeBytes": {
+                    "type": "integer"
+                },
                 "latencyMS": {
                     "type": "integer"
                 },
@@ -17519,6 +17627,12 @@ const docTemplate = `{
                 },
                 "outputJSON": {
                     "type": "string"
+                },
+                "outputOmitted": {
+                    "type": "boolean"
+                },
+                "outputSizeBytes": {
+                    "type": "integer"
                 },
                 "parentEventID": {
                     "type": "string"
@@ -18147,6 +18261,68 @@ const docTemplate = `{
             "properties": {
                 "data": {
                     "$ref": "#/definitions/ConversationShareResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "ConversationToolCallDetailResponse": {
+            "type": "object",
+            "required": [
+                "errorJSON",
+                "errorOmitted",
+                "errorSizeBytes",
+                "outputJSON",
+                "outputOmitted",
+                "outputSizeBytes",
+                "runID",
+                "status",
+                "toolCallID",
+                "toolName"
+            ],
+            "properties": {
+                "errorJSON": {
+                    "type": "string"
+                },
+                "errorOmitted": {
+                    "type": "boolean"
+                },
+                "errorSizeBytes": {
+                    "type": "integer"
+                },
+                "outputJSON": {
+                    "type": "string"
+                },
+                "outputOmitted": {
+                    "type": "boolean"
+                },
+                "outputSizeBytes": {
+                    "type": "integer"
+                },
+                "runID": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "toolCallID": {
+                    "type": "string"
+                },
+                "toolName": {
+                    "type": "string"
+                }
+            }
+        },
+        "ConversationToolCallDetailResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ConversationToolCallDetailResponse"
                 },
                 "errorMsg": {
                     "type": "string"
@@ -20609,7 +20785,7 @@ const docTemplate = `{
                 },
                 "options": {
                     "type": "object",
-                    "additionalProperties": true
+                    "additionalProperties": {}
                 },
                 "parentMessagePublicID": {
                     "type": "string",
@@ -21667,6 +21843,13 @@ const docTemplate = `{
                 "cacheWriteNanousdPerMTokens": {
                     "type": "integer"
                 },
+                "cacheWritePriceBasis": {
+                    "type": "string",
+                    "enum": [
+                        "direct",
+                        "anthropic_5m"
+                    ]
+                },
                 "cacheWriteUSDPerMTokens": {
                     "type": "number"
                 },
@@ -22482,6 +22665,33 @@ const docTemplate = `{
                 }
             }
         },
+        "OpenRouterOfficialPricingOverrideResponse": {
+            "type": "object",
+            "required": [
+                "completion",
+                "inputCacheRead",
+                "inputCacheWrite",
+                "minPromptTokens",
+                "prompt"
+            ],
+            "properties": {
+                "completion": {
+                    "type": "string"
+                },
+                "inputCacheRead": {
+                    "type": "string"
+                },
+                "inputCacheWrite": {
+                    "type": "string"
+                },
+                "minPromptTokens": {
+                    "type": "integer"
+                },
+                "prompt": {
+                    "type": "string"
+                }
+            }
+        },
         "OpenRouterOfficialPricingResponseDoc": {
             "type": "object",
             "required": [
@@ -22500,12 +22710,20 @@ const docTemplate = `{
         "OpenRouterOfficialPricingUnitPricingResponse": {
             "type": "object",
             "required": [
+                "cacheWritePriceBasis",
                 "completion",
                 "inputCacheRead",
                 "inputCacheWrite",
                 "prompt"
             ],
             "properties": {
+                "cacheWritePriceBasis": {
+                    "type": "string",
+                    "enum": [
+                        "direct",
+                        "anthropic_5m"
+                    ]
+                },
                 "completion": {
                     "type": "string"
                 },
@@ -22515,8 +22733,20 @@ const docTemplate = `{
                 "inputCacheWrite": {
                     "type": "string"
                 },
+                "overrides": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/OpenRouterOfficialPricingOverrideResponse"
+                    }
+                },
                 "prompt": {
                     "type": "string"
+                },
+                "unsupportedFields": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -23560,6 +23790,8 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "cacheReadUSDPerMTokens",
+                "cacheWrite1hMultiplier",
+                "cacheWrite5mMultiplier",
                 "cacheWriteUSDPerMTokens",
                 "callUSDPerCall",
                 "currency",
@@ -23572,6 +23804,12 @@ const docTemplate = `{
             ],
             "properties": {
                 "cacheReadUSDPerMTokens": {
+                    "type": "number"
+                },
+                "cacheWrite1hMultiplier": {
+                    "type": "number"
+                },
+                "cacheWrite5mMultiplier": {
                     "type": "number"
                 },
                 "cacheWriteUSDPerMTokens": {
@@ -24746,7 +24984,7 @@ const docTemplate = `{
                 },
                 "options": {
                     "type": "object",
-                    "additionalProperties": true
+                    "additionalProperties": {}
                 },
                 "parentMessagePublicID": {
                     "type": "string",
@@ -25794,7 +26032,7 @@ const docTemplate = `{
                 },
                 "options": {
                     "type": "object",
-                    "additionalProperties": true
+                    "additionalProperties": {}
                 },
                 "selectedToolIDs": {
                     "type": "array",
@@ -25962,7 +26200,6 @@ const docTemplate = `{
                 "amountUSD",
                 "billingInterval",
                 "description",
-                "discountPercent",
                 "name",
                 "periodCreditUSD"
             ],
@@ -25986,11 +26223,6 @@ const docTemplate = `{
                 "description": {
                     "type": "string",
                     "maxLength": 255
-                },
-                "discountPercent": {
-                    "type": "integer",
-                    "maximum": 100,
-                    "minimum": 0
                 },
                 "name": {
                     "type": "string",
@@ -26668,6 +26900,13 @@ const docTemplate = `{
                 "cacheReadUSDPerMTokens": {
                     "type": "number",
                     "minimum": 0
+                },
+                "cacheWritePriceBasis": {
+                    "type": "string",
+                    "enum": [
+                        "direct",
+                        "anthropic_5m"
+                    ]
                 },
                 "cacheWriteUSDPerMTokens": {
                     "type": "number",
@@ -28574,7 +28813,7 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "0.4.0",
+	Version:          "0.4.1",
 	Host:             "",
 	BasePath:         "/api/v1",
 	Schemes:          []string{},
