@@ -53,6 +53,7 @@ import {
   normalizeLatexUnicodeSymbols,
   normalizeMathDelimiters,
   normalizeMermaidBlocks,
+  normalizeNestedCodeFences,
   parseStreamdownSegments,
   type RenderSegment,
 } from "./streamdown-content";
@@ -403,9 +404,12 @@ function normalizeStreamdownContent(
       preserveSourceLines ? escapedContent : normalizeMathDelimiters(escapedContent),
     ),
   );
-  return preserveSourceLines
+  const fenceNormalizedContent = preserveSourceLines
     ? normalizedContent
-    : normalizeHTMLBlockBlankLines(normalizeHTMLVisualMarkdownFences(normalizedContent), streaming);
+    : normalizeNestedCodeFences(normalizedContent);
+  return preserveSourceLines
+    ? fenceNormalizedContent
+    : normalizeHTMLBlockBlankLines(normalizeHTMLVisualMarkdownFences(fenceNormalizedContent), streaming);
 }
 
 function detectStreamdownFeatures(content: string): StreamdownFeatureFlags {
