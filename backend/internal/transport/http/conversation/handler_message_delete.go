@@ -29,12 +29,12 @@ func (h *Handler) DeleteMessage(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	conversationID, err := stringParam(c, "id")
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid conversation id")
+		response.ErrorWithCode(c, http.StatusBadRequest, "conversation.invalid_id")
 		return
 	}
 	messageID, err := stringParam(c, "message_id")
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid message id")
+		response.ErrorWithCode(c, http.StatusBadRequest, "conversation.invalid_message_id")
 		return
 	}
 
@@ -42,17 +42,17 @@ func (h *Handler) DeleteMessage(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, appconversation.ErrConversationNotFound):
-			response.Error(c, http.StatusNotFound, "conversation not found")
+			response.ErrorFrom(c, http.StatusNotFound, err)
 		case errors.Is(err, appconversation.ErrMessageNotFound):
-			response.Error(c, http.StatusNotFound, "message not found")
+			response.ErrorFrom(c, http.StatusNotFound, err)
 		case errors.Is(err, appconversation.ErrMessageDeleteStateInvalid):
-			response.ErrorWithCode(c, http.StatusBadRequest, "conversation.message_delete_state_invalid", "message is still generating")
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 		case errors.Is(err, appconversation.ErrMessageDeleteTargetInvalid):
-			response.ErrorWithCode(c, http.StatusBadRequest, "conversation.message_delete_target_invalid", "this message cannot be deleted")
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 		case errors.Is(err, appconversation.ErrMessageDeleteRootInvalid):
-			response.ErrorWithCode(c, http.StatusBadRequest, "conversation.message_delete_root_invalid", "the first message of a conversation cannot be deleted")
+			response.ErrorFrom(c, http.StatusBadRequest, err)
 		default:
-			response.Error(c, http.StatusInternalServerError, "delete message failed")
+			response.InternalError(c)
 		}
 		return
 	}

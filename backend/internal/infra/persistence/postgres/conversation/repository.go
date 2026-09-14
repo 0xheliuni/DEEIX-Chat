@@ -47,6 +47,11 @@ func NewRepo(db *gorm.DB) *Repo {
 	return &Repo{db: db}
 }
 
+// translateError 将 gorm 底层错误统一映射为仓储语义错误。
+func translateError(err error) error {
+	return dberror.Translate(err)
+}
+
 func (r *Repo) sqliteDialect() bool {
 	return r != nil && r.db != nil && r.db.Dialector != nil && r.db.Dialector.Name() == "sqlite"
 }

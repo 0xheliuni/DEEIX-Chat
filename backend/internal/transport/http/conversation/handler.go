@@ -140,6 +140,7 @@ var sendMessageErrorStatuses = []sendMessageErrorStatus{
 	{err: billing.ErrModelPricingRequired, status: http.StatusPaymentRequired},
 }
 
+func describeSendMessageError(err error) response.Description {
 	switch {
 	case appconversation.IsUpstreamRateLimitError(err):
 		return response.DescribeCode(http.StatusTooManyRequests, appconversation.MessageErrorCodeUpstreamRateLimited)
