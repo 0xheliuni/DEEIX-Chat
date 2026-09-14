@@ -29,12 +29,12 @@ func (h *Handler) DeleteMessage(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	conversationID, err := stringParam(c, "id")
 	if err != nil {
-		response.ErrorWithCode(c, http.StatusBadRequest, "conversation.invalid_id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidConversationID)
 		return
 	}
 	messageID, err := stringParam(c, "message_id")
 	if err != nil {
-		response.ErrorWithCode(c, http.StatusBadRequest, "conversation.invalid_message_id")
+		response.ErrorFrom(c, http.StatusBadRequest, errInvalidMessageID)
 		return
 	}
 
@@ -60,7 +60,7 @@ func (h *Handler) DeleteMessage(c *gin.Context) {
 	h.recordAudit(c, "delete_message",
 		"message",
 		messageID,
-		map[string]interface{}{
+		map[string]any{
 			"conversation_id":  conversationID,
 			"reparented_count": result.ReparentedMessageCount,
 		},

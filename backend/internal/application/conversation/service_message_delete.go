@@ -61,8 +61,7 @@ func (s *Service) DeleteMessage(ctx context.Context, userID uint, conversationPu
 		if errors.Is(err, repository.ErrNotFound) {
 			return nil, ErrMessageNotFound
 		}
-		// 状态与根消息守卫错误是应用层与仓储层共享的哨兵（见 errs.go 别名），直接透传。
-		return nil, err
+		return nil, mapMessageWriteError(err)
 	}
 	return &DeleteMessageResult{ReparentedMessageCount: reparented}, nil
 }

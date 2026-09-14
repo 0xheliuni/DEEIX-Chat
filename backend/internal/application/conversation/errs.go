@@ -106,7 +106,7 @@ var (
 	// ErrMessageDeleteRootInvalid 会话第一条消息不允许删除，否则历史将以助手消息开头。
 	ErrMessageDeleteRootInvalid = apperr.New("conversation.message_delete_root_invalid", "cannot delete the first message")
 	// ErrMessageParentDeleted 父消息已被删除，无法再挂在其下创建新消息。
-	ErrMessageParentDeleted = apperr.New("conversation.message_parent_deleted", "parent message was deleted")
+	ErrMessageParentDeleted    = apperr.New("conversation.message_parent_deleted", "parent message was deleted")
 	ErrModelRouteNotConfigured = apperr.NewMasked("llm.model_route_not_configured", "model route is not configured", "model route not configured")
 	// ErrModelAccessDenied 当前用户无权使用此模型。
 	ErrModelAccessDenied = apperr.NewMasked("llm.model_access_denied", "you do not have access to this model", "model access denied by group policy")
@@ -146,3 +146,19 @@ var (
 	// ErrDuplicateMessageGenerationRun 表示客户端重复提交同一个生成 run。
 	ErrDuplicateMessageGenerationRun = apperr.NewMasked("message_generation_run.already_exists", "message generation run already exists", "duplicate message generation run")
 )
+
+// mapMessageWriteError 把仓储层在消息写入与删除路径上返回的哨兵转换为应用层契约哨兵。
+// 仓储层只表达存储语义，对外错误码与文案必须由应用边界收敛（约定见本文件顶部），
+// 否则并发删除父消息、生成中删除等分支会退化成无错误码的 500。
+func mapMessageWriteError(err error) error {
+	switch {
+	case errors.Is(err, repository.ErrMessageParentDeleted):
+		return ErrMessageParentDeleted
+	case errors.Is(err, repository.ErrMessageDeleteStateInvalid):
+		return ErrMessageDeleteStateInvalid
+	case errors.Is(err, repository.ErrMessageDeleteRootInvalid):
+		return ErrMessageDeleteRootInvalid
+	default:
+		return err
+	}
+}
