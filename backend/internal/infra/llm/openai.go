@@ -164,7 +164,12 @@ func (c *Client) generateStreamOpenAICompatible(
 
 // listModelsOpenAICompatible 调用上游 models 目录接口。
 func (c *Client) listModelsOpenAICompatible(ctx context.Context, route portllm.RouteConfig) ([]portllm.ModelItem, error) {
-	requestURL := buildOpenAIModelsURL(route.BaseURL)
+	return c.listModelsFromURL(ctx, route, buildOpenAIModelsURL(route.BaseURL))
+}
+
+// listModelsFromURL 以 OpenAI models 响应形状（data[].id / owned_by）拉取指定目录 URL，
+// 供与主目录同形但路径不同的子目录（如 OpenRouter 图片模型目录）复用。
+func (c *Client) listModelsFromURL(ctx context.Context, route portllm.RouteConfig, requestURL string) ([]portllm.ModelItem, error) {
 	if requestURL == "" {
 		return nil, fmt.Errorf("invalid base url")
 	}
@@ -365,6 +370,8 @@ func buildOpenAIRequestURL(baseURL string, endpoint string) string {
 		return buildVersionedEndpointURL(baseURL, "v1", "/images/generations")
 	case portllm.EndpointImageEdits:
 		return buildVersionedEndpointURL(baseURL, "v1", "/images/edits")
+	case portllm.EndpointImages:
+		return buildVersionedEndpointURL(baseURL, "v1", "/images")
 	case portllm.EndpointVideoGenerations:
 		return buildVersionedEndpointURL(baseURL, "v1", "/videos/generations")
 	case portllm.EndpointVideoExtensions:
