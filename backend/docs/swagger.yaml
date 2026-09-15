@@ -15398,6 +15398,10 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/AuthErrorDoc'
+        "423":
+          description: Locked
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
         "429":
           description: Too Many Requests
           schema:
@@ -15593,6 +15597,10 @@ paths:
             $ref: '#/definitions/AuthErrorDoc'
         "409":
           description: Conflict
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "423":
+          description: Locked
           schema:
             $ref: '#/definitions/AuthErrorDoc'
       summary: 兑换第三方登录一次性授权码
