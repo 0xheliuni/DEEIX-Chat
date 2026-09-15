@@ -8567,6 +8567,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     },
+                    "423": {
+                        "description": "Locked",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
                     "429": {
                         "description": "Too Many Requests",
                         "schema": {
@@ -8867,6 +8873,12 @@ const docTemplate = `{
                     },
                     "409": {
                         "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "423": {
+                        "description": "Locked",
                         "schema": {
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
