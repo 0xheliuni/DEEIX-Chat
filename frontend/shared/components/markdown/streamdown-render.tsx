@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { useAutoExpandDisclosure } from "@/shared/hooks/use-auto-expand-disclosure";
 import {
   AdaptiveMarkdownTable,
+  MarkdownTableLineBreak,
   MarkdownTableStreamingContext,
 } from "./adaptive-markdown-table";
 import { StreamdownAdapterStyles } from "./streamdown-adapter-styles";
@@ -366,6 +367,7 @@ const DEFAULT_STREAMDOWN_COMPONENTS = {
   article: MarkdownHTMLArticle,
   aside: MarkdownHTMLAside,
   b: MarkdownStrong,
+  br: MarkdownTableLineBreak,
   details: MarkdownHTMLDetails,
   div: MarkdownHTMLDiv,
   img: MarkdownImage,
