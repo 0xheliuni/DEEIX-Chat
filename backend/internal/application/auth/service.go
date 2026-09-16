@@ -837,11 +837,6 @@ func normalizeAppearancePreferences(raw string) (string, error) {
 	normalized := make(map[string]string, len(payload))
 	for key, value := range payload {
 		switch key {
-		case "theme":
-			if value != "light" && value != "dark" && value != "system" {
-				return "", ErrInvalidAppearancePreferences
-			}
-			normalized[key] = value
 		case "preset":
 			if value != "default" && value != "azure" && value != "cobalt" && value != "graphite" && value != "lagoon" && value != "ink" && value != "ochre" && value != "sepia" {
 				return "", ErrInvalidAppearancePreferences
