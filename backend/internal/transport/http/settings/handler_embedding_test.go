@@ -55,6 +55,9 @@ func TestTouchesEmbeddingSpaceIgnoresDerivedSignature(t *testing.T) {
 	if touchesEmbeddingSpace([]PatchItem{{Namespace: "chat", Key: "rag_top_k", Value: "8"}}) {
 		t.Fatal("retrieval tuning must not invalidate the vector space")
 	}
+	if touchesEmbeddingSpace([]PatchItem{{Namespace: "file", Key: "embedding_dimensions_policy", Value: "omit"}}) {
+		t.Fatal("request serialization policy must not invalidate the vector space")
+	}
 }
 
 func TestContainsSettingPatchMatchesExactNamespaceAndKey(t *testing.T) {
