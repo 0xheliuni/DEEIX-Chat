@@ -256,10 +256,50 @@ func (c *Client) fetchOpenAIResponse(ctx context.Context, route portllm.RouteCon
 	return output, nil
 }
 
+// mergeLeadingSystemMessages 将开头连续的纯文本 system 消息合并为一条。
+// 部分 OpenAI 兼容上游只接受首条消息为 system；显式 prompt cache 依赖逐条断点，保持原样。
+func mergeLeadingSystemMessages(messages []portllm.Message, explicitPromptCache bool) []portllm.Message {
+	if explicitPromptCache {
+		return messages
+	}
+	leading := 0
+	for leading < len(messages) && messages[leading].Role == "system" {
+		item := messages[leading]
+		if len(item.Parts) > 0 || len(item.ToolCalls) > 0 || len(item.ToolResults) > 0 {
+			return messages
+		}
+		leading++
+	}
+	if leading < 2 {
+		return messages
+	}
+
+	contents := make([]string, 0, leading)
+	var cacheControl *portllm.CacheControl
+	for _, item := range messages[:leading] {
+		contents = append(contents, strings.TrimSpace(item.Content))
+		if item.CacheControl != nil {
+			cacheControl = item.CacheControl
+		}
+	}
+	merged := portllm.Message{
+		Role:         "system",
+		Content:      strings.Join(contents, "\n\n"),
+		CacheControl: cacheControl,
+	}
+	next := make([]portllm.Message, 0, len(messages)-leading+1)
+	next = append(next, merged)
+	next = append(next, messages[leading:]...)
+	return next
+}
+
 func buildOpenAIRequestBody(protocol string, model string, endpoint string, input portllm.GenerateInput, stream bool) (map[string]any, error) {
 	endpoint = normalizeEndpoint(endpoint)
-	messages := normalizeMessages(input.Messages)
 	adapter := portllm.NormalizeAdapter(protocol)
+	messages := mergeLeadingSystemMessages(
+		normalizeMessages(input.Messages),
+		resolveOpenAIPromptCacheConfig(adapter, input).Explicit,
+	)
 	providerTools, toolDefinitions, toolsEnabled, err := toolDeclarationsForInput(input)
 	if err != nil {
 		return nil, err
