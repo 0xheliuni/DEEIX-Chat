@@ -34,9 +34,11 @@
     "noSignature": "No signature yet. It is computed automatically after the first save.",
     "reindex": "Rebuild index",
     "reindexing": "Rebuilding...",
+    "reindexIncludingNoText": "Reindex including no-text files",
     "ready": "Ready",
     "stale": "Stale",
     "pending": "Pending",
+    "noText": "No text",
     "failed": "Failed",
     "empty": "No index data yet. This appears after the embedding service is configured.",
     "needsReindex": "Stale vectors detected. Rebuild the index to restore retrieval quality."
