@@ -58,6 +58,11 @@ const (
 	DefaultMCPMaxSelectedToolsPerMessage = 32
 	// MaxMCPSelectedToolsPerMessage 是运行时配置允许的安全上限，防止一次请求暴露过多工具 schema。
 	MaxMCPSelectedToolsPerMessage = 128
+
+	// EmbeddingDimensionsPolicySend 在 Embedding 请求中携带 dimensions 参数。
+	EmbeddingDimensionsPolicySend = "send"
+	// EmbeddingDimensionsPolicyOmit 省略 dimensions 参数，返回向量仍按 EmbeddingOutputDimensions 校验。
+	EmbeddingDimensionsPolicyOmit = "omit"
 )
 
 // DefaultModelOptionAllowedPathsJSON 返回用户可透传模型参数的默认白名单。
@@ -762,7 +767,7 @@ func Load() Config {
 		EmbeddingKey:                      "",
 		EmbeddingTimeoutSeconds:           60,
 		EmbeddingOutputDimensions:         1536,
-		EmbeddingDimensionsPolicy:         "send",
+		EmbeddingDimensionsPolicy:         EmbeddingDimensionsPolicySend,
 		EmbeddingNormalize:                true,
 		EmbedTriggerOnUpload:              true,
 		EmbedChunkSizeTokens:              1024,

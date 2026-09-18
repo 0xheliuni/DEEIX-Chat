@@ -163,6 +163,14 @@
         "description": "Vector dimensions used consistently for storage and retrieval.",
         "placeholder": "Vector dimensions"
       },
+      "embedding_dimensions_policy": {
+        "label": "Dimensions request policy",
+        "description": "Whether to include the `dimensions` parameter in requests. Some services reject it.",
+        "options": {
+          "send": "Include",
+          "omit": "Omit"
+        }
+      },
       "embedding_normalize": {
         "label": "Normalize vectors",
         "description": "Normalize vectors before storage and retrieval."

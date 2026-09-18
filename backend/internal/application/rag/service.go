@@ -456,7 +456,7 @@ func (s *Service) embedTexts(ctx context.Context, texts []string, cfg config.Con
 			Model:          model,
 			Texts:          texts[start:end],
 			Dimensions:     cfg.EmbeddingOutputDimensions,
-			OmitDimensions: cfg.EmbeddingDimensionsPolicy == "omit",
+			OmitDimensions: cfg.EmbeddingDimensionsPolicy == config.EmbeddingDimensionsPolicyOmit,
 			TimeoutSeconds: cfg.EmbeddingTimeoutSeconds,
 		})
 		if batchErr != nil {

@@ -163,6 +163,14 @@
         "description": "用于指定写库和检索统一使用的向量维度。",
         "placeholder": "向量维度"
       },
+      "embedding_dimensions_policy": {
+        "label": "维度参数策略",
+        "description": "用于指定请求是否携带 `dimensions` 参数，部分服务不接受该参数。",
+        "options": {
+          "send": "携带",
+          "omit": "不携带"
+        }
+      },
       "embedding_normalize": {
         "label": "归一化向量",
         "description": "开启后会对向量执行归一化处理。"
