@@ -704,6 +704,7 @@ func (s *Service) embedTextsWithConfig(ctx context.Context, texts []string, cfg 
 			Model:          model,
 			Texts:          texts[start:end],
 			Dimensions:     cfg.EmbeddingOutputDimensions,
+			OmitDimensions: cfg.EmbeddingDimensionsPolicy == config.EmbeddingDimensionsPolicyOmit,
 			TimeoutSeconds: cfg.EmbeddingTimeoutSeconds,
 		})
 		if batchErr != nil {
