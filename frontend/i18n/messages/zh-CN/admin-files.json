@@ -34,9 +34,11 @@
     "noSignature": "尚未生成签名（首次保存配置后自动计算）",
     "reindex": "重建索引",
     "reindexing": "重建中...",
+    "reindexIncludingNoText": "重建含无文本文件",
     "ready": "就绪",
     "stale": "失效",
     "pending": "待处理",
+    "noText": "无文本",
     "failed": "失败",
     "empty": "暂无数据（配置 Embedding 服务后可用）",
     "needsReindex": "检测到失效向量，请点击「重建索引」以恢复检索能力。"
