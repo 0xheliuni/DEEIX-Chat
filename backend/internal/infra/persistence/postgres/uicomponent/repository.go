@@ -31,7 +31,7 @@ func (r *Repo) ListUIComponents(ctx context.Context, filter repository.UICompone
 		limit = 200
 	}
 
-	items := make([]model.UIComponent, 0, limit)
+	var items []model.UIComponent
 	var total int64
 	query := applyFilter(r.db.WithContext(ctx).Model(&model.UIComponent{}), filter)
 	if err := query.Count(&total).Error; err != nil {
