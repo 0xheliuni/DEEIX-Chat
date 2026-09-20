@@ -2623,6 +2623,23 @@ export interface PatchSkillRequest {
   trigger?: string;
 }
 
+export interface PatchUIComponentRequest {
+  /** @maxLength 256 */
+  description?: string;
+  enabled?: boolean;
+  /** @maxLength 64 */
+  name?: string;
+  /** @maxLength 16384 */
+  propsSchema?: string;
+  /** @maxLength 1024 */
+  propsSummary?: string;
+  /** @maxLength 262144 */
+  rendererSource?: string;
+  sortOrder?: number;
+  /** @min 1 */
+  version?: number;
+}
+
 export interface PatchUserRequest {
   /** @maxLength 2048 */
   avatarURL?: string;
@@ -2920,6 +2937,8 @@ export interface PublicSharedConversationResponse {
   model: string;
   shareID: string;
   title: string;
+  /** UIComponentsEnabled 为 false 时，分享页不渲染 deeix-ui 组件块。 */
+  uiComponentsEnabled: boolean;
 }
 
 export interface PublicSharedConversationResponseDoc {
@@ -3224,6 +3243,11 @@ export interface SendMessageRequest {
   skillIDs?: number[];
   /** @maxLength 32 */
   sourceMessagePublicID?: string;
+  /**
+   * UIComponentIDs 是本次会话勾选的交互式组件；后端据此注入组件目录提示词，不可见的 ID 被忽略。
+   * @maxItems 32
+   */
+  uiComponentIDs?: number[];
 }
 
 export interface SendMessageResponse {
@@ -3565,6 +3589,11 @@ export interface TemporaryChatMessageRequest {
   sessionID: string;
   /** @maxItems 128 */
   skillIDs?: number[];
+  /**
+   * UIComponentIDs 是本次会话勾选的交互式组件。
+   * @maxItems 32
+   */
+  uiComponentIDs?: number[];
 }
 
 export interface ToolListResponse {
@@ -3597,6 +3626,54 @@ export interface ToolResponse {
 
 export interface ToolResponseDoc {
   data: ToolResponse;
+  errorMsg: string;
+}
+
+export interface UIComponentDataResponse {
+  component: UIComponentResponse;
+}
+
+export interface UIComponentDeleteDataResponse {
+  deleted: boolean;
+}
+
+export interface UIComponentDeleteResponseDoc {
+  data: UIComponentDeleteDataResponse;
+  errorMsg: string;
+}
+
+export interface UIComponentPageResponseDoc {
+  data: {
+    results: UIComponentResponse[];
+    total: number;
+  };
+  errorMsg: string;
+}
+
+export interface UIComponentResponse {
+  createdAt: string;
+  createdByUserID: number;
+  description: string;
+  enabled: boolean;
+  id: number;
+  name: string;
+  propsSchema: string;
+  propsSummary: string;
+  rendererKind: string;
+  rendererSource: string;
+  scope: string;
+  sortOrder: number;
+  updatedAt: string;
+  updatedByUserID: number;
+  version: number;
+}
+
+export interface UIComponentResponseDoc {
+  data: UIComponentDataResponse;
+  errorMsg: string;
+}
+
+export interface UicomponentErrorDoc {
   errorMsg: string;
 }
 
@@ -4439,6 +4516,23 @@ export interface WriteSkillRequest {
   title: string;
   /** @maxLength 64 */
   trigger: string;
+}
+
+export interface WriteUIComponentRequest {
+  /** @maxLength 256 */
+  description: string;
+  enabled?: boolean;
+  /** @maxLength 64 */
+  name: string;
+  /** @maxLength 16384 */
+  propsSchema?: string;
+  /** @maxLength 1024 */
+  propsSummary: string;
+  /** @maxLength 262144 */
+  rendererSource: string;
+  sortOrder?: number;
+  /** @min 1 */
+  version?: number;
 }
 
 export namespace Admin {
@@ -7346,6 +7440,87 @@ export namespace Admin {
   }
 
   /**
+   * No description
+   * @tags admin/ui-components
+   * @name UiComponentsList
+   * @summary 查询内置与平台组件
+   * @request GET:/admin/ui-components
+   * @secure
+   */
+  export namespace UiComponentsList {
+    export type RequestParams = {};
+    export type RequestQuery = {
+      /** 是否启用 */
+      enabled?: boolean;
+      /** 页码 */
+      page?: number;
+      /** 每页数量 */
+      page_size?: number;
+      /** 搜索关键词 */
+      q?: string;
+      /** 作用域：builtin 或 platform，留空为全部 */
+      scope?: string;
+    };
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = UIComponentPageResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags admin/ui-components
+   * @name UiComponentsCreate
+   * @summary 创建平台组件
+   * @request POST:/admin/ui-components
+   * @secure
+   */
+  export namespace UiComponentsCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = WriteUIComponentRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = UIComponentResponseDoc;
+  }
+
+  /**
+   * @description 内置组件受保护，不允许删除
+   * @tags admin/ui-components
+   * @name UiComponentsDelete
+   * @summary 删除平台组件
+   * @request DELETE:/admin/ui-components/{id}
+   * @secure
+   */
+  export namespace UiComponentsDelete {
+    export type RequestParams = {
+      /** 组件ID */
+      id: number;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = UIComponentDeleteResponseDoc;
+  }
+
+  /**
+   * @description 内置组件只允许修改启用状态、描述与排序
+   * @tags admin/ui-components
+   * @name UiComponentsPartialUpdate
+   * @summary 更新内置或平台组件
+   * @request PATCH:/admin/ui-components/{id}
+   * @secure
+   */
+  export namespace UiComponentsPartialUpdate {
+    export type RequestParams = {
+      /** 组件ID */
+      id: number;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = PatchUIComponentRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = UIComponentResponseDoc;
+  }
+
+  /**
    * @description 管理员按日期、统计对象、平台模型和计费范围查看全局费用、Token、调用次数及排名；用户与权限组筛选互斥
    * @tags admin
    * @name UsageStatisticsList
@@ -9898,6 +10073,110 @@ export namespace TemporaryChat {
     export type RequestBody = TemporaryChatMessageRequest;
     export type RequestHeaders = {};
     export type ResponseBody = string;
+  }
+}
+
+export namespace UiComponents {
+  /**
+   * @description 返回已启用的内置、平台组件与当前用户自定义组件，含渲染源，用于会话勾选与消息渲染
+   * @tags ui-components
+   * @name UiComponentsList
+   * @summary 查询当前用户可用的交互式组件
+   * @request GET:/ui-components
+   * @secure
+   */
+  export namespace UiComponentsList {
+    export type RequestParams = {};
+    export type RequestQuery = {
+      /** 页码 */
+      page?: number;
+      /** 每页数量 */
+      page_size?: number;
+      /** 搜索关键词 */
+      q?: string;
+    };
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = UIComponentPageResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags ui-components
+   * @name MineList
+   * @summary 查询我的自定义组件
+   * @request GET:/ui-components/mine
+   * @secure
+   */
+  export namespace MineList {
+    export type RequestParams = {};
+    export type RequestQuery = {
+      /** 是否启用 */
+      enabled?: boolean;
+      /** 页码 */
+      page?: number;
+      /** 每页数量 */
+      page_size?: number;
+      /** 搜索关键词 */
+      q?: string;
+    };
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = UIComponentPageResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags ui-components
+   * @name MineCreate
+   * @summary 创建我的自定义组件
+   * @request POST:/ui-components/mine
+   * @secure
+   */
+  export namespace MineCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = WriteUIComponentRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = UIComponentResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags ui-components
+   * @name MineDelete
+   * @summary 删除我的自定义组件
+   * @request DELETE:/ui-components/mine/{id}
+   * @secure
+   */
+  export namespace MineDelete {
+    export type RequestParams = {
+      /** 组件ID */
+      id: number;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = UIComponentDeleteResponseDoc;
+  }
+
+  /**
+   * No description
+   * @tags ui-components
+   * @name MinePartialUpdate
+   * @summary 更新我的自定义组件
+   * @request PATCH:/ui-components/mine/{id}
+   * @secure
+   */
+  export namespace MinePartialUpdate {
+    export type RequestParams = {
+      /** 组件ID */
+      id: number;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = PatchUIComponentRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = UIComponentResponseDoc;
   }
 }
 
