@@ -424,6 +424,7 @@
       "claudeCacheWriteNote": "Claude {timeout} cache write uses configured pricing at {multiplier}.",
       "claudeFastModeNote": "Claude Fast Mode bills input, output, and cache usage at {multiplier}.",
       "openaiServiceTierNote": "OpenAI service_tier={tier} bills at {multiplier}.",
+      "scheduleRateNote": "Time-of-day rate \"{period}\": billed at {multiplier}.",
       "input": "Input",
       "output": "Output",
       "cacheRead": "Cache read",
@@ -670,10 +671,23 @@
     "claudeCacheWriteNote": "Claude {timeout} cache write uses configured pricing at {multiplier}.",
     "claudeFastModeNote": "Claude Fast Mode bills input, output, and cache usage at {multiplier}.",
     "openaiServiceTierNote": "OpenAI service_tier={tier} bills at {multiplier}.",
+    "scheduleRateNote": "Time-of-day rate \"{period}\": billed at {multiplier}.",
     "perCall": "Per call",
     "perSecond": "Per second",
     "callUnit": "call",
-    "secondUnit": "second"
+    "secondUnit": "second",
+    "schedule": {
+      "title": "Time-of-day rates",
+      "now": "now",
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat",
+      "sun": "Sun",
+      "everyDay": "Every day"
+    }
   },
   "processTrace": {
     "fileBadges": {
