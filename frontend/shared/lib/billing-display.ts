@@ -194,8 +194,9 @@ export function billingRateMultiplierNote(snapshot: BillingCacheWriteSnapshot, l
   return null;
 }
 
-function formatRateMultiplier(value: number): string {
-  return Number.isInteger(value) ? `${value}x` : `${value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}x`;
+// Rate multipliers always read as "1.20x" / "2.00x" so columns of them line up.
+export function formatRateMultiplier(value: number): string {
+  return `${(Number.isFinite(value) ? value : 1).toFixed(2)}x`;
 }
 
 // The time-of-day period recorded in the ledger snapshot, if one applied.

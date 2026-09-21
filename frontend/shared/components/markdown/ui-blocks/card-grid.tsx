@@ -9,7 +9,7 @@ import { SlideSwitch } from "@/shared/components/slide-switch";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import type { UIBlockDefinition, UIBlockRenderProps } from "./block";
+import type { UIBlockDefinition, UIBlockRenderProps, UIBlockSkeletonProps } from "./block";
 import { s } from "./schema";
 import { UIBlockFrame } from "./ui-block-frame";
 
@@ -144,18 +144,20 @@ function CardGridCard({ item }: { item: CardGridItem }) {
   return <div className={className}>{body}</div>;
 }
 
-function CardGridSkeleton() {
+// Mirrors the rendered geometry: title row, filter chips, then cards two-up.
+function CardGridSkeleton({ items = 0 }: UIBlockSkeletonProps) {
+  const cards = Math.max(2, items);
   return (
-    <UIBlockFrame className="p-4">
-      <Skeleton className="h-5 w-1/3 rounded-full" />
+    <UIBlockFrame className="px-4 pb-4 pt-5">
+      <Skeleton className="h-7 w-1/3 rounded-md" />
       <div className="mt-3 flex gap-1.5">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <Skeleton key={`card-grid-chip-${index}`} className="h-6 w-14 rounded-full" />
+        {Array.from({ length: 3 }).map((_, index) => (
+          <Skeleton key={`card-grid-chip-${index}`} className="h-7 w-16 rounded-full" />
         ))}
       </div>
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <Skeleton key={`card-grid-card-${index}`} className="h-24 rounded-lg" />
+        {Array.from({ length: cards }).map((_, index) => (
+          <Skeleton key={`card-grid-card-${index}`} className="h-[7.5rem] rounded-lg" />
         ))}
       </div>
     </UIBlockFrame>

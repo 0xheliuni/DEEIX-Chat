@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/table";
 import type { AdminBillingPlanDTO, AdminModelPricingDTO } from "@/features/admin/api/billing.types";
 import { cn } from "@/lib/utils";
-import { WEEKDAY_ORDER, parseSchedulePricing } from "@/shared/model/schedule-pricing";
+import { WEEKDAY_ORDER, formatRateMultiplier, parseSchedulePricing } from "@/shared/model/schedule-pricing";
 import {
   formatAmountCents,
   parseTieredPricingJSON,
@@ -220,7 +220,7 @@ export function SchedulePricingBadge({ pricing }: { pricing: AdminModelPricingDT
                 {period.start} – {period.end}
                 {period.end <= period.start ? <span className="ml-1 text-[10px]">{t("modelPricing.schedule.nextDay")}</span> : null}
               </td>
-              <td className="text-right tabular-nums">×{(period.ratePercent / 100).toLocaleString("en-US", { maximumFractionDigits: 2 })}</td>
+              <td className="text-right tabular-nums">{formatRateMultiplier(period.ratePercent)}</td>
             </tr>
           ))}
         </tbody>

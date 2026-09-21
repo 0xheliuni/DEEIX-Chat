@@ -194,12 +194,16 @@ export type UIBlockRenderProps<P> = {
   definition: UIBlockDefinition<P>;
 };
 
+export type UIBlockSkeletonProps = { items?: number };
+
 export type UIBlockDefinition<P = unknown> = {
   name: string;
   version: number;
   schema: Schema;
   Component: React.ComponentType<UIBlockRenderProps<P>>;
-  Skeleton: React.ComponentType;
+  // Skeletons get a live item count read from the streaming JSON so they can
+  // reserve the component's real height row by row.
+  Skeleton: React.ComponentType<UIBlockSkeletonProps>;
   // Present for sandbox-rendered components; the module-level SandboxComponent
   // reads it from the definition instead of closing over it.
   sandbox?: { source: string; title: string };

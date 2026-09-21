@@ -207,14 +207,15 @@ function ModelPricingTooltipContent(props: ModelPricingTooltipContentProps) {
           {periods.map((period) => {
             const active = current === period;
             return (
-              <div key={`${period.name}-${period.start}-${period.end}`} className={cn("grid grid-cols-[minmax(5.5rem,max-content)_auto] items-baseline gap-5 font-sans text-[11px] leading-4", active ? "text-background" : "text-background/70")}>
+              <div key={`${period.name}-${period.start}-${period.end}`} className={cn("grid grid-cols-[minmax(5.5rem,max-content)_1fr_auto] items-baseline gap-x-4 font-sans text-[11px] leading-4", active ? "text-background" : "text-background/70")}>
                 <span className="whitespace-nowrap">
                   {period.name}
                   {active ? <span className="ml-1 rounded-sm bg-background/20 px-1 text-[10px]">{labels.schedule.now}</span> : null}
                 </span>
                 <span className="whitespace-nowrap text-right tabular-nums">
-                  {formatScheduleWeekdays(period.weekdays, labels.schedule.weekdays)} {period.start}–{period.end} · {formatRateMultiplier(period.ratePercent)}
+                  {formatScheduleWeekdays(period.weekdays, labels.schedule.weekdays)} {period.start}–{period.end}
                 </span>
+                <span className="w-12 whitespace-nowrap text-right tabular-nums">{formatRateMultiplier(period.ratePercent)}</span>
               </div>
             );
           })}

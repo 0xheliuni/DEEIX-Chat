@@ -32,6 +32,10 @@ type UIComponentEditorDialogProps = {
 
 const DEFAULT_PREVIEW_PROPS = `{\n  "title": "示例"\n}`;
 
+function PreviewSkeleton() {
+  return <UIBlockFrame className="min-h-24" />;
+}
+
 export function UIComponentEditorDialog({ open, saving, readOnly = false, form, onOpenChange, onFormChange, onSave }: UIComponentEditorDialogProps) {
   const t = useTranslations("uiComponents.editor");
   const builtin = form.scope === "builtin";
@@ -56,7 +60,7 @@ export function UIComponentEditorDialog({ open, saving, readOnly = false, form, 
       version: 1,
       schema: { kind: "any" as const },
       Component: SandboxComponent,
-      Skeleton: UIBlockFrame,
+      Skeleton: PreviewSkeleton,
       sandbox: { source: previewSource, title: form.description || form.name || "preview" },
     }),
     [form.description, form.name, previewSource],

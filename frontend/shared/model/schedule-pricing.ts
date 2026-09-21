@@ -1,3 +1,5 @@
+import { formatRateMultiplier as formatMultiplier } from "@/shared/lib/billing-display";
+
 // Time-of-day rate multipliers ("峰谷") attached to a model pricing entry.
 // Mirrors backend/internal/application/billing/schedule_pricing.go: periods use
 // the server's local clock, may wrap past midnight, and must not overlap.
@@ -227,6 +229,5 @@ export function resolveCurrentSchedulePeriod(periods: readonly SchedulePeriodPay
 }
 
 export function formatRateMultiplier(ratePercent: number): string {
-  const value = ratePercent / 100;
-  return `×${Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}`;
+  return formatMultiplier(ratePercent / 100);
 }
