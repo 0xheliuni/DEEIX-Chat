@@ -90,7 +90,17 @@
         "standard": "Standard",
         "medium": "Medium",
         "large": "Large"
-      }
+      },
+      "toastPosition": "Notification position",
+      "toastPositionOption": {
+        "top-left": "Top left",
+        "top-center": "Top center",
+        "top-right": "Top right",
+        "bottom-left": "Bottom left",
+        "bottom-center": "Bottom center",
+        "bottom-right": "Bottom right"
+      },
+      "toastPositionPreview": "Notifications will appear here"
     },
     "avatarDialog": {
       "title": "Edit avatar",
