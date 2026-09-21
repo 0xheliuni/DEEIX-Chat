@@ -22468,6 +22468,7 @@ const docTemplate = `{
                 "outputUSDPerMTokens",
                 "platformModelName",
                 "pricingMode",
+                "schedulePricingJSON",
                 "tieredPricingJSON",
                 "updatedAt"
             ],
@@ -22537,6 +22538,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "pricingMode": {
+                    "type": "string"
+                },
+                "schedulePricingJSON": {
                     "type": "string"
                 },
                 "tieredPricingJSON": {
@@ -24473,6 +24477,8 @@ const docTemplate = `{
                 "isFree",
                 "mode",
                 "outputUSDPerMTokens",
+                "schedulePeriods",
+                "scheduleUTCOffsetMinutes",
                 "tiers"
             ],
             "properties": {
@@ -24508,6 +24514,16 @@ const docTemplate = `{
                 },
                 "outputUSDPerMTokens": {
                     "type": "number"
+                },
+                "schedulePeriods": {
+                    "description": "时段倍率按服务器本地时区定义；客户端用 scheduleUTCOffsetMinutes 判断当前命中的时段。",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PublicSchedulePeriodResponse"
+                    }
+                },
+                "scheduleUTCOffsetMinutes": {
+                    "type": "integer"
                 },
                 "tiers": {
                     "type": "array",
@@ -24618,6 +24634,36 @@ const docTemplate = `{
                 },
                 "vendorName": {
                     "type": "string"
+                }
+            }
+        },
+        "PublicSchedulePeriodResponse": {
+            "type": "object",
+            "required": [
+                "end",
+                "name",
+                "ratePercent",
+                "start",
+                "weekdays"
+            ],
+            "properties": {
+                "end": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "ratePercent": {
+                    "type": "integer"
+                },
+                "start": {
+                    "type": "string"
+                },
+                "weekdays": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 }
             }
         },
@@ -27801,6 +27847,11 @@ const docTemplate = `{
                         "duration",
                         "tiered"
                     ]
+                },
+                "schedulePricingJSON": {
+                    "description": "SchedulePricingJSON 是时段倍率配置 {\"periods\":[{\"name\",\"weekdays\",\"start\",\"end\",\"ratePercent\"}]}，空表示不启用。",
+                    "type": "string",
+                    "maxLength": 20000
                 },
                 "tieredPricingJSON": {
                     "type": "string",

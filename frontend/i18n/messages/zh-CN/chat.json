@@ -424,6 +424,7 @@
       "claudeCacheWriteNote": "Claude {timeout} 缓存写按后台配置价 {multiplier} 计费。",
       "claudeFastModeNote": "Claude Fast Mode：输入、输出和缓存费用按 {multiplier} 计费。",
       "openaiServiceTierNote": "OpenAI service_tier={tier}：按 {multiplier} 计费。",
+      "scheduleRateNote": "时段「{period}」：按 {multiplier} 计费。",
       "input": "输入",
       "output": "输出",
       "cacheRead": "缓存(读)",
@@ -670,10 +671,23 @@
     "claudeCacheWriteNote": "Claude {timeout} 缓存写按后台配置价 {multiplier} 计费。",
     "claudeFastModeNote": "Claude Fast Mode：输入、输出和缓存费用按 {multiplier} 计费。",
     "openaiServiceTierNote": "OpenAI service_tier={tier}：按 {multiplier} 计费。",
+    "scheduleRateNote": "时段「{period}」：按 {multiplier} 计费。",
     "perCall": "每次",
     "perSecond": "每秒",
     "callUnit": "次",
-    "secondUnit": "秒"
+    "secondUnit": "秒",
+    "schedule": {
+      "title": "时段倍率",
+      "now": "当前",
+      "mon": "周一",
+      "tue": "周二",
+      "wed": "周三",
+      "thu": "周四",
+      "fri": "周五",
+      "sat": "周六",
+      "sun": "周日",
+      "everyDay": "每天"
+    }
   },
   "processTrace": {
     "fileBadges": {

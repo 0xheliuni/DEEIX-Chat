@@ -2244,6 +2244,7 @@ export interface ModelPricingResponse {
   outputUSDPerMTokens: number;
   platformModelName: string;
   pricingMode: string;
+  schedulePricingJSON: string;
   tieredPricingJSON: string;
   updatedAt: string;
 }
@@ -2900,6 +2901,9 @@ export interface PublicModelPricingResponse {
   isFree: boolean;
   mode: string;
   outputUSDPerMTokens: number;
+  /** 时段倍率按服务器本地时区定义；客户端用 scheduleUTCOffsetMinutes 判断当前命中的时段。 */
+  schedulePeriods: PublicSchedulePeriodResponse[];
+  scheduleUTCOffsetMinutes: number;
   tiers: PublicModelPricingTierResponse[];
 }
 
@@ -2927,6 +2931,14 @@ export interface PublicModelResponse {
   vendor: string;
   vendorIcon: string;
   vendorName: string;
+}
+
+export interface PublicSchedulePeriodResponse {
+  end: string;
+  name: string;
+  ratePercent: number;
+  start: string;
+  weekdays: number[];
 }
 
 export interface PublicSharedConversationResponse {
@@ -3986,6 +3998,11 @@ export interface UpsertModelPricingRequest {
   /** @maxLength 128 */
   platformModelName: string;
   pricingMode: "token" | "call" | "duration" | "tiered";
+  /**
+   * SchedulePricingJSON 是时段倍率配置 {"periods":[{"name","weekdays","start","end","ratePercent"}]}，空表示不启用。
+   * @maxLength 20000
+   */
+  schedulePricingJSON?: string;
   /** @maxLength 20000 */
   tieredPricingJSON?: string;
 }
