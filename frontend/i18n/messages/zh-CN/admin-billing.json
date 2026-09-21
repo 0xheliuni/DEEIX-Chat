@@ -167,7 +167,6 @@
     "platformModel": "平台模型",
     "free": "免费",
     "pricingMode": "计费模式",
-    "basePrice": "基础单价",
     "updatedAt": "更新时间",
     "empty": "暂无模型定价配置",
     "modelInfo": "模型信息",
@@ -222,14 +221,9 @@
     "tokenLimit": "Token 上限",
     "tierNote": "填写完整 token 数，0 表示最后一档不限量。",
     "freeLabel": "免费",
-    "tieredLabel": "按原始输入阶梯",
     "units": {
       "call": "/ 次",
-      "second": "/ 秒",
-      "input": "/ 1M 输入",
-      "output": "/ 1M 输出",
-      "cacheRead": "/ 1M 缓存读",
-      "cacheWrite": "/ 1M 缓存写"
+      "second": "/ 秒"
     },
     "schedule": {
       "title": "时段倍率",
@@ -259,8 +253,13 @@
       "weekdaysLabel": "星期",
       "start": "开始",
       "end": "结束",
-      "nextDay": "次日"
-    }
+      "nextDay": "次日",
+      "timeLabel": "时间"
+    },
+    "notConfigured": "未设置",
+    "tierCount": "{count} 档阶梯",
+    "tieredTitle": "阶梯单价（$ / 1M tokens）",
+    "tierRange": "区间"
   },
   "toolPricing": {
     "title": "工具定价",
