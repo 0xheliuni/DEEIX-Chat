@@ -161,14 +161,10 @@ export function shortListDescription(items: string[], emptyText = "", moreLabel 
   return items.length > 5 ? `${visible} ${moreLabel} ${items.length}` : visible;
 }
 
+// Prices always show three decimals so columns of figures line up.
 export function formatUSD(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) {
-    return "$0";
-  }
-  return `$${value.toLocaleString("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 6,
-  })}`;
+  const amount = Number.isFinite(value) && value > 0 ? value : 0;
+  return `$${amount.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`;
 }
 
 export function formatAmountCents(cents: number, currency: string): string {

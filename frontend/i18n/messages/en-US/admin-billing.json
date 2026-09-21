@@ -167,7 +167,6 @@
     "platformModel": "Platform model",
     "free": "Free",
     "pricingMode": "Pricing mode",
-    "basePrice": "Base price",
     "updatedAt": "Updated at",
     "empty": "No model pricing settings",
     "modelInfo": "Model info",
@@ -222,14 +221,9 @@
     "tokenLimit": "Token limit",
     "tierNote": "Enter the full token count. 0 means the last tier is unlimited.",
     "freeLabel": "Free",
-    "tieredLabel": "Raw input tiers",
     "units": {
       "call": "/ call",
-      "second": "/ second",
-      "input": "/ 1M input",
-      "output": "/ 1M output",
-      "cacheRead": "/ 1M cache read",
-      "cacheWrite": "/ 1M cache write"
+      "second": "/ second"
     },
     "schedule": {
       "title": "Time-of-day multipliers",
@@ -259,8 +253,13 @@
       "weekdaysLabel": "Weekdays",
       "start": "Start",
       "end": "End",
-      "nextDay": "next day"
-    }
+      "nextDay": "next day",
+      "timeLabel": "Time"
+    },
+    "notConfigured": "Not set",
+    "tierCount": "{count, plural, one {# tier} other {# tiers}}",
+    "tieredTitle": "Tier prices ($ / 1M tokens)",
+    "tierRange": "Range"
   },
   "toolPricing": {
     "title": "Tool pricing",
