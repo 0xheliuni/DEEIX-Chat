@@ -4,10 +4,11 @@ import { ChevronDown, LayoutGrid } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 
+import { HeightTransition } from "@/components/ui/height-transition";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { CollapsibleMotionContent } from "@/shared/components/collapsible-motion-content";
-import { parseUIBlock, resolveDefinition, validateProps } from "./block";
+import { type UIBlockSkeletonProps, parseUIBlock, resolveDefinition, validateProps } from "./block";
 import { useUIBlockRegistry } from "./registry";
 import type { Issue } from "./schema";
 import { UIBlockFrame } from "./ui-block-frame";
@@ -17,13 +18,25 @@ type UIBlockHostProps = {
   streaming: boolean;
 };
 
+// The host owns the block's outer spacing and animates every height change —
+// the skeleton growing as items stream in, and the swap to the real component —
+// so nothing below the block jumps.
 export function UIBlockHost({ raw, streaming }: UIBlockHostProps) {
+  return (
+    <HeightTransition className="my-3">
+      <UIBlockBody raw={raw} streaming={streaming} />
+    </HeightTransition>
+  );
+}
+
+function UIBlockBody({ raw, streaming }: UIBlockHostProps) {
   const registry = useUIBlockRegistry();
   const parsed = React.useMemo(() => parseUIBlock(raw, streaming), [raw, streaming]);
 
   if (parsed.status === "incomplete") {
     const Skeleton = resolveDefinition(registry, peekComponentName(raw), 1)?.Skeleton;
-    return Skeleton ? <Skeleton /> : <GenericSkeleton />;
+    const items = peekItemCount(raw);
+    return Skeleton ? <Skeleton items={items} /> : <GenericSkeleton items={items} />;
   }
   if (parsed.status === "invalid") {
     return <UIBlockFallback reason="invalid" component={peekComponentName(raw)} issues={parsed.issues} raw={parsed.raw} />;
@@ -55,14 +68,51 @@ function peekComponentName(raw: string): string {
   return match?.[1] ?? "";
 }
 
+// Objects that have started inside the first array of props ≈ items so far.
+// Every builtin keeps its list (items, tasks, rows, questions…) as the first
+// array, so the skeleton can grow one row at a time with the stream.
+function peekItemCount(raw: string): number {
+  const start = raw.indexOf("[");
+  if (start < 0) {
+    return 0;
+  }
+  let count = 0;
+  let depth = 0;
+  let inString = false;
+  for (let index = start + 1; index < raw.length; index += 1) {
+    const char = raw[index];
+    if (inString) {
+      if (char === "\\") {
+        index += 1;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+    } else if (char === "{") {
+      if (depth === 0) {
+        count += 1;
+      }
+      depth += 1;
+    } else if (char === "}") {
+      depth = Math.max(0, depth - 1);
+    } else if (char === "]" && depth === 0) {
+      break;
+    }
+  }
+  return count;
+}
 
-function GenericSkeleton() {
+
+function GenericSkeleton({ items = 0 }: UIBlockSkeletonProps) {
   return (
     <UIBlockFrame className="p-4">
-      <Skeleton className="h-4 w-1/3 rounded-full" />
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <Skeleton key={`ui-block-skeleton-${index}`} className="h-20 rounded-lg" />
+      <Skeleton className="h-5 w-1/3 rounded-full" />
+      <div className="mt-3 space-y-2">
+        {Array.from({ length: Math.max(2, items) }).map((_, index) => (
+          <Skeleton key={`ui-block-skeleton-${index}`} className="h-8 rounded-md" />
         ))}
       </div>
     </UIBlockFrame>

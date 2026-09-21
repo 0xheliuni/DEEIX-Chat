@@ -5,7 +5,7 @@ import * as React from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import type { UIBlockDefinition, UIBlockRenderProps } from "./block";
+import type { UIBlockDefinition, UIBlockRenderProps, UIBlockSkeletonProps } from "./block";
 import { s } from "./schema";
 import { UIBlockFrame } from "./ui-block-frame";
 
@@ -139,12 +139,13 @@ function Sparkline({
   );
 }
 
-function StatGridSkeleton() {
+function StatGridSkeleton({ items = 0 }: UIBlockSkeletonProps) {
   return (
-    <UIBlockFrame className="p-4">
+    <UIBlockFrame className="px-4 pb-4 pt-5">
+      <Skeleton className="mb-3 h-7 w-1/3 rounded-md" />
       <div className="grid grid-cols-[repeat(auto-fit,minmax(10rem,1fr))] gap-3">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <Skeleton key={`stat-grid-${index}`} className="h-20 rounded-lg" />
+        {Array.from({ length: Math.max(2, items) }).map((_, index) => (
+          <Skeleton key={`stat-grid-${index}`} className="h-[5.75rem] rounded-lg" />
         ))}
       </div>
     </UIBlockFrame>

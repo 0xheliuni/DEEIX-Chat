@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { CollapsibleMotionContent } from "@/shared/components/collapsible-motion-content";
 import { SlideSwitch } from "@/shared/components/slide-switch";
-import type { UIBlockDefinition, UIBlockRenderProps } from "./block";
+import type { UIBlockDefinition, UIBlockRenderProps, UIBlockSkeletonProps } from "./block";
 import { s } from "./schema";
 import { UIBlockFrame } from "./ui-block-frame";
 
@@ -244,13 +244,21 @@ function Quiz({ id, props }: UIBlockRenderProps<QuizProps>) {
   );
 }
 
-function QuizSkeleton() {
+// One question block (title + four 36px options) per item streamed so far.
+function QuizSkeleton({ items = 0 }: UIBlockSkeletonProps) {
   return (
-    <UIBlockFrame className="p-4">
-      <Skeleton className="h-5 w-2/3 rounded-md" />
-      <div className="mt-3 space-y-1.5">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <Skeleton key={`quiz-${index}`} className="h-9 rounded-md" />
+    <UIBlockFrame className="px-4 pb-4 pt-5">
+      <Skeleton className="h-7 w-1/3 rounded-md" />
+      <div className="mt-3 space-y-4">
+        {Array.from({ length: Math.max(1, items) }).map((_, question) => (
+          <div key={`quiz-q-${question}`}>
+            <Skeleton className="h-5 w-2/3 rounded-md" />
+            <div className="mt-2 space-y-1.5">
+              {Array.from({ length: 4 }).map((_, option) => (
+                <Skeleton key={`quiz-${question}-${option}`} className="h-9 rounded-md" />
+              ))}
+            </div>
+          </div>
         ))}
       </div>
     </UIBlockFrame>

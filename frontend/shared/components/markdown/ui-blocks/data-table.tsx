@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableEmptyRow, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { downloadBlob } from "@/shared/lib/export-download";
-import type { UIBlockDefinition, UIBlockRenderProps } from "./block";
+import type { UIBlockDefinition, UIBlockRenderProps, UIBlockSkeletonProps } from "./block";
 import { s } from "./schema";
 import { UIBlockFrame } from "./ui-block-frame";
 
@@ -240,16 +240,26 @@ function DataTable({ id, props }: UIBlockRenderProps<DataTableProps>) {
   );
 }
 
-function DataTableSkeleton() {
+// Toolbar, header row and one 33px line per row, like the rendered table.
+function DataTableSkeleton({ items = 0 }: UIBlockSkeletonProps) {
   return (
-    <UIBlockFrame className="p-4">
-      <div className="flex justify-between">
-        <Skeleton className="h-4 w-1/4 rounded-full" />
-        <Skeleton className="h-7 w-40 rounded-md" />
+    <UIBlockFrame>
+      <div className="flex items-center justify-between border-b-[0.5px] border-border px-4 py-3">
+        <Skeleton className="h-6 w-1/4 rounded-md" />
+        <Skeleton className="h-6 w-36 rounded-md" />
       </div>
-      <div className="mt-3 space-y-2">
-        {Array.from({ length: 5 }).map((_, index) => (
-          <Skeleton key={`data-table-${index}`} className="h-8 rounded-md" />
+      <div className="px-4">
+        <div className="flex h-[33px] items-center gap-6 border-b-[0.5px] border-border">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <Skeleton key={`data-table-head-${index}`} className="h-3 w-16 rounded-sm" />
+          ))}
+        </div>
+        {Array.from({ length: Math.max(2, items) }).map((_, index) => (
+          <div key={`data-table-${index}`} className="flex h-[33px] items-center gap-6 border-b-[0.5px] border-border last:border-b-0">
+            {Array.from({ length: 4 }).map((_, cell) => (
+              <Skeleton key={`data-table-${index}-${cell}`} className="h-3 rounded-sm" style={{ width: `${10 + ((index * 7 + cell * 11) % 14)}%` }} />
+            ))}
+          </div>
         ))}
       </div>
     </UIBlockFrame>

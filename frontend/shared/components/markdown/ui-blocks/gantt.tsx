@@ -8,7 +8,7 @@ import * as React from "react";
 import { HeightTransition } from "@/components/ui/height-transition";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import type { UIBlockDefinition, UIBlockRenderProps } from "./block";
+import type { UIBlockDefinition, UIBlockRenderProps, UIBlockSkeletonProps } from "./block";
 import { s } from "./schema";
 import { UIBlockFrame } from "./ui-block-frame";
 
@@ -476,15 +476,17 @@ function Gantt({ id, props }: UIBlockRenderProps<GanttProps>) {
   );
 }
 
-function GanttSkeleton() {
+// Same header and row heights as the chart so the swap only fills in detail.
+function GanttSkeleton({ items = 0 }: UIBlockSkeletonProps) {
   return (
-    <UIBlockFrame className="p-4">
-      <Skeleton className="h-5 w-1/3 rounded-full" />
-      <div className="mt-3 space-y-2">
-        {Array.from({ length: 5 }).map((_, index) => (
-          <div key={`gantt-row-${index}`} className="flex items-center gap-3">
-            <Skeleton className="h-4 w-28 rounded-md" />
-            <Skeleton className="h-3.5 rounded-sm" style={{ marginLeft: `${index * 12}%`, width: `${28 + ((index * 17) % 30)}%` }} />
+    <UIBlockFrame className="px-4 pb-4 pt-5">
+      <Skeleton className="mb-3 h-7 w-1/3 rounded-md" />
+      <div style={{ height: HEADER_HEIGHT }} className="border-b-[0.5px] border-border" />
+      <div>
+        {Array.from({ length: Math.max(2, items) }).map((_, index) => (
+          <div key={`gantt-row-${index}`} className="flex items-center gap-3" style={{ height: ROW_HEIGHT }}>
+            <Skeleton className="h-3.5 w-32 rounded-sm" />
+            <Skeleton className="h-3.5 rounded-sm" style={{ marginLeft: `${(index * 9) % 40}%`, width: `${18 + ((index * 17) % 30)}%` }} />
           </div>
         ))}
       </div>
