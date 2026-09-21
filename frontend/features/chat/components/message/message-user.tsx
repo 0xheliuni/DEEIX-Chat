@@ -127,7 +127,7 @@ export function ChatMessageUser({
     const resizeObserver = new ResizeObserver(measure);
     resizeObserver.observe(element);
     return () => resizeObserver.disconnect();
-  }, [item.content, measurementKey]);
+  }, [isEditing, item.content, measurementKey]);
 
   const onRetry = React.useCallback(() => {
     void onRetryUserMessage(item);
