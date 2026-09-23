@@ -5,13 +5,6 @@
 // client-side flags.
 
 export { isDesktopApp, resolveClientPlatform } from "./runtime";
-export {
-  API_BASE_URL_STORAGE_KEY,
-  needsServerSetup,
-  readStoredApiBaseUrl,
-  setStoredApiBaseUrl,
-  validateApiBaseUrl,
-} from "./server-address";
 
 /** Header telling the backend how to deliver the refresh token. */
 export const CLIENT_PLATFORM_HEADER = "X-Client-Platform";

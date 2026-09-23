@@ -5,18 +5,14 @@ import type { LoginData } from "@/shared/api/auth.types";
 import { ApiError, apiRequest } from "@/shared/api/http-client";
 import { clearSessionSnapshot, readAccessToken, readSessionRevision, writeSessionSnapshot } from "@/shared/auth/session";
 import { isDesktopApp } from "@/shared/platform";
-import { readRefreshToken, writeRefreshToken } from "@/shared/platform/desktop-secrets";
+import { isShellSessionError, refreshSession } from "@/shared/platform/desktop-shell";
 
 // Runtime host for the shared auth state machine (@deeix/core).
 //
-// The browser and the desktop shell share one request path; only the refresh
-// credential differs:
-//   - browser: HttpOnly cookie, written and cleared by the server.
-//   - desktop: refresh token returned in the response body (X-Client-Platform),
-//     stored in the OS keychain and sent back in the request body.
-//
-// The platform check only picks the transport; the backend decides what it
-// will actually hand out.
+// Browser and desktop share one request path; only the refresh transport differs:
+//   - browser: POST /auth/refresh with the HttpOnly cookie, server rotates it.
+//   - desktop: the Tauri shell performs the refresh against the pinned server
+//     using the keychain-held token. The webview never sees that token.
 
 const AUTH_REFRESH_LOCK_NAME = "deeix-chat:auth-refresh";
 
@@ -38,30 +34,27 @@ const sessionStore: SessionStore = {
 const host: AuthHost = {
   store: sessionStore,
   async refreshSession() {
-    if (!isDesktopApp()) {
-      // Refresh credential travels as the HttpOnly cookie.
-      const data = await apiRequest<LoginData>("/api/v1/auth/refresh", { method: "POST" });
-      return data.accessToken ? { accessToken: data.accessToken, sessionID: data.sessionID } : null;
+    if (isDesktopApp()) {
+      try {
+        return await refreshSession();
+      } catch (error) {
+        if (isShellSessionError(error) && error.kind === "no_session") {
+          return null;
+        }
+        throw error;
+      }
     }
-
-    const refreshToken = await readRefreshToken();
-    if (!refreshToken) {
-      return null;
-    }
-    const data = await apiRequest<LoginData>("/api/v1/auth/refresh", {
-      method: "POST",
-      body: { refreshToken },
-    });
-    return data.accessToken ? { accessToken: data.accessToken, sessionID: data.sessionID, refreshToken: data.refreshToken } : null;
-  },
-  async onSessionRefreshed(credentials) {
-    // Rotation issues a new refresh token; keep the keychain copy in sync.
-    if (credentials.refreshToken) {
-      await writeRefreshToken(credentials.refreshToken);
-    }
+    const data = await apiRequest<LoginData>("/api/v1/auth/refresh", { method: "POST" });
+    return data.accessToken ? { accessToken: data.accessToken, sessionID: data.sessionID } : null;
   },
   classifyError(error) {
-    return error instanceof ApiError ? classifyAuthError(error) : "other";
+    if (error instanceof ApiError) {
+      return classifyAuthError(error);
+    }
+    if (isShellSessionError(error) && error.kind === "http") {
+      return classifyAuthError({ status: error.status, errorCode: error.errorCode });
+    }
+    return "other";
   },
   lock: {
     run(fn) {

@@ -12,7 +12,7 @@ apps/web (Next.js static export — the same bundle the Go server serves)
         │  frontendDist: ../../web/out
         ▼
 apps/desktop/src-tauri (Rust)
-        ├── keychain commands   src/commands.rs   read/write/clear_refresh_token
+        ├── session            src/session.rs    pinned origin + keychain + refresh (token never exposed to JS)
         ├── tray               src/tray.rs       show / quit, left click restores the window
         ├── OAuth loopback     src/oauth_loopback.rs  RFC 8252 receiver on 127.0.0.1:<ephemeral>
         ├── updater            tauri-plugin-updater + apps/web/shared/platform/desktop-updater.ts
@@ -25,6 +25,27 @@ first-run server setup screen. Token delivery is decided server-side: requests
 carrying `X-Client-Platform: desktop` from a non-web Origin get the refresh
 token in the response body instead of a `SameSite` cookie, which a cross-origin
 webview would never receive.
+
+## Credential model
+
+The browser build keeps the refresh token in an HttpOnly cookie, so page script
+cannot read it. The desktop shell reproduces that property in Rust:
+
+| | Browser | Desktop |
+| --- | --- | --- |
+| Access token | JS memory | JS memory |
+| Refresh token at rest | HttpOnly cookie | OS keychain, account `refresh-token:<origin>` |
+| Who sends it | browser, to the cookie's origin | `session.rs`, to the pinned origin only |
+| Readable by page script | no | no — `store_session` is write-once, there is no read command |
+| Server address | page origin | pinned in the app config dir; changing it drops the old session |
+
+The webview holds the refresh token exactly once, in the login response, and
+hands it to `store_session` immediately. After that the only session commands
+are `refresh_session` (returns an access token), `has_session` and
+`clear_session`. A script injected into the page — from a malicious message,
+a shared conversation, another user's profile — therefore gets the same
+short-lived access it would get in a browser, not the long-lived credential,
+and cannot redirect the credential to a server it controls.
 
 ## Prerequisites
 
@@ -86,19 +107,22 @@ for the desktop app.
 The updater is configured in `tauri.conf.json` (`plugins.updater`) and surfaced in
 Settings → About → "Check for updates" (`features/platform/components/desktop-update-action.tsx`).
 
-Release flow: pushing a `v*.*.*` tag builds all targets and creates a **draft**
-GitHub Release with the installers and a signed `latest.json`. The app polls
-`releases/latest/download/latest.json`, which GitHub resolves to the newest
-published, non-prerelease release. Publishing the draft is therefore the step
-that ships the update; until then existing installs see nothing.
+Release flow: pushing a version tag builds every target and creates a **draft**
+GitHub Release with the installers and a signed `latest.json`. Publishing the
+draft is the step that ships the update; until then existing installs see nothing.
 
-Every artifact is signed with the updater private key and verified against the
-public key in `tauri.conf.json` before installation, so a compromised release
-endpoint cannot push arbitrary code. The private key is a CI secret; the public
-key is committed.
+### Channels
 
-Adding a **beta channel** means a second endpoint, a second keypair and a second
-build matrix leg — not a second code path.
+| Tag | Channel | What the app polls |
+| --- | --- | --- |
+| `v1.2.3` | stable | `releases/latest/download/latest.json` — GitHub resolves this to the newest published non-prerelease |
+| `v1.2.3-beta.1` | beta | `releases/download/desktop-beta/latest.json` — a rolling tag refreshed by `desktop-channel.yml` whenever a prerelease is published |
+
+A beta build is the same code with a different updater endpoint, injected at
+build time via `tauri build --config`. Both channels are signed with the same
+updater key: a channel is a distribution lane, not a trust boundary. Beta
+installs keep receiving betas; to move a user back to stable, have them install
+a stable build. Stable installs never see prereleases.
 
 ## Signing (required before shipping)
 
@@ -126,8 +150,7 @@ To obtain the .p12 on macOS: Keychain Access → My Certificates → right-click
 | Field | Value |
 | --- | --- |
 | Service | `com.deeix.chat.desktop` |
-| Account | `refresh-token` |
+| Account | `refresh-token:<origin>` (e.g. `refresh-token:https://chat.example.com`) |
 
-A single entry is intentional: the app talks to one user-chosen server at a time
-and switching servers discards the previous session. The access token never
-touches the keychain — it lives in JS memory and dies with the process.
+One entry per origin; switching servers deletes the previous entry rather than
+leaving dormant credentials behind.

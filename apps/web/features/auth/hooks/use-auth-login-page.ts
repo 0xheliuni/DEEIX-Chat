@@ -107,7 +107,9 @@ export function useLoginPage({ nextPath }: UseLoginPageInput) {
   const passwordResetEnabled = passwordLoginEnabled && options.passwordResetEnabled;
   const registerTurnstileSiteKey = options.turnstileSiteKey?.trim() ?? "";
   const registerTurnstileRequired = options.turnstileRegistrationEnabled && Boolean(registerTurnstileSiteKey);
-  const canShowRegister = emailRegistrationEnabled;
+  // Registration stays a browser flow: it depends on email-verification links and
+  // Turnstile, neither of which round-trips cleanly through the desktop webview.
+  const canShowRegister = emailRegistrationEnabled && !isDesktopApp();
 
   React.useEffect(() => {
     if (registerCodeCooldownSeconds === 0 && resetCodeCooldownSeconds === 0 && twoFactorEmailCodeCooldownSeconds === 0) {

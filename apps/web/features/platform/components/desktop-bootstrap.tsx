@@ -3,20 +3,38 @@
 import * as React from "react";
 
 import { ServerSetup } from "@/features/platform/components/server-setup";
+import { isDesktopApp } from "@/shared/platform";
 import { initializeDesktopSession } from "@/shared/platform/desktop-session";
-import { needsServerSetup } from "@/shared/platform";
 
-// Desktop bootstrap. In browsers this component renders its children and does
-// nothing else; the platform work is compiled in but never activated.
+// Desktop bootstrap: load the pinned server origin from the shell before any
+// request is made, and gate the app behind the setup screen until one exists.
+// In browsers this renders children immediately.
+
+type State = "loading" | "setup" | "ready";
 
 export function DesktopBootstrap({ children }: { children: React.ReactNode }) {
+  const [state, setState] = React.useState<State>(() => (isDesktopApp() ? "loading" : "ready"));
+
   React.useEffect(() => {
-    initializeDesktopSession();
+    if (!isDesktopApp()) {
+      return;
+    }
+    let cancelled = false;
+    void initializeDesktopSession().then((origin) => {
+      if (!cancelled) {
+        setState(origin ? "ready" : "setup");
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  if (!needsServerSetup()) {
-    return <>{children}</>;
+  if (state === "loading") {
+    return null;
   }
-
-  return <ServerSetup>{children}</ServerSetup>;
+  if (state === "setup") {
+    return <ServerSetup onConfigured={() => setState("ready")} />;
+  }
+  return <>{children}</>;
 }

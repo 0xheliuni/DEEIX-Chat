@@ -24,10 +24,18 @@ name: Desktop Release
 # them, so an unsigned release is worse than no release. Manual runs skip that
 # guard so the pipeline can be exercised before certificates exist.
 
+# Release channels are decided by the tag:
+#   v1.2.3          stable  → normal release; the app polls releases/latest/download/latest.json
+#   v1.2.3-beta.1   beta    → prerelease; the app polls releases/download/desktop-beta/latest.json,
+#                             which desktop-channel.yml refreshes when a prerelease is published.
+# Both channels are signed with the same updater key: a channel is a distribution
+# lane, not a trust boundary. A beta build only differs in the endpoint it polls.
+
 on:
   push:
     tags:
       - "v*.*.*"
+      - "v*.*.*-*"
   # Manual runs build every target and upload the installers as workflow
   # artifacts; only tag pushes create a GitHub Release.
   workflow_dispatch:
@@ -95,6 +103,20 @@ jobs:
       - name: Verify version consistency
         run: node scripts/sync-version.mjs --check
 
+      - name: Resolve release channel
+        id: channel
+        shell: bash
+        run: |
+          tag="${{ github.ref_type == 'tag' && github.ref_name || '' }}"
+          if [[ "$tag" == *-* ]]; then
+            echo "name=beta" >> "$GITHUB_OUTPUT"
+            # No spaces inside the JSON: tauri-action splits `args` on whitespace.
+            echo 'tauri_args=--config {"plugins":{"updater":{"endpoints":["https://github.com/${{ github.repository }}/releases/download/desktop-beta/latest.json"]}}}' >> "$GITHUB_OUTPUT"
+          else
+            echo "name=stable" >> "$GITHUB_OUTPUT"
+            echo 'tauri_args=' >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Require signing secrets for tag releases
         if: github.ref_type == 'tag'
         shell: bash
@@ -144,16 +166,17 @@ jobs:
         with:
           projectPath: apps/desktop
           tauriScript: pnpm tauri
-          args: ${{ matrix.args }}
+          # Beta builds override the updater endpoint at build time; stable uses tauri.conf.json as is.
+          args: ${{ matrix.args }} ${{ steps.channel.outputs.tauri_args }}
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
           releaseName: "DEEIX Chat Desktop __VERSION__"
           releaseBody: "See the assets below to download and install this version."
-          # Draft until a human publishes it. The updater endpoint is
-          # releases/latest/download/latest.json, which GitHub resolves to the
-          # newest *published, non-prerelease* release — so publishing the draft
-          # is the act that ships the update to existing installs.
+          # Draft until a human publishes it. Stable installs poll GitHub's
+          # releases/latest URL (newest published non-prerelease); beta installs
+          # poll the desktop-beta rolling manifest, refreshed on publish by
+          # desktop-channel.yml. Publishing the draft is the act that ships.
           releaseDraft: true
-          prerelease: false
+          prerelease: ${{ steps.channel.outputs.name == 'beta' }}
           includeUpdaterJson: true
 
       - name: Upload bundles as workflow artifacts

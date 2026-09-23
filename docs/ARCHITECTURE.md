@@ -74,14 +74,15 @@ apps/*  →  packages/core  →  packages/api-contract  →  backend/docs/swagge
 2. **Access token 只存内存。** 现有 Web 端以 `Authorization: Bearer` 携带内存中的 access token，这一模型保持不变，任何端都不得把 access token 写入持久存储。
 3. **Refresh token 的存放按端区分，读取路径互不回退。**
    - Web：HttpOnly cookie（现状），服务端管理生命周期。
-   - 桌面：操作系统 keychain（Service `com.deeix.chat.desktop`，Account `refresh-token`），只能通过 `read/write/clear_refresh_token` 三个 Tauri command 访问，JS 侧拿不到其他入口。
+   - 桌面：操作系统 keychain（Service `com.deeix.chat.desktop`，Account `refresh-token:<origin>`）。**JS 没有读取入口**：登录时经 `store_session` 一次性交给 Rust，续期由 Rust 侧 `refresh_session` 对固定 origin 发起并只返回 access token。这使桌面端与浏览器 HttpOnly cookie 等价——页面被 XSS 也拿不到长期凭据。服务器地址同样由 Rust 持久化，切换服务器即丢弃旧会话，token 不会被重放到另一家运营方。
    - 移动：`SecureStore` / Keystore。
    - `X-Client-Platform` 声明为原生客户端时，后端**只**从请求体读 refresh token，且**只**经响应体下发；浏览器路径**只**认 cookie。刻意不做交叉回退，避免两种投递方式混用导致凭据状态不一致。
-   - 轮换后客户端必须把新 token 写回 keychain：`packages/core` 的 `AuthHost.onSessionRefreshed` 是唯一入口，各端不得自行处理。
+   - 轮换写回由持有 token 的一方完成（浏览器：服务端 Set-Cookie；桌面：Rust `refresh_session` 内部）。`packages/core` 的 `AuthHost.refreshSession` 只拿到 `{accessToken, sessionID}`。
 4. **续期与登出的顺序只有一份。** 401 判定、并发续期去重、续期失败后的清理顺序都在 `packages/core` 的状态机里实现，各端只注入存储与网络。
 5. **深链接必须校验。** 自定义 scheme 回调携带的 state/nonce 必须与发起时匹配，防止回调劫持。
 6. **桌面端不暴露 Node/系统能力给页面。** `capabilities/main.json` 只授予 `core:default`、窗口聚焦、deep-link 与 updater；不开放 shell、fs、http 插件。CSP 的 `connect-src` 限定为 `self`、IPC 与本地开发端口，不允许页面被注入的脚本外连任意主机。
-7. **密钥与证书只进 CI secrets。** Apple Developer ID、notarization、Windows 代码签名证书、Android keystore 不入库。
+7. **刷新令牌重用检测。** 轮换后旧 token 保留 15s 宽限期（`refreshTokenPreviousHashGrace`），用于容忍丢失的轮换响应。**宽限期外再次出现已轮换的 token 视为泄露，整个会话立即吊销**（OAuth 2.1 §4.3.1），`revoke_reason = refresh_token_reuse`，并记录 `refresh_token_reuse_detected` 审计事件。这保证攻击者即使在宽限期内截获并使用了旧 token，也无法在受害者下一次刷新后继续持有会话。仓储层的吊销在事务内提交、事务外报告，避免被回滚。
+8. **密钥与证书只进 CI secrets。** Apple Developer ID、notarization、Windows 代码签名证书、Android keystore 不入库。
 
 ## 6. 版本与发布
 

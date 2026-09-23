@@ -79,3 +79,12 @@ jobs:
 
       - name: Run workspace tests
         run: pnpm test
+
+      # Dependency advisories. `pnpm audit` fails on high/critical; cargo-audit
+      # fails on vulnerabilities but only warns on unmaintained crates (Tauri's
+      # GTK bindings pull a few in and there is nothing to do about it here).
+      - name: Audit npm dependencies
+        run: pnpm audit --audit-level high
+
+      - name: Audit Rust dependencies
+        run: cargo install cargo-audit --locked && cargo audit --file apps/desktop/src-tauri/Cargo.lock

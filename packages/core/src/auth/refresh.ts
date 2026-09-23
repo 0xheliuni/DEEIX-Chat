@@ -15,12 +15,6 @@ import type { AuthErrorKind } from "./errors.ts";
 export type SessionCredentials = {
   accessToken: string;
   sessionID: string;
-  /**
-   * Rotated refresh token, when the server issues it through the response body
-   * (native clients). Browsers omit it; the HttpOnly cookie is server-managed.
-   * The session store ignores this field — hosts persist it themselves.
-   */
-  refreshToken?: string;
 };
 
 /**
@@ -43,19 +37,14 @@ export interface RefreshLock {
 export interface AuthHost {
   store: SessionStore;
   /**
-   * Call the server refresh endpoint using this platform's refresh credential
-   * (HttpOnly cookie on web, keychain-held token on desktop/mobile).
+   * Obtain fresh credentials using this platform's refresh transport
+   * (HttpOnly cookie on web, native shell command on desktop/mobile). The
+   * long-lived refresh token itself never passes through core.
    * Return `null` when the server answers without an access token.
    * Throw for transport/HTTP failures; they are classified via `classifyError`.
    */
   refreshSession(): Promise<SessionCredentials | null>;
   classifyError(error: unknown): AuthErrorKind;
-  /**
-   * Called after a successful refresh with the credentials now in effect.
-   * Native hosts persist the refresh token here (keychain / SecureStore);
-   * browsers leave it unset because the cookie is written by the server.
-   */
-  onSessionRefreshed?(credentials: SessionCredentials): void | Promise<void>;
   lock?: RefreshLock;
 }
 
@@ -110,7 +99,6 @@ export function createAuthClient(host: AuthHost): AuthClient {
     }
 
     store.write(credentials);
-    await host.onSessionRefreshed?.(credentials);
     return credentials.accessToken;
   }
 

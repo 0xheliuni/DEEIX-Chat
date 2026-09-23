@@ -5,11 +5,11 @@ import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { readStoredApiBaseUrl, setStoredApiBaseUrl, validateApiBaseUrl } from "@/shared/platform/server-address";
+import { commitServerOrigin, validateApiBaseUrl } from "@/shared/platform/server-address";
 
 // Desktop-only first-run screen: a Tauri install has no web origin to inherit an
 // API address from, so the user must point it at their own server before login.
-// Rendered only when the desktop build has no stored address (see DesktopBootstrap).
+// Rendered by DesktopBootstrap until the shell has a pinned origin.
 
 /** Endpoint used to confirm the address before we commit to it. */
 const HEALTH_PATH = "/healthz";
@@ -19,15 +19,9 @@ type ProbeState =
   | { kind: "probing" }
   | { kind: "failed"; message: string };
 
-export function ServerSetup({ children }: { children: React.ReactNode }) {
+export function ServerSetup({ onConfigured }: { onConfigured: () => void }) {
   const t = useTranslations("desktopSetup");
-  const [configured, setConfigured] = React.useState(() => Boolean(readStoredApiBaseUrl()));
-
-  if (configured) {
-    return <>{children}</>;
-  }
-
-  return <ServerSetupForm labels={t} onConfigured={() => setConfigured(true)} />;
+  return <ServerSetupForm labels={t} onConfigured={onConfigured} />;
 }
 
 function ServerSetupForm({
@@ -64,7 +58,12 @@ function ServerSetupForm({
       return;
     }
 
-    setStoredApiBaseUrl(candidate);
+    try {
+      await commitServerOrigin(candidate);
+    } catch {
+      setState({ kind: "failed", message: labels("invalidUrl") });
+      return;
+    }
     onConfigured();
   }, [labels, onConfigured, value]);
 

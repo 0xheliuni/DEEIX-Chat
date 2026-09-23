@@ -18,10 +18,11 @@
     "analyze:output": "next experimental-analyze --output",
     "start": "next start",
     "typecheck": "tsc --noEmit --pretty false",
-    "check": "pnpm lint && pnpm typecheck",
+    "check": "pnpm lint && pnpm typecheck && pnpm check:arch",
     "lint": "biome lint .",
     "lint:fix": "biome lint --write .",
-    "clean": "rm -rf .next out"
+    "clean": "rm -rf .next out",
+    "check:arch": "node scripts/check-architecture.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
