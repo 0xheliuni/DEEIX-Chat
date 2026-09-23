@@ -1,0 +1,11 @@
+{
+  "title": "Connect to your server",
+  "description": "DEEIX Chat connects to a server you or your team operate. Enter its address to continue.",
+  "hint": "Use the address you open in a browser, for example https://chat.example.com",
+  "connect": "Connect",
+  "connecting": "Checking…",
+  "invalidUrl": "Enter a full address including https:// or http://",
+  "unexpectedStatus": "The server answered with status {status}. Check the address.",
+  "networkError": "Could not reach the server. Check the address and your network.",
+  "currentAddress": "Server: {address}"
+}

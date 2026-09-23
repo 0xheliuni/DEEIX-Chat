@@ -1,0 +1,41 @@
+[package]
+name = "deeix-chat-desktop"
+version = "0.4.3"
+description = "DEEIX Chat desktop shell"
+authors = ["DEEIX"]
+edition = "2021"
+rust-version = "1.77"
+license = "Apache-2.0"
+publish = false
+
+[lib]
+name = "deeix_chat_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+tauri-plugin-opener = "2"
+# OS credential store: macOS Keychain, Windows Credential Manager, Linux Secret Service.
+keyring = { version = "4.2.0", features = [
+  "apple-native-keyring-store",
+  "windows-native-keyring-store",
+  "zbus-secret-service-keyring-store",
+] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+# Used by `tauri dev`/`tauri build` to embed the frontend; see tauri.conf.json.
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

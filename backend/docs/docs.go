@@ -21300,6 +21300,10 @@ const docTemplate = `{
                 "refreshExpiresAt": {
                     "type": "string"
                 },
+                "refreshToken": {
+                    "description": "RefreshToken 仅在原生客户端（X-Client-Platform: desktop|mobile）请求时填充，\n由客户端存入系统 keychain / SecureStore；浏览器响应中始终为空。",
+                    "type": "string"
+                },
                 "sessionID": {
                     "type": "string"
                 },

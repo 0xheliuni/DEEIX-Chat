@@ -1882,6 +1882,11 @@ export interface LoginResponse {
   accessToken: string;
   expiresAt: string;
   refreshExpiresAt: string;
+  /**
+   * RefreshToken 仅在原生客户端（X-Client-Platform: desktop|mobile）请求时填充，
+   * 由客户端存入系统 keychain / SecureStore；浏览器响应中始终为空。
+   */
+  refreshToken?: string;
   sessionID: string;
   twoFactorChallengeToken?: string;
   twoFactorRequired: boolean;

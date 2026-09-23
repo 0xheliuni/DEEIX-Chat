@@ -7,7 +7,7 @@ on:
       - dev
     paths:
       - "backend/**"
-      - "frontend/**"
+      - "apps/**"
       - "packages/**"
       - "package.json"
       - "pnpm-lock.yaml"
@@ -22,7 +22,7 @@ on:
       - dev
     paths:
       - "backend/**"
-      - "frontend/**"
+      - "apps/**"
       - "packages/**"
       - "package.json"
       - "pnpm-lock.yaml"
@@ -61,6 +61,15 @@ jobs:
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
+
+      # apps/desktop is a Tauri crate; `pnpm check` runs `cargo check` for it.
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
