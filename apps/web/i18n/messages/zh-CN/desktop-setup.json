@@ -1,11 +1,21 @@
 {
-  "title": "连接你的服务器",
-  "description": "DEEIX Chat 需要连接你自己或团队部署的服务器。请输入服务器地址后继续。",
-  "hint": "填写你在浏览器里访问的地址，例如 https://chat.example.com",
-  "connect": "连接",
-  "connecting": "检测中…",
-  "invalidUrl": "请输入完整地址，需包含 https:// 或 http://",
-  "unexpectedStatus": "服务器返回状态码 {status}，请检查地址。",
-  "networkError": "无法连接服务器，请检查地址和网络。",
-  "currentAddress": "服务器：{address}"
+  "local": {
+    "action": "在本机使用",
+    "starting": "启动中…"
+  },
+  "remote": {
+    "action": "连接服务器",
+    "title": "服务器地址",
+    "connect": "连接",
+    "connecting": "检测中…"
+  },
+  "back": "返回",
+  "toasts": {
+    "localStartFailed": "本地服务启动失败",
+    "invalidUrl": "请输入完整地址，需包含 https:// 或 http://",
+    "unexpectedStatus": "服务器返回状态码 {status}",
+    "networkError": "无法连接服务器",
+    "bootstrapFailed": "无法连接已配置的服务器",
+    "alreadyOpen": "该服务器已在其他标签页打开"
+  }
 }

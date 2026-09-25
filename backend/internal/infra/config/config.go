@@ -348,18 +348,23 @@ type yamlConfig struct {
 // 静态字段由 YAML/ENV 加载；动态字段由 settings.RuntimeSettings.ApplyTo 从数据库覆盖。
 type Config struct {
 	// ── 静态配置（YAML/ENV） ──
-	AppName                      string
-	Env                          string
-	BrandTitle                   string
-	BrandShortName               string
-	BrandDescription             string
-	BrandLogoURL                 string
-	BrandFaviconURL              string
-	BrandPWAIcon192URL           string
-	BrandPWAIcon512URL           string
-	BrandPWAMaskableIcon512URL   string
-	BrandAppleTouchIcon180URL    string
-	HTTPPort                     string
+	AppName                    string
+	Env                        string
+	BrandTitle                 string
+	BrandShortName             string
+	BrandDescription           string
+	BrandLogoURL               string
+	BrandFaviconURL            string
+	BrandPWAIcon192URL         string
+	BrandPWAIcon512URL         string
+	BrandPWAMaskableIcon512URL string
+	BrandAppleTouchIcon180URL  string
+	HTTPPort                   string
+	// HTTPListenAddr 非空时优先于 HTTPPort，形如 "127.0.0.1:0"（本地模式）。
+	HTTPListenAddr string
+	// LocalMode 表示作为桌面 sidecar 运行；LocalDataDir 是其数据目录。
+	LocalMode                    bool
+	LocalDataDir                 string
 	CORSAllowOrigin              string
 	TrustedProxies               string
 	PublicAPIBaseURL             string
@@ -855,6 +860,11 @@ func (c Config) Validate() error {
 
 	if strings.TrimSpace(c.CORSAllowOrigin) == "" || strings.TrimSpace(c.CORSAllowOrigin) == "*" {
 		return errors.New("invalid production config: CORS_ALLOW_ORIGIN must be explicitly set (wildcard * is not allowed)")
+	}
+	if c.LocalMode {
+		// 本地 sidecar 只在回环地址上服务，公共 URL 在监听后由实际端口填入；
+		// 其余生产级校验（密钥强度、CORS 白名单）对本地模式同样生效。
+		return nil
 	}
 	if err := validatePublicURL(c.PublicAPIBaseURL, "PUBLIC_API_BASE_URL"); err != nil {
 		return err

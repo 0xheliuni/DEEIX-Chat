@@ -72,5 +72,6 @@
       "noteSuffix": " and choose again.",
       "signInExistingAccount": "Sign in to existing account"
     }
-  }
+  },
+  "registerInBrowser": "Register in browser"
 }

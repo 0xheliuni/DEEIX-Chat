@@ -11,6 +11,7 @@ import { resolveApiBaseURL } from "@/shared/api/http-client";
 import { isPasswordPolicyValid } from "@/shared/auth/account-policy";
 import { normalizeAuthNextPath } from "@/shared/auth/local-path";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { readAccessToken } from "@/shared/auth/session";
 import { isDesktopApp } from "@/shared/platform";
 import {
   openInSystemBrowser,
@@ -19,7 +20,8 @@ import {
   stopOAuthLoopback,
   waitForOAuthCallback,
 } from "@/shared/platform/desktop-oauth";
-import { completeNativeSignIn } from "@/shared/platform/desktop-session";
+import { openExternal } from "@/shared/platform/desktop-open";
+import { completeNativeSignIn, ensureLocalSession } from "@/shared/platform/desktop-session";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import {
   createProviderPKCE,
@@ -107,9 +109,10 @@ export function useLoginPage({ nextPath }: UseLoginPageInput) {
   const passwordResetEnabled = passwordLoginEnabled && options.passwordResetEnabled;
   const registerTurnstileSiteKey = options.turnstileSiteKey?.trim() ?? "";
   const registerTurnstileRequired = options.turnstileRegistrationEnabled && Boolean(registerTurnstileSiteKey);
-  // Registration stays a browser flow: it depends on email-verification links and
-  // Turnstile, neither of which round-trips cleanly through the desktop webview.
-  const canShowRegister = emailRegistrationEnabled && !isDesktopApp();
+  // Turnstile's script and iframe are blocked by the desktop CSP, so a server
+  // that requires it gets registration handed off to the system browser.
+  const registerNeedsBrowser = emailRegistrationEnabled && isDesktopApp() && registerTurnstileRequired;
+  const canShowRegister = emailRegistrationEnabled && !registerNeedsBrowser;
 
   React.useEffect(() => {
     if (registerCodeCooldownSeconds === 0 && resetCodeCooldownSeconds === 0 && twoFactorEmailCodeCooldownSeconds === 0) {
@@ -122,7 +125,12 @@ export function useLoginPage({ nextPath }: UseLoginPageInput) {
   React.useEffect(() => {
     let mounted = true;
     void resolveAccessToken()
-      .then((token) => {
+      .then(async (token) => {
+        // Local mode never shows a login form: an expired session is replaced by
+        // a fresh one from the shell's one-time grant.
+        if (!token && (await ensureLocalSession().catch(() => false))) {
+          token = readAccessToken();
+        }
         if (mounted && token) router.replace(resolvedNextPath);
       })
       .catch((): undefined => undefined);
@@ -551,6 +559,10 @@ export function useLoginPage({ nextPath }: UseLoginPageInput) {
     username,
     cancelTwoFactorChallenge,
     canShowRegisterSwitch: canShowRegister,
+    registerNeedsBrowser,
+    openRegisterInBrowser: () => {
+      void openExternal(`${resolveApiBaseURL()}/login`);
+    },
     onPasswordResetSubmit,
   };
 }

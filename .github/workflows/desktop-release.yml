@@ -95,8 +95,28 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
+
+      # The Go server ships inside the app as a sidecar (local mode). It links
+      # SQLite through cgo, so it is built natively on each matrix leg; macOS
+      # x86_64 is cross-built from the arm64 runner with Apple's toolchain.
+      - name: Build server sidecar
+        shell: bash
+        run: |
+          target="${{ matrix.args }}"
+          target="${target#--target }"
+          if [[ -n "$target" ]]; then
+            node apps/desktop/scripts/build-sidecar.mjs --target "$target"
+          else
+            node apps/desktop/scripts/build-sidecar.mjs
+          fi
 
       # Version drift between VERSION, package.json, tauri.conf.json and
       # Cargo.toml must fail the release rather than ship a mislabelled build.

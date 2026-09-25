@@ -1848,6 +1848,10 @@ export interface KnowledgebaseErrorDoc {
   errorMsg: string;
 }
 
+export interface LocalGrantExchangeRequest {
+  grant: string;
+}
+
 export interface LoginOptionsResponse {
   emailEnabled: boolean;
   emailRegistrationEnabled: boolean;
@@ -7819,6 +7823,21 @@ export namespace Announcements {
 }
 
 export namespace Auth {
+  /**
+   * @description 仅在服务器以本地 sidecar 模式运行时可用；grant 由启动握手交给桌面壳，只能使用一次
+   * @tags auth
+   * @name LocalExchangeCreate
+   * @summary 本地模式：一次性 grant 换取会话
+   * @request POST:/auth/local/exchange
+   */
+  export namespace LocalExchangeCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = LocalGrantExchangeRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = LoginResponseDoc;
+  }
+
   /**
    * @description 登录后返回JWT访问令牌
    * @tags auth

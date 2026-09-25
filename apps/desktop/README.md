@@ -12,7 +12,9 @@ apps/web (Next.js static export — the same bundle the Go server serves)
         │  frontendDist: ../../web/out
         ▼
 apps/desktop/src-tauri (Rust)
-        ├── session            src/session.rs    pinned origin + keychain + refresh (token never exposed to JS)
+        ├── tabs               src/tabs.rs       one window, one webview per server, tab strip webview
+        ├── sidecar            src/sidecar.rs    bundled Go server for local mode (loopback, SQLite)
+        ├── session            src/session.rs    server choice + keychain + refresh (token never exposed to JS)
         ├── tray               src/tray.rs       show / quit, left click restores the window
         ├── OAuth loopback     src/oauth_loopback.rs  RFC 8252 receiver on 127.0.0.1:<ephemeral>
         ├── updater            tauri-plugin-updater + apps/web/shared/platform/desktop-updater.ts
@@ -26,6 +28,82 @@ carrying `X-Client-Platform: desktop` from a non-web Origin get the refresh
 token in the response body instead of a `SameSite` cookie, which a cross-origin
 webview would never receive.
 
+## Tabs: one webview per server
+
+The window is a plain `Window` with child webviews (Tauri `unstable`):
+
+```
+┌─ chrome (40px) ── /desktop/tabs ── tab strip, drag region ───────────┐
+├─ tab-1 ── /  ── bound to local ──────────────────────────────────────┤
+├─ tab-2 ── /  ── bound to https://chat.example.com  (hidden)          │
+└─ tab-3 ── /  ── unbound → setup screen             (hidden)          ┘
+```
+
+Every tab is a full instance of the web app with its own DOM, caches, SSE
+connections and in-memory session, so the app never has to model "several
+servers at once". A tab is bound to at most one server; two tabs never share a
+server (opening one that is already open activates its tab). Closing a tab
+forgets that server: its refresh token is deleted and the sidecar stops when
+the last local tab goes. Bound tabs are restored on launch from `tabs.json`.
+
+Session commands resolve their server from the *calling webview's label*, so a
+tab can only ever touch its own credential. `build.rs` declares the app ACL
+manifest, so every app command must be granted per webview in
+`capabilities/`: content tabs get the session commands, the strip gets
+`tabs_*`, and neither can call the other's (Tauri only enforces the ACL on app
+commands once a manifest exists). Webviews may only navigate within the app;
+external links and `window.open` are routed to the system browser. The `BroadcastChannel` the browser
+build uses to sync tokens between same-origin documents is disabled on desktop
+for the same reason — tabs share an origin but not a server.
+
+Tabs are lazy: on launch only the active tab gets a webview, the others are
+created on first click. A tab hidden for 30 minutes has its webview discarded
+(browser "memory saver"); it reloads on the next activation and signs back in
+from the keychain. Tabs can be reordered by dragging; order is persisted.
+
+`pnpm dev` runs with `tauri.dev.conf.json`, which swaps the identifier to
+`com.deeix.chat.desktop.dev`: the dev build gets its own config dir, keychain
+service and local database, so it never disturbs an installed copy.
+
+Storage (localStorage) is shared across tabs on purpose: it holds UI
+preferences such as theme and fonts, which should follow the user, not the
+server.
+
+## Two ways to run
+
+| | Local | Remote |
+| --- | --- | --- |
+| Server | the Go server bundled as a sidecar, started by the shell | a DEEIX Chat deployment the user points the app at |
+| Data | SQLite + local files under the app data dir (`local/`) | on that server |
+| Account | one passwordless owner, signed in via a one-time grant from the sidecar handshake | the server's accounts, password or OAuth |
+| Network | `127.0.0.1:<ephemeral>` only; port changes each launch | whatever the user pinned |
+| Keychain key | `refresh-token:local` | `refresh-token:<origin>` |
+
+Both modes run **the same server code with the same security policy**: local
+mode is the SQLite deployment profile with per-install secrets, production
+validation, and a CORS allowlist limited to the webview. Nothing in the API is
+weaker locally. The only local-only endpoint is `POST /api/v1/auth/local/exchange`,
+which is mounted solely in local mode and accepts a grant that (a) is printed once
+on the sidecar's stdout, (b) is single-use, (c) expires in two minutes, and
+(d) is consumed by Rust — the webview never sees it.
+
+Sign-out in a local tab has no login page to return to, so it maps to
+"leave server": the tab drops its credential and returns to the setup screen.
+
+### Sidecar lifecycle
+
+`src/sidecar.rs` spawns `deeix-chat-server --local --data-dir <app-data>/local`
+through `tauri-plugin-shell` (Rust side only; the webview has no shell
+permission). The server binds a loopback port, prints one JSON line
+(`{"type":"ready","origin":…,"grant":…}`) to stdout, and logs to stderr. The
+shell waits up to 30 s for that line, forwards stderr to its own log, restarts
+the process on demand if it exits, and kills it on app exit.
+
+Binary: `scripts/build-sidecar.mjs` builds `backend/cmd/server` for the current
+Rust target triple into `src-tauri/binaries/` (git-ignored). `pnpm dev` and
+`pnpm build` run it first; CI runs it once per matrix leg because SQLite links
+through cgo.
+
 ## Credential model
 
 The browser build keeps the refresh token in an HttpOnly cookie, so page script
@@ -37,12 +115,12 @@ cannot read it. The desktop shell reproduces that property in Rust:
 | Refresh token at rest | HttpOnly cookie | OS keychain, account `refresh-token:<origin>` |
 | Who sends it | browser, to the cookie's origin | `session.rs`, to the pinned origin only |
 | Readable by page script | no | no — `store_session` is write-once, there is no read command |
-| Server address | page origin | pinned in the app config dir; changing it drops the old session |
+| Server address | page origin | bound per tab, persisted in `tabs.json`; closing the tab drops that session |
 
 The webview holds the refresh token exactly once, in the login response, and
 hands it to `store_session` immediately. After that the only session commands
-are `refresh_session` (returns an access token), `has_session` and
-`clear_session`. A script injected into the page — from a malicious message,
+are `refresh_session` (returns an access token), `local_sign_in` (local tabs:
+refresh or redeem the sidecar grant), `clear_session` and `leave_server`. A script injected into the page — from a malicious message,
 a shared conversation, another user's profile — therefore gets the same
 short-lived access it would get in a browser, not the long-lived credential,
 and cannot redirect the credential to a server it controls.
@@ -124,13 +202,24 @@ updater key: a channel is a distribution lane, not a trust boundary. Beta
 installs keep receiving betas; to move a user back to stable, have them install
 a stable build. Stable installs never see prereleases.
 
+## Icons
+
+`src-tauri/icons/mark.png` is the bare "D" mark (black on transparent). From it:
+`source.png` is the 1024² app icon on the macOS grid (824px rounded square in
+the theme's `--background` #f8f8f6, mark in `--foreground` #3d3929 at 82%, transparent margin) —
+regenerate every platform size with
+`pnpm tauri icon src-tauri/icons/source.png --output src-tauri/icons` and
+delete the generated `android/` and `ios/` folders. `tray.png` is the 44px
+monochrome menu-bar glyph (macOS template image); Windows/Linux trays show the
+app icon.
+
 ## Signing (required before shipping)
 
 | Platform | What is needed | CI secrets |
 | --- | --- | --- |
 | macOS | Developer ID Application certificate (.p12) + Apple ID app-specific password for notarization | `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` |
 | Windows | Code-signing certificate (.pfx) | `WINDOWS_CERTIFICATE`, `WINDOWS_CERTIFICATE_PASSWORD` |
-| All | Updater keypair (`tauri signer generate`) | `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` |
+| All | Updater keypair (`tauri signer generate`); the private key is kept git-ignored in `deploy/secrets/` (see its README) | `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` |
 
 `tauri.conf.json` already enables the hardened runtime on macOS and SHA-256 +
 RFC 3161 timestamping on Windows; CI imports the Windows certificate into the

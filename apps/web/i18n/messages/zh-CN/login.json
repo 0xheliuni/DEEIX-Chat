@@ -72,5 +72,6 @@
       "noteSuffix": "后重新选择。",
       "signInExistingAccount": "登录已有账号"
     }
-  }
+  },
+  "registerInBrowser": "在浏览器中注册"
 }

@@ -15,3 +15,8 @@ export function isDesktopApp(): boolean {
 export function resolveClientPlatform(): "" | "desktop" {
   return isDesktopApp() ? "desktop" : "";
 }
+
+/** Routes rendered by the desktop shell itself (the tab strip), not by the app. */
+export function isShellChromeRoute(): boolean {
+  return typeof window !== "undefined" && window.location.pathname.startsWith("/desktop/");
+}

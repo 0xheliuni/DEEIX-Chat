@@ -1,3 +1,5 @@
+import { isDesktopApp } from "@/shared/platform/runtime";
+
 export type SessionSnapshot = {
   accessToken: string;
   sessionID: string;
@@ -45,6 +47,12 @@ function ensureSessionChannel(): BroadcastChannel | null {
 
   sessionChannelInitialized = true;
   if (typeof window === "undefined" || !("BroadcastChannel" in window)) {
+    return null;
+  }
+  // Desktop: every tab is a separate webview that may point at a different
+  // server, but they share one origin. Syncing tokens across them would hand
+  // one server's credential to another, so each webview keeps its own session.
+  if (isDesktopApp()) {
     return null;
   }
 
@@ -136,14 +144,27 @@ export function clearSessionSnapshot(options: SessionSnapshotWriteOptions = {}):
   );
 }
 
+type SessionClearedHandler = () => Promise<void> | void;
+let sessionClearedHandler: SessionClearedHandler | null = null;
+
+/**
+ * Platform layers that hold their own credentials (desktop keychain) register
+ * here; the handler runs to completion before the redirect. Keeps session.ts
+ * platform-free.
+ */
+export function registerSessionClearedHandler(handler: SessionClearedHandler | null): void {
+  sessionClearedHandler = handler;
+}
+
 export function clearSessionAndRedirectToLogin(): void {
   clearSessionSnapshot();
-  // Platform layers may hold their own credentials (desktop keychain); let them
-  // react without this module importing them (keeps session.ts platform-free).
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new Event(SESSION_CLEARED_EVENT));
+  if (typeof window === "undefined") {
+    return;
   }
-  if (typeof window !== "undefined") {
-    window.location.replace("/login");
-  }
+  window.dispatchEvent(new Event(SESSION_CLEARED_EVENT));
+  const redirect = () => window.location.replace("/login");
+  Promise.resolve()
+    .then(() => sessionClearedHandler?.())
+    .catch(() => undefined)
+    .finally(redirect);
 }

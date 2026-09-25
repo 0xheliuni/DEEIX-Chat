@@ -37,6 +37,15 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             }
         });
 
+    // macOS menu bar: a monochrome template glyph, recoloured by the system for
+    // light/dark bars and selection (the filled app icon would be a black blob).
+    // Windows/Linux trays expect the full-colour app icon.
+    #[cfg(target_os = "macos")]
+    {
+        let glyph = tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))?;
+        builder = builder.icon(glyph).icon_as_template(true);
+    }
+    #[cfg(not(target_os = "macos"))]
     if let Some(icon) = app.default_window_icon() {
         builder = builder.icon(icon.clone());
     }
@@ -46,7 +55,7 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 }
 
 fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
-    if let Some(window) = app.get_webview_window("main") {
+    if let Some(window) = app.get_window(crate::tabs::WINDOW_LABEL) {
         let _ = window.show();
         let _ = window.set_focus();
     }

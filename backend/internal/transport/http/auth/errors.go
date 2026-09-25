@@ -8,6 +8,7 @@ var (
 	errInvalidCurrentPassword    = apperr.New("auth.invalid_current_password", "invalid current password")
 	errInvalidIdentityID         = apperr.New("identity.invalid_id", "invalid identity id")
 	errInvalidRefreshToken       = apperr.New("auth.invalid_refresh_token", "invalid refresh token")
+	errInvalidLocalGrant         = apperr.New("auth.invalid_local_grant", "invalid local grant")
 	errInvalidTwoFactorChallenge = apperr.New("request.invalid_two_factor_challenge", "invalid two factor challenge")
 	errInvalidTwoFactorCode      = apperr.New("auth.invalid_two_factor_code", "invalid two factor code")
 	errPasswordResetFailed       = apperr.New("auth.password_reset_failed", "password reset failed")

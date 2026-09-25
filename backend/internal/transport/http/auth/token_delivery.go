@@ -1,10 +1,13 @@
 package auth
 
 import (
+	"errors"
+	"net/http"
 	"strings"
 
 	appauth "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/auth"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
 )
 
@@ -95,4 +98,42 @@ func (h *Handler) respondWithSession(c *gin.Context, result *appauth.LoginResult
 		h.writeRefreshTokenCookie(c, result)
 	}
 	response.Success(c, resp)
+}
+
+// LocalGrantExchangeRequest 本地模式：桌面壳用启动握手拿到的一次性 grant 换取会话。
+type LocalGrantExchangeRequest struct {
+	Grant string `json:"grant" binding:"required"`
+}
+
+// ExchangeLocalGrant godoc
+// @Summary 本地模式：一次性 grant 换取会话
+// @Description 仅在服务器以本地 sidecar 模式运行时可用；grant 由启动握手交给桌面壳，只能使用一次
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param body body LocalGrantExchangeRequest true "本地登录 grant"
+// @Success 200 {object} LoginResponseDoc
+// @Failure 401 {object} ErrorDoc
+// @Router /auth/local/exchange [post]
+func (h *Handler) ExchangeLocalGrant(c *gin.Context) {
+	var req LocalGrantExchangeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.InvalidRequestBody(c, err)
+		return
+	}
+	result, err := h.service.ExchangeLocalGrant(
+		c.Request.Context(),
+		req.Grant,
+		middleware.MustRequestID(c),
+		middleware.ResolveSessionAuditContext(c),
+	)
+	if err != nil {
+		if errors.Is(err, appauth.ErrLocalGrantInvalid) {
+			response.ErrorFrom(c, http.StatusUnauthorized, errInvalidLocalGrant)
+			return
+		}
+		response.InternalError(c)
+		return
+	}
+	h.respondWithSession(c, result)
 }

@@ -1,33 +1,43 @@
 // Session persistence and refresh, kept on the Rust side on purpose.
 //
-// The refresh token is the only long-lived credential. It is stored in the OS
-// keychain under an account keyed by the server origin it was issued for, and
-// is only ever sent back to that origin — by this module, never by the webview.
-// JavaScript hands the token over once, right after a successful login, and
-// from then on can only ask for a new access token or a sign-out. This restores
-// the property the browser build gets from an HttpOnly cookie: script running
-// in the page cannot read or exfiltrate the long-lived credential, and cannot
-// redirect it to a different server by changing a stored address.
+// The refresh token is the only long-lived credential. It lives in the OS
+// keychain and is only ever sent to the server it was issued for — by this
+// module, never by the webview. JavaScript hands the token over once, right
+// after a login, and from then on can only ask for a new access token or a
+// sign-out. That restores the property the browser build gets from an HttpOnly
+// cookie: page script cannot read or exfiltrate the credential and cannot
+// redirect it to a different server.
+//
+// Every command resolves "which server" from the webview that called it: each
+// tab (see tabs.rs) is bound to one server, and the keychain is keyed per
+// server, so tabs on different servers hold independent sessions.
+//   remote  keychain key is the pinned origin.
+//   local   the bundled Go server runs as a sidecar on a loopback port that
+//           changes per launch; keychain key is the constant "local" and the
+//           origin is resolved from the running sidecar at call time.
 
-use std::fs;
-use std::path::PathBuf;
 use std::time::Duration;
 
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Manager, Runtime, Webview};
 
-const KEYRING_SERVICE: &str = "com.deeix.chat.desktop";
-const ORIGIN_FILE: &str = "server.json";
+use crate::sidecar;
+use crate::tabs::{self, Server};
+
 const CLIENT_PLATFORM_HEADER: &str = "X-Client-Platform";
 const REFRESH_PATH: &str = "/api/v1/auth/refresh";
+const LOCAL_EXCHANGE_PATH: &str = "/api/v1/auth/local/exchange";
 const HTTP_TIMEOUT: Duration = Duration::from_secs(15);
 const MAX_BODY_BYTES: u64 = 256 * 1024;
+
+/// Serialises `local_sign_in`; the local server is shared by all local tabs.
+static LOCAL_SIGN_IN: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionError {
-    /// "network" | "http" | "storage" | "no_session" | "invalid_origin"
+    /// "network" | "http" | "storage" | "no_session" | "invalid_origin" | "sidecar" | "no_server" | "tabs"
     pub kind: &'static str,
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -37,17 +47,32 @@ pub struct SessionError {
 }
 
 impl SessionError {
+    fn new(kind: &'static str, message: impl std::fmt::Display) -> Self {
+        Self { kind, message: message.to_string(), status: None, error_code: None }
+    }
     fn storage(e: impl std::fmt::Display) -> Self {
-        Self { kind: "storage", message: e.to_string(), status: None, error_code: None }
+        Self::new("storage", e)
     }
     fn network(e: impl std::fmt::Display) -> Self {
-        Self { kind: "network", message: e.to_string(), status: None, error_code: None }
+        Self::new("network", e)
     }
     fn no_session() -> Self {
-        Self { kind: "no_session", message: "no stored session".into(), status: None, error_code: None }
+        Self::new("no_session", "no stored session")
     }
-    fn invalid_origin(message: &str) -> Self {
-        Self { kind: "invalid_origin", message: message.into(), status: None, error_code: None }
+    fn no_server() -> Self {
+        Self::new("no_server", "no server configured")
+    }
+}
+
+impl From<sidecar::SidecarError> for SessionError {
+    fn from(e: sidecar::SidecarError) -> Self {
+        Self::new("sidecar", e.0)
+    }
+}
+
+impl From<tabs::TabsError> for SessionError {
+    fn from(e: tabs::TabsError) -> Self {
+        Self::new("tabs", e.0)
     }
 }
 
@@ -81,11 +106,6 @@ struct RefreshData {
     refresh_token: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Default)]
-struct OriginFile {
-    origin: String,
-}
-
 /// reqwest is built with `rustls-no-provider`, so a process-wide crypto provider
 /// must exist before the first client is constructed. Idempotent.
 pub(crate) fn ensure_tls_provider() {
@@ -94,24 +114,39 @@ pub(crate) fn ensure_tls_provider() {
     }
 }
 
-// ---------- origin ----------
+// ---------- server selection ----------
 
-fn origin_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, SessionError> {
-    let dir = app.path().app_config_dir().map_err(SessionError::storage)?;
-    fs::create_dir_all(&dir).map_err(SessionError::storage)?;
-    Ok(dir.join(ORIGIN_FILE))
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ServerMode {
+    Local,
+    Remote,
 }
 
-fn read_origin<R: Runtime>(app: &AppHandle<R>) -> Result<Option<String>, SessionError> {
-    let path = origin_path(app)?;
-    match fs::read(&path) {
-        Ok(bytes) => {
-            let file: OriginFile = serde_json::from_slice(&bytes).map_err(SessionError::storage)?;
-            Ok(normalize_origin(&file.origin))
-        }
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(SessionError::storage(e)),
+/// What the webview needs to know about its server.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerInfo {
+    pub mode: ServerMode,
+    pub origin: String,
+}
+
+/// Server bound to the calling webview's tab.
+fn server_for<R: Runtime>(webview: &Webview<R>) -> Option<Server> {
+    tabs::server_of(webview.app_handle(), webview.label())
+}
+
+/// Live origin for a server (starts the sidecar in local mode).
+async fn resolve_origin<R: Runtime>(app: &AppHandle<R>, server: &Server) -> Result<String, SessionError> {
+    match server.mode {
+        ServerMode::Local => Ok(sidecar::ensure_running(app).await?),
+        ServerMode::Remote => Ok(server.origin.clone()),
     }
+}
+
+/// Drop everything stored for a server (tab closed, server no longer open).
+pub fn forget<R: Runtime>(app: &AppHandle<R>, server: &Server) -> Result<(), SessionError> {
+    delete_token(app, &server.keychain_key())
 }
 
 /// Accept only an absolute http(s) origin with no path, query, fragment or userinfo.
@@ -132,24 +167,26 @@ pub(crate) fn normalize_origin(raw: &str) -> Option<String> {
 
 // ---------- keychain ----------
 
-fn entry(origin: &str) -> Result<Entry, SessionError> {
-    Entry::new(KEYRING_SERVICE, &format!("refresh-token:{origin}")).map_err(SessionError::storage)
+/// Keychain service = bundle identifier, so dev and installed builds
+/// (different identifiers) never share credentials.
+fn entry<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<Entry, SessionError> {
+    Entry::new(&app.config().identifier, &format!("refresh-token:{key}")).map_err(SessionError::storage)
 }
 
-fn read_token(origin: &str) -> Result<Option<String>, SessionError> {
-    match entry(origin)?.get_password() {
+fn read_token<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<Option<String>, SessionError> {
+    match entry(app, key)?.get_password() {
         Ok(token) => Ok(Some(token)),
         Err(keyring::Error::NoEntry) => Ok(None),
         Err(e) => Err(SessionError::storage(e)),
     }
 }
 
-fn write_token(origin: &str, token: &str) -> Result<(), SessionError> {
-    entry(origin)?.set_password(token).map_err(SessionError::storage)
+fn write_token<R: Runtime>(app: &AppHandle<R>, key: &str, token: &str) -> Result<(), SessionError> {
+    entry(app, key)?.set_password(token).map_err(SessionError::storage)
 }
 
-fn delete_token(origin: &str) -> Result<(), SessionError> {
-    match entry(origin)?.delete_credential() {
+fn delete_token<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<(), SessionError> {
+    match entry(app, key)?.delete_credential() {
         Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
         Err(e) => Err(SessionError::storage(e)),
     }
@@ -157,81 +194,121 @@ fn delete_token(origin: &str) -> Result<(), SessionError> {
 
 // ---------- commands ----------
 
-/// The pinned server origin, or null on first run.
+/// The calling tab's server, or null when the tab has not chosen one yet. In
+/// local mode the origin is the live sidecar address (started if necessary).
 #[tauri::command]
-pub fn get_server_origin<R: Runtime>(app: AppHandle<R>) -> Result<Option<String>, SessionError> {
-    read_origin(&app)
+pub async fn get_server<R: Runtime>(app: AppHandle<R>, webview: Webview<R>) -> Result<Option<ServerInfo>, SessionError> {
+    let Some(server) = server_for(&webview) else {
+        return Ok(None);
+    };
+    let origin = resolve_origin(&app, &server).await?;
+    Ok(Some(ServerInfo { mode: server.mode, origin }))
 }
 
-/// Pin the server origin. Changing it drops the session for the previous
-/// origin so a token can never be replayed against a different operator.
+/// Bind this tab to a remote server.
 #[tauri::command]
-pub fn set_server_origin<R: Runtime>(app: AppHandle<R>, origin: String) -> Result<String, SessionError> {
+pub async fn set_remote_server<R: Runtime>(app: AppHandle<R>, webview: Webview<R>, origin: String) -> Result<ServerInfo, SessionError> {
     let normalized = normalize_origin(&origin)
-        .ok_or_else(|| SessionError::invalid_origin("origin must be an absolute http(s) URL without a path"))?;
-    if let Some(previous) = read_origin(&app)? {
-        if previous != normalized {
-            delete_token(&previous)?;
-        }
-    }
-    let file = OriginFile { origin: normalized.clone() };
-    fs::write(origin_path(&app)?, serde_json::to_vec(&file).map_err(SessionError::storage)?)
-        .map_err(SessionError::storage)?;
-    Ok(normalized)
+        .ok_or_else(|| SessionError::new("invalid_origin", "origin must be an absolute http(s) URL without a path"))?;
+    tabs::bind(&app, webview.label(), Server::remote(normalized.clone()))?;
+    Ok(ServerInfo { mode: ServerMode::Remote, origin: normalized })
 }
 
-/// Persist the refresh token issued at login for the pinned origin.
-/// This is the only moment the webview holds the token.
+/// Bind this tab to the bundled local server. Starts the sidecar and returns its origin.
 #[tauri::command]
-pub fn store_session<R: Runtime>(app: AppHandle<R>, refresh_token: String) -> Result<(), SessionError> {
-    let origin = read_origin(&app)?.ok_or_else(|| SessionError::invalid_origin("no server configured"))?;
+pub async fn set_local_server<R: Runtime>(app: AppHandle<R>, webview: Webview<R>) -> Result<ServerInfo, SessionError> {
+    tabs::bind(&app, webview.label(), Server::local())?;
+    let origin = sidecar::ensure_running(&app).await?;
+    Ok(ServerInfo { mode: ServerMode::Local, origin })
+}
+
+/// Leave the current server: drop its credential and return this tab to the
+/// setup screen. Sign-out in local mode maps to this, since the local owner
+/// has no login form to come back through.
+#[tauri::command]
+pub async fn leave_server<R: Runtime>(app: AppHandle<R>, webview: Webview<R>) -> Result<(), SessionError> {
+    tabs::unbind(&app, webview.label()).await?;
+    Ok(())
+}
+
+/// Persist the refresh token issued at login. This is the only moment the
+/// webview holds the token; there is no read command.
+#[tauri::command]
+pub fn store_session<R: Runtime>(app: AppHandle<R>, webview: Webview<R>, refresh_token: String) -> Result<(), SessionError> {
+    let server = server_for(&webview).ok_or_else(SessionError::no_server)?;
+    let key = server.keychain_key();
     if refresh_token.trim().is_empty() {
-        return delete_token(&origin);
+        return delete_token(&app, &key);
     }
-    write_token(&origin, refresh_token.trim())
-}
-
-/// Whether a refresh token exists for the pinned origin (never returns it).
-#[tauri::command]
-pub fn has_session<R: Runtime>(app: AppHandle<R>) -> Result<bool, SessionError> {
-    match read_origin(&app)? {
-        Some(origin) => Ok(read_token(&origin)?.is_some()),
-        None => Ok(false),
-    }
+    write_token(&app, &key, refresh_token.trim())
 }
 
 /// Drop the stored refresh token (sign-out).
 #[tauri::command]
-pub fn clear_session<R: Runtime>(app: AppHandle<R>) -> Result<(), SessionError> {
-    match read_origin(&app)? {
-        Some(origin) => delete_token(&origin),
+pub fn clear_session<R: Runtime>(app: AppHandle<R>, webview: Webview<R>) -> Result<(), SessionError> {
+    match server_for(&webview) {
+        Some(server) => delete_token(&app, &server.keychain_key()),
         None => Ok(()),
     }
 }
 
-/// Exchange the stored refresh token for a new access token against the
-/// pinned origin. Rotates the stored token on success; clears it when the
-/// server says the session is gone. Returns only short-lived credentials.
+/// Exchange the stored refresh token for a new access token. Rotates the
+/// stored token on success; clears it when the server says the session is gone.
 #[tauri::command]
-pub async fn refresh_session<R: Runtime>(app: AppHandle<R>) -> Result<SessionCredentials, SessionError> {
-    let origin = read_origin(&app)?.ok_or_else(|| SessionError::invalid_origin("no server configured"))?;
-    let token = read_token(&origin)?.ok_or_else(SessionError::no_session)?;
+pub async fn refresh_session<R: Runtime>(app: AppHandle<R>, webview: Webview<R>) -> Result<SessionCredentials, SessionError> {
+    let server = server_for(&webview).ok_or_else(SessionError::no_server)?;
+    let key = server.keychain_key();
+    let token = read_token(&app, &key)?.ok_or_else(SessionError::no_session)?;
+    let origin = resolve_origin(&app, &server).await?;
 
     match perform_refresh(&origin, &token).await {
         Ok(Refreshed { credentials, rotated_token }) => {
             if let Some(rotated) = rotated_token {
-                write_token(&origin, &rotated)?;
+                write_token(&app, &key, &rotated)?;
             }
             Ok(credentials)
         }
         Err(e) => {
             // 401 for any reason means the server will not honour this token again.
             if e.status == Some(401) || e.kind == "no_session" {
-                delete_token(&origin)?;
+                delete_token(&app, &key)?;
             }
             Err(e)
         }
     }
+}
+
+/// Local mode: sign in with the sidecar's one-time grant. Stores the resulting
+/// refresh token and returns short-lived credentials. The grant never reaches
+/// the webview.
+#[tauri::command]
+pub async fn local_sign_in<R: Runtime>(app: AppHandle<R>, webview: Webview<R>) -> Result<SessionCredentials, SessionError> {
+    let server = server_for(&webview).ok_or_else(SessionError::no_server)?;
+    if server.mode != ServerMode::Local {
+        return Err(SessionError::new("invalid_origin", "local sign-in requires local mode"));
+    }
+    let key = server.keychain_key();
+    // Serialise sign-ins: a concurrent caller would otherwise find the grant
+    // consumed and restart the sidecar underneath the exchange in flight.
+    let _guard = LOCAL_SIGN_IN.lock().await;
+    if let Some(token) = read_token(&app, &key)? {
+        match perform_refresh(&sidecar::ensure_running(&app).await?, &token).await {
+            Ok(Refreshed { credentials, rotated_token }) => {
+                if let Some(rotated) = rotated_token {
+                    write_token(&app, &key, &rotated)?;
+                }
+                return Ok(credentials);
+            }
+            // A rejected token is dropped and replaced through a fresh grant.
+            Err(e) if e.status == Some(401) => delete_token(&app, &key)?,
+            Err(e) => return Err(e),
+        }
+    }
+    let (origin, grant) = sidecar::take_grant(&app).await?;
+    let Refreshed { credentials, rotated_token } = post_session(&origin, LOCAL_EXCHANGE_PATH, &serde_json::json!({ "grant": grant })).await?;
+    let token = rotated_token.ok_or_else(|| SessionError::new("http", "local exchange returned no refresh token"))?;
+    write_token(&app, &key, &token)?;
+    Ok(credentials)
 }
 
 #[derive(Debug)]
@@ -240,9 +317,13 @@ pub(crate) struct Refreshed {
     pub rotated_token: Option<String>,
 }
 
-/// The HTTP half of a refresh, independent of any storage: POST the token to
-/// `<origin>/api/v1/auth/refresh` as a native client and parse the envelope.
+/// The HTTP half of a refresh, independent of any storage.
 pub(crate) async fn perform_refresh(origin: &str, token: &str) -> Result<Refreshed, SessionError> {
+    post_session(origin, REFRESH_PATH, &serde_json::json!({ "refreshToken": token })).await
+}
+
+/// POST to a session-issuing endpoint as a native client and parse the envelope.
+async fn post_session(origin: &str, path: &str, body: &serde_json::Value) -> Result<Refreshed, SessionError> {
     ensure_tls_provider();
     let client = reqwest::Client::builder()
         .timeout(HTTP_TIMEOUT)
@@ -251,20 +332,20 @@ pub(crate) async fn perform_refresh(origin: &str, token: &str) -> Result<Refresh
         .map_err(SessionError::network)?;
 
     let response = client
-        .post(format!("{origin}{REFRESH_PATH}"))
+        .post(format!("{origin}{path}"))
         .header(CLIENT_PLATFORM_HEADER, "desktop")
-        .json(&serde_json::json!({ "refreshToken": token }))
+        .json(body)
         .send()
         .await
         .map_err(SessionError::network)?;
 
     let status = response.status().as_u16();
-    let body = response.bytes().await.map_err(SessionError::network)?;
-    if body.len() as u64 > MAX_BODY_BYTES {
+    let bytes = response.bytes().await.map_err(SessionError::network)?;
+    if bytes.len() as u64 > MAX_BODY_BYTES {
         return Err(SessionError::network("response too large"));
     }
-    let envelope: Envelope = serde_json::from_slice(&body).unwrap_or(Envelope {
-        error_msg: String::from_utf8_lossy(&body).into_owned(),
+    let envelope: Envelope = serde_json::from_slice(&bytes).unwrap_or(Envelope {
+        error_msg: String::from_utf8_lossy(&bytes).into_owned(),
         error_code: None,
         data: None,
     });
@@ -272,7 +353,7 @@ pub(crate) async fn perform_refresh(origin: &str, token: &str) -> Result<Refresh
     let Some(data) = envelope.data.filter(|_| (200..300).contains(&status)) else {
         return Err(SessionError {
             kind: "http",
-            message: if envelope.error_msg.is_empty() { format!("refresh failed: {status}") } else { envelope.error_msg },
+            message: if envelope.error_msg.is_empty() { format!("request failed: {status}") } else { envelope.error_msg },
             status: Some(status),
             error_code: envelope.error_code,
         });

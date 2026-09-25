@@ -10,19 +10,6 @@
     "beforeBuildCommand": "pnpm --filter @deeix/web build"
   },
   "app": {
-    "windows": [
-      {
-        "label": "main",
-        "title": "DEEIX Chat",
-        "width": 1280,
-        "height": 840,
-        "minWidth": 960,
-        "minHeight": 640,
-        "resizable": true,
-        "fullscreen": false,
-        "center": true
-      }
-    ],
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: http: https:; media-src 'self' blob: data: http: https:; connect-src 'self' ipc: http://ipc.localhost http: https:; frame-src 'self'; object-src 'none'; base-uri 'self'"
     }
@@ -67,7 +54,10 @@
       },
       "digestAlgorithm": "sha256",
       "timestampUrl": "http://timestamp.digicert.com"
-    }
+    },
+    "externalBin": [
+      "binaries/deeix-chat-server"
+    ]
   },
   "plugins": {
     "updater": {

@@ -35,6 +35,8 @@ export function LoginPage({ nextPath }: LoginPageProps) {
     cancelTwoFactorChallenge,
     canShowRegisterSwitch,
     codeSent,
+    openRegisterInBrowser,
+    registerNeedsBrowser,
     configReady,
     emailRegistrationEnabled,
     emailVerificationEnabled,
@@ -427,6 +429,19 @@ export function LoginPage({ nextPath }: LoginPageProps) {
                     </span>
                   </Button>
                 ))}
+              </div>
+            ) : null}
+
+            {registerNeedsBrowser && mode === "login" ? (
+              <div className="mt-6 text-center text-sm font-normal leading-5 text-muted-foreground">
+                {t("noAccount")}{" "}
+                <button
+                  type="button"
+                  className="font-semibold text-foreground underline-offset-4 hover:underline focus-visible:underline focus-visible:outline-none"
+                  onClick={openRegisterInBrowser}
+                >
+                  {t("registerInBrowser")}
+                </button>
               </div>
             ) : null}
 

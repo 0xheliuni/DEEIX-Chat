@@ -77,7 +77,27 @@ export function ThemeProvider({
       applyTheme(themeRef.current, nextSystemTheme, presetRef.current);
     };
     mediaQuery.addEventListener("change", handleSystemThemeChange);
-    return () => mediaQuery.removeEventListener("change", handleSystemThemeChange);
+
+    // Follow changes made in another same-origin document (browser tabs, the
+    // desktop tab strip). `storage` only fires for writes from other documents.
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== null && event.key !== THEME_STORAGE_KEY && event.key !== THEME_PRESET_STORAGE_KEY) {
+        return;
+      }
+      const nextTheme = normalizeTheme(window.localStorage.getItem(THEME_STORAGE_KEY));
+      const nextPreset = normalizeThemePreset(window.localStorage.getItem(THEME_PRESET_STORAGE_KEY));
+      themeRef.current = nextTheme;
+      presetRef.current = nextPreset;
+      setThemeState(nextTheme);
+      setPresetState(nextPreset);
+      applyTheme(nextTheme, resolveSystemTheme(), nextPreset);
+    };
+    window.addEventListener("storage", handleStorage);
+
+    return () => {
+      mediaQuery.removeEventListener("change", handleSystemThemeChange);
+      window.removeEventListener("storage", handleStorage);
+    };
   }, []);
 
   const setTheme = React.useCallback(

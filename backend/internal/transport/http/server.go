@@ -82,6 +82,11 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 	if snapshot.Env == "prod" {
 		gin.SetMode(gin.ReleaseMode)
 	}
+	if snapshot.LocalMode {
+		// stdout 是 sidecar 与父进程的握手通道，框架自身的输出一律走 stderr。
+		gin.DefaultWriter = os.Stderr
+		gin.DefaultErrorWriter = os.Stderr
+	}
 
 	engine := gin.New()
 	engine.MaxMultipartMemory = 8 << 20
@@ -128,6 +133,9 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 		publicAuth.Use(middleware.PublicAuthRateLimit(limiter, cfg))
 		if modules.Auth != nil {
 			modules.Auth.RegisterPublicRoutes(publicAuth)
+			if snapshot.LocalMode {
+				modules.Auth.RegisterLocalRoutes(publicAuth)
+			}
 		}
 		if modules.User != nil {
 			modules.User.RegisterPublicRoutes(publicAuth)

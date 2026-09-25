@@ -1,23 +1,27 @@
 "use client";
 
-// Server address for the desktop shell. The pinned origin lives on the Rust
-// side; this module keeps a synchronous copy for the API client, refreshed at
-// bootstrap and whenever the setup screen commits a new address.
+// Server selection for the desktop shell. The choice (local sidecar or a pinned
+// remote origin) lives on the Rust side; this module keeps a synchronous copy
+// of the live origin for the API client.
 
 import { normalizeApiBaseUrl } from "@deeix/core";
 
-import { getServerOrigin, setServerOrigin } from "./desktop-shell";
+import { getServer, type ServerInfo, setLocalServer, setRemoteServer } from "./desktop-shell";
 
-let cachedOrigin = "";
+let current: ServerInfo | null = null;
 
-/** Synchronous read for the API client; empty until `loadServerOrigin` ran. */
+/** Synchronous read for the API client; empty until `loadServer` ran. */
 export function readServerOrigin(): string {
-  return cachedOrigin;
+  return current?.origin ?? "";
 }
 
-export async function loadServerOrigin(): Promise<string> {
-  cachedOrigin = normalizeApiBaseUrl(await getServerOrigin());
-  return cachedOrigin;
+export function readServerMode(): ServerInfo["mode"] | null {
+  return current?.mode ?? null;
+}
+
+export async function loadServer(): Promise<ServerInfo | null> {
+  current = await getServer();
+  return current;
 }
 
 /** Normalise user input; "" when it is not an absolute http(s) URL. */
@@ -25,7 +29,12 @@ export function validateApiBaseUrl(raw: string): string {
   return normalizeApiBaseUrl(raw);
 }
 
-export async function commitServerOrigin(origin: string): Promise<string> {
-  cachedOrigin = normalizeApiBaseUrl(await setServerOrigin(origin));
-  return cachedOrigin;
+export async function commitRemoteServer(origin: string): Promise<ServerInfo> {
+  current = await setRemoteServer(origin);
+  return current;
+}
+
+export async function commitLocalServer(): Promise<ServerInfo> {
+  current = await setLocalServer();
+  return current;
 }

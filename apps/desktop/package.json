@@ -8,9 +8,11 @@
     "sync:version": "node ../../scripts/sync-version.mjs desktop",
     "check:version": "node ../../scripts/sync-version.mjs --check desktop",
     "tauri": "tauri",
-    "dev": "tauri dev",
-    "build": "tauri build",
-    "check": "pnpm check:version && cargo check --manifest-path src-tauri/Cargo.toml"
+    "dev": "pnpm build:sidecar && tauri dev --config src-tauri/tauri.dev.conf.json",
+    "build": "pnpm build:sidecar && tauri build",
+    "check": "pnpm check:version && pnpm build:sidecar && cargo check --manifest-path src-tauri/Cargo.toml",
+    "build:sidecar": "node scripts/build-sidecar.mjs",
+    "build:signed": "bash scripts/build-signed.sh"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.11.5"

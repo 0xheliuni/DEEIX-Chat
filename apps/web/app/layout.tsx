@@ -77,17 +77,17 @@ export default function RootLayout({
       >
         <BrandingProvider>
           <AppI18nProvider>
-            <DesktopBootstrap>
-              <ThemeProvider>
-                <AppearancePreferencesProvider>
+            <ThemeProvider>
+              <AppearancePreferencesProvider>
+                <DesktopBootstrap>
                   {children}
                   <AppVersionGuard />
                   <LegacyPWAServiceWorkerMigration />
-                  <Toaster />
                   <DevtoolsBrandBanner />
-                </AppearancePreferencesProvider>
-              </ThemeProvider>
-            </DesktopBootstrap>
+                </DesktopBootstrap>
+                <Toaster />
+              </AppearancePreferencesProvider>
+            </ThemeProvider>
           </AppI18nProvider>
         </BrandingProvider>
       </body>

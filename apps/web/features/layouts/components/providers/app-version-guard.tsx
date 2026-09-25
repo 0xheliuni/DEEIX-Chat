@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { getAppVersion, resolveAppBuildID } from "@/shared/api/app-version";
+import { isDesktopApp } from "@/shared/platform";
 
 const APP_VERSION_TOAST_ID = "deeix-chat:app-version-refresh";
 const APP_VERSION_CHECK_INTERVAL_MS = 10 * 60 * 1000;
@@ -72,6 +73,10 @@ export function AppVersionGuard(): null {
   );
 
   React.useEffect(() => {
+    // Desktop ships its own web build; server redeploys are not "refresh to update".
+    if (isDesktopApp()) {
+      return;
+    }
     void checkVersion("initial");
 
     const intervalID = window.setInterval(() => {
