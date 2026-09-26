@@ -16,7 +16,8 @@ set -a; source "$env_file"; set +a
 while IFS='=' read -r name _; do
   [[ "$name" =~ ^[A-Z_]+$ && -z "${!name:-}" ]] && unset "$name"
 done < "$env_file"
-# The updater key has no password, but Tauri requires the variable to be set.
+
+# Tauri requires the password variable to exist even for a key without one.
 export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}"
 
 # Tauri reads key and certificates from the environment as content, not paths.

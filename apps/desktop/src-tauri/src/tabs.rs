@@ -10,7 +10,10 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, EventTarget, LogicalPosition, LogicalSize, Manager, Runtime, WebviewBuilder, WebviewUrl, Window, WindowEvent};
+use tauri::{
+    AppHandle, Emitter, EventTarget, LogicalPosition, LogicalSize, Manager, Runtime,
+    WebviewBuilder, WebviewUrl, Window, WindowEvent,
+};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::session::{self, ServerMode};
@@ -39,10 +42,16 @@ pub struct Server {
 
 impl Server {
     pub fn local() -> Self {
-        Self { mode: ServerMode::Local, origin: String::new() }
+        Self {
+            mode: ServerMode::Local,
+            origin: String::new(),
+        }
     }
     pub fn remote(origin: String) -> Self {
-        Self { mode: ServerMode::Remote, origin }
+        Self {
+            mode: ServerMode::Remote,
+            origin,
+        }
     }
     /// Keychain account. Local is a constant because the sidecar port changes per launch.
     pub fn keychain_key(&self) -> String {
@@ -107,10 +116,16 @@ impl Inner {
     fn bind(&mut self, id: &str, server: Server) -> Result<()> {
         if let Some(other) = self.find_by_server(&server) {
             if other.id != id {
-                return Err(TabsError("that server is already open in another tab".into()));
+                return Err(TabsError(
+                    "that server is already open in another tab".into(),
+                ));
             }
         }
-        let tab = self.tabs.iter_mut().find(|t| t.id == id).ok_or_else(|| TabsError(format!("unknown tab {id}")))?;
+        let tab = self
+            .tabs
+            .iter_mut()
+            .find(|t| t.id == id)
+            .ok_or_else(|| TabsError(format!("unknown tab {id}")))?;
         if tab.server.is_some() && tab.server.as_ref() != Some(&server) {
             return Err(TabsError("tab is already bound to a server".into()));
         }
@@ -121,10 +136,17 @@ impl Inner {
     /// Remove tab `id`; returns it and the tab that should become active
     /// (the left neighbour, like a browser), or None when no tabs remain.
     fn remove(&mut self, id: &str) -> Result<(Tab, Option<String>)> {
-        let index = self.tabs.iter().position(|t| t.id == id).ok_or_else(|| TabsError(format!("unknown tab {id}")))?;
+        let index = self
+            .tabs
+            .iter()
+            .position(|t| t.id == id)
+            .ok_or_else(|| TabsError(format!("unknown tab {id}")))?;
         let removed = self.tabs.remove(index);
         let next_active = if self.active.as_deref() == Some(id) {
-            self.tabs.get(index.saturating_sub(1)).or(self.tabs.first()).map(|t| t.id.clone())
+            self.tabs
+                .get(index.saturating_sub(1))
+                .or(self.tabs.first())
+                .map(|t| t.id.clone())
         } else {
             self.active.clone()
         };
@@ -133,7 +155,11 @@ impl Inner {
 
     /// Move tab `id` to position `index` (clamped). Order is what the strip shows and what is persisted.
     fn move_to(&mut self, id: &str, index: usize) -> Result<()> {
-        let from = self.tabs.iter().position(|t| t.id == id).ok_or_else(|| TabsError(format!("unknown tab {id}")))?;
+        let from = self
+            .tabs
+            .iter()
+            .position(|t| t.id == id)
+            .ok_or_else(|| TabsError(format!("unknown tab {id}")))?;
         let tab = self.tabs.remove(from);
         let to = index.min(self.tabs.len());
         self.tabs.insert(to, tab);
@@ -143,8 +169,14 @@ impl Inner {
     /// On-disk form: bound tabs in order plus which of them is active.
     fn to_file(&self) -> TabsFile {
         let bound: Vec<&Tab> = self.tabs.iter().filter(|t| t.server.is_some()).collect();
-        let active = bound.iter().position(|t| Some(&t.id) == self.active.as_ref()).unwrap_or(0);
-        TabsFile { servers: bound.iter().filter_map(|t| t.server.clone()).collect(), active }
+        let active = bound
+            .iter()
+            .position(|t| Some(&t.id) == self.active.as_ref())
+            .unwrap_or(0);
+        TabsFile {
+            servers: bound.iter().filter_map(|t| t.server.clone()).collect(),
+            active,
+        }
     }
 }
 
@@ -176,7 +208,11 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
         min_width: Some(960.0),
         min_height: Some(640.0),
         center: true,
-        title_bar_style: if cfg!(target_os = "macos") { tauri::TitleBarStyle::Overlay } else { tauri::TitleBarStyle::Visible },
+        title_bar_style: if cfg!(target_os = "macos") {
+            tauri::TitleBarStyle::Overlay
+        } else {
+            tauri::TitleBarStyle::Visible
+        },
         hidden_title: cfg!(target_os = "macos"),
         ..Default::default()
     };
@@ -189,7 +225,10 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
 
     let (width, _) = logical_size(&window)?;
     window.add_child(
-        content_webview(app, WebviewBuilder::new(CHROME_LABEL, WebviewUrl::App(CHROME_URL.into()))),
+        content_webview(
+            app,
+            WebviewBuilder::new(CHROME_LABEL, WebviewUrl::App(CHROME_URL.into())),
+        ),
         LogicalPosition::new(0.0, 0.0),
         LogicalSize::new(width, STRIP_HEIGHT),
     )?;
@@ -207,7 +246,11 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
     } else {
         // Only the active tab gets a webview now; the rest load on first click.
         let active_index = saved.active.min(saved.servers.len() - 1);
-        let ids: Vec<String> = saved.servers.into_iter().map(|server| insert(app, Some(server))).collect();
+        let ids: Vec<String> = saved
+            .servers
+            .into_iter()
+            .map(|server| insert(app, Some(server)))
+            .collect();
         activate(app, &ids[active_index], true)?;
     }
 
@@ -226,8 +269,16 @@ fn insert<R: Runtime>(app: &AppHandle<R>, server: Option<Server>) -> String {
     let state = app.state::<TabsState>();
     let mut inner = state.inner.lock().unwrap_or_else(|e| e.into_inner());
     let id = inner.allocate_id();
-    eprintln!("[tabs] open {id} server={:?}", server.as_ref().map(|s| s.mode));
-    inner.tabs.push(Tab { id: id.clone(), server, title: String::new(), hidden_since: Some(Instant::now()) });
+    eprintln!(
+        "[tabs] open {id} server={:?}",
+        server.as_ref().map(|s| s.mode)
+    );
+    inner.tabs.push(Tab {
+        id: id.clone(),
+        server,
+        title: String::new(),
+        hidden_since: Some(Instant::now()),
+    });
     id
 }
 
@@ -251,7 +302,9 @@ fn materialize<R: Runtime>(app: &AppHandle<R>, window: &Window<R>, id: &str) -> 
 
 /// Drop webviews of tabs that have been hidden for longer than DISCARD_AFTER.
 fn discard_stale<R: Runtime>(app: &AppHandle<R>) {
-    let Some(window) = app.get_window(WINDOW_LABEL) else { return };
+    let Some(window) = app.get_window(WINDOW_LABEL) else {
+        return;
+    };
     let stale: Vec<String> = {
         let state = app.state::<TabsState>();
         let inner = state.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -259,13 +312,20 @@ fn discard_stale<R: Runtime>(app: &AppHandle<R>) {
             .tabs
             .iter()
             .filter(|t| Some(&t.id) != inner.active.as_ref())
-            .filter(|t| t.hidden_since.is_some_and(|since| since.elapsed() >= DISCARD_AFTER))
+            .filter(|t| {
+                t.hidden_since
+                    .is_some_and(|since| since.elapsed() >= DISCARD_AFTER)
+            })
             .map(|t| t.id.clone())
             .collect()
     };
     for webview in window.webviews() {
         if stale.iter().any(|id| id == webview.label()) {
-            eprintln!("[tabs] discard {} (hidden for {:?})", webview.label(), DISCARD_AFTER);
+            eprintln!(
+                "[tabs] discard {} (hidden for {:?})",
+                webview.label(),
+                DISCARD_AFTER
+            );
             let _ = webview.close();
         }
     }
@@ -274,7 +334,10 @@ fn discard_stale<R: Runtime>(app: &AppHandle<R>) {
 /// Navigation policy shared by every webview: the document may only move
 /// within the app itself. Links and `window.open` to anything else go to the
 /// system browser, so a page can never be replaced by remote content.
-fn content_webview<R: Runtime>(app: &AppHandle<R>, builder: WebviewBuilder<R>) -> WebviewBuilder<R> {
+fn content_webview<R: Runtime>(
+    app: &AppHandle<R>,
+    builder: WebviewBuilder<R>,
+) -> WebviewBuilder<R> {
     let open_app = app.clone();
     builder
         .on_navigation(is_app_url)
@@ -292,7 +355,8 @@ fn is_app_url(url: &tauri::Url) -> bool {
         "http" | "https" => {
             let host = url.host_str().unwrap_or_default();
             // Windows/Android serve the app from http://tauri.localhost; dev from the Next server.
-            host == "tauri.localhost" || (cfg!(debug_assertions) && (host == "localhost" || host == "127.0.0.1"))
+            host == "tauri.localhost"
+                || (cfg!(debug_assertions) && (host == "localhost" || host == "127.0.0.1"))
         }
         "about" | "blob" => true,
         _ => false,
@@ -308,7 +372,11 @@ fn set_title<R: Runtime>(app: &AppHandle<R>, id: &str, title: String) {
             _ => return,
         }
     }
-    let _ = app.emit_to(EventTarget::webview(CHROME_LABEL), CHANGED_EVENT, snapshot(app));
+    let _ = app.emit_to(
+        EventTarget::webview(CHROME_LABEL),
+        CHANGED_EVENT,
+        snapshot(app),
+    );
 }
 
 /// Under the overlay title bar AppKit would move the window on press-and-drag
@@ -347,7 +415,9 @@ fn lower_traffic_lights<R: Runtime>(window: &Window<R>) -> Result<()> {
 }
 
 fn logical_size<R: Runtime>(window: &Window<R>) -> Result<(f64, f64)> {
-    let size = window.inner_size()?.to_logical::<f64>(window.scale_factor()?);
+    let size = window
+        .inner_size()?
+        .to_logical::<f64>(window.scale_factor()?);
     Ok((size.width, size.height))
 }
 
@@ -386,7 +456,9 @@ fn read_file<R: Runtime>(app: &AppHandle<R>) -> Result<TabsFile> {
             // Drop malformed remote entries rather than failing the whole launch.
             file.servers.retain(|s| match s.mode {
                 ServerMode::Local => true,
-                ServerMode::Remote => session::normalize_origin(&s.origin).as_deref() == Some(s.origin.as_str()),
+                ServerMode::Remote => {
+                    session::normalize_origin(&s.origin).as_deref() == Some(s.origin.as_str())
+                }
             });
             file.servers.dedup();
             Ok(file)
@@ -411,7 +483,11 @@ fn persist<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
 
 fn changed<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
     persist(app)?;
-    app.emit_to(EventTarget::webview(CHROME_LABEL), CHANGED_EVENT, snapshot(app))?;
+    app.emit_to(
+        EventTarget::webview(CHROME_LABEL),
+        CHANGED_EVENT,
+        snapshot(app),
+    )?;
     Ok(())
 }
 
@@ -420,14 +496,22 @@ fn changed<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
 pub fn snapshot<R: Runtime>(app: &AppHandle<R>) -> TabsSnapshot {
     let state = app.state::<TabsState>();
     let inner = state.inner.lock().unwrap_or_else(|e| e.into_inner());
-    TabsSnapshot { tabs: inner.tabs.clone(), active: inner.active.clone(), platform: std::env::consts::OS }
+    TabsSnapshot {
+        tabs: inner.tabs.clone(),
+        active: inner.active.clone(),
+        platform: std::env::consts::OS,
+    }
 }
 
 /// Server bound to the tab that owns `label`, if any.
 pub fn server_of<R: Runtime>(app: &AppHandle<R>, label: &str) -> Option<Server> {
     let state = app.state::<TabsState>();
     let inner = state.inner.lock().unwrap_or_else(|e| e.into_inner());
-    inner.tabs.iter().find(|t| t.id == label).and_then(|t| t.server.clone())
+    inner
+        .tabs
+        .iter()
+        .find(|t| t.id == label)
+        .and_then(|t| t.server.clone())
 }
 
 fn find_by_server<R: Runtime>(app: &AppHandle<R>, server: &Server) -> Option<String> {
@@ -447,7 +531,12 @@ pub fn open<R: Runtime>(app: &AppHandle<R>, server: Option<Server>) -> Result<Ta
             activate(app, &id, true)?;
             let state = app.state::<TabsState>();
             let inner = state.inner.lock().unwrap_or_else(|e| e.into_inner());
-            return Ok(inner.tabs.iter().find(|t| t.id == id).cloned().expect("tab exists"));
+            return Ok(inner
+                .tabs
+                .iter()
+                .find(|t| t.id == id)
+                .cloned()
+                .expect("tab exists"));
         }
     }
 
@@ -455,14 +544,21 @@ pub fn open<R: Runtime>(app: &AppHandle<R>, server: Option<Server>) -> Result<Ta
     activate(app, &id, true)?;
     let state = app.state::<TabsState>();
     let inner = state.inner.lock().unwrap_or_else(|e| e.into_inner());
-    Ok(inner.tabs.iter().find(|t| t.id == id).cloned().expect("tab exists"))
+    Ok(inner
+        .tabs
+        .iter()
+        .find(|t| t.id == id)
+        .cloned()
+        .expect("tab exists"))
 }
 
 /// Show tab `id`. `focus` moves keyboard focus into it; the strip passes
 /// false while the pointer is held down — pulling focus out of the strip
 /// mid-press makes WebKit drop the press, which kills drag-to-reorder.
 pub fn activate<R: Runtime>(app: &AppHandle<R>, id: &str, focus: bool) -> Result<()> {
-    let window = app.get_window(WINDOW_LABEL).ok_or_else(|| TabsError("main window missing".into()))?;
+    let window = app
+        .get_window(WINDOW_LABEL)
+        .ok_or_else(|| TabsError("main window missing".into()))?;
     {
         let state = app.state::<TabsState>();
         let mut inner = state.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -472,7 +568,11 @@ pub fn activate<R: Runtime>(app: &AppHandle<R>, id: &str, focus: bool) -> Result
         inner.active = Some(id.to_string());
         let now = Instant::now();
         for tab in &mut inner.tabs {
-            tab.hidden_since = if tab.id == id { None } else { tab.hidden_since.or(Some(now)) };
+            tab.hidden_since = if tab.id == id {
+                None
+            } else {
+                tab.hidden_since.or(Some(now))
+            };
         }
     }
     materialize(app, &window, id)?;
@@ -509,7 +609,11 @@ pub async fn unbind<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<()> {
     let removed = {
         let state = app.state::<TabsState>();
         let mut inner = state.inner.lock().unwrap_or_else(|e| e.into_inner());
-        let tab = inner.tabs.iter_mut().find(|t| t.id == id).ok_or_else(|| TabsError(format!("unknown tab {id}")))?;
+        let tab = inner
+            .tabs
+            .iter_mut()
+            .find(|t| t.id == id)
+            .ok_or_else(|| TabsError(format!("unknown tab {id}")))?;
         tab.server.take()
     };
     if let Some(server) = removed {
@@ -534,7 +638,9 @@ async fn forget_server<R: Runtime>(app: &AppHandle<R>, server: &Server) -> Resul
 /// sidecar stops when the last local tab goes. The last tab is replaced by an
 /// empty one so the window always has content.
 pub async fn close<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<()> {
-    let window = app.get_window(WINDOW_LABEL).ok_or_else(|| TabsError("main window missing".into()))?;
+    let window = app
+        .get_window(WINDOW_LABEL)
+        .ok_or_else(|| TabsError("main window missing".into()))?;
     let (removed, next_active) = {
         let state = app.state::<TabsState>();
         let mut inner = state.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -577,17 +683,28 @@ pub fn tabs_open<R: Runtime>(app: AppHandle<R>) -> std::result::Result<Tab, Stri
 }
 
 #[tauri::command]
-pub fn tabs_activate<R: Runtime>(app: AppHandle<R>, id: String, focus: bool) -> std::result::Result<(), String> {
+pub fn tabs_activate<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+    focus: bool,
+) -> std::result::Result<(), String> {
     activate(&app, &id, focus).map_err(|e| e.0)
 }
 
 #[tauri::command]
-pub fn tabs_move<R: Runtime>(app: AppHandle<R>, id: String, index: usize) -> std::result::Result<(), String> {
+pub fn tabs_move<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+    index: usize,
+) -> std::result::Result<(), String> {
     move_to(&app, &id, index).map_err(|e| e.0)
 }
 
 #[tauri::command]
-pub async fn tabs_close<R: Runtime>(app: AppHandle<R>, id: String) -> std::result::Result<(), String> {
+pub async fn tabs_close<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+) -> std::result::Result<(), String> {
     close(&app, &id).await.map_err(|e| e.0)
 }
 
@@ -599,7 +716,12 @@ mod tests {
         let mut inner = Inner::default();
         for server in servers {
             let id = inner.allocate_id();
-            inner.tabs.push(Tab { id, server: server.clone(), title: String::new(), hidden_since: None });
+            inner.tabs.push(Tab {
+                id,
+                server: server.clone(),
+                title: String::new(),
+                hidden_since: None,
+            });
         }
         inner.active = inner.tabs.last().map(|t| t.id.clone());
         inner
@@ -609,10 +731,16 @@ mod tests {
     fn a_server_is_shown_by_at_most_one_tab() {
         let mut inner = inner_with(&[Some(Server::local()), None]);
         assert!(inner.bind("tab-2", Server::local()).is_err());
-        assert!(inner.bind("tab-2", Server::remote("https://a.example".into())).is_ok());
+        assert!(inner
+            .bind("tab-2", Server::remote("https://a.example".into()))
+            .is_ok());
         // Rebinding to the same server is idempotent; to a different one is refused.
-        assert!(inner.bind("tab-2", Server::remote("https://a.example".into())).is_ok());
-        assert!(inner.bind("tab-2", Server::remote("https://b.example".into())).is_err());
+        assert!(inner
+            .bind("tab-2", Server::remote("https://a.example".into()))
+            .is_ok());
+        assert!(inner
+            .bind("tab-2", Server::remote("https://b.example".into()))
+            .is_err());
         assert!(inner.bind("tab-9", Server::local()).is_err());
     }
 
@@ -648,9 +776,15 @@ mod tests {
     fn moving_reorders_and_clamps() {
         let mut inner = inner_with(&[None, None, None]);
         inner.move_to("tab-1", 2).unwrap();
-        assert_eq!(inner.tabs.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(), ["tab-2", "tab-3", "tab-1"]);
+        assert_eq!(
+            inner.tabs.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(),
+            ["tab-2", "tab-3", "tab-1"]
+        );
         inner.move_to("tab-1", 0).unwrap();
-        assert_eq!(inner.tabs.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(), ["tab-1", "tab-2", "tab-3"]);
+        assert_eq!(
+            inner.tabs.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(),
+            ["tab-1", "tab-2", "tab-3"]
+        );
         inner.move_to("tab-2", 99).unwrap();
         assert_eq!(inner.tabs.last().unwrap().id, "tab-2");
         assert!(inner.move_to("tab-9", 0).is_err());
@@ -658,7 +792,12 @@ mod tests {
 
     #[test]
     fn only_bound_tabs_are_persisted_and_active_index_follows_them() {
-        let mut inner = inner_with(&[None, Some(Server::local()), None, Some(Server::remote("https://a.example".into()))]);
+        let mut inner = inner_with(&[
+            None,
+            Some(Server::local()),
+            None,
+            Some(Server::remote("https://a.example".into())),
+        ]);
         inner.active = Some("tab-4".into());
         let file = inner.to_file();
         assert_eq!(file.servers.len(), 2);

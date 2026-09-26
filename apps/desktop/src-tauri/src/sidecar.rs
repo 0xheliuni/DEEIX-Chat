@@ -85,7 +85,10 @@ pub async fn take_grant<R: Runtime>(app: &AppHandle<R>) -> Result<(String, Strin
         let _ = previous.child.kill();
     }
     let mut running = spawn(app).await?;
-    let grant = running.grant.take().ok_or_else(|| SidecarError("sidecar started without a grant".into()))?;
+    let grant = running
+        .grant
+        .take()
+        .ok_or_else(|| SidecarError("sidecar started without a grant".into()))?;
     let origin = running.origin.clone();
     *guard = Some(running);
     Ok((origin, grant))
@@ -136,7 +139,9 @@ async fn spawn<R: Runtime>(app: &AppHandle<R>) -> Result<Running, SidecarError> 
     tauri::async_runtime::spawn(async move {
         while let Some(event) = events.recv().await {
             match event {
-                CommandEvent::Stderr(line) => eprintln!("[sidecar] {}", String::from_utf8_lossy(&line).trim_end()),
+                CommandEvent::Stderr(line) => {
+                    eprintln!("[sidecar] {}", String::from_utf8_lossy(&line).trim_end())
+                }
                 CommandEvent::Terminated(payload) => {
                     eprintln!("[sidecar] pid={pid} terminated: {:?}", payload.code);
                     let state = app_handle.state::<SidecarState>();
@@ -151,11 +156,20 @@ async fn spawn<R: Runtime>(app: &AppHandle<R>) -> Result<Running, SidecarError> 
         }
     });
 
-    eprintln!("[sidecar] ready pid={} origin={} version={}", handoff.pid, handoff.origin, handoff.version);
-    Ok(Running { child, origin: handoff.origin, grant: Some(handoff.grant) })
+    eprintln!(
+        "[sidecar] ready pid={} origin={} version={}",
+        handoff.pid, handoff.origin, handoff.version
+    );
+    Ok(Running {
+        child,
+        origin: handoff.origin,
+        grant: Some(handoff.grant),
+    })
 }
 
-async fn wait_ready(events: &mut tauri::async_runtime::Receiver<CommandEvent>) -> Result<Handoff, SidecarError> {
+async fn wait_ready(
+    events: &mut tauri::async_runtime::Receiver<CommandEvent>,
+) -> Result<Handoff, SidecarError> {
     tokio::time::timeout(READY_TIMEOUT, async {
         while let Some(event) = events.recv().await {
             match event {
@@ -171,12 +185,17 @@ async fn wait_ready(events: &mut tauri::async_runtime::Receiver<CommandEvent>) -
                 }
                 CommandEvent::Error(message) => return Err(SidecarError(message)),
                 CommandEvent::Terminated(payload) => {
-                    return Err(SidecarError(format!("sidecar exited before ready (code {:?})", payload.code)));
+                    return Err(SidecarError(format!(
+                        "sidecar exited before ready (code {:?})",
+                        payload.code
+                    )));
                 }
                 _ => {}
             }
         }
-        Err(SidecarError("sidecar closed its output before ready".into()))
+        Err(SidecarError(
+            "sidecar closed its output before ready".into(),
+        ))
     })
     .await
     .map_err(|_| SidecarError("sidecar did not become ready in time".into()))?

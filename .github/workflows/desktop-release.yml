@@ -44,22 +44,26 @@ permissions:
 
 jobs:
   build:
-    name: Build (${{ matrix.platform }})
+    name: Build (${{ matrix.label }})
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: macOS
+          - label: macOS arm64
+            platform: macOS
             runner: macos-14
             args: "--target aarch64-apple-darwin"
-          - platform: macOS
+          - label: macOS x64
+            platform: macOS
             runner: macos-14
             args: "--target x86_64-apple-darwin"
-          - platform: Linux
+          - label: Linux x64
+            platform: Linux
             runner: ubuntu-24.04
             args: ""
-          - platform: Windows
+          - label: Windows x64
+            platform: Windows
             runner: windows-2022
             args: ""
 
@@ -223,7 +227,7 @@ jobs:
         if: github.ref_type != 'tag'
         uses: actions/upload-artifact@v4
         with:
-          name: desktop-${{ matrix.platform }}-${{ matrix.args || 'default' }}
+          name: desktop-${{ matrix.label }}
           path: |
             apps/desktop/src-tauri/target/**/release/bundle/**/*.dmg
             apps/desktop/src-tauri/target/**/release/bundle/**/*.AppImage

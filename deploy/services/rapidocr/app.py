@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import tempfile
-from typing import List
 
 import pypdfium2 as pdfium
 from fastapi import FastAPI, File, Form, UploadFile
@@ -16,7 +15,7 @@ render_scale = max(1.0, min(2.0, float(os.getenv("RAPIDOCR_RENDER_SCALE", "1.25"
 image_suffixes = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff"}
 
 
-def parse_page_ranges(raw: str, total_pages: int) -> List[int]:
+def parse_page_ranges(raw: str, total_pages: int) -> list[int]:
     if total_pages <= 0:
         return []
     text = (raw or "").strip()
@@ -54,13 +53,13 @@ def extract_page_text(image: Image.Image) -> str:
     result, _ = engine(image)
     if not result:
         return ""
-    lines: List[str] = []
+    lines: list[str] = []
     for item in result:
         if not isinstance(item, (list, tuple)) or len(item) < 2:
             continue
         text = str(item[1]).strip()
         if text:
-          lines.append(text)
+            lines.append(text)
     return "\n".join(lines).strip()
 
 
