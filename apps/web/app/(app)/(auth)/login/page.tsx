@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 
-import { LoginRoute } from "@/app/(auth)/login/login-route";
+import { LoginRoute } from "@/app/(app)/(auth)/login/login-route";
 
 export default function Page() {
   return (

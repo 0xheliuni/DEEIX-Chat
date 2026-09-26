@@ -12,7 +12,7 @@ import { ThemeProvider } from "@/shared/components/theme-provider";
 import { LegacyPWAServiceWorkerMigration } from "@/shared/pwa/migrations/legacy-service-worker-migration";
 import { Toaster } from "@/components/ui/sonner";
 
-import "./globals.css";
+import "../globals.css";
 import "katex/dist/katex.min.css";
 import "streamdown/styles.css";
 

@@ -7,7 +7,7 @@
     "frontendDist": "../../web/out",
     "devUrl": "http://localhost:3000",
     "beforeDevCommand": "pnpm --filter @deeix/web dev",
-    "beforeBuildCommand": "pnpm --filter @deeix/web build"
+    "beforeBuildCommand": "pnpm turbo run build --filter=@deeix/web"
   },
   "app": {
     "security": {

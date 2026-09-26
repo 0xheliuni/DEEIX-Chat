@@ -3,7 +3,8 @@
 import * as React from "react";
 import { NextIntlClientProvider } from "next-intl";
 
-import { DEFAULT_LOCALE, LOCALE_COOKIE_NAME, normalizeAppLocale, resolveBrowserLocale, type AppLocale } from "@/i18n/config";
+import { DEFAULT_LOCALE, LOCALE_COOKIE_NAME, normalizeAppLocale, type AppLocale } from "@/i18n/config";
+import { readBrowserLocale, readLocaleCookie } from "@/i18n/detect-locale";
 import { applyBrandingToMessages, DEFAULT_MESSAGES, loadLocaleMessages, type AppMessages } from "@/i18n/messages";
 import { useBranding } from "@/shared/config/branding-provider";
 
@@ -13,27 +14,6 @@ type AppI18nContextValue = {
 };
 
 const AppI18nContext = React.createContext<AppI18nContextValue | null>(null);
-
-function readLocaleCookie(): AppLocale | null {
-  if (typeof document === "undefined") {
-    return null;
-  }
-  const raw = document.cookie
-    .split(";")
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(`${LOCALE_COOKIE_NAME}=`));
-  if (!raw) {
-    return null;
-  }
-  return normalizeAppLocale(decodeURIComponent(raw.slice(LOCALE_COOKIE_NAME.length + 1)));
-}
-
-function readBrowserLocale(): AppLocale {
-  if (typeof navigator === "undefined") {
-    return DEFAULT_LOCALE;
-  }
-  return resolveBrowserLocale(navigator.languages?.length ? navigator.languages : [navigator.language]);
-}
 
 function writeLocaleCookie(locale: AppLocale): void {
   if (typeof document === "undefined") {

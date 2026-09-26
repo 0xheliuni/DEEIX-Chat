@@ -56,6 +56,10 @@ external links and `window.open` are routed to the system browser. The `Broadcas
 build uses to sync tokens between same-origin documents is disabled on desktop
 for the same reason — tabs share an origin but not a server.
 
+The strip is a page of the same web build (`/desktop/tabs`) under its own root
+layout (`app/(shell)`), which mounts only the theme and the strip's strings —
+no branding fetch, no app i18n bundles, no guards.
+
 Tabs are lazy: on launch only the active tab gets a webview, the others are
 created on first click. A tab hidden for 30 minutes has its webview discarded
 (browser "memory saver"); it reloads on the next activation and signs back in
@@ -201,6 +205,24 @@ build time via `tauri build --config`. Both channels are signed with the same
 updater key: a channel is a distribution lane, not a trust boundary. Beta
 installs keep receiving betas; to move a user back to stable, have them install
 a stable build. Stable installs never see prereleases.
+
+## Build times and sizes
+
+What a local `pnpm build` costs once caches are warm, and where it goes:
+
+| Step | Unchanged | Changed | Notes |
+| --- | --- | --- | --- |
+| Go sidecar | ~3 s | ~20 s | Go build cache; `-tags nopostgres,noredis,nos3,noswagger,nomsgpack` compiles out drivers local mode does not use |
+| Web (`next build`) | **0.3 s** | ~35 s | runs through `turbo`, so an untouched frontend is a cache hit |
+| Rust app crate | ~1 s | ~60 s | recompiles whenever `out/` changed (assets are embedded); fat LTO, the shipped profile |
+| `.app` | ~1 s | | |
+| `.dmg` | ~25 s | | `hdiutil` + Finder layout; `scripts/package-dmg.sh` then re-encodes with lzfse and (when signing is configured) re-signs and notarizes |
+
+`pnpm build:signed` produces exactly what CI ships. Use `pnpm build:app` while
+iterating: it relaxes LTO (~17 s link) and stops at the `.app`.
+
+Every `no*` tag has an `*_off.go` counterpart that returns a clear error if the
+config selects a driver that was compiled out.
 
 ## Icons
 

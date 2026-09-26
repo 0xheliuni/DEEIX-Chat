@@ -1,10 +1,8 @@
-// Local-mode sidecar: the Go server, run as a child process on the loopback
-// interface with SQLite + local storage under the app data directory.
-//
-// The protocol with the child is one line of JSON on stdout after it has bound
-// its port (see backend/internal/cli). That line carries the origin and a
-// one-time login grant. The grant is consumed by `session::local_sign_in` and
-// never leaves this process; the webview only ever sees the resulting session.
+// Local-mode sidecar: the Go server as a child process on the loopback
+// interface, with SQLite and local storage under the app data directory.
+// Handshake: one JSON line on stdout with the origin and a one-time login
+// grant (see backend/internal/cli); the grant is redeemed by
+// `session::local_sign_in` and never reaches the webview.
 
 use std::path::PathBuf;
 use std::time::Duration;

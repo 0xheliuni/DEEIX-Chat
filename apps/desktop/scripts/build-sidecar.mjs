@@ -47,7 +47,12 @@ const ldflags = [
 ].join(" ");
 
 console.log(`Building sidecar ${triple} (GOOS=${goos} GOARCH=${goarch}) → ${output}`);
-execFileSync("go", ["build", "-trimpath", "-ldflags", ldflags, "-o", output, "./cmd/server"], {
+
+// Local mode only uses SQLite, the memory cache and local storage; the other
+// drivers, the Swagger UI and gin's msgpack binding are compiled out.
+const tags = "nopostgres,noredis,nos3,noswagger,nomsgpack";
+
+execFileSync("go", ["build", "-trimpath", "-tags", tags, "-ldflags", ldflags, "-o", output, "./cmd/server"], {
   cwd: backendDir,
   stdio: "inherit",
   env: { ...process.env, GOOS: goos, GOARCH: goarch, CGO_ENABLED: "1" },

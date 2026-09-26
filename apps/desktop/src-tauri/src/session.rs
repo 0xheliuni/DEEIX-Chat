@@ -1,20 +1,13 @@
-// Session persistence and refresh, kept on the Rust side on purpose.
+// Session persistence and refresh.
 //
-// The refresh token is the only long-lived credential. It lives in the OS
-// keychain and is only ever sent to the server it was issued for — by this
-// module, never by the webview. JavaScript hands the token over once, right
-// after a login, and from then on can only ask for a new access token or a
-// sign-out. That restores the property the browser build gets from an HttpOnly
-// cookie: page script cannot read or exfiltrate the credential and cannot
-// redirect it to a different server.
+// The refresh token lives in the OS keychain and is only ever sent to the
+// server it was issued for, by this module. The webview hands it over once
+// after login and can afterwards only request an access token or sign out —
+// the HttpOnly-cookie property of the browser build.
 //
-// Every command resolves "which server" from the webview that called it: each
-// tab (see tabs.rs) is bound to one server, and the keychain is keyed per
-// server, so tabs on different servers hold independent sessions.
-//   remote  keychain key is the pinned origin.
-//   local   the bundled Go server runs as a sidecar on a loopback port that
-//           changes per launch; keychain key is the constant "local" and the
-//           origin is resolved from the running sidecar at call time.
+// Commands resolve their server from the calling webview's tab (tabs.rs); the
+// keychain is keyed per server. Local mode uses the constant key "local" and
+// resolves the sidecar's origin at call time, since its port changes per launch.
 
 use std::time::Duration;
 
@@ -222,9 +215,8 @@ pub async fn set_local_server<R: Runtime>(app: AppHandle<R>, webview: Webview<R>
     Ok(ServerInfo { mode: ServerMode::Local, origin })
 }
 
-/// Leave the current server: drop its credential and return this tab to the
-/// setup screen. Sign-out in local mode maps to this, since the local owner
-/// has no login form to come back through.
+/// Drop this tab's credential and return it to the setup screen. Sign-out in
+/// local mode maps to this: the local owner has no login form.
 #[tauri::command]
 pub async fn leave_server<R: Runtime>(app: AppHandle<R>, webview: Webview<R>) -> Result<(), SessionError> {
     tabs::unbind(&app, webview.label()).await?;
@@ -278,9 +270,8 @@ pub async fn refresh_session<R: Runtime>(app: AppHandle<R>, webview: Webview<R>)
     }
 }
 
-/// Local mode: sign in with the sidecar's one-time grant. Stores the resulting
-/// refresh token and returns short-lived credentials. The grant never reaches
-/// the webview.
+/// Local mode sign-in: refresh the stored token, or redeem the sidecar's
+/// one-time grant. The grant never reaches the webview.
 #[tauri::command]
 pub async fn local_sign_in<R: Runtime>(app: AppHandle<R>, webview: Webview<R>) -> Result<SessionCredentials, SessionError> {
     let server = server_for(&webview).ok_or_else(SessionError::no_server)?;

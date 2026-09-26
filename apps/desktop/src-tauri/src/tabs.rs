@@ -1,12 +1,8 @@
-// Browser-style tabs: one window, a thin "chrome" webview for the tab strip,
-// and one content webview per tab. Each tab is bound to at most one server
-// (local sidecar or a remote origin), so every tab has its own DOM, caches,
-// SSE connections and in-memory session — the web app never has to know that
-// other servers exist. Two tabs never point at the same server; opening a
-// server that is already open activates its tab instead.
-//
-// The strip runs the same web build at /desktop/tabs and talks to this module
-// through the `tabs_*` commands and the `tabs:changed` event.
+// Browser-style tabs: one window, a "chrome" webview for the tab strip and one
+// content webview per tab. A tab is bound to at most one server and a server
+// is shown by at most one tab, so each tab is an isolated instance of the web
+// app. The strip (/desktop/tabs) drives this module through the `tabs_*`
+// commands and the `tabs:changed` event.
 
 use std::fs;
 use std::path::PathBuf;
@@ -315,11 +311,9 @@ fn set_title<R: Runtime>(app: &AppHandle<R>, id: &str, title: String) {
     let _ = app.emit_to(EventTarget::webview(CHROME_LABEL), CHANGED_EVENT, snapshot(app));
 }
 
-/// With the overlay title bar, AppKit still treats the top ~28pt as a title
-/// bar: an unhandled press-and-drag there moves the window and the page never
-/// sees the pointer events, which breaks tab reordering. Turning off
-/// title-bar/background moving leaves `data-tauri-drag-region` working, since
-/// that path goes through `performWindowDragWithEvent`.
+/// Under the overlay title bar AppKit would move the window on press-and-drag
+/// in the top band and starve the page of pointer events. Explicit dragging
+/// via `data-tauri-drag-region` still works (`performWindowDragWithEvent`).
 #[cfg(target_os = "macos")]
 fn disable_titlebar_drag<R: Runtime>(window: &Window<R>) -> Result<()> {
     use objc2::msg_send;
@@ -331,11 +325,8 @@ fn disable_titlebar_drag<R: Runtime>(window: &Window<R>) -> Result<()> {
     Ok(())
 }
 
-/// Lower the close/minimise/zoom buttons onto the tab label line the way
-/// AppKit itself does it: give the window an empty toolbar in the compact
-/// unified style, which makes the (transparent) title bar 38pt tall and
-/// vertically centres the buttons in it. No manual repositioning, so nothing
-/// to redo on resize/move and nothing to flicker.
+/// Centre the window buttons on the tab row: an empty compact unified toolbar
+/// makes AppKit lay out a 38pt title bar itself, so nothing needs repositioning.
 #[cfg(target_os = "macos")]
 fn lower_traffic_lights<R: Runtime>(window: &Window<R>) -> Result<()> {
     use objc2::msg_send;

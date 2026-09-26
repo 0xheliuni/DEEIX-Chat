@@ -42,23 +42,6 @@ export async function listVisibleUIComponents(
   return normalizePage(data);
 }
 
-export async function listMyUIComponents(accessToken: string, options: UIComponentListOptions = {}): Promise<UIComponentPage> {
-  const data = await authedRequest<PagePayload<UIComponentDTO>>(listPath("/api/v1/ui-components/mine", options), { accessToken }, true);
-  return normalizePage(data);
-}
-
-export async function createMyUIComponent(accessToken: string, payload: WriteUIComponentRequest): Promise<UIComponentData> {
-  return authedRequest<UIComponentData>("/api/v1/ui-components/mine", { method: "POST", accessToken, body: payload }, true);
-}
-
-export async function updateMyUIComponent(accessToken: string, id: number, payload: PatchUIComponentRequest): Promise<UIComponentData> {
-  return authedRequest<UIComponentData>(`/api/v1/ui-components/mine/${pathParam(id)}`, { method: "PATCH", accessToken, body: payload }, true);
-}
-
-export async function deleteMyUIComponent(accessToken: string, id: number): Promise<UIComponentDeleteData> {
-  return authedRequest<UIComponentDeleteData>(`/api/v1/ui-components/mine/${pathParam(id)}`, { method: "DELETE", accessToken }, true);
-}
-
 export async function listAdminUIComponents(
   accessToken: string,
   options: UIComponentListOptions = {},

@@ -41,7 +41,6 @@ import {
   SkillsSection,
   type SkillsSectionHandle,
 } from "@/features/prompts/components/sections/skills-section";
-import { UIComponentsSection, type UIComponentsSectionHandle } from "@/features/prompts/components/sections/ui-components-section";
 import {
   promptPresetKey,
   useSkillsPromptPage,
@@ -154,8 +153,6 @@ export function SkillsPromptPage() {
   const commonStatesT = useTranslations("common.states");
   const [activeTab, setActiveTab] = React.useState("skills");
   const skillsSectionRef = React.useRef<SkillsSectionHandle>(null);
-  const componentsSectionRef = React.useRef<UIComponentsSectionHandle>(null);
-  const uiT = useTranslations("uiComponents");
   const {
     items,
     filteredItems,
@@ -249,11 +246,6 @@ export function SkillsPromptPage() {
                 <Plus className="size-4" />
                 {t("add")}
               </Button>
-            ) : activeTab === "components" ? (
-              <Button size="sm" variant="default" className="shrink-0" onClick={() => componentsSectionRef.current?.openCreate()}>
-                <Plus className="size-4" />
-                {t("add")}
-              </Button>
             ) : (
               <Button size="sm" variant="default" className="shrink-0" disabled={loading} onClick={openCreate}>
                 <Plus className="size-4" />
@@ -266,7 +258,6 @@ export function SkillsPromptPage() {
             <TabsList>
               <TabsTrigger value="skills">{t("skillsTab")}</TabsTrigger>
               <TabsTrigger value="prompts">{t("promptsTab")}</TabsTrigger>
-              <TabsTrigger value="components">{uiT("types.components")}</TabsTrigger>
             </TabsList>
           </Tabs>
 
@@ -275,7 +266,7 @@ export function SkillsPromptPage() {
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder={activeTab === "skills" ? t("skillsSearchPlaceholder") : activeTab === "components" ? uiT("searchPlaceholder") : t("searchPlaceholder")}
+              placeholder={activeTab === "skills" ? t("skillsSearchPlaceholder") : t("searchPlaceholder")}
               className="rounded-xl bg-background pl-9"
             />
           </div>
@@ -284,9 +275,6 @@ export function SkillsPromptPage() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="min-h-0 flex-1">
           <TabsContent value="skills" className="flex h-full min-h-0">
             <SkillsSection ref={skillsSectionRef} query={query} />
-          </TabsContent>
-          <TabsContent value="components" className="flex h-full min-h-0">
-            <UIComponentsSection ref={componentsSectionRef} query={query} />
           </TabsContent>
           <TabsContent value="prompts" className="flex h-full min-h-0">
             <section className="mt-6 flex min-h-0 flex-1 flex-col overflow-hidden">

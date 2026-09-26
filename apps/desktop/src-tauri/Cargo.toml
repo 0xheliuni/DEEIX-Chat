@@ -41,9 +41,11 @@ tokio = { version = "1", features = ["time", "macros", "rt-multi-thread"] }
 # Used by `tauri dev`/`tauri build` to embed the frontend; see tauri.conf.json.
 custom-protocol = ["tauri/custom-protocol"]
 
+# Shipped profile, identical locally and in CI. `pnpm build:app` relaxes LTO
+# through CARGO_PROFILE_RELEASE_* for faster iteration.
 [profile.release]
 codegen-units = 1
-lto = true
+lto = "fat"
 opt-level = "s"
 panic = "abort"
 strip = true

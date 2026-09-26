@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { ServerSetup } from "@/features/platform/components/server-setup";
-import { isDesktopApp, isShellChromeRoute } from "@/shared/platform";
+import { isDesktopApp } from "@/shared/platform";
 import { leaveServer } from "@/shared/platform/desktop-shell";
 import { ensureLocalSession, initializeDesktopSession } from "@/shared/platform/desktop-session";
 
@@ -26,7 +26,7 @@ export function DesktopBootstrap({ children }: { children: React.ReactNode }) {
   tRef.current = t;
 
   React.useEffect(() => {
-    if (!isDesktopApp() || isShellChromeRoute()) {
+    if (!isDesktopApp()) {
       setState("ready");
       return;
     }

@@ -199,6 +199,27 @@ jobs:
           prerelease: ${{ steps.channel.outputs.name == 'beta' }}
           includeUpdaterJson: true
 
+      # Same post-processing as a local build (scripts/package-dmg.sh); the
+      # re-encoded image replaces the asset tauri-action uploaded.
+      - name: Package DMG
+        if: matrix.platform == 'macOS'
+        shell: bash
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for dmg in apps/desktop/src-tauri/target/*/release/bundle/dmg/*.dmg apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg; do
+            bash apps/desktop/scripts/package-dmg.sh "$dmg"
+            if [[ "${{ github.ref_type }}" == "tag" ]]; then
+              gh release upload "${{ github.ref_name }}" "$dmg" --clobber --repo "${{ github.repository }}"
+            fi
+          done
+
       - name: Upload bundles as workflow artifacts
         if: github.ref_type != 'tag'
         uses: actions/upload-artifact@v4
