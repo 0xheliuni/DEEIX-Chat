@@ -27,7 +27,7 @@
     "checkingUpdate": "Checking",
     "updateAvailableIndicator": "Update available",
     "updateTooltip": {
-      "currentTitle": "Current version",
+      "currentTitle": "You are on the latest known version",
       "currentVersion": "Current version {current}",
       "title": "Update available",
       "latestVersion": "Latest version {latest}",

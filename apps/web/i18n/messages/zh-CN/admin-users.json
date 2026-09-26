@@ -27,7 +27,7 @@
     "checkingUpdate": "检查中",
     "updateAvailableIndicator": "有可用更新",
     "updateTooltip": {
-      "currentTitle": "当前版本",
+      "currentTitle": "已是已知的最新版本",
       "currentVersion": "当前版本 {current}",
       "title": "有可用更新",
       "latestVersion": "最新版本 {latest}",

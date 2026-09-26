@@ -186,8 +186,9 @@ for the desktop app.
 
 ## Auto-update
 
-The updater is configured in `tauri.conf.json` (`plugins.updater`) and surfaced in
-Settings → About → "Check for updates" (`features/platform/components/desktop-update-action.tsx`).
+The updater is configured in `tauri.conf.json` (`plugins.updater`). The app
+checks on launch and every four hours (`desktop-update-notifier.tsx`) and
+offers the update in a toast; nothing downloads until the user accepts.
 
 Release flow: pushing a version tag builds every target and creates a **draft**
 GitHub Release with the installers and a signed `latest.json`. Publishing the
@@ -235,11 +236,11 @@ delete the generated `android/` and `ios/` folders. `tray.png` is the 44px
 monochrome menu-bar glyph (macOS template image); Windows/Linux trays show the
 app icon.
 
-## Signing (required before shipping)
+## Signing
 
 | Platform | What is needed | CI secrets |
 | --- | --- | --- |
-| macOS | Developer ID Application certificate (.p12) + Apple ID app-specific password for notarization | `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` |
+| macOS | Developer ID Application certificate (.p12) + Apple ID app-specific password for notarization; identity and team id are derived from the certificate (`scripts/apple-signing-env.sh`) | `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_PASSWORD` |
 | Windows | Code-signing certificate (.pfx) | `WINDOWS_CERTIFICATE`, `WINDOWS_CERTIFICATE_PASSWORD` |
 | All | Updater keypair (`tauri signer generate`); the private key is kept git-ignored in `deploy/secrets/` (see its README) | `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` |
 
@@ -247,11 +248,11 @@ app icon.
 RFC 3161 timestamping on Windows; CI imports the Windows certificate into the
 runner's store and passes its thumbprint to the bundler.
 
-**Tag releases refuse to run without the macOS and Windows secrets.** Unsigned
-installers are blocked by Gatekeeper / SmartScreen, so shipping one would only
-generate support tickets. `workflow_dispatch` runs skip that guard and upload
-artifacts for testing the pipeline before certificates exist. Signing keys never
-enter the repository.
+Only the updater key is mandatory. Platform signing switches on by itself once
+its secrets exist; until then the installers are unsigned, which macOS users
+must allow under System Settings → Privacy & Security and Windows users past a
+SmartScreen prompt — fine for internal testing, not for public releases.
+Signing keys never enter the repository.
 
 To obtain the .p12 on macOS: Keychain Access → My Certificates → right-click the
 "Developer ID Application" cert → Export → base64 it (`base64 -i cert.p12 | pbcopy`).

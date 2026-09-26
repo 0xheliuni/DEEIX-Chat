@@ -133,7 +133,7 @@ function TabItem({
       role="tab"
       tabIndex={0}
       aria-selected={active}
-      title={tab.title && tab.server ? `${tab.title} — ${tab.server.origin}` : tab.server?.origin || label}
+      title={tab.title ? `${tab.title} — ${label}` : label}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
         // Every tab has identical geometry; only the active one is painted in the

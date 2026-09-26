@@ -11,7 +11,8 @@ Losing the private key means no installed desktop client can ever receive an
 update again (they would have to reinstall), so keep a copy somewhere durable
 outside this machine as well.
 
-| `desktop-signing.env` | All signing variables for a local release build (copy from `desktop-signing.env.example`). | GitHub Actions secrets of the same names |
+| `desktop-signing.env` | Signing inputs for a local release build (copy from `desktop-signing.env.example`). | GitHub Actions secrets of the same names (`*_PATH` entries become the file's base64) |
+| `apple.p12` | Developer ID Application certificate with private key. Signing identity and team id are read from it. | `APPLE_CERTIFICATE` (base64) + `APPLE_CERTIFICATE_PASSWORD` |
 
 Signed local build (loads `desktop-signing.env`, builds, verifies with Gatekeeper on macOS):
 

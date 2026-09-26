@@ -150,6 +150,8 @@
   },
   "appVersion": {
     "title": "检测到新版本",
-    "description": "刷新网页后即可使用最新版本。"
+    "description": "刷新网页后即可使用最新版本。",
+    "prerelease": "预览版",
+    "stable": "正式版"
   }
 }

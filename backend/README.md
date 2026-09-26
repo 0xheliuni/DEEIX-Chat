@@ -246,17 +246,10 @@ cp config.sqlite.example.yaml config.yaml
 docker compose -f docker-compose.sqlite.yml up -d
 ```
 
-启动后端：
+启动后端（仓库根目录）：
 
 ```bash
-cd backend
-make run
-```
-
-也可以从仓库根目录使用工作区脚本：
-
-```bash
-pnpm dev:api
+make api
 ```
 
 健康检查：
@@ -516,29 +509,22 @@ docker build -t deeix-chat-rapidocr services/rapidocr
 
 ## 常用命令
 
-在 `backend/` 目录执行：
+仓库根目录：
 
 ```bash
-make run
+make api        # 运行
+make lint       # Go + JS lint
 make fmt
-make lint
 make test
-make swagger
-go build ./cmd/server
-go mod tidy
+make api-docs   # 重新生成 Swagger 与 TS 契约
 ```
 
-在仓库根目录执行工作区命令：
-
-```bash
-pnpm dev:api
-pnpm api:check
-```
+`backend/Makefile` 保留 Go 专属目标（`build`、`run`、`swagger`、`tidy`），根目录的 `make` 会转发到它。
 
 接口或 DTO 变更后必须执行：
 
 ```bash
-make swagger
+make api-docs
 ```
 
 该命令会调用根工作区的 `pnpm api:generate`，使用 `backend/go.mod` 中锁定的 `swag` 版本，并同时更新：

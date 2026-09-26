@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Local signed build: loads deploy/secrets/desktop-signing.env, builds, and on
-# macOS verifies the result with Gatekeeper. CI does the same via secrets.
+# Local signed build: loads deploy/secrets/desktop-signing.env, builds, packages
+# the DMG and verifies the result with Gatekeeper. Same inputs as CI.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../../.." && pwd)"
@@ -11,18 +11,28 @@ if [[ ! -f "$env_file" ]]; then
 fi
 set -a; source "$env_file"; set +a
 
-# Tauri treats a variable that merely *exists* as configured (an empty
-# APPLE_CERTIFICATE makes it try to import a p12 and fail), so drop the blanks.
-for name in TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PATH APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD WINDOWS_CERTIFICATE WINDOWS_CERTIFICATE_PASSWORD; do
-  if [[ -z "${!name:-}" ]]; then unset "$name"; fi
-done
+# Tauri treats a variable that merely *exists* as configured, so drop every
+# key the env file left blank.
+while IFS='=' read -r name _; do
+  [[ "$name" =~ ^[A-Z_]+$ && -z "${!name:-}" ]] && unset "$name"
+done < "$env_file"
 # The updater key has no password, but Tauri requires the variable to be set.
 export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}"
 
-# Tauri wants the key content, not a path.
+# Tauri reads key and certificates from the environment as content, not paths.
 if [[ -n "${TAURI_SIGNING_PRIVATE_KEY_PATH:-}" && -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
-  TAURI_SIGNING_PRIVATE_KEY="$(cat "$root/$TAURI_SIGNING_PRIVATE_KEY_PATH")"
-  export TAURI_SIGNING_PRIVATE_KEY
+  export TAURI_SIGNING_PRIVATE_KEY="$(cat "$root/$TAURI_SIGNING_PRIVATE_KEY_PATH")"
+fi
+if [[ -n "${APPLE_CERTIFICATE_PATH:-}" && -z "${APPLE_CERTIFICATE:-}" ]]; then
+  export APPLE_CERTIFICATE="$(base64 -i "$root/$APPLE_CERTIFICATE_PATH")"
+fi
+if [[ -n "${WINDOWS_CERTIFICATE_PATH:-}" && -z "${WINDOWS_CERTIFICATE:-}" ]]; then
+  export WINDOWS_CERTIFICATE="$(base64 -i "$root/$WINDOWS_CERTIFICATE_PATH")"
+fi
+if [[ -n "${APPLE_CERTIFICATE:-}" ]]; then
+  while IFS='=' read -r key value; do
+    export "$key=$value"
+  done < <(bash "$root/apps/desktop/scripts/apple-signing-env.sh")
 fi
 
 cd "$root"

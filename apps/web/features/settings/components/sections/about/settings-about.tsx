@@ -2,7 +2,6 @@
 
 import { useTranslations } from "next-intl";
 
-import { DesktopUpdateAction } from "@/features/platform/components/desktop-update-action";
 import { AboutSettingsContent } from "@/shared/components/about-settings-content";
 
 export function SettingsAbout() {
@@ -13,7 +12,6 @@ export function SettingsAbout() {
       title={t("title")}
       description={t("description")}
       consoleLabel={t("userConsole")}
-      versionActions={<DesktopUpdateAction />}
       labels={{
         details: t("details"),
         official: t("official"),

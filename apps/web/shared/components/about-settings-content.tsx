@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { ExternalLink, Globe, Mail, Newspaper } from "lucide-react";
 
+import { useTranslations } from "next-intl";
+
 import packageMeta from "@/package.json";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -92,6 +94,15 @@ export function AboutSettingsContent({
   versionBadgeTooltip,
   versionActions,
 }: AboutSettingsContentProps) {
+  const tCommon = useTranslations("common.appVersion");
+  // A "-" in the version means a pre-release build (e.g. 0.4.4-beta.1).
+  const isPrerelease = packageMeta.version.includes("-");
+  const versionBadge = (
+    <>
+      {versionBadgeContent ?? `v${packageMeta.version}`}
+      <span className="text-muted-foreground">· {tCommon(isPrerelease ? "prerelease" : "stable")}</span>
+    </>
+  );
   const links: AboutLinkItem[] = [
     {
       label: labels.website,
@@ -145,13 +156,13 @@ export function AboutSettingsContent({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Badge variant="secondary" className="cursor-default">
-                      {versionBadgeContent ?? `v${packageMeta.version}`}
+                      {versionBadge}
                     </Badge>
                   </TooltipTrigger>
                   <TooltipContent>{versionBadgeTooltip}</TooltipContent>
                 </Tooltip>
               ) : (
-                <Badge variant="secondary">{versionBadgeContent ?? `v${packageMeta.version}`}</Badge>
+                <Badge variant="secondary">{versionBadge}</Badge>
               )}
               {versionActions ? <span className="ml-1.5 flex min-w-0 items-center gap-2">{versionActions}</span> : null}
             </div>

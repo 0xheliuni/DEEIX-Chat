@@ -8,21 +8,20 @@ name: Desktop Release
 #     TAURI_SIGNING_PRIVATE_KEY           output of `tauri signer generate`
 #     TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password ("" if none)
 #
-#   macOS signing + notarization (required for tag releases)
+#   macOS signing + notarization (optional; unsigned builds when absent)
 #     APPLE_CERTIFICATE                   base64 of the Developer ID Application .p12
 #     APPLE_CERTIFICATE_PASSWORD          .p12 password
-#     APPLE_SIGNING_IDENTITY              "Developer ID Application: <Team> (<TEAMID>)"
 #     APPLE_ID                            Apple ID used for notarization
 #     APPLE_PASSWORD                      app-specific password for that Apple ID
-#     APPLE_TEAM_ID                       Apple Developer team id
+#   (signing identity and team id are read from the certificate)
 #
-#   Windows code signing (required for tag releases)
+#   Windows code signing (optional; unsigned builds when absent)
 #     WINDOWS_CERTIFICATE                 base64 of the code-signing .pfx
 #     WINDOWS_CERTIFICATE_PASSWORD        .pfx password
 #
-# Tag pushes refuse to build unsigned macOS/Windows installers: users cannot open
-# them, so an unsigned release is worse than no release. Manual runs skip that
-# guard so the pipeline can be exercised before certificates exist.
+# Signing switches on by itself once the secrets exist. Without them the
+# installers are unsigned: macOS users must allow the app under
+# System Settings → Privacy & Security, Windows shows a SmartScreen prompt.
 
 # Release channels are decided by the tag:
 #   v1.2.3          stable  → normal release; the app polls releases/latest/download/latest.json
@@ -137,30 +136,41 @@ jobs:
             echo 'tauri_args=' >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Require signing secrets for tag releases
-        if: github.ref_type == 'tag'
+      # Tauri treats a signing variable that merely exists as configured, so
+      # the Apple credentials are exported only when the secrets are set;
+      # identity and team id are then read from the certificate.
+      - name: Configure Apple signing
+        if: matrix.platform == 'macOS'
         shell: bash
         env:
-          HAS_APPLE: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_SIGNING_IDENTITY != '' && secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
-          HAS_WINDOWS: ${{ secrets.WINDOWS_CERTIFICATE != '' && secrets.WINDOWS_CERTIFICATE_PASSWORD != '' }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
         run: |
-          if [[ "${{ matrix.platform }}" == "macOS" && "$HAS_APPLE" != "true" ]]; then
-            echo "::error::macOS release requires APPLE_* secrets (signing + notarization)"; exit 1
+          if [[ -z "$APPLE_CERTIFICATE" || -z "$APPLE_ID" || -z "$APPLE_PASSWORD" ]]; then
+            echo "::warning::APPLE_* secrets not set; building an unsigned, un-notarized macOS app"
+            exit 0
           fi
-          if [[ "${{ matrix.platform }}" == "Windows" && "$HAS_WINDOWS" != "true" ]]; then
-            echo "::error::Windows release requires WINDOWS_CERTIFICATE secrets"; exit 1
-          fi
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_ID APPLE_PASSWORD; do
+            printf '%s<<__EOF__\n%s\n__EOF__\n' "$name" "${!name}" >> "$GITHUB_ENV"
+          done
+          bash apps/desktop/scripts/apple-signing-env.sh >> "$GITHUB_ENV"
 
       # Tauri signs Windows binaries with a certificate from the machine store,
       # selected by thumbprint (bundle.windows.certificateThumbprint). Import the
       # .pfx and pass the thumbprint through TAURI_BUNDLE_WINDOWS_CERTIFICATE_THUMBPRINT.
       - name: Import Windows code-signing certificate
-        if: matrix.platform == 'Windows' && env.WINDOWS_CERTIFICATE != ''
+        if: matrix.platform == 'Windows'
         shell: pwsh
         env:
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
         run: |
+          if (-not $env:WINDOWS_CERTIFICATE) {
+            Write-Host "::warning::WINDOWS_CERTIFICATE not set; building an unsigned Windows installer"
+            exit 0
+          }
           $pfx = Join-Path $env:RUNNER_TEMP "codesign.pfx"
           [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
           $secure = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
@@ -174,15 +184,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # macOS signing + notarization
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # Windows: thumbprint exported by the import step above (empty on other runners)
-          TAURI_BUNDLE_WINDOWS_CERTIFICATE_THUMBPRINT: ${{ env.TAURI_BUNDLE_WINDOWS_CERTIFICATE_THUMBPRINT }}
+          # APPLE_* and the Windows certificate thumbprint arrive through
+          # GITHUB_ENV from the steps above, only when configured.
         with:
           projectPath: apps/desktop
           tauriScript: pnpm tauri
@@ -205,10 +208,6 @@ jobs:
         if: matrix.platform == 'macOS'
         shell: bash
         env:
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail

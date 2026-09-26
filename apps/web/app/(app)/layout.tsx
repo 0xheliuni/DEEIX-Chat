@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, JetBrains_Mono } from "next/font/google";
 
 import { DesktopBootstrap } from "@/features/platform/components/desktop-bootstrap";
+import { DesktopUpdateNotifier } from "@/features/platform/components/desktop-update-notifier";
 import { AppVersionGuard } from "@/features/layouts";
 import { AppearancePreferencesProvider } from "@/features/settings";
 import { AppI18nProvider } from "@/i18n/app-i18n-provider";
@@ -82,6 +83,7 @@ export default function RootLayout({
                 <DesktopBootstrap>
                   {children}
                   <AppVersionGuard />
+                  <DesktopUpdateNotifier />
                   <LegacyPWAServiceWorkerMigration />
                   <DevtoolsBrandBanner />
                 </DesktopBootstrap>

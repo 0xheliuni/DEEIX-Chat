@@ -185,10 +185,11 @@ cp apps/web/.env.example apps/web/.env.local
 3. Start the frontend and backend together:
 
 ```bash
-pnpm dev
+make dev
 ```
 
-Use `pnpm dev:web` or `pnpm dev:api` to start only one workspace.
+`make api`, `make web` and `make desktop` start one app at a time; `make help`
+lists everything.
 
 The frontend uses `NEXT_PUBLIC_API_BASE_URL` for API requests. For local development, confirm that `apps/web/.env.local` contains:
 
@@ -211,19 +212,23 @@ If `NEXT_PUBLIC_API_BASE_URL` is omitted, local development defaults to `localho
 
 ### Workspace Commands
 
-Run workspace commands from the repository root:
+The root `Makefile` is the single entry point; every target runs from the
+repository root and routes to pnpm / turbo / cargo / go underneath.
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm dev` | Start the frontend and backend in watch mode. |
-| `pnpm dev:web` | Start only the Next.js frontend. |
-| `pnpm dev:api` | Start only the Go API. |
-| `pnpm check` | Run workspace lint, type, backend version, and API contract checks. |
-| `pnpm test` | Run workspace tests. |
-| `pnpm build` | Build the static frontend and backend binary. |
-| `pnpm verify` | Run checks, tests, and builds together. |
-| `pnpm api:generate` | Regenerate Swagger artifacts and TypeScript API types. |
-| `pnpm api:check` | Check that generated API artifacts are up to date. |
+| `make dev` | Frontend and backend in watch mode. |
+| `make api` / `make web` / `make desktop` | One app at a time. |
+| `make check` | Lint, type, architecture and version checks, all workspaces. |
+| `make test` | Tests, all workspaces. |
+| `make build` | Static frontend, backend binary, desktop (turbo, cached). |
+| `make build-desktop` / `make release-desktop` | Quick local `.app` / signed release bundle. |
+| `make verify` | check + test + build, what CI runs. |
+| `make api-docs` | Regenerate Swagger artifacts and TypeScript API types. |
+| `make version` | Propagate `VERSION` to every package manifest. |
+
+The same verbs exist as pnpm scripts (`pnpm dev:api`, `pnpm check`, …) for
+tooling that prefers them; CI uses those directly.
 
 The frontend is exported as static files, so `pnpm build` writes the browser artifact to `apps/web/out`. The Go service can serve that directory in the production image or through `server.frontend_dist_dir`.
 

@@ -185,10 +185,10 @@ cp apps/web/.env.example apps/web/.env.local
 3. 同时启动前端和后端：
 
 ```bash
-pnpm dev
+make dev
 ```
 
-只启动单个工作区时，使用 `pnpm dev:web` 或 `pnpm dev:api`。
+`make api`、`make web`、`make desktop` 单独启动某一端；`make help` 列出全部目标。
 
 前端请求后端使用 `NEXT_PUBLIC_API_BASE_URL`。本地开发时确认 `apps/web/.env.local` 中包含：
 
@@ -211,19 +211,21 @@ NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080
 
 ### 工作区命令
 
-以下命令均从仓库根目录执行：
+根目录的 `Makefile` 是唯一入口，所有目标都在仓库根目录执行，底层再分发给 pnpm / turbo / cargo / go：
 
 | 命令 | 用途 |
 | --- | --- |
-| `pnpm dev` | 以监听模式同时启动前端和后端。 |
-| `pnpm dev:web` | 只启动 Next.js 前端。 |
-| `pnpm dev:api` | 只启动 Go API。 |
-| `pnpm check` | 执行工作区 lint、类型、后端版本和 API 契约检查。 |
-| `pnpm test` | 执行工作区测试。 |
-| `pnpm build` | 构建静态前端和后端二进制文件。 |
-| `pnpm verify` | 一次执行检查、测试和构建。 |
-| `pnpm api:generate` | 重新生成 Swagger 文件和 TypeScript API 类型。 |
-| `pnpm api:check` | 检查生成的 API 文件是否与源码同步。 |
+| `make dev` | 以监听模式同时启动前端和后端。 |
+| `make api` / `make web` / `make desktop` | 单独启动某一端。 |
+| `make check` | 全工作区的 lint、类型、架构与版本检查。 |
+| `make test` | 全工作区测试。 |
+| `make build` | 静态前端、后端二进制、桌面端（turbo 缓存）。 |
+| `make build-desktop` / `make release-desktop` | 本地快速 `.app` / 签名发版包。 |
+| `make verify` | check + test + build，即 CI 跑的内容。 |
+| `make api-docs` | 重新生成 Swagger 与 TypeScript API 类型。 |
+| `make version` | 把 `VERSION` 同步到所有包清单。 |
+
+同一组动作也以 pnpm 脚本存在（`pnpm dev:api`、`pnpm check` …），CI 直接用它们。
 
 前端以静态资源形式导出，`pnpm build` 会把浏览器产物写入 `apps/web/out`。生产镜像中的 Go 服务，或配置了 `server.frontend_dist_dir` 的 Go 服务，可以直接托管该目录。
 
