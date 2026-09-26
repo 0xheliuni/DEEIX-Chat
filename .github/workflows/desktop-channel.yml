@@ -18,6 +18,7 @@ permissions:
 
 jobs:
   refresh-beta-manifest:
+    name: Refresh beta manifest
     # Beta installs must also receive stable releases, so every published
     # release is a candidate; the manifest is replaced only when the version
     # is newer than what desktop-beta currently serves.

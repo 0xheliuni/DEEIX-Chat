@@ -2,8 +2,8 @@
 // (without it, every webview may call every app command). Each command must
 // then be granted explicitly in capabilities/*.json.
 fn main() {
-    tauri_build::try_build(
-        tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(&[
+    tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
+        tauri_build::AppManifest::new().commands(&[
             // session (content tabs)
             "get_server",
             "set_remote_server",
@@ -21,7 +21,7 @@ fn main() {
             "tabs_activate",
             "tabs_close",
             "tabs_move",
-        ])),
-    )
+        ]),
+    ))
     .expect("failed to run tauri-build");
 }

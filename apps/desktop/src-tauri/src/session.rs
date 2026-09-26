@@ -41,7 +41,12 @@ pub struct SessionError {
 
 impl SessionError {
     fn new(kind: &'static str, message: impl std::fmt::Display) -> Self {
-        Self { kind, message: message.to_string(), status: None, error_code: None }
+        Self {
+            kind,
+            message: message.to_string(),
+            status: None,
+            error_code: None,
+        }
     }
     fn storage(e: impl std::fmt::Display) -> Self {
         Self::new("storage", e)
@@ -130,7 +135,10 @@ fn server_for<R: Runtime>(webview: &Webview<R>) -> Option<Server> {
 }
 
 /// Live origin for a server (starts the sidecar in local mode).
-async fn resolve_origin<R: Runtime>(app: &AppHandle<R>, server: &Server) -> Result<String, SessionError> {
+async fn resolve_origin<R: Runtime>(
+    app: &AppHandle<R>,
+    server: &Server,
+) -> Result<String, SessionError> {
     match server.mode {
         ServerMode::Local => Ok(sidecar::ensure_running(app).await?),
         ServerMode::Remote => Ok(server.origin.clone()),
@@ -148,7 +156,11 @@ pub(crate) fn normalize_origin(raw: &str) -> Option<String> {
     if !matches!(url.scheme(), "http" | "https") {
         return None;
     }
-    if !url.username().is_empty() || url.password().is_some() || url.query().is_some() || url.fragment().is_some() {
+    if !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
         return None;
     }
     if !matches!(url.path(), "" | "/") {
@@ -163,7 +175,8 @@ pub(crate) fn normalize_origin(raw: &str) -> Option<String> {
 /// Keychain service = bundle identifier, so dev and installed builds
 /// (different identifiers) never share credentials.
 fn entry<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<Entry, SessionError> {
-    Entry::new(&app.config().identifier, &format!("refresh-token:{key}")).map_err(SessionError::storage)
+    Entry::new(&app.config().identifier, &format!("refresh-token:{key}"))
+        .map_err(SessionError::storage)
 }
 
 fn read_token<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<Option<String>, SessionError> {
@@ -175,7 +188,9 @@ fn read_token<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<Option<String
 }
 
 fn write_token<R: Runtime>(app: &AppHandle<R>, key: &str, token: &str) -> Result<(), SessionError> {
-    entry(app, key)?.set_password(token).map_err(SessionError::storage)
+    entry(app, key)?
+        .set_password(token)
+        .map_err(SessionError::storage)
 }
 
 fn delete_token<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<(), SessionError> {
@@ -190,35 +205,61 @@ fn delete_token<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<(), Session
 /// The calling tab's server, or null when the tab has not chosen one yet. In
 /// local mode the origin is the live sidecar address (started if necessary).
 #[tauri::command]
-pub async fn get_server<R: Runtime>(app: AppHandle<R>, webview: Webview<R>) -> Result<Option<ServerInfo>, SessionError> {
+pub async fn get_server<R: Runtime>(
+    app: AppHandle<R>,
+    webview: Webview<R>,
+) -> Result<Option<ServerInfo>, SessionError> {
     let Some(server) = server_for(&webview) else {
         return Ok(None);
     };
     let origin = resolve_origin(&app, &server).await?;
-    Ok(Some(ServerInfo { mode: server.mode, origin }))
+    Ok(Some(ServerInfo {
+        mode: server.mode,
+        origin,
+    }))
 }
 
 /// Bind this tab to a remote server.
 #[tauri::command]
-pub async fn set_remote_server<R: Runtime>(app: AppHandle<R>, webview: Webview<R>, origin: String) -> Result<ServerInfo, SessionError> {
-    let normalized = normalize_origin(&origin)
-        .ok_or_else(|| SessionError::new("invalid_origin", "origin must be an absolute http(s) URL without a path"))?;
+pub async fn set_remote_server<R: Runtime>(
+    app: AppHandle<R>,
+    webview: Webview<R>,
+    origin: String,
+) -> Result<ServerInfo, SessionError> {
+    let normalized = normalize_origin(&origin).ok_or_else(|| {
+        SessionError::new(
+            "invalid_origin",
+            "origin must be an absolute http(s) URL without a path",
+        )
+    })?;
     tabs::bind(&app, webview.label(), Server::remote(normalized.clone()))?;
-    Ok(ServerInfo { mode: ServerMode::Remote, origin: normalized })
+    Ok(ServerInfo {
+        mode: ServerMode::Remote,
+        origin: normalized,
+    })
 }
 
 /// Bind this tab to the bundled local server. Starts the sidecar and returns its origin.
 #[tauri::command]
-pub async fn set_local_server<R: Runtime>(app: AppHandle<R>, webview: Webview<R>) -> Result<ServerInfo, SessionError> {
+pub async fn set_local_server<R: Runtime>(
+    app: AppHandle<R>,
+    webview: Webview<R>,
+) -> Result<ServerInfo, SessionError> {
     tabs::bind(&app, webview.label(), Server::local())?;
     let origin = sidecar::ensure_running(&app).await?;
-    Ok(ServerInfo { mode: ServerMode::Local, origin })
+    Ok(ServerInfo {
+        mode: ServerMode::Local,
+        origin,
+    })
 }
 
 /// Drop this tab's credential and return it to the setup screen. Sign-out in
 /// local mode maps to this: the local owner has no login form.
 #[tauri::command]
-pub async fn leave_server<R: Runtime>(app: AppHandle<R>, webview: Webview<R>) -> Result<(), SessionError> {
+pub async fn leave_server<R: Runtime>(
+    app: AppHandle<R>,
+    webview: Webview<R>,
+) -> Result<(), SessionError> {
     tabs::unbind(&app, webview.label()).await?;
     Ok(())
 }
@@ -226,7 +267,11 @@ pub async fn leave_server<R: Runtime>(app: AppHandle<R>, webview: Webview<R>) ->
 /// Persist the refresh token issued at login. This is the only moment the
 /// webview holds the token; there is no read command.
 #[tauri::command]
-pub fn store_session<R: Runtime>(app: AppHandle<R>, webview: Webview<R>, refresh_token: String) -> Result<(), SessionError> {
+pub fn store_session<R: Runtime>(
+    app: AppHandle<R>,
+    webview: Webview<R>,
+    refresh_token: String,
+) -> Result<(), SessionError> {
     let server = server_for(&webview).ok_or_else(SessionError::no_server)?;
     let key = server.keychain_key();
     if refresh_token.trim().is_empty() {
@@ -237,7 +282,10 @@ pub fn store_session<R: Runtime>(app: AppHandle<R>, webview: Webview<R>, refresh
 
 /// Drop the stored refresh token (sign-out).
 #[tauri::command]
-pub fn clear_session<R: Runtime>(app: AppHandle<R>, webview: Webview<R>) -> Result<(), SessionError> {
+pub fn clear_session<R: Runtime>(
+    app: AppHandle<R>,
+    webview: Webview<R>,
+) -> Result<(), SessionError> {
     match server_for(&webview) {
         Some(server) => delete_token(&app, &server.keychain_key()),
         None => Ok(()),
@@ -247,14 +295,20 @@ pub fn clear_session<R: Runtime>(app: AppHandle<R>, webview: Webview<R>) -> Resu
 /// Exchange the stored refresh token for a new access token. Rotates the
 /// stored token on success; clears it when the server says the session is gone.
 #[tauri::command]
-pub async fn refresh_session<R: Runtime>(app: AppHandle<R>, webview: Webview<R>) -> Result<SessionCredentials, SessionError> {
+pub async fn refresh_session<R: Runtime>(
+    app: AppHandle<R>,
+    webview: Webview<R>,
+) -> Result<SessionCredentials, SessionError> {
     let server = server_for(&webview).ok_or_else(SessionError::no_server)?;
     let key = server.keychain_key();
     let token = read_token(&app, &key)?.ok_or_else(SessionError::no_session)?;
     let origin = resolve_origin(&app, &server).await?;
 
     match perform_refresh(&origin, &token).await {
-        Ok(Refreshed { credentials, rotated_token }) => {
+        Ok(Refreshed {
+            credentials,
+            rotated_token,
+        }) => {
             if let Some(rotated) = rotated_token {
                 write_token(&app, &key, &rotated)?;
             }
@@ -273,10 +327,16 @@ pub async fn refresh_session<R: Runtime>(app: AppHandle<R>, webview: Webview<R>)
 /// Local mode sign-in: refresh the stored token, or redeem the sidecar's
 /// one-time grant. The grant never reaches the webview.
 #[tauri::command]
-pub async fn local_sign_in<R: Runtime>(app: AppHandle<R>, webview: Webview<R>) -> Result<SessionCredentials, SessionError> {
+pub async fn local_sign_in<R: Runtime>(
+    app: AppHandle<R>,
+    webview: Webview<R>,
+) -> Result<SessionCredentials, SessionError> {
     let server = server_for(&webview).ok_or_else(SessionError::no_server)?;
     if server.mode != ServerMode::Local {
-        return Err(SessionError::new("invalid_origin", "local sign-in requires local mode"));
+        return Err(SessionError::new(
+            "invalid_origin",
+            "local sign-in requires local mode",
+        ));
     }
     let key = server.keychain_key();
     // Serialise sign-ins: a concurrent caller would otherwise find the grant
@@ -284,7 +344,10 @@ pub async fn local_sign_in<R: Runtime>(app: AppHandle<R>, webview: Webview<R>) -
     let _guard = LOCAL_SIGN_IN.lock().await;
     if let Some(token) = read_token(&app, &key)? {
         match perform_refresh(&sidecar::ensure_running(&app).await?, &token).await {
-            Ok(Refreshed { credentials, rotated_token }) => {
+            Ok(Refreshed {
+                credentials,
+                rotated_token,
+            }) => {
                 if let Some(rotated) = rotated_token {
                     write_token(&app, &key, &rotated)?;
                 }
@@ -296,8 +359,17 @@ pub async fn local_sign_in<R: Runtime>(app: AppHandle<R>, webview: Webview<R>) -
         }
     }
     let (origin, grant) = sidecar::take_grant(&app).await?;
-    let Refreshed { credentials, rotated_token } = post_session(&origin, LOCAL_EXCHANGE_PATH, &serde_json::json!({ "grant": grant })).await?;
-    let token = rotated_token.ok_or_else(|| SessionError::new("http", "local exchange returned no refresh token"))?;
+    let Refreshed {
+        credentials,
+        rotated_token,
+    } = post_session(
+        &origin,
+        LOCAL_EXCHANGE_PATH,
+        &serde_json::json!({ "grant": grant }),
+    )
+    .await?;
+    let token = rotated_token
+        .ok_or_else(|| SessionError::new("http", "local exchange returned no refresh token"))?;
     write_token(&app, &key, &token)?;
     Ok(credentials)
 }
@@ -310,11 +382,20 @@ pub(crate) struct Refreshed {
 
 /// The HTTP half of a refresh, independent of any storage.
 pub(crate) async fn perform_refresh(origin: &str, token: &str) -> Result<Refreshed, SessionError> {
-    post_session(origin, REFRESH_PATH, &serde_json::json!({ "refreshToken": token })).await
+    post_session(
+        origin,
+        REFRESH_PATH,
+        &serde_json::json!({ "refreshToken": token }),
+    )
+    .await
 }
 
 /// POST to a session-issuing endpoint as a native client and parse the envelope.
-async fn post_session(origin: &str, path: &str, body: &serde_json::Value) -> Result<Refreshed, SessionError> {
+async fn post_session(
+    origin: &str,
+    path: &str,
+    body: &serde_json::Value,
+) -> Result<Refreshed, SessionError> {
     ensure_tls_provider();
     let client = reqwest::Client::builder()
         .timeout(HTTP_TIMEOUT)
@@ -344,7 +425,11 @@ async fn post_session(origin: &str, path: &str, body: &serde_json::Value) -> Res
     let Some(data) = envelope.data.filter(|_| (200..300).contains(&status)) else {
         return Err(SessionError {
             kind: "http",
-            message: if envelope.error_msg.is_empty() { format!("request failed: {status}") } else { envelope.error_msg },
+            message: if envelope.error_msg.is_empty() {
+                format!("request failed: {status}")
+            } else {
+                envelope.error_msg
+            },
             status: Some(status),
             error_code: envelope.error_code,
         });
@@ -353,7 +438,10 @@ async fn post_session(origin: &str, path: &str, body: &serde_json::Value) -> Res
         return Err(SessionError::no_session());
     }
     Ok(Refreshed {
-        credentials: SessionCredentials { access_token: data.access_token, session_id: data.session_id },
+        credentials: SessionCredentials {
+            access_token: data.access_token,
+            session_id: data.session_id,
+        },
         rotated_token: data.refresh_token.filter(|t| !t.is_empty()),
     })
 }
@@ -364,9 +452,18 @@ mod tests {
 
     #[test]
     fn accepts_plain_origins() {
-        assert_eq!(normalize_origin("https://chat.example.com").as_deref(), Some("https://chat.example.com"));
-        assert_eq!(normalize_origin(" http://127.0.0.1:8080/ ").as_deref(), Some("http://127.0.0.1:8080"));
-        assert_eq!(normalize_origin("HTTPS://Chat.Example.com").as_deref(), Some("https://chat.example.com"));
+        assert_eq!(
+            normalize_origin("https://chat.example.com").as_deref(),
+            Some("https://chat.example.com")
+        );
+        assert_eq!(
+            normalize_origin(" http://127.0.0.1:8080/ ").as_deref(),
+            Some("http://127.0.0.1:8080")
+        );
+        assert_eq!(
+            normalize_origin("HTTPS://Chat.Example.com").as_deref(),
+            Some("https://chat.example.com")
+        );
     }
 
     #[test]
@@ -398,26 +495,39 @@ mod live {
         let origin = std::env::var("DEEIX_TEST_ORIGIN").expect("DEEIX_TEST_ORIGIN");
         let token = std::env::var("DEEIX_TEST_REFRESH_TOKEN").expect("DEEIX_TEST_REFRESH_TOKEN");
 
-        let first = perform_refresh(&origin, &token).await.expect("first refresh succeeds");
+        let first = perform_refresh(&origin, &token)
+            .await
+            .expect("first refresh succeeds");
         assert!(!first.credentials.access_token.is_empty());
         assert!(!first.credentials.session_id.is_empty());
-        let rotated = first.rotated_token.expect("native refresh returns a rotated token in the body");
+        let rotated = first
+            .rotated_token
+            .expect("native refresh returns a rotated token in the body");
         assert_ne!(rotated, token, "server must rotate the refresh token");
 
         // The server keeps the previous token valid for a short grace window
         // (refreshTokenPreviousHashGrace, 15s) so a lost rotation response does
         // not strand the client. Reuse *outside* the window revokes the session;
         // that path is covered by the backend's own tests.
-        let replay = perform_refresh(&origin, &token).await.expect("replay inside the grace window is tolerated");
+        let replay = perform_refresh(&origin, &token)
+            .await
+            .expect("replay inside the grace window is tolerated");
         assert!(replay.rotated_token.is_some());
 
         // The rotated token is the live one.
-        let second = perform_refresh(&origin, &rotated).await.expect("rotated token is valid");
+        let second = perform_refresh(&origin, &rotated)
+            .await
+            .expect("rotated token is valid");
         assert_ne!(second.rotated_token.as_deref(), Some(rotated.as_str()));
 
         // A token that was never issued is rejected with the terminating code.
-        let bogus = perform_refresh(&origin, "not-a-token").await.expect_err("bogus token must fail");
+        let bogus = perform_refresh(&origin, "not-a-token")
+            .await
+            .expect_err("bogus token must fail");
         assert_eq!(bogus.status, Some(401));
-        assert_eq!(bogus.error_code.as_deref(), Some("auth.invalid_refresh_token"));
+        assert_eq!(
+            bogus.error_code.as_deref(),
+            Some("auth.invalid_refresh_token")
+        );
     }
 }

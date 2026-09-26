@@ -89,7 +89,11 @@ fn serve_once<R: Runtime>(app: AppHandle<R>, listener: TcpListener, port: u16) {
     }
 
     let url = format!("http://127.0.0.1:{port}{target}");
-    let _ = respond(stream, 200, "Sign-in complete. You can return to DEEIX Chat.");
+    let _ = respond(
+        stream,
+        200,
+        "Sign-in complete. You can return to DEEIX Chat.",
+    );
     clear_if_current(&app, port);
 
     if let Some(window) = app.get_webview_window("main") {
@@ -193,7 +197,8 @@ mod tests {
 
     #[test]
     fn extracts_target_from_get() {
-        let t = request(b"GET /oauth/callback?grant=abc&state=xyz HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n");
+        let t =
+            request(b"GET /oauth/callback?grant=abc&state=xyz HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n");
         assert_eq!(t.as_deref(), Some("/oauth/callback?grant=abc&state=xyz"));
     }
 

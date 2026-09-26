@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import tempfile
-from typing import List
 
 import pypdfium2 as pdfium
 import pytesseract
@@ -20,7 +19,7 @@ enable_grayscale = os.getenv("TESSERACT_GRAYSCALE", "true").strip().lower() not 
 image_suffixes = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff"}
 
 
-def parse_page_ranges(raw: str, total_pages: int) -> List[int]:
+def parse_page_ranges(raw: str, total_pages: int) -> list[int]:
     if total_pages <= 0:
         return []
     text = (raw or "").strip()
