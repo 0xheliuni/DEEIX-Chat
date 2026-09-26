@@ -8,6 +8,14 @@ describe("normalizeApiBaseUrl", () => {
     assert.equal(normalizeApiBaseUrl("https://api.example.com/base/"), "https://api.example.com/base");
   });
 
+  it("handles long runs of slashes in linear time", () => {
+    const path = `/${"/".repeat(50_000)}x`;
+    const started = performance.now();
+    assert.equal(normalizeApiBaseUrl(`https://api.example.com${path}`), `https://api.example.com${path}`);
+    assert.equal(normalizeApiBaseUrl(`https://api.example.com${"/".repeat(50_000)}`), "https://api.example.com");
+    assert.ok(performance.now() - started < 200);
+  });
+
   it("keeps explicit ports and IPv6 hosts", () => {
     assert.equal(normalizeApiBaseUrl("http://localhost:8080"), "http://localhost:8080");
     assert.equal(normalizeApiBaseUrl("http://[::1]:8080/"), "http://[::1]:8080");

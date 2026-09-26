@@ -2,6 +2,15 @@
 // the API base URL is runtime data that must be validated before use.
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+
+/** Drop trailing slashes in linear time (a `/\/+$/` regex backtracks quadratically). */
+function trimTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47) {
+    end -= 1;
+  }
+  return value.slice(0, end);
+}
 const DEFAULT_DEV_API_PORT = "8080";
 
 // Strict absolute http(s) URL: scheme, host (DNS name, IPv4 or bracketed IPv6),
@@ -29,7 +38,7 @@ export function normalizeApiBaseUrl(raw: string | null | undefined): string {
     return "";
   }
   const authority = port ? `${host.toLowerCase()}:${port}` : host.toLowerCase();
-  return `${scheme.toLowerCase()}://${authority}${path}`.replace(/\/+$/, "");
+  return trimTrailingSlashes(`${scheme.toLowerCase()}://${authority}${path}`);
 }
 
 export type ResolveApiBaseUrlInput = {
@@ -63,5 +72,5 @@ export function resolveApiBaseUrl(input: ResolveApiBaseUrlInput): string {
     const host = location.hostname === "::1" ? "[::1]" : location.hostname;
     return `http://${host}:${DEFAULT_DEV_API_PORT}`;
   }
-  return location.origin.replace(/\/+$/, "");
+  return trimTrailingSlashes(location.origin);
 }
