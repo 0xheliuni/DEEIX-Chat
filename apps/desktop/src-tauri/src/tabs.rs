@@ -300,8 +300,11 @@ fn materialize<R: Runtime>(app: &AppHandle<R>, window: &Window<R>, id: &str) -> 
     let title_app = app.clone();
     let title_id = id.to_string();
     let webview = window.add_child(
-        content_webview(app, WebviewBuilder::new(id, WebviewUrl::App(CONTENT_URL.into())))
-            .on_document_title_changed(move |_, title| set_title(&title_app, &title_id, title)),
+        content_webview(
+            app,
+            WebviewBuilder::new(id, WebviewUrl::App(CONTENT_URL.into())),
+        )
+        .on_document_title_changed(move |_, title| set_title(&title_app, &title_id, title)),
         LogicalPosition::new(0.0, STRIP_HEIGHT),
         LogicalSize::new(width, (height - STRIP_HEIGHT).max(0.0)),
     )?;
