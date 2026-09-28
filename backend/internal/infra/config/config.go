@@ -567,13 +567,11 @@ type Config struct {
 	// Token 预算感知上下文截断
 	ContextTokenBudgetEnabled bool // 是否按 Token 预算截断上下文（替代消息数截断）
 	// 消息历史 Embedding（语义上下文召回）
-	MessageEmbeddingEnabled        bool // 是否对每轮消息异步生成向量嵌入
-	SemanticContextEnabled         bool // 是否在上下文组装时加入语义召回片段
-	ProcessTraceEnabled            bool // 是否启用消息处理轨迹
-	ProcessTraceVisibleToUser      bool // 是否向聊天页暴露处理轨迹
-	ProcessTraceStoreUpstreamThink bool // 是否持久化上游 think
-	ProcessTracePersistInflight    bool // 是否在流式阶段持久化轨迹
-	ContextArtifactRetentionDays   int  // 上下文证据保留天数，<=0 表示不自动过期
+	MessageEmbeddingEnabled      bool // 是否对每轮消息异步生成向量嵌入
+	SemanticContextEnabled       bool // 是否在上下文组装时加入语义召回片段
+	ProcessTraceEnabled          bool // 是否启用消息处理轨迹
+	ProcessTracePersistInflight  bool // 是否在流式阶段持久化轨迹
+	ContextArtifactRetentionDays int  // 上下文证据保留天数，<=0 表示不自动过期
 	// MCP 配置
 	MCPEnable                     bool
 	MCPToolTimeoutSeconds         int
@@ -802,8 +800,6 @@ func Load() Config {
 		MessageEmbeddingEnabled:           false, // 默认关闭，需要 embedding 服务就绪后开启
 		SemanticContextEnabled:            false,
 		ProcessTraceEnabled:               true,
-		ProcessTraceVisibleToUser:         true,
-		ProcessTraceStoreUpstreamThink:    true,
 		ProcessTracePersistInflight:       true,
 		ContextArtifactRetentionDays:      90,
 		MCPEnable:                         false,

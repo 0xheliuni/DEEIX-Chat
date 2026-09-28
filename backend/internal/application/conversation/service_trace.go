@@ -229,10 +229,6 @@ func (r *messageTraceRecorder) enabled() bool {
 	return r != nil && r.cfg.ProcessTraceEnabled && r.assistant != nil
 }
 
-func (r *messageTraceRecorder) visible() bool {
-	return r.enabled() && r.cfg.ProcessTraceVisibleToUser
-}
-
 // completeForBackgroundContinuation 同步落盘当前 trace 后切换到后台上下文。
 // 进程 trace 在存在后台压缩阶段时保持 streaming，工具与模型思考仍正常收尾；
 // 这样响应消息能明确展示“压缩排队中”，后台完成或失败后再原位更新该阶段。
@@ -332,9 +328,6 @@ func (r *messageTraceRecorder) ensureDraft(traceType string) *messageTraceDraft 
 		}
 		return r.process
 	case messageTraceTypeUpstreamThink:
-		if !r.cfg.ProcessTraceStoreUpstreamThink {
-			return nil
-		}
 		if r.upstreamThink == nil || r.upstreamThink.status == messageTraceStatusCompleted || r.upstreamThink.status == messageTraceStatusError {
 			r.upstreamThink = r.newTraceDraft(traceType, "think", "模型思考", 3, messageTraceStageThink, r.nextTraceRoundID(), "")
 		}
@@ -823,7 +816,7 @@ func (r *messageTraceRecorder) failWithContext(ctx context.Context, err error) {
 }
 
 func (r *messageTraceRecorder) attachToMessage(message *model.Message) {
-	if message == nil || !r.visible() {
+	if message == nil || !r.enabled() {
 		return
 	}
 	message.ProcessTrace = r.snapshot()
@@ -837,7 +830,7 @@ func (r *messageTraceRecorder) upstreamThinkContent() string {
 }
 
 func (r *messageTraceRecorder) snapshot() *model.MessageProcessTrace {
-	if !r.visible() {
+	if !r.enabled() {
 		return nil
 	}
 	process := traceDraftToBlock(r.process)
@@ -1260,7 +1253,7 @@ func (r *messageTraceRecorder) liveSnapshot() *model.MessageProcessTrace {
 }
 
 func (r *messageTraceRecorder) emitProcessUpdate() {
-	if !r.visible() || r.process == nil {
+	if !r.enabled() || r.process == nil {
 		return
 	}
 	emitEvent(r.onEvent, "process_update", map[string]any{
@@ -1271,7 +1264,7 @@ func (r *messageTraceRecorder) emitProcessUpdate() {
 }
 
 func (r *messageTraceRecorder) emitToolUpdate() {
-	if !r.visible() || r.tools == nil {
+	if !r.enabled() || r.tools == nil {
 		return
 	}
 	emitEvent(r.onEvent, "process_update", map[string]any{
@@ -1283,7 +1276,7 @@ func (r *messageTraceRecorder) emitToolUpdate() {
 
 // emitUpstreamThinkUpdate 在思考轮次结束时推送结构快照，让客户端的事件列表立即拿到终态与结束时间。
 func (r *messageTraceRecorder) emitUpstreamThinkUpdate() {
-	if !r.visible() || r.upstreamThink == nil {
+	if !r.enabled() || r.upstreamThink == nil {
 		return
 	}
 	trace := r.liveSnapshot()
@@ -1298,7 +1291,7 @@ func (r *messageTraceRecorder) emitUpstreamThinkUpdate() {
 }
 
 func (r *messageTraceRecorder) emitUpstreamThinkDelta(update upstreamThinkLiveUpdate) {
-	if !r.visible() || r.upstreamThink == nil {
+	if !r.enabled() || r.upstreamThink == nil {
 		return
 	}
 	payload := map[string]any{

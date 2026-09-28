@@ -159,6 +159,7 @@ type ChatMessageBotProps = {
   showLatency?: boolean;
   showTokenUsage?: boolean;
   showBillingCost?: boolean;
+  showProcessTrace?: boolean;
   billingDisplayCurrency?: BillingDisplayCurrency;
   billingDisplayUsdToCnyRate?: number | null;
   readOnly?: boolean;
@@ -192,6 +193,7 @@ export function ChatMessageBot({
   showLatency = true,
   showTokenUsage = true,
   showBillingCost = false,
+  showProcessTrace = true,
   billingDisplayCurrency = "USD",
   billingDisplayUsdToCnyRate = null,
   readOnly = false,
@@ -373,11 +375,13 @@ export function ChatMessageBot({
 
   return (
     <div className="group/assistant-message flex w-full flex-col items-start">
-      <MessageProcessTrace
-        trace={processTrace}
-        active={messageStreaming}
-        autoCollapseReady={processAutoCollapseReady}
-      />
+      {showProcessTrace ? (
+        <MessageProcessTrace
+          trace={processTrace}
+          active={messageStreaming}
+          autoCollapseReady={processAutoCollapseReady}
+        />
+      ) : null}
       <MessageAgentTrace
         events={postProcessEvents}
         activeToolBlock={toolTrace}
