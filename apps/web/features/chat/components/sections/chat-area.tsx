@@ -33,7 +33,7 @@ import type { OpenCodeArtifactInput } from "@/features/chat/model/chat-artifacts
 import { areChatAreaMessagesRenderEqual } from "@/features/chat/model/chat-message-render";
 import { MAX_SCREENSHOT_MESSAGES } from "@/features/chat/model/conversation-screenshot";
 import type { ChatModelOption } from "@/features/chat/types/chat-runtime";
-import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
+import type { ChatAreaMessage, MessageAttachment, UserMessageEditMode } from "@/features/chat/types/messages";
 import { cn } from "@/lib/utils";
 import { AppLogo, DeeixLogo } from "@/shared/components/app-logo";
 import { ConversationShareExportIconDropdown } from "@/shared/components/conversation-share-export-menu";
@@ -97,7 +97,7 @@ type ChatAreaProps = {
   onRetryAssistantMessage: (message: ChatAreaMessage) => Promise<void> | void;
   onContinueAssistantMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   onEditAssistantMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
-  onEditUserMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
+  onEditUserMessage: (message: ChatAreaMessage, content: string, mode: UserMessageEditMode) => Promise<boolean> | boolean;
   onForkMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   onDeleteMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   modelOptions: ChatModelOption[];
@@ -305,7 +305,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   onRetryAssistantMessage: (message: ChatAreaMessage) => Promise<void> | void;
   onContinueAssistantMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   onEditAssistantMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
-  onEditUserMessage: (message: ChatAreaMessage, content: string) => Promise<boolean> | boolean;
+  onEditUserMessage: (message: ChatAreaMessage, content: string, mode: UserMessageEditMode) => Promise<boolean> | boolean;
   onForkMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   onDeleteMessage?: (message: ChatAreaMessage) => Promise<void> | void;
   modelOptions: ChatModelOption[];

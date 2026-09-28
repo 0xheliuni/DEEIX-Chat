@@ -1123,8 +1123,8 @@ func (r *Repo) UpdateMessageState(
 		Error)
 }
 
-// UpdateAssistantMessageContent 更新当前用户 assistant 消息正文并标记编辑时间。
-func (r *Repo) UpdateAssistantMessageContent(
+// UpdateMessageContent 更新当前用户 user/assistant 消息正文并标记编辑时间。
+func (r *Repo) UpdateMessageContent(
 	ctx context.Context,
 	userID uint,
 	publicID string,
@@ -1139,7 +1139,7 @@ func (r *Repo) UpdateAssistantMessageContent(
 	var item models.Message
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.
-			Where("user_id = ? AND public_id = ? AND role = ?", userID, normalizedPublicID, "assistant").
+			Where("user_id = ? AND public_id = ? AND role IN ?", userID, normalizedPublicID, []string{"user", "assistant"}).
 			First(&item).Error; err != nil {
 			return err
 		}

@@ -126,6 +126,13 @@ export type ChatBillingCost = {
 
 export type ImageLoadingAspectRatio = "wide" | "portrait" | "square";
 
+/**
+ * How an edited user message is applied: "regenerate" starts a new branch and
+ * asks the model again; "save" rewrites the message in place and keeps every
+ * later message untouched.
+ */
+export type UserMessageEditMode = "regenerate" | "save";
+
 export type ChatAreaMessage = {
   key: string;
   publicID: string;
