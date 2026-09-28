@@ -134,6 +134,7 @@ apps/*  →  packages/core  →  packages/api-contract  →  backend/docs/swagge
 6. **桌面端不暴露 Node/系统能力给页面。** `capabilities/main.json` 只授予 `core:default`、窗口聚焦、deep-link 与 updater；不开放 shell、fs、http 插件。CSP 的 `connect-src` 限定为 `self`、IPC 与本地开发端口，不允许页面被注入的脚本外连任意主机。
 7. **刷新令牌重用检测。** 轮换后旧 token 保留 15s 宽限期（`refreshTokenPreviousHashGrace`），用于容忍丢失的轮换响应。**宽限期外再次出现已轮换的 token 视为泄露，整个会话立即吊销**（OAuth 2.1 §4.3.1），`revoke_reason = refresh_token_reuse`，并记录 `refresh_token_reuse_detected` 审计事件。这保证攻击者即使在宽限期内截获并使用了旧 token，也无法在受害者下一次刷新后继续持有会话。仓储层的吊销在事务内提交、事务外报告，避免被回滚。
 8. **密钥与证书只进 CI secrets。** Apple Developer ID、notarization、Windows 代码签名证书、Android keystore 不入库。
+9. **第三方登录只有一条流程：服务器回调。** 登录、注册、账号身份绑定在所有端都走授权桥：客户端 `POST /authorize`（绑定为 `/me/identities/providers/:slug/authorize`，需登录态）取得身份源授权 URL → 身份源回调 `<PUBLIC_API_BASE_URL>/api/v1/auth/providers/:slug/callback` → 服务器用自己的 PKCE 换取身份源令牌并拉取资料 → 把一次性 grant 重定向回客户端 → 客户端用自己的 PKCE verifier `POST /exchange`。身份源的 code 与 client secret 不经过浏览器；绑定的 grant 记录发起用户，只能由同一用户兑换。没有“前端回调”降级路径：`PUBLIC_API_BASE_URL` 未配置时第三方登录整体不可用，管理后台给出提示。
 
 ## 6. 版本与发布
 

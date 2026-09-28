@@ -6523,6 +6523,31 @@ definitions:
     - data
     - errorMsg
     type: object
+  ProviderBindBridgeStartRequest:
+    properties:
+      clientID:
+        maxLength: 128
+        type: string
+      clientState:
+        maxLength: 128
+        minLength: 43
+        type: string
+      codeChallenge:
+        maxLength: 128
+        minLength: 43
+        type: string
+      next:
+        maxLength: 2048
+        type: string
+      redirectURI:
+        maxLength: 2048
+        type: string
+    required:
+    - clientID
+    - clientState
+    - codeChallenge
+    - redirectURI
+    type: object
   PublicModelListResponseDoc:
     properties:
       data:
@@ -10029,6 +10054,62 @@ definitions:
       errorMsg:
         type: string
     required:
+    - errorMsg
+    type: object
+  UserIdentityResponse:
+    properties:
+      email:
+        type: string
+      emailVerified:
+        type: boolean
+      id:
+        type: integer
+      lastLoginAt:
+        type: string
+        x-nullable: true
+        x-omitempty: false
+      linkedAt:
+        type: string
+      providerDisplayName:
+        type: string
+      providerID:
+        type: integer
+      providerLogoURL:
+        type: string
+      providerName:
+        type: string
+      providerSlug:
+        type: string
+      providerType:
+        type: string
+    required:
+    - email
+    - emailVerified
+    - id
+    - lastLoginAt
+    - linkedAt
+    - providerDisplayName
+    - providerID
+    - providerLogoURL
+    - providerName
+    - providerSlug
+    - providerType
+    type: object
+  UserIdentityResponseData:
+    properties:
+      identity:
+        $ref: '#/definitions/UserIdentityResponse'
+    required:
+    - identity
+    type: object
+  UserIdentityResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/UserIdentityResponseData'
+      errorMsg:
+        type: string
+    required:
+    - data
     - errorMsg
     type: object
   UserListResponseDoc:
@@ -18689,6 +18770,80 @@ paths:
       security:
       - BearerAuth: []
       summary: 开始删除账号验证
+      tags:
+      - auth
+  /me/identities/providers/{slug}/authorize:
+    post:
+      consumes:
+      - application/json
+      description: 为当前登录用户创建 PKCE 保护的绑定事务；外部身份源仅回调当前 DEEIX 实例，绑定在兑换时才生效
+      parameters:
+      - description: 身份源 slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: 授权桥参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/ProviderBindBridgeStartRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ProviderAuthBridgeStartResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 创建第三方身份绑定授权桥事务
+      tags:
+      - auth
+  /me/identities/providers/{slug}/exchange:
+    post:
+      consumes:
+      - application/json
+      description: 使用客户端 PKCE verifier 兑换绑定授权码，将身份绑到当前登录用户
+      parameters:
+      - description: 身份源 slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: 授权码兑换参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/ProviderAuthBridgeExchangeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/UserIdentityResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 兑换第三方身份绑定一次性授权码
       tags:
       - auth
   /me/onboarding/complete:

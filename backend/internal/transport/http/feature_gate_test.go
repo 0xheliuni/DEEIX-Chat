@@ -58,10 +58,13 @@ var gatedRoutes = []struct {
 	{"registration", "POST", "/auth/register/email/start"},
 	{"registration", "POST", "/auth/register/email/complete"},
 
-	{"identityProviders", "GET", "/auth/providers/github/start"},
-	{"identityProviders", "POST", "/auth/providers/github/callback"},
+	{"identityProviders", "POST", "/auth/providers/github/authorize"},
+	{"identityProviders", "GET", "/auth/providers/github/callback"},
+	{"identityProviders", "POST", "/auth/providers/github/exchange"},
 	{"identityProviders", "GET", "/me/identities"},
 	{"identityProviders", "DELETE", "/me/identities/1"},
+	{"identityProviders", "POST", "/me/identities/providers/acme/authorize"},
+	{"identityProviders", "POST", "/me/identities/providers/acme/exchange"},
 	{"identityProviders", "GET", "/admin/auth/providers"},
 	{"identityProviders", "POST", "/admin/auth/providers"},
 
