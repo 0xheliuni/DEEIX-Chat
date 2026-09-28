@@ -537,6 +537,36 @@ export interface BrandingResponseDoc {
   errorMsg: string;
 }
 
+export interface Capabilities {
+  /** AccountSecurity 密码、邮箱、两步验证、会话、注销账号。 */
+  accountSecurity: boolean;
+  /** Announcements 系统公告。 */
+  announcements: boolean;
+  /** BillingGating 计费规则可以拒绝请求：套餐、余额、兑换码、支付。 */
+  billingGating: boolean;
+  /** ContentModeration 内容审核。 */
+  contentModeration: boolean;
+  /** IdentityProviders 第三方登录与身份绑定。 */
+  identityProviders: boolean;
+  /** MultiUser 存在多个账号：账号管理、权限组。 */
+  multiUser: boolean;
+  /** Registration 可自行注册账号。 */
+  registration: boolean;
+  /** Sharing 对话公开分享链接；只监听回环的服务器没有可分享的对象。 */
+  sharing: boolean;
+  /** UsageMetering 记录用量与费用。 */
+  usageMetering: boolean;
+}
+
+export interface CapabilitiesResponse {
+  features: Capabilities;
+}
+
+export interface CapabilitiesResponseDoc {
+  data: CapabilitiesResponse;
+  errorMsg: string;
+}
+
 export interface ChannelErrorDoc {
   data: any;
   details?: any;
@@ -8285,6 +8315,23 @@ export namespace Branding {
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = BrandingManifestResponse;
+  }
+}
+
+export namespace Capabilities {
+  /**
+   * @description 返回这台服务器提供哪些功能。客户端据此决定显示什么；能力关闭的功能其端点返回 404 feature.disabled。
+   * @tags system
+   * @name CapabilitiesList
+   * @summary 查询服务器能力声明
+   * @request GET:/capabilities
+   */
+  export namespace CapabilitiesList {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = CapabilitiesResponseDoc;
   }
 }
 

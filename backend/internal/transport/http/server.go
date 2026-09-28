@@ -29,6 +29,7 @@ import (
 	promptpresethttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/promptpreset"
 	settingshttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/settings"
 	skillhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/skill"
+	systemhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/system"
 	uicomponenthttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/uicomponent"
 	userhttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/user"
 	usersettingshttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/usersettings"
@@ -121,16 +122,19 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 	}
 
 	api := engine.Group("/api/v1")
+	// 能力位关闭的功能整组返回 404 feature.disabled；见 docs/ARCHITECTURE.md §4。
+	gate := middleware.NewFeatureGate(cfg)
 	api.GET("/version", func(c *gin.Context) {
 		c.Header("Cache-Control", "no-store, no-cache, must-revalidate")
 		c.Header("Pragma", "no-cache")
 		c.JSON(http.StatusOK, buildinfo.Snapshot())
 	})
-	if modules.Auth != nil || modules.Settings != nil || modules.Billing != nil || modules.Conversation != nil || modules.User != nil || modules.Channel != nil {
+	{
 		publicAuth := api.Group("")
 		publicAuth.Use(middleware.PublicAuthRateLimit(limiter, cfg))
+		systemhttp.NewModule(systemhttp.NewHandler(cfg)).RegisterPublicRoutes(publicAuth)
 		if modules.Auth != nil {
-			modules.Auth.RegisterPublicRoutes(publicAuth)
+			modules.Auth.RegisterPublicRoutes(publicAuth, gate)
 			if snapshot.LocalMode {
 				modules.Auth.RegisterLocalRoutes(publicAuth)
 			}
@@ -142,13 +146,13 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 			modules.Channel.RegisterPublicRoutes(publicAuth)
 		}
 		if modules.Conversation != nil {
-			modules.Conversation.RegisterPublicRoutes(publicAuth)
+			modules.Conversation.RegisterPublicRoutes(publicAuth, gate)
 		}
 		if modules.Settings != nil {
 			modules.Settings.RegisterPublicRoutes(publicAuth)
 		}
 		if modules.Billing != nil {
-			modules.Billing.RegisterPublicRoutes(publicAuth)
+			modules.Billing.RegisterPublicRoutes(publicAuth, gate)
 		}
 	}
 
@@ -157,10 +161,10 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 	authRequired.Use(middleware.RateLimit(limiter, cfg))
 
 	if modules.Auth != nil {
-		modules.Auth.RegisterProtectedRoutes(authRequired)
+		modules.Auth.RegisterProtectedRoutes(authRequired, gate)
 	}
 	if modules.Conversation != nil {
-		modules.Conversation.RegisterRoutes(authRequired)
+		modules.Conversation.RegisterRoutes(authRequired, gate)
 	}
 	if modules.Channel != nil {
 		modules.Channel.RegisterRoutes(authRequired)
@@ -172,10 +176,10 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 		modules.MCP.RegisterRoutes(authRequired)
 	}
 	if modules.Billing != nil {
-		modules.Billing.RegisterRoutes(authRequired)
+		modules.Billing.RegisterRoutes(authRequired, gate)
 	}
 	if modules.Announcement != nil {
-		modules.Announcement.RegisterRoutes(authRequired)
+		modules.Announcement.RegisterRoutes(authRequired, gate)
 	}
 	if modules.PromptPreset != nil {
 		modules.PromptPreset.RegisterRoutes(authRequired)
@@ -202,16 +206,16 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 		adminGroup := authRequired.Group("/admin")
 		adminGroup.Use(middleware.AdminOnly())
 		if modules.Auth != nil {
-			modules.Auth.RegisterAdminRoutes(adminGroup)
+			modules.Auth.RegisterAdminRoutes(adminGroup, gate)
 		}
 		if modules.Admin != nil {
-			modules.Admin.RegisterRoutes(adminGroup)
+			modules.Admin.RegisterRoutes(adminGroup, gate)
 		}
 		if modules.ContentModeration != nil {
-			modules.ContentModeration.RegisterRoutes(adminGroup)
+			modules.ContentModeration.RegisterRoutes(adminGroup, gate)
 		}
 		if modules.Billing != nil {
-			modules.Billing.RegisterAdminRoutes(adminGroup)
+			modules.Billing.RegisterAdminRoutes(adminGroup, gate)
 		}
 		if modules.Channel != nil {
 			modules.Channel.RegisterAdminRoutes(adminGroup)
@@ -223,7 +227,7 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 			modules.Settings.RegisterAdminRoutes(adminGroup)
 		}
 		if modules.Announcement != nil {
-			modules.Announcement.RegisterAdminRoutes(adminGroup)
+			modules.Announcement.RegisterAdminRoutes(adminGroup, gate)
 		}
 		if modules.PromptPreset != nil {
 			modules.PromptPreset.RegisterAdminRoutes(adminGroup)

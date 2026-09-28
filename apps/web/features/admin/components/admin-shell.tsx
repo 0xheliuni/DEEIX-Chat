@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { AdminSectionGuard } from "@/features/admin/components/admin-section-guard";
 import { AdminSidebar } from "@/features/admin/components/admin-sidebar";
 import { CustomBrandAttribution } from "@/shared/components/powered-by-deeix";
 
@@ -16,7 +17,7 @@ export function AdminShell({
         <AdminSidebar basePath={basePath} />
         <main className="min-w-0 flex-1">
           <div className="mx-auto w-full min-w-0 max-w-[1080px] xl:pt-20">
-            {children}
+            <AdminSectionGuard basePath={basePath}>{children}</AdminSectionGuard>
           </div>
         </main>
       </div>

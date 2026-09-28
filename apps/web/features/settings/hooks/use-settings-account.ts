@@ -34,6 +34,7 @@ import type { ActiveSessionDTO, IdentityProviderDTO, SecurityVerificationMethod,
 import { resolveApiBaseURL } from "@/shared/api/http-client";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { clearSessionAndRedirectToLogin } from "@/shared/auth/session";
+import { useCapabilities } from "@/shared/capabilities";
 
 type UseSettingsAccountResult = {
   viewer: UserDTO | null;
@@ -117,6 +118,7 @@ async function createProviderPKCE() {
 }
 
 export function useSettingsAccount(): UseSettingsAccountResult {
+  const { flags: capabilities } = useCapabilities();
   const t = useTranslations("settings.accountPage.toasts");
   const translateError = useLocalizedErrorMessage();
   const [viewer, setViewer] = React.useState<UserDTO | null>(null);
@@ -196,7 +198,13 @@ export function useSettingsAccount(): UseSettingsAccountResult {
         return;
       }
 
-      const [nextViewer, sessionData, loginOptions, identityData, twoFactorData] = await Promise.all([getMe(token), getCurrentActiveSessions(token), getLoginOptions(), listCurrentUserIdentities(token), getCurrentTwoFactorStatus(token)]);
+      const [nextViewer, sessionData, loginOptions, identityData, twoFactorData] = await Promise.all([
+        getMe(token),
+        capabilities.accountSecurity ? getCurrentActiveSessions(token) : { results: [], total: 0 },
+        getLoginOptions(),
+        capabilities.identityProviders ? listCurrentUserIdentities(token) : { results: [] },
+        capabilities.accountSecurity ? getCurrentTwoFactorStatus(token) : null,
+      ]);
       setViewer(nextViewer);
       setSessions(sessionData.results);
       setIdentities(identityData.results);
@@ -208,7 +216,7 @@ export function useSettingsAccount(): UseSettingsAccountResult {
     } finally {
       setLoading(false);
     }
-  }, [t, translateError]);
+  }, [capabilities.accountSecurity, capabilities.identityProviders, t, translateError]);
 
   React.useEffect(() => {
     void loadAccountData();
@@ -497,14 +505,17 @@ export function useSettingsAccount(): UseSettingsAccountResult {
       const token = await resolveAccessToken();
       if (!token) throw new Error(t("sessionMissing"));
       await deleteCurrentUserIdentity(token, identity.id);
-      const [nextViewer, identityData] = await Promise.all([getMe(token), listCurrentUserIdentities(token)]);
+      const [nextViewer, identityData] = await Promise.all([
+        getMe(token),
+        capabilities.identityProviders ? listCurrentUserIdentities(token) : { results: [] },
+      ]);
       setViewer(nextViewer);
       setIdentities(identityData.results);
       toast.success(t("identityUnlinked"));
     } catch (error) {
       toast.error(t("unlinkIdentityFailed"), { description: translateError(error, t("retryLater")) });
     }
-  }, [t, translateError]);
+  }, [capabilities.identityProviders, t, translateError]);
 
   const handleStartTwoFactorSetup = React.useCallback(async () => {
     try {

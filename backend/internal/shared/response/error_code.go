@@ -21,6 +21,7 @@ const (
 	CodeAuthSessionInvalid       = "auth.session_invalid"
 	CodeResourceNotFound         = "resource.not_found"
 	CodeResourceConflict         = "resource.conflict"
+	CodeFeatureDisabled          = "feature.disabled"
 	CodeBillingPaymentRequired   = "billing.payment_required"
 	CodeBillingInsufficientFunds = "billing.insufficient_funds"
 	CodeBillingPricingRequired   = "billing.pricing_required"
@@ -57,6 +58,7 @@ var codeMessages = map[string]string{
 	CodeAuthSessionInvalid:       "session invalid",
 	CodeResourceNotFound:         "resource not found",
 	CodeResourceConflict:         "resource conflict",
+	CodeFeatureDisabled:          "this feature is not available on this server",
 	CodeBillingPaymentRequired:   "payment required",
 	CodeBillingInsufficientFunds: "insufficient balance",
 	CodeBillingPricingRequired:   "model pricing is required",
