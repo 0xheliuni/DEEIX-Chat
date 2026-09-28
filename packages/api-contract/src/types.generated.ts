@@ -605,24 +605,6 @@ export interface CircuitResetResponse {
   reset: boolean;
 }
 
-export interface CleanupConversationRunsRequest {
-  /**
-   * @maxItems 100
-   * @minItems 1
-   */
-  runIDs: string[];
-}
-
-export interface CleanupConversationRunsResponse {
-  deletedCount: number;
-  runCount: number;
-}
-
-export interface CleanupConversationRunsResponseDoc {
-  data: CleanupConversationRunsResponse;
-  errorMsg: string;
-}
-
 export interface CleanupLogsRequest {
   before: string;
   type: string;
@@ -3591,29 +3573,6 @@ export interface SyncUpstreamModelsResponseDoc {
   errorMsg: string;
 }
 
-export interface SystemEventListResponseDoc {
-  data: {
-    results: SystemEventResponse[];
-    total: number;
-  };
-  errorMsg: string;
-}
-
-export interface SystemEventResponse {
-  createdAt: string;
-  detailJSON: string;
-  event: string;
-  id: number;
-  level: string;
-  message: string;
-  requestID: string;
-  resource: string;
-  resourceID: string;
-  source: string;
-  traceID: string;
-  updatedAt: string;
-}
-
 export interface TemporaryChatHistoryMessage {
   /** @maxLength 200000 */
   content: string;
@@ -5265,22 +5224,6 @@ export namespace Admin {
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = ConversationEventListResponseDoc;
-  }
-
-  /**
-   * @description 物理删除指定运行的全部对话事件；保留消息、附件、调用与计费记录
-   * @tags admin
-   * @name ConversationEventsCleanupCreate
-   * @summary 管理员按运行清理对话事件
-   * @request POST:/admin/conversation-events/cleanup
-   * @secure
-   */
-  export namespace ConversationEventsCleanupCreate {
-    export type RequestParams = {};
-    export type RequestQuery = {};
-    export type RequestBody = CleanupConversationRunsRequest;
-    export type RequestHeaders = {};
-    export type ResponseBody = CleanupConversationRunsResponseDoc;
   }
 
   /**
@@ -7458,41 +7401,6 @@ export namespace Admin {
     export type RequestBody = PatchSkillRequest;
     export type RequestHeaders = {};
     export type ResponseBody = SkillResponseDoc;
-  }
-
-  /**
-   * @description 管理员分页查看后台结构化系统事件
-   * @tags admin
-   * @name SystemEventsList
-   * @summary 管理员查询系统事件
-   * @request GET:/admin/system-events
-   * @secure
-   */
-  export namespace SystemEventsList {
-    export type RequestParams = {};
-    export type RequestQuery = {
-      /** 创建时间起点(RFC3339) */
-      created_from?: string;
-      /** 创建时间终点(RFC3339) */
-      created_to?: string;
-      /** 事件 */
-      event?: string;
-      /** 级别 */
-      level?: string;
-      /** 页码 */
-      page?: number;
-      /** 每页数量 */
-      page_size?: number;
-      /** 搜索关键词 */
-      query?: string;
-      /** 排序方式 */
-      sort?: string;
-      /** 来源 */
-      source?: string;
-    };
-    export type RequestBody = never;
-    export type RequestHeaders = {};
-    export type ResponseBody = SystemEventListResponseDoc;
   }
 
   /**

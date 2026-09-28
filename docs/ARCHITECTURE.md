@@ -100,7 +100,7 @@ apps/*  →  packages/core  →  packages/api-contract  →  backend/docs/swagge
 | `identityProviders` | 第三方登录与身份绑定 | ❌ | `/auth/providers*`（公开与管理）、`/me/identities*` |
 | `accountSecurity` | 密码、邮箱、两步验证、会话、注销 | ❌ | `/auth/password/*`、`/auth/2fa/*`、`/me/2fa*`、`/me/email/*`、`/me/delete/*`、`DELETE /me`、`/auth/sessions*`、`/auth/logout-all` |
 | `announcements` | 系统公告 | ❌ | `/admin/announcements*`、`/announcements/:id/*`；**例外**：`GET /announcements` 返回空列表（老客户端轮询它） |
-| `billingGating` | 计费规则可以拒绝请求 | ❌ | `/billing/plans*`、`/billing/redemption*`、`/billing/payments/*`、`/billing/subscriptions`、`/admin/billing/accounts/*/balance`；`billing.mode` 与 `billing.payment_providers` 两个设置项锁定 |
+| `billingGating` | 计费规则可以拒绝请求 | ❌ | `/billing/plans*`、`/billing/redemption*`、`/billing/payments/*`、`/billing/subscriptions`、`/admin/billing/accounts/*/balance`、`/admin/payment-orders`、`/admin/redemptions`；`billing.mode` 与 `billing.payment_providers` 两个设置项锁定 |
 | `usageMetering` | 记录用量与费用 | ✅ | —— |
 | `contentModeration` | 内容审核 | ❌ | `/admin/content-moderation*` |
 | `sharing` | 对话公开分享 | ❌ | `/conversations/:id/share*`、`/conversations/shares/revoke`、`/shared-conversations/*` |

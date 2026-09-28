@@ -35,7 +35,6 @@ import (
 	appruntime "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/runtime"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/settings"
 	appskill "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/skill"
-	appsystemevent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/systemevent"
 	appuicomponent "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/uicomponent"
 	appupload "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/upload"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/user"
@@ -73,7 +72,6 @@ import (
 	promptpresetrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/promptpreset"
 	settingsrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/settings"
 	skillrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/skill"
-	systemeventrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/systemevent"
 	uicomponentrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/uicomponent"
 	userrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/user"
 	usersettingsrepo "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/usersettings"
@@ -232,8 +230,6 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	auditService := audit.NewService(auditRepo, log)
 	logCleanupRepo := logcleanuprepo.NewRepo(db)
 	logCleanupService := applogcleanup.NewService(logCleanupRepo, auditService)
-	systemEventRepo := systemeventrepo.NewRepo(db)
-	systemEventService := appsystemevent.NewService(systemEventRepo)
 
 	// 初始化 settings 模块：种子数据 + 动态配置覆盖
 	settingsRepo := settingsrepo.NewRepo(db)
@@ -435,13 +431,11 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	userHandler := userhttp.NewHandler(userService)
 	userModule := userhttp.NewModule(userHandler)
 	mcpService := appmcp.NewServiceWithRuntime(runtimeCfg, mcpRepo, mcpClient)
-	mcpService.SetSystemEventWriter(systemEventService)
 	mcpService.SetBillingModeProvider(billingService)
 	mcpHandler := mcphttp.NewHandler(mcpService)
 	mcpModule := mcphttp.NewModule(mcpHandler)
 	adminService := admin.NewService(userService, auditService)
 	adminService.SetAuthSecurityService(authService)
-	adminService.SetSystemEventService(systemEventService)
 	adminService.SetUsageLogService(billingService)
 	adminService.SetUsageStatisticsService(billingService)
 	adminService.SetOrderLogService(billingService)
