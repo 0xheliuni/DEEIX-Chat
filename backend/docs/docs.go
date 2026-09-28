@@ -13707,7 +13707,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "更新当前用户会话中的 assistant 消息内容，并标记为已编辑",
+                "description": "就地更新当前用户会话中的 user 或 assistant 消息内容并标记为已编辑，不触发重新生成",
                 "consumes": [
                     "application/json"
                 ],

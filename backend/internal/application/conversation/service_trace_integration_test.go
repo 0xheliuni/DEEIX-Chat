@@ -2,6 +2,7 @@ package conversation
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -28,7 +29,7 @@ func (r *assistantEditTraceRepository) GetMessageByPublicIDForUser(
 	return &item, nil
 }
 
-func (r *assistantEditTraceRepository) UpdateAssistantMessageContent(
+func (r *assistantEditTraceRepository) UpdateMessageContent(
 	_ context.Context,
 	_ uint,
 	_ string,
@@ -103,7 +104,7 @@ func TestAssistantEditResponseRetainsProcessTrace(t *testing.T) {
 		repo: repo,
 	}
 
-	updated, err := service.UpdateAssistantMessageContent(
+	updated, err := service.UpdateMessageContent(
 		context.Background(),
 		repo.message.UserID,
 		repo.message.PublicID,
@@ -234,5 +235,36 @@ func TestToolTraceRoundsSurviveReload(t *testing.T) {
 	}
 	if toolEvents[0].RoundID == toolEvents[1].RoundID {
 		t.Fatalf("expected distinct persisted round identities, got %#v", toolEvents)
+	}
+}
+
+func TestUpdateMessageContentAllowsUserAndAssistantOnly(t *testing.T) {
+	cases := []struct {
+		role    string
+		wantErr error
+	}{
+		{role: "user"},
+		{role: "assistant"},
+		{role: "system", wantErr: ErrMessageEditTargetInvalid},
+		{role: "tool", wantErr: ErrMessageEditTargetInvalid},
+	}
+	for _, tc := range cases {
+		repo := &assistantEditTraceRepository{
+			message: model.Message{ID: 1, ConversationID: 1, UserID: 9, PublicID: "message_" + tc.role, Role: tc.role, Status: "success", Content: "before"},
+		}
+		service := &Service{cfg: config.NewRuntime(config.Config{}), repo: repo}
+		updated, err := service.UpdateMessageContent(context.Background(), 9, repo.message.PublicID, "after")
+		if tc.wantErr != nil {
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("%s: got %v, want %v", tc.role, err, tc.wantErr)
+			}
+			continue
+		}
+		if err != nil {
+			t.Fatalf("%s: %v", tc.role, err)
+		}
+		if updated.Content != "after" || updated.EditedAt == nil {
+			t.Fatalf("%s: unexpected result %#v", tc.role, updated)
+		}
 	}
 }
