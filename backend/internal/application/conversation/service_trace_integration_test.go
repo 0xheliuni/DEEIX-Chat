@@ -97,8 +97,7 @@ func TestAssistantEditResponseRetainsProcessTrace(t *testing.T) {
 	}
 	service := &Service{
 		cfg: config.NewRuntime(config.Config{
-			ProcessTraceEnabled:       true,
-			ProcessTraceVisibleToUser: true,
+			ProcessTraceEnabled: true,
 		}),
 		repo: repo,
 	}
@@ -134,9 +133,7 @@ func TestCanceledTraceSettlementPersistsCompleteReasoningForReload(t *testing.T)
 
 	repo := persistenceconversation.NewRepo(db)
 	cfg := config.Config{
-		ProcessTraceEnabled:            true,
-		ProcessTraceVisibleToUser:      true,
-		ProcessTraceStoreUpstreamThink: true,
+		ProcessTraceEnabled: true,
 	}
 	service := &Service{cfg: config.NewRuntime(cfg), repo: repo}
 	assistant := &model.Message{
@@ -186,9 +183,7 @@ func TestToolTraceRoundsSurviveReload(t *testing.T) {
 
 	repo := persistenceconversation.NewRepo(db)
 	cfg := config.Config{
-		ProcessTraceEnabled:            true,
-		ProcessTraceVisibleToUser:      true,
-		ProcessTraceStoreUpstreamThink: true,
+		ProcessTraceEnabled: true,
 	}
 	service := &Service{cfg: config.NewRuntime(cfg), repo: repo}
 	assistant := &model.Message{

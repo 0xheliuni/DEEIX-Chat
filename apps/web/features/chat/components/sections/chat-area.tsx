@@ -127,6 +127,7 @@ type ChatAreaProps = {
   showLatency?: boolean;
   showTokenUsage?: boolean;
   showBillingCost?: boolean;
+  showProcessTrace?: boolean;
   billingDisplayCurrency?: BillingDisplayCurrency;
   billingDisplayUsdToCnyRate?: number | null;
   splitRightInset?: boolean;
@@ -288,6 +289,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   showLatency,
   showTokenUsage,
   showBillingCost,
+  showProcessTrace,
   billingDisplayCurrency,
   billingDisplayUsdToCnyRate,
   contentWidthClassName,
@@ -324,6 +326,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   showLatency: boolean;
   showTokenUsage: boolean;
   showBillingCost: boolean;
+  showProcessTrace: boolean;
   billingDisplayCurrency: BillingDisplayCurrency;
   billingDisplayUsdToCnyRate: number | null;
   contentWidthClassName: string;
@@ -426,6 +429,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
         showLatency={showLatency}
         showTokenUsage={showTokenUsage}
         showBillingCost={showBillingCost}
+        showProcessTrace={showProcessTrace}
         billingDisplayCurrency={billingDisplayCurrency}
         billingDisplayUsdToCnyRate={billingDisplayUsdToCnyRate}
         readOnly={readOnly}
@@ -460,6 +464,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   previous.showLatency === next.showLatency &&
   previous.showTokenUsage === next.showTokenUsage &&
   previous.showBillingCost === next.showBillingCost &&
+  previous.showProcessTrace === next.showProcessTrace &&
   previous.billingDisplayCurrency === next.billingDisplayCurrency &&
   previous.billingDisplayUsdToCnyRate === next.billingDisplayUsdToCnyRate &&
   previous.contentWidthClassName === next.contentWidthClassName &&
@@ -521,6 +526,7 @@ export function ChatArea({
   showLatency = true,
   showTokenUsage = true,
   showBillingCost = false,
+  showProcessTrace = true,
   billingDisplayCurrency = "USD",
   billingDisplayUsdToCnyRate = null,
   splitRightInset = false,
@@ -709,6 +715,7 @@ export function ChatArea({
                       showLatency={showLatency}
                       showTokenUsage={showTokenUsage}
                       showBillingCost={showBillingCost}
+                      showProcessTrace={showProcessTrace}
                       billingDisplayCurrency={billingDisplayCurrency}
                       billingDisplayUsdToCnyRate={billingDisplayUsdToCnyRate}
                       contentWidthClassName={contentWidthClassName}

@@ -431,6 +431,7 @@ export function useChatModelOptions({
   const showLatency = userSettings["chat.show_latency"] !== "false";
   const showTokenUsage = userSettings["chat.show_token_usage"] !== "false";
   const showBillingCost = billingCostAvailable && userSettings["chat.show_billing_cost"] !== "false";
+  const showProcessTrace = userSettings["chat.show_process_trace"] !== "false";
 
   const selectPlatformModelName = React.useCallback((platformModelName: string) => {
     userSelectedModelRef.current = true;
@@ -653,6 +654,7 @@ export function useChatModelOptions({
     showLatency,
     showTokenUsage,
     showBillingCost,
+    showProcessTrace,
     billingDisplayCurrency,
     billingDisplayUsdToCnyRate,
     modelOptionPolicy,
