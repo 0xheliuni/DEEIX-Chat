@@ -19,6 +19,7 @@ import { LayoutConversationNavigationProvider } from "@/features/layouts/context
 import { MobileHeaderActionProvider } from "@/features/layouts/context/mobile-header-action-context";
 import { AppearancePreferencesSync } from "@/features/settings";
 import { UserLocaleSync } from "@/i18n/user-locale-sync";
+import { FeatureGate } from "@/shared/capabilities";
 
 const AnnouncementDialogHost = dynamic(
   () => import("@/features/announcements").then((mod) => mod.AnnouncementDialogHost),
@@ -92,7 +93,9 @@ export function ProjectLayout({
       <UserLocaleSync />
       <AppearancePreferencesSync />
       <InitialSecurityGuard />
-      <AnnouncementDialogHost />
+      <FeatureGate feature="announcements">
+        <AnnouncementDialogHost />
+      </FeatureGate>
       <SidebarProvider className="h-svh overflow-hidden" defaultOpen={defaultSidebarOpen}>
         <LayoutConversationNavigationProvider>
           <SidebarConversationsProvider

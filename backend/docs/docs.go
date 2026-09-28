@@ -9931,6 +9931,26 @@ const docTemplate = `{
                 }
             }
         },
+        "/capabilities": {
+            "get": {
+                "description": "返回这台服务器提供哪些功能。客户端据此决定显示什么；能力关闭的功能其端点返回 404 feature.disabled。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "查询服务器能力声明",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/CapabilitiesResponseDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/context-artifacts/{id}": {
             "get": {
                 "security": [
@@ -17124,6 +17144,84 @@ const docTemplate = `{
             "properties": {
                 "data": {
                     "$ref": "#/definitions/BrandingResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "Capabilities": {
+            "type": "object",
+            "required": [
+                "accountSecurity",
+                "announcements",
+                "billingGating",
+                "contentModeration",
+                "identityProviders",
+                "multiUser",
+                "registration",
+                "sharing",
+                "usageMetering"
+            ],
+            "properties": {
+                "accountSecurity": {
+                    "description": "AccountSecurity 密码、邮箱、两步验证、会话、注销账号。",
+                    "type": "boolean"
+                },
+                "announcements": {
+                    "description": "Announcements 系统公告。",
+                    "type": "boolean"
+                },
+                "billingGating": {
+                    "description": "BillingGating 计费规则可以拒绝请求：套餐、余额、兑换码、支付。",
+                    "type": "boolean"
+                },
+                "contentModeration": {
+                    "description": "ContentModeration 内容审核。",
+                    "type": "boolean"
+                },
+                "identityProviders": {
+                    "description": "IdentityProviders 第三方登录与身份绑定。",
+                    "type": "boolean"
+                },
+                "multiUser": {
+                    "description": "MultiUser 存在多个账号：账号管理、权限组。",
+                    "type": "boolean"
+                },
+                "registration": {
+                    "description": "Registration 可自行注册账号。",
+                    "type": "boolean"
+                },
+                "sharing": {
+                    "description": "Sharing 对话公开分享链接；只监听回环的服务器没有可分享的对象。",
+                    "type": "boolean"
+                },
+                "usageMetering": {
+                    "description": "UsageMetering 记录用量与费用。",
+                    "type": "boolean"
+                }
+            }
+        },
+        "CapabilitiesResponse": {
+            "type": "object",
+            "required": [
+                "features"
+            ],
+            "properties": {
+                "features": {
+                    "$ref": "#/definitions/Capabilities"
+                }
+            }
+        },
+        "CapabilitiesResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/CapabilitiesResponse"
                 },
                 "errorMsg": {
                     "type": "string"

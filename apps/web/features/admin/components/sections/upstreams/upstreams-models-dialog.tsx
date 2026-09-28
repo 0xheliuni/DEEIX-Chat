@@ -102,6 +102,7 @@ import {
   type RowDraft,
 } from "@/features/admin/model/upstreams-models";
 import { PermissionGroupSelector } from "@/features/admin/components/sections/groups/permission-group-selector";
+import { FeatureGate } from "@/shared/capabilities";
 import {
   isUpstreamModelSyncAbort,
   UpstreamModelBindingsApplyError,
@@ -834,19 +835,21 @@ function RemoteModelsDialog({
                     className="bg-background pl-8"
                   />
                 </div>
-                <div className="min-w-0">
-                  <PermissionGroupSelector
-                    groups={permissionGroups}
-                    selectedIDs={permissionGroupIDs}
-                    disabled={loading || importing}
-                    loading={permissionGroupsLoading}
-                    triggerPrefix={t("modelsDialog.importPermissionGroups")}
-                    placeholder={t("modelsDialog.permissionGroupsPlaceholder")}
-                    emptyLabel={t("modelsDialog.permissionGroupsEmpty")}
-                    autoBadgeLabel={t("modelsDialog.permissionGroupsAutoBadge")}
-                    onSelectedIDsChange={setPermissionGroupIDs}
-                  />
-                </div>
+                <FeatureGate feature="multiUser">
+                  <div className="min-w-0">
+                    <PermissionGroupSelector
+                      groups={permissionGroups}
+                      selectedIDs={permissionGroupIDs}
+                      disabled={loading || importing}
+                      loading={permissionGroupsLoading}
+                      triggerPrefix={t("modelsDialog.importPermissionGroups")}
+                      placeholder={t("modelsDialog.permissionGroupsPlaceholder")}
+                      emptyLabel={t("modelsDialog.permissionGroupsEmpty")}
+                      autoBadgeLabel={t("modelsDialog.permissionGroupsAutoBadge")}
+                      onSelectedIDsChange={setPermissionGroupIDs}
+                    />
+                  </div>
+                </FeatureGate>
               </div>
               <div className="min-h-0 overflow-hidden px-5 py-2">
                 <Table

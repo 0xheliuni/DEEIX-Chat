@@ -332,6 +332,11 @@ func (h *Handler) Patch(c *gin.Context) {
 
 	data, err := h.service.BatchUpdate(c.Request.Context(), patchItems)
 	if err != nil {
+		var disabled *appsettings.FeatureDisabledError
+		if errors.As(err, &disabled) {
+			middleware.WriteFeatureDisabled(c, disabled.Feature, disabled.Keys...)
+			return
+		}
 		if errors.Is(err, appsettings.ErrInvalidSetting) {
 			writeSettingValidationError(c, err)
 			return

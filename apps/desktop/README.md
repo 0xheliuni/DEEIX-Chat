@@ -127,6 +127,10 @@ brew install mingw-w64
 CC=x86_64-w64-mingw32-gcc node scripts/build-sidecar.mjs --target x86_64-pc-windows-msvc
 ```
 
+Which features the local server offers is declared by `GET /api/v1/capabilities`
+and enforced by the server (`404 feature.disabled`); the web app renders from
+those flags and never checks the platform. See `docs/ARCHITECTURE.md` §4.
+
 ## Credential model
 
 The browser build keeps the refresh token in an HttpOnly cookie, so page script

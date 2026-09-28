@@ -20,6 +20,7 @@ type Service struct {
 	authSafety        authSafetyService
 	vectorStore       vectorStoreAvailabilityService
 	auditWriter       auditWriter
+	runtime           *config.Runtime
 }
 
 type authSafetyService interface {
@@ -336,6 +337,10 @@ func (s *Service) BatchUpdate(ctx context.Context, patches []PatchItem) (map[str
 		if err := validatePatchItem(p); err != nil {
 			return nil, err
 		}
+	}
+
+	if err := s.rejectLockedSettings(ctx, patches); err != nil {
+		return nil, err
 	}
 
 	patches, err := s.applyAuthSettingDependencies(ctx, patches)
