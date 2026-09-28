@@ -247,6 +247,7 @@ export function mapServerMessage(
       chunk_index: source.chunkIndex,
       score: source.score,
       preview: source.preview,
+      modality: source.modality === "image" ? "image" : "text",
     }));
     msg.processTrace = parseProcessTrace(item);
     const status = item.status.trim().toLowerCase();

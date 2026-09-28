@@ -286,6 +286,8 @@ var settingSpecs = []settingSpec{
 		Validate: boolValue(), Apply: applyField(func(c *config.Config) *bool { return &c.EmbeddingEnabled }, toBool)},
 	{Namespace: "file", Key: "embedding_host", ValueType: "string", Default: "", Description: "Embedding HTTP 服务地址，本地或远程均可",
 		Validate: optionalTrustedHTTPURL(), Apply: applyField(func(c *config.Config) *string { return &c.EmbeddingHost }, rawText)},
+	{Namespace: "file", Key: "embedding_protocol", ValueType: "string", Default: config.EmbeddingProtocolOpenAI, Description: "Embedding 请求协议：openai=OpenAI 兼容文本接口；gemini / voyage / jina 支持图片输入",
+		Validate: oneOf(config.EmbeddingProtocolOpenAI, config.EmbeddingProtocolGemini, config.EmbeddingProtocolVoyage, config.EmbeddingProtocolJina), Apply: applyField(func(c *config.Config) *string { return &c.EmbeddingProtocol }, rawText)},
 	{Namespace: "file", Key: "embedding_key", ValueType: "string", Default: "", Description: "Embedding HTTP 服务鉴权 Key，可留空", Sensitive: true,
 		Apply: applyField(func(c *config.Config) *string { return &c.EmbeddingKey }, rawText)},
 	{Namespace: "file", Key: "embedding_timeout_seconds", ValueType: "int", Default: "60", Description: "Embedding 请求超时时间(秒)",
