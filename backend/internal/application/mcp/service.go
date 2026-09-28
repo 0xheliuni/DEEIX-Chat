@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"strings"
 
-	systemeventapp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/systemevent"
 	domainmcp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/mcpauth"
@@ -41,7 +40,6 @@ type Service struct {
 	cfg                 *config.Runtime
 	repo                repository.MCPRepository
 	client              toolLister
-	systemEventWriter   systemEventWriter
 	billingModeProvider billingModeProvider
 }
 
@@ -58,10 +56,6 @@ type billingModeProvider interface {
 type ReorderServerInput struct {
 	ServerID uint
 	ToolIDs  []uint
-}
-
-type systemEventWriter interface {
-	Write(ctx context.Context, input systemeventapp.WriteInput)
 }
 
 type ServerInput struct {
@@ -94,11 +88,6 @@ type SyncServerToolsInput struct {
 // NewServiceWithRuntime 创建 MCP 应用服务。
 func NewServiceWithRuntime(cfg *config.Runtime, repo repository.MCPRepository, client toolLister) *Service {
 	return &Service{cfg: cfg, repo: repo, client: client}
-}
-
-// SetSystemEventWriter 注入系统事件写入器。
-func (s *Service) SetSystemEventWriter(writer systemEventWriter) {
-	s.systemEventWriter = writer
 }
 
 // SetBillingModeProvider 注入计费模式查询器。
@@ -160,20 +149,6 @@ func (s *Service) DeleteServer(ctx context.Context, serverID uint) error {
 func (s *Service) SyncServerTools(ctx context.Context, input SyncServerToolsInput) ([]domainmcp.Tool, error) {
 	serverID := input.ServerID
 	fail := func(err error) ([]domainmcp.Tool, error) {
-		s.writeToolSyncEvent(ctx, systemeventapp.WriteInput{
-			RequestID:  input.RequestID,
-			Level:      "error",
-			Source:     "mcp",
-			Event:      "mcp.tools_sync_failed",
-			Resource:   "mcp_server",
-			ResourceID: fmt.Sprintf("%d", serverID),
-			Message:    "MCP 工具同步失败",
-			Detail: map[string]any{
-				"server_id":  serverID,
-				"error":      "MCP 工具同步失败",
-				"error_code": mcpSyncErrorCode(err),
-			},
-		})
 		return nil, err
 	}
 
@@ -250,20 +225,6 @@ func (s *Service) SyncServerTools(ctx context.Context, input SyncServerToolsInpu
 	if err != nil {
 		return fail(err)
 	}
-	s.writeToolSyncEvent(ctx, systemeventapp.WriteInput{
-		RequestID:  input.RequestID,
-		Level:      "info",
-		Source:     "mcp",
-		Event:      "mcp.tools_synced",
-		Resource:   "mcp_server",
-		ResourceID: fmt.Sprintf("%d", serverID),
-		Message:    "MCP 工具已同步",
-		Detail: map[string]any{
-			"server_id":                     serverID,
-			"tool_count":                    len(result),
-			"overwrite_customized_metadata": input.OverwriteCustomizedMetadata,
-		},
-	})
 	return result, nil
 }
 
@@ -279,13 +240,6 @@ func removeSignedUserContextTemplates(headers map[string]string) map[string]stri
 		filtered[key] = value
 	}
 	return filtered
-}
-
-func mcpSyncErrorCode(err error) string {
-	if code := apperr.Code(err); code != "" {
-		return code
-	}
-	return "mcp.tools_sync_failed"
 }
 
 func preserveCompatibleToolAttachmentConfig(discovered *domainmcp.Tool, existing domainmcp.Tool) {
@@ -305,14 +259,6 @@ func preserveCompatibleToolAttachmentConfig(discovered *domainmcp.Tool, existing
 	discovered.AttachmentArgument = config.Argument
 	discovered.AttachmentEncoding = config.Encoding
 	discovered.AttachmentPromptArgument = config.PromptArgument
-}
-
-func (s *Service) writeToolSyncEvent(ctx context.Context, input systemeventapp.WriteInput) {
-	if s.systemEventWriter == nil {
-		return
-	}
-	input.RequestID = strings.TrimSpace(input.RequestID)
-	s.systemEventWriter.Write(ctx, input)
 }
 
 func (s *Service) ListTools(ctx context.Context, serverID uint, onlyActive bool) ([]domainmcp.Tool, error) {

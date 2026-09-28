@@ -1468,37 +1468,6 @@ definitions:
     required:
     - reset
     type: object
-  CleanupConversationRunsRequest:
-    properties:
-      runIDs:
-        items:
-          type: string
-        maxItems: 100
-        minItems: 1
-        type: array
-    required:
-    - runIDs
-    type: object
-  CleanupConversationRunsResponse:
-    properties:
-      deletedCount:
-        type: integer
-      runCount:
-        type: integer
-    required:
-    - deletedCount
-    - runCount
-    type: object
-  CleanupConversationRunsResponseDoc:
-    properties:
-      data:
-        $ref: '#/definitions/CleanupConversationRunsResponse'
-      errorMsg:
-        type: string
-    required:
-    - data
-    - errorMsg
-    type: object
   CleanupLogsRequest:
     properties:
       before:
@@ -8086,66 +8055,6 @@ definitions:
     - data
     - errorMsg
     type: object
-  SystemEventListResponseDoc:
-    properties:
-      data:
-        properties:
-          results:
-            items:
-              $ref: '#/definitions/SystemEventResponse'
-            type: array
-          total:
-            type: integer
-        required:
-        - results
-        - total
-        type: object
-      errorMsg:
-        type: string
-    required:
-    - data
-    - errorMsg
-    type: object
-  SystemEventResponse:
-    properties:
-      createdAt:
-        type: string
-      detailJSON:
-        type: string
-      event:
-        type: string
-      id:
-        type: integer
-      level:
-        type: string
-      message:
-        type: string
-      requestID:
-        type: string
-      resource:
-        type: string
-      resourceID:
-        type: string
-      source:
-        type: string
-      traceID:
-        type: string
-      updatedAt:
-        type: string
-    required:
-    - createdAt
-    - detailJSON
-    - event
-    - id
-    - level
-    - message
-    - requestID
-    - resource
-    - resourceID
-    - source
-    - traceID
-    - updatedAt
-    type: object
   TemporaryChatHistoryMessage:
     properties:
       content:
@@ -11455,38 +11364,6 @@ paths:
       security:
       - BearerAuth: []
       summary: 管理员查询对话事件详情
-      tags:
-      - admin
-  /admin/conversation-events/cleanup:
-    post:
-      consumes:
-      - application/json
-      description: 物理删除指定运行的全部对话事件；保留消息、附件、调用与计费记录
-      parameters:
-      - description: 运行轨迹清理参数
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/CleanupConversationRunsRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/CleanupConversationRunsResponseDoc'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/AdminErrorDoc'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/AdminErrorDoc'
-      security:
-      - BearerAuth: []
-      summary: 管理员按运行清理对话事件
       tags:
       - admin
   /admin/conversations/export:
@@ -15117,68 +14994,6 @@ paths:
       summary: 管理员更新内置技能
       tags:
       - admin-skills
-  /admin/system-events:
-    get:
-      consumes:
-      - application/json
-      description: 管理员分页查看后台结构化系统事件
-      parameters:
-      - description: 页码
-        in: query
-        name: page
-        type: integer
-      - description: 每页数量
-        in: query
-        name: page_size
-        type: integer
-      - description: 搜索关键词
-        in: query
-        name: query
-        type: string
-      - description: 级别
-        in: query
-        name: level
-        type: string
-      - description: 来源
-        in: query
-        name: source
-        type: string
-      - description: 事件
-        in: query
-        name: event
-        type: string
-      - description: 创建时间起点(RFC3339)
-        in: query
-        name: created_from
-        type: string
-      - description: 创建时间终点(RFC3339)
-        in: query
-        name: created_to
-        type: string
-      - description: 排序方式
-        in: query
-        name: sort
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/SystemEventListResponseDoc'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/AdminErrorDoc'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/AdminErrorDoc'
-      security:
-      - BearerAuth: []
-      summary: 管理员查询系统事件
-      tags:
-      - admin
   /admin/ui-components:
     get:
       consumes:

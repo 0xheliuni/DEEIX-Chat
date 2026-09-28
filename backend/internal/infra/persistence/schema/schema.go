@@ -57,7 +57,6 @@ func Models() []any {
 		&model.ModelPricing{},
 		&model.UsageLedger{},
 		&model.AuditLog{},
-		&model.SystemEvent{},
 		&model.Announcement{},
 		&model.AnnouncementUserState{},
 		&model.PromptPreset{},
