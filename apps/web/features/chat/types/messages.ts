@@ -35,6 +35,8 @@ export type RAGCitation = {
   chunk_index: number;
   score: number;
   preview: string;
+  /** "image" when the vector came from the file's pixels rather than extracted text. */
+  modality?: "text" | "image";
 };
 
 export type ChatTraceBlock = {

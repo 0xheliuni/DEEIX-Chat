@@ -714,6 +714,7 @@
     },
     "rag": {
       "sourceFallback": "片段来源 {fileID}",
+      "imageMatch": "按图片内容命中",
       "chunksShort": "{count} 段 · {scorePercent}%",
       "chunksTotal": "{count} 段",
       "retrievalSources": "检索来源",

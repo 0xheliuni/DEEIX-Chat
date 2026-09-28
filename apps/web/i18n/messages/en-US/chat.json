@@ -714,6 +714,7 @@
     },
     "rag": {
       "sourceFallback": "Chunk source {fileID}",
+      "imageMatch": "Matched by image content",
       "chunksShort": "{count} chunks · {scorePercent}%",
       "chunksTotal": "{count} chunks",
       "retrievalSources": "Retrieval sources",

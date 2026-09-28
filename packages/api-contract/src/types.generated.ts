@@ -1996,6 +1996,7 @@ export interface MessageKnowledgeSourceResponse {
   chunkIndex: number;
   fileID: string;
   fileName: string;
+  modality?: string;
   preview: string;
   score: number;
 }

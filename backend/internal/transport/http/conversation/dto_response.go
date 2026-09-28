@@ -834,6 +834,7 @@ type MessageKnowledgeSourceResponse struct {
 	ChunkIndex int     `json:"chunkIndex"`
 	Score      float32 `json:"score"`
 	Preview    string  `json:"preview"`
+	Modality   string  `json:"modality,omitempty"`
 }
 
 type MessageResponse struct {
@@ -1143,6 +1144,7 @@ func toMessageKnowledgeSourceResponses(items []model.MessageKnowledgeSource) []M
 			ChunkIndex: item.ChunkIndex,
 			Score:      item.Score,
 			Preview:    item.Preview,
+			Modality:   item.Modality,
 		})
 	}
 	return result

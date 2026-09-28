@@ -21656,6 +21656,9 @@ const docTemplate = `{
                 "fileName": {
                     "type": "string"
                 },
+                "modality": {
+                    "type": "string"
+                },
                 "preview": {
                     "type": "string"
                 },
