@@ -383,7 +383,8 @@ func applyFrontendCacheHeaders(c *gin.Context, requestPath string) {
 		return
 	}
 	if isNextExportDataAsset(requestPath) {
-		c.Header("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800")
+		// 导出的 RSC 载荷携带 buildId，与 HTML 页面一同失效；缓存旧载荷会让客户端路由退化为整页刷新。
+		c.Header("Cache-Control", "no-cache")
 		return
 	}
 	c.Header("Cache-Control", "public, max-age=3600")
@@ -399,8 +400,8 @@ func isVendorIconAsset(requestPath string) bool {
 }
 
 func isNextExportDataAsset(requestPath string) bool {
-	fileName := path.Base(requestPath)
-	return strings.HasPrefix(fileName, "__next.") && strings.EqualFold(path.Ext(fileName), ".txt")
+	// output: "export" 为每个页面写出同名 .txt（如 /setting/general.txt），并在根目录写出 __next.*.txt。
+	return strings.EqualFold(path.Ext(requestPath), ".txt")
 }
 
 func readyzHandler(hc HealthChecker, shutdown *lifecycle.Shutdown) gin.HandlerFunc {
