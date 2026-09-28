@@ -25,10 +25,8 @@ func (m *Module) RegisterPublicRoutes(api *gin.RouterGroup, gate middleware.Feat
 	accountSecurity.POST("/auth/password/reset/complete", m.Handler.CompletePasswordReset)
 
 	identityProviders := api.Group("", gate.Require("identityProviders"))
-	identityProviders.GET("/auth/providers/:slug/start", m.Handler.StartProviderLogin)
 	identityProviders.POST("/auth/providers/:slug/authorize", m.Handler.StartProviderAuthBridge)
 	identityProviders.GET("/auth/providers/:slug/callback", m.Handler.ProviderCallback)
-	identityProviders.POST("/auth/providers/:slug/callback", m.Handler.CompleteProviderLogin)
 	identityProviders.POST("/auth/providers/:slug/exchange", m.Handler.ExchangeProviderAuthBridgeGrant)
 }
 
@@ -65,7 +63,8 @@ func (m *Module) RegisterProtectedRoutes(authRequired *gin.RouterGroup, gate mid
 
 	identityProviders := authRequired.Group("", gate.Require("identityProviders"))
 	identityProviders.GET("/me/identities", m.Handler.ListCurrentUserIdentities)
-	identityProviders.POST("/me/identities/providers/:slug/callback", m.Handler.CompleteProviderBind)
+	identityProviders.POST("/me/identities/providers/:slug/authorize", m.Handler.StartProviderBindBridge)
+	identityProviders.POST("/me/identities/providers/:slug/exchange", m.Handler.ExchangeProviderBindBridgeGrant)
 	identityProviders.DELETE("/me/identities/:identity_id", m.Handler.DeleteCurrentUserIdentity)
 }
 

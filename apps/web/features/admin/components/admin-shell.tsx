@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { AdminProviderBridgeNotice } from "@/features/admin/components/admin-provider-bridge-notice";
 import { AdminSectionGuard } from "@/features/admin/components/admin-section-guard";
 import { AdminSidebar } from "@/features/admin/components/admin-sidebar";
 import { CustomBrandAttribution } from "@/shared/components/powered-by-deeix";
@@ -22,6 +23,7 @@ export function AdminShell({
         </main>
       </div>
 
+      <AdminProviderBridgeNotice basePath={basePath} />
       <CustomBrandAttribution className="fixed bottom-4 right-4" />
     </div>
   );

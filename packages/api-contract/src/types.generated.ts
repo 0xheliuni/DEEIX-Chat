@@ -2905,6 +2905,25 @@ export interface ProviderAuthBridgeStartResponseDoc {
   errorMsg: string;
 }
 
+export interface ProviderBindBridgeStartRequest {
+  /** @maxLength 128 */
+  clientID: string;
+  /**
+   * @minLength 43
+   * @maxLength 128
+   */
+  clientState: string;
+  /**
+   * @minLength 43
+   * @maxLength 128
+   */
+  codeChallenge: string;
+  /** @maxLength 2048 */
+  next?: string;
+  /** @maxLength 2048 */
+  redirectURI: string;
+}
+
 export interface PublicModelListResponseDoc {
   data: PublicModelResponse[];
   errorMsg: string;
@@ -4451,6 +4470,29 @@ export interface UserDataResponse {
 }
 
 export interface UserErrorDoc {
+  errorMsg: string;
+}
+
+export interface UserIdentityResponse {
+  email: string;
+  emailVerified: boolean;
+  id: number;
+  lastLoginAt: string | null;
+  linkedAt: string;
+  providerDisplayName: string;
+  providerID: number;
+  providerLogoURL: string;
+  providerName: string;
+  providerSlug: string;
+  providerType: string;
+}
+
+export interface UserIdentityResponseData {
+  identity: UserIdentityResponse;
+}
+
+export interface UserIdentityResponseDoc {
+  data: UserIdentityResponseData;
   errorMsg: string;
 }
 
@@ -9539,6 +9581,44 @@ export namespace Me {
     export type RequestBody = SecurityVerificationStartRequest;
     export type RequestHeaders = {};
     export type ResponseBody = EmailVerificationStartResponseDoc;
+  }
+
+  /**
+   * @description 为当前登录用户创建 PKCE 保护的绑定事务；外部身份源仅回调当前 DEEIX 实例，绑定在兑换时才生效
+   * @tags auth
+   * @name IdentitiesProvidersAuthorizeCreate
+   * @summary 创建第三方身份绑定授权桥事务
+   * @request POST:/me/identities/providers/{slug}/authorize
+   * @secure
+   */
+  export namespace IdentitiesProvidersAuthorizeCreate {
+    export type RequestParams = {
+      /** 身份源 slug */
+      slug: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = ProviderBindBridgeStartRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = ProviderAuthBridgeStartResponseDoc;
+  }
+
+  /**
+   * @description 使用客户端 PKCE verifier 兑换绑定授权码，将身份绑到当前登录用户
+   * @tags auth
+   * @name IdentitiesProvidersExchangeCreate
+   * @summary 兑换第三方身份绑定一次性授权码
+   * @request POST:/me/identities/providers/{slug}/exchange
+   * @secure
+   */
+  export namespace IdentitiesProvidersExchangeCreate {
+    export type RequestParams = {
+      /** 身份源 slug */
+      slug: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = ProviderAuthBridgeExchangeRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = UserIdentityResponseDoc;
   }
 
   /**
