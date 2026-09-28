@@ -9709,7 +9709,7 @@ export namespace Memories {
 
 export namespace Messages {
   /**
-   * @description 更新当前用户会话中的 assistant 消息内容，并标记为已编辑
+   * @description 就地更新当前用户会话中的 user 或 assistant 消息内容并标记为已编辑，不触发重新生成
    * @tags chat
    * @name MessagesPartialUpdate
    * @summary 更新消息内容
