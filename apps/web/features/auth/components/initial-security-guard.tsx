@@ -12,11 +12,8 @@ import { LogoCarousel, type LogoCarouselLogo } from "@/components/ui/logo-carous
 import { Onboarding } from "@/components/ui/onboarding";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SpinnerLabel } from "@/components/ui/spinner";
-import { dispatchUserProfileUpdated } from "@/features/settings/events/user-profile-events";
-import {
-  readLocalAppearancePreferences,
-  serializeAppearancePreferences,
-} from "@/features/settings/utils/appearance-preferences";
+import { dispatchUserProfileUpdated } from "@/shared/auth/user-profile-events";
+import { readLocalAppearancePreferences, serializeAppearancePreferences } from "@/features/settings";
 import {
   cancelCurrentTwoFactorSetup,
   completeOnboarding,
@@ -26,7 +23,7 @@ import {
   patchUsername,
   startCurrentTwoFactorSetup,
 } from "@/shared/api/auth";
-import type { TwoFactorSetupStartData, UserDTO } from "@/shared/api/auth.types";
+import type { TwoFactorSetupStartData, UserDTO } from "@/shared/api/auth-types";
 import {
   DISPLAY_NAME_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,

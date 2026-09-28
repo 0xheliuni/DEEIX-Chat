@@ -15,7 +15,7 @@ import type {
   AdminLLMModelDTO,
   AdminLLMModelVendorDeleteConflictDetails,
   AdminLLMModelVendorDTO,
-} from "@/features/admin/api/llm.types";
+} from "@/features/admin/api/llm-types";
 import { listAllAdminPages } from "@/features/admin/api/shared";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { ApiError } from "@/shared/api/http-client";

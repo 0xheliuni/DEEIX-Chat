@@ -1,4 +1,4 @@
-import type { SettingsGrouped } from "@/shared/api/settings.types";
+import type { SettingsGrouped } from "@/shared/api/settings-types";
 
 export type ConversationFieldType = "int" | "bool" | "string" | "password" | "textarea" | "json" | "select" | "tabs" | "button";
 

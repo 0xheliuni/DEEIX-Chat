@@ -3,7 +3,7 @@ import * as React from "react";
 import { toast } from "sonner";
 
 import { listAdminLLMSettings, updateAdminLLMSetting } from "@/features/admin/api";
-import type { AdminLLMSetting } from "@/features/admin/api/llm.types";
+import type { AdminLLMSetting } from "@/features/admin/api/llm-types";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 

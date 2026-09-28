@@ -36,7 +36,7 @@ import {
   listAdminPlatformFiles,
   uploadAdminKnowledgeBaseFile,
 } from "@/shared/api/knowledge-bases";
-import type { KnowledgeBaseFileDTO } from "@/shared/api/knowledge-bases.types";
+import type { KnowledgeBaseFileDTO } from "@/shared/api/knowledge-bases-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import type { PreviewDialogFile } from "@/shared/components/file-preview/preview-dialog";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";

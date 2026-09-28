@@ -11,7 +11,7 @@ import {
 import type {
   PatchSkillRequest,
   SkillDTO,
-} from "@/shared/api/skills.types";
+} from "@/shared/api/skills-types";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
 import { removeByID, replaceByID } from "@/shared/lib/optimistic-list";
 import {

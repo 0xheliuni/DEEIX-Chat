@@ -23,7 +23,7 @@ import { TwoFactorDialog } from "@/features/settings/components/sections/account
 import { SecurityVerificationDialog } from "@/features/settings/components/sections/account/account-verification-dialog";
 import { useSettingsAccount } from "@/features/settings/hooks/use-settings-account";
 import { shouldUseEmailBootstrap } from "@/features/settings/model/account-settings";
-import type { SecurityVerificationMethod } from "@/shared/api/auth.types";
+import type { SecurityVerificationMethod } from "@/shared/api/auth-types";
 import {
   SettingsPage,
   SettingsSectionSeparator,

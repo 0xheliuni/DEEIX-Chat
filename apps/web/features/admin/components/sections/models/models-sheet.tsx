@@ -69,7 +69,7 @@ import {
 } from "@/features/admin/api";
 import { getAdminOpenRouterOfficialPricing } from "@/features/admin/api/billing";
 import { listAllAdminPages } from "@/features/admin/api/shared";
-import type { AdminOfficialPricingCatalogItemDTO } from "@/features/admin/api/billing.types";
+import type { AdminOfficialPricingCatalogItemDTO } from "@/features/admin/api/billing-types";
 import { resolveAutomaticModelContextWindow } from "@/features/admin/model/openrouter-model-catalog";
 import {
   listModelPermissionGroups,
@@ -92,7 +92,7 @@ import type {
   AdminLLMUpstreamView,
   AdminLLMAdapter,
   UpdateAdminLLMModelRequest,
-} from "@/features/admin/api/llm.types";
+} from "@/features/admin/api/llm-types";
 
 import {
   ADAPTER_LABELS,
@@ -805,7 +805,7 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
           setContextWindowFallbackTokens(parsedValue);
         }
       } catch {
-        // 设置读取失败时保留系统默认值；已有模型仍优先使用后端返回的生效窗口。
+        // Keep system defaults if settings fail to load; existing models still prefer the effective window returned by the backend.
       }
     })();
     return () => {
@@ -866,8 +866,8 @@ export function ModelSheet({ open, mode, target, models, vendors, displayGroups,
           }
           capabilitiesJSON = nextCapabilitiesJSON;
         } else if (!isSameContextWindowTarget(target, form.platformModelName, form.vendor)) {
-          // 自动值只属于保存时匹配到的模型身份。切换型号或厂商后目录临时
-          // 不可用时必须移除旧值，由后端内置目录或全局回退值接管。
+          // Auto values belong only to the model identity matched at save time. If the model or vendor changes and the catalog is temporarily
+          // unavailable, the old value must be removed so the backend built-in catalog or global fallback takes over.
           const nextCapabilitiesJSON = setAutomaticModelContextWindowInCapabilities(
             capabilitiesJSON,
             null,

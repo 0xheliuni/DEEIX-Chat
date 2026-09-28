@@ -20,7 +20,7 @@ import { SpinnerLabel } from "@/components/ui/spinner";
 import type {
   ImportOpenWebUIUsersData,
   ImportOpenWebUIUsersRequest,
-} from "@/features/admin/api/admin.types";
+} from "@/features/admin/api/admin-types";
 
 type AccountOpenWebUIImportDialogProps = {
   open: boolean;

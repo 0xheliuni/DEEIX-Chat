@@ -19,8 +19,8 @@ import {
   revokeAdminUserSessions,
   updateAdminBillingAccountBalance,
 } from "@/features/admin/api";
-import type { AdminUserDTO, AdminUserRole, AdminUserStatus } from "@/features/admin/api/admin.types";
-import type { AdminBillingMode, AdminBillingPlanDTO } from "@/features/admin/api/billing.types";
+import type { AdminUserDTO, AdminUserRole, AdminUserStatus } from "@/features/admin/api/admin-types";
+import type { AdminBillingMode, AdminBillingPlanDTO } from "@/features/admin/api/billing-types";
 import {
   isDisplayNameLengthValid,
   isPasswordPolicyValid,

@@ -10,7 +10,7 @@ import { formatTokenCount } from "@/features/settings/model/subscription-format"
 import { useAppLocale } from "@/i18n/app-i18n-provider";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { getUserActivity } from "@/shared/api/stats";
-import type { UserActivityDailyDTO } from "@/shared/api/stats.types";
+import type { UserActivityDailyDTO } from "@/shared/api/stats-types";
 import { ActivityHeatmapSkeleton } from "./activity-heatmap-skeleton";
 
 export type ActivityMetric = "tokens" | "requests";
@@ -43,7 +43,7 @@ const HEATMAP_CELL_CLASS = [
   "bg-green-600 dark:bg-green-500",
 ] as const;
 
-// 与 LobeHub 的分档一致：tokens 相对峰值归一化，消息数固定步进。
+// Same tiers as LobeHub: tokens normalized relative to the peak, message counts use fixed steps.
 function resolveLevel(value: number, isTokenMetric: boolean, peakTokens: number): number {
   if (value <= 0) return 0;
   const level = isTokenMetric
@@ -64,7 +64,7 @@ function sortActivityDays(items: UserActivityDailyDTO[]): ActivityDay[] {
   return items.map(parseActivityDay).sort((left, right) => left.date.localeCompare(right.date));
 }
 
-// GitHub 风格周列：第一列按周日对齐，不足的格子前置补空。
+// GitHub-style week columns: the first column aligns to Sunday, with leading empty cells as padding.
 function buildHeatmapWeeks(days: ActivityDay[]): HeatmapWeek[] {
   if (days.length === 0) return [];
   const leadingEmpty = new Date(`${days[0].date}T00:00:00`).getDay();
@@ -78,7 +78,7 @@ function buildHeatmapWeeks(days: ActivityDay[]): HeatmapWeek[] {
   return weeks;
 }
 
-// 过去一年固定按 12 个月等分展示刻度，避免月份天数差异造成标签疏密不一。
+// Ticks for the past year are split evenly into 12 months, so varying month lengths don't make label spacing uneven.
 function buildMonthLabels(days: ActivityDay[], locale: string): string[] {
   if (days.length === 0) return [];
   const formatter = new Intl.DateTimeFormat(locale, { month: "short" });
@@ -105,7 +105,7 @@ function computeActivityStats(days: ActivityDay[]): ActivityStats {
       runningStreak = 0;
     }
   }
-  // 今日尚未结束：末尾为 0 时从昨天起算连续天数。
+  // Today isn't over yet: if the last day is 0, count the streak from yesterday.
   let cursor = days.length - 1;
   if (cursor >= 0 && days[cursor].requests === 0) cursor -= 1;
   let currentStreak = 0;
@@ -205,8 +205,8 @@ export function SubscriptionActivityHeatmap({ accessToken }: { accessToken: stri
           <div className="flex h-[104px] items-center justify-center text-xs text-muted-foreground">{t("empty")}</div>
         ) : (
           <div className="overflow-x-auto pb-1">
-            {/* GitHub 风格：周列 flex-1 等宽铺满卡片，格子 aspect-square 随宽度伸缩；窄屏保持最小可读宽度横向滚动。
-                注意不能用 grid-auto-flow:column + 隐式行（Chromium 会把格子的百分比/宽高比尺寸解析成 0）。 */}
+            {/* GitHub style: week columns are flex-1 equal width filling the card, cells are aspect-square and scale with width; narrow screens keep a minimum readable width and scroll horizontally.
+                Note: grid-auto-flow:column + implicit rows can't be used (Chromium resolves the cells' percentage/aspect-ratio sizes to 0). */}
             <div className="min-w-[640px] space-y-1">
               <div className="grid grid-cols-12 text-[10px] leading-none text-muted-foreground">
                 {monthLabels.map((label, index) => (

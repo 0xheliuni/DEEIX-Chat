@@ -28,7 +28,7 @@ import {
   revealAdminRedemptionCode,
   updateAdminRedemptionCode,
 } from "@/features/admin/api";
-import type { AdminBillingMode, AdminBillingPlanDTO, AdminRedemptionCodeDTO } from "@/features/admin/api/billing.types";
+import type { AdminBillingMode, AdminBillingPlanDTO, AdminRedemptionCodeDTO } from "@/features/admin/api/billing-types";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import {
   DEFAULT_PAGE_SIZE,

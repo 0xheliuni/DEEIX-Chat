@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import type { UIComponentDTO } from "@/shared/api/ui-components.types";
+import type { UIComponentDTO } from "@/shared/api/ui-components-types";
 import { createRegistry, type UIBlockDefinition, type UIBlockRegistry } from "./block";
 import { calculatorDefinition } from "./calculator";
 import { cardGridDefinition } from "./card-grid";

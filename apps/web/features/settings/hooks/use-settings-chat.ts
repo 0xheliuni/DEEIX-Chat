@@ -12,9 +12,9 @@ import {
 } from "@/features/settings/utils/chat-settings";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { getBillingConfig } from "@/shared/api/billing";
-import type { BillingMode } from "@/shared/api/billing.types";
+import type { BillingMode } from "@/shared/api/billing-types";
 import { listPublicModels } from "@/shared/api/model";
-import type { PublicModelDTO } from "@/shared/api/model.types";
+import type { PublicModelDTO } from "@/shared/api/model-types";
 import { getChatContextPolicy } from "@/shared/api/settings";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
 import {

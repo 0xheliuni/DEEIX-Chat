@@ -27,7 +27,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useVirtualTableRows, VirtualTablePaddingRow } from "@/components/ui/virtual-table";
-import type { AdminLLMUpstreamView } from "@/features/admin/api/llm.types";
+import type { AdminLLMUpstreamView } from "@/features/admin/api/llm-types";
 import { resolveCompatibleLabel, resolveProtocolLabel } from "@/features/admin/utils/llm-display";
 
 // ---------------------------------------------------------------------------

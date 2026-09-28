@@ -144,7 +144,7 @@ func TestStreamingToolUpdatesKeepLatestSnapshotAndThrottleSideEffects(t *testing
 		t.Fatalf("expected memory snapshot to retain latest tool input, got %#v", events)
 	}
 
-	// Terminal state bypasses both throttles so clients and durable storage see completion immediately.
+	// 终态会绕过两种节流，使客户端与持久存储立即看到完成状态。
 	recorder.service = nil
 	streamTool(`{"query":"second"}`, "success")
 	if emitted != 2 {

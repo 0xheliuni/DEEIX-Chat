@@ -153,5 +153,9 @@
     "description": "刷新网页后即可使用最新版本。",
     "prerelease": "预览版",
     "stable": "正式版"
+  },
+  "attribution": {
+    "poweredBy": "技术支持",
+    "githubLink": "GitHub 上的 DEEIX Chat"
   }
 }

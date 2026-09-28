@@ -266,8 +266,8 @@ export function resolveConversationComposerKey(conversationID: string | null): s
   return conversationID?.trim() || NEW_CONVERSATION_COMPOSER_KEY;
 }
 
-// 新对话草稿与历史会话草稿同属一个 store（key 为 __new__），"新对话"按钮只切换会话 key，
-// 不删除已持久化的条目；切回新对话时由 hydration 从 storage 恢复，提交时由 setDraft("") 写空清除。
+// New-chat and existing-conversation drafts share one store (key __new__); the "New chat" button only switches the conversation key
+// and doesn't delete persisted entries. Switching back to a new chat restores via hydration from storage; submit clears it with setDraft("").
 export function useChatComposerState(
   conversationID: string | null,
   {

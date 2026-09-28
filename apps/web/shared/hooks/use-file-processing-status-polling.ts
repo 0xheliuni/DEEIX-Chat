@@ -4,7 +4,7 @@ import * as React from "react";
 
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { getFileProcessingStatuses } from "@/shared/api/file";
-import type { FileProcessingStatusDTO } from "@/shared/api/file.types";
+import type { FileProcessingStatusDTO } from "@/shared/api/file-types";
 
 type FileStatus = {
   fileID: string;

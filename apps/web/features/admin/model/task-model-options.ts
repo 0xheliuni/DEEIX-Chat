@@ -1,4 +1,4 @@
-import type { AdminLLMModelDTO } from "@/features/admin/api/llm.types";
+import type { AdminLLMModelDTO } from "@/features/admin/api/llm-types";
 import type { ModelSelectOption } from "@/shared/components/model-select";
 import {
   isRoutableChatPlatformModel,

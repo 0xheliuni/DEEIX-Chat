@@ -1,6 +1,6 @@
 import type { UpsertIdentityProviderRequest } from "@deeix/api-contract";
-import type { IdentityProviderDTO } from "@/shared/api/auth.types";
-import type { SettingsGrouped } from "@/shared/api/settings.types";
+import type { IdentityProviderDTO } from "@/shared/api/auth-types";
+import type { SettingsGrouped } from "@/shared/api/settings-types";
 
 export type IdentityProviderForm = Omit<UpsertIdentityProviderRequest, "loginEnabled" | "registrationEnabled"> & {
   loginEnabled: boolean;

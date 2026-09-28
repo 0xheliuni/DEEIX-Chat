@@ -21,7 +21,7 @@ import {
   HatGlassesIcon,
 } from "@/components/ui/hat-glasses";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useMobileHeaderActionSlot } from "@/features/layouts/context/mobile-header-action-context";
+import { useMobileHeaderActionSlot } from "@/features/layouts";
 import { cn } from "@/lib/utils";
 
 function TemporaryModeButton({

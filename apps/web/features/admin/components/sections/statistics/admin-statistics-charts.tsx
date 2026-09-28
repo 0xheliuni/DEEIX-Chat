@@ -376,7 +376,7 @@ function isStatisticsStackedChartPoint(value: unknown): value is StatisticsStack
   return typeof value === "object" && value !== null && "segments" in value && Array.isArray(value.segments);
 }
 
-// 返回该列在当前图例可见性下、数值大于 0 的最顶部分段 key，决定顶部圆角落在哪个分段。
+// Returns the key of the topmost segment in this column that is visible under the current legend and > 0; it gets the top rounded corners.
 function stackedColumnTopSegmentKey(payload: unknown, hiddenSeries: ReadonlySet<string>): string | undefined {
   if (!isStatisticsStackedChartPoint(payload)) return undefined;
   for (let index = payload.segments.length - 1; index >= 0; index -= 1) {
@@ -509,7 +509,7 @@ function StatisticsStackedTrendChart({
     () => series.map((item) => ({ id: item.id, label: item.label, title: item.fullLabel, color: item.color })),
     [series],
   );
-  // 顶部圆角按每根柱当前可见的最顶部分段绘制，而不是固定给某个系列。
+  // Top rounded corners go on each bar's topmost currently visible segment, not on a fixed series.
   const seriesBarShapes = React.useMemo(
     () =>
       new Map(

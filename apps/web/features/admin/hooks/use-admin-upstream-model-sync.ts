@@ -13,7 +13,7 @@ import type {
   ImportAdminLLMUpstreamModelsRequest,
   ListAdminLLMRemoteModelsData,
   SyncAdminLLMUpstreamModelsData,
-} from "@/features/admin/api/llm.types";
+} from "@/features/admin/api/llm-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { useCapabilities } from "@/shared/capabilities";
 
@@ -55,7 +55,7 @@ function throwIfAborted(signal: AbortSignal) {
   throw error;
 }
 
-export function useUpstreamModelSync(open: boolean, upstreamID: number | null) {
+export function useAdminUpstreamModelSync(open: boolean, upstreamID: number | null) {
   const { flags: capabilities } = useCapabilities();
   const [catalog, setCatalog] = React.useState<ListAdminLLMRemoteModelsData | null>(null);
   const [catalogLoading, setCatalogLoading] = React.useState(false);

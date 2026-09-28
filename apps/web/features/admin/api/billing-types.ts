@@ -26,7 +26,7 @@ import type {
   UpdateBillingPlanRequest,
   UpsertModelPricingRequest,
 } from "@deeix/api-contract";
-import type { PagePayload } from "@/shared/api/common.types";
+import type { PagePayload } from "@/shared/api/common-types";
 
 export type AdminBillingPlanPriceDTO = BillingPriceResponse;
 

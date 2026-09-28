@@ -16,6 +16,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -918,8 +919,9 @@ func (r *Repo) ListRedemptionCodes(ctx context.Context, filter repository.Redemp
 	if limit <= 0 {
 		limit = 20
 	}
-	if limit > 200 {
-		limit = 200
+	// 上限与上层 pagination 校验保持一致，避免静默截断导致分页偏移跳过记录。
+	if limit > pagination.MaxPageSize {
+		limit = pagination.MaxPageSize
 	}
 	items := make([]model.RedemptionCode, 0)
 	var total int64
@@ -1003,8 +1005,9 @@ func (r *Repo) ListRedemptions(ctx context.Context, filter repository.Redemption
 	if limit <= 0 {
 		limit = 20
 	}
-	if limit > 200 {
-		limit = 200
+	// 上限与上层 pagination 校验保持一致，避免静默截断导致分页偏移跳过记录。
+	if limit > pagination.MaxPageSize {
+		limit = pagination.MaxPageSize
 	}
 	query := r.db.WithContext(ctx).Model(&model.Redemption{}).
 		Joins("LEFT JOIN billing_redemption_codes AS rc ON rc.id = billing_redemptions.code_id").

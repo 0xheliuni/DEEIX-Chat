@@ -40,7 +40,7 @@ import {
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { listUserMemories, upsertUserMemory, deleteUserMemory } from "@/shared/api/memory";
-import type { UserMemoryDTO } from "@/shared/api/memory.types";
+import type { UserMemoryDTO } from "@/shared/api/memory-types";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { useFeaturePolicy } from "@/shared/hooks/use-feature-policy";
 import { ModelSelect, type ModelSelectOption } from "@/shared/components/model-select";

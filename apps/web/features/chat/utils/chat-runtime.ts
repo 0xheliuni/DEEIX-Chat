@@ -1,4 +1,4 @@
-import type { UpstreamDebugInfo } from "@/shared/api/conversation.types";
+import type { UpstreamDebugInfo } from "@/shared/api/conversation-types";
 import { resolveLocalizedErrorMessage } from "@/i18n/resolve-error-message";
 
 const DEFAULT_MAX_FILES_PER_MESSAGE = 10;

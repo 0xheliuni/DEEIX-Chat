@@ -50,7 +50,7 @@ import type {
 } from "@/features/layouts/types/navigation";
 import { useSettingsChatPreferences } from "@/features/settings";
 import { cn } from "@/lib/utils";
-import type { ConversationDTO } from "@/shared/api/conversation.types";
+import type { ConversationDTO } from "@/shared/api/conversation-types";
 import { CollapsibleMotionContent } from "@/shared/components/collapsible-motion-content";
 import { DeleteFilesOption } from "@/shared/components/delete-files-option";
 import { LoadingReveal } from "@/shared/components/loading-reveal";

@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { AdminLLMAdapter, AdminLLMModelDTO } from "@/features/admin/api/llm.types";
+import type { AdminLLMAdapter, AdminLLMModelDTO } from "@/features/admin/api/llm-types";
 import { cn } from "@/lib/utils";
 import { MODEL_OPTION_POLICY_PROTOCOL_LABELS, resolveModelOptionPolicyProtocol } from "@/shared/lib/model-option-policy";
 import { parseProtocolsJSON } from "@/shared/lib/model-protocols";
@@ -93,7 +93,7 @@ const XAI_IMAGE_OPTION_CONTROLS = [
   },
 ];
 
-// OpenRouter 统一图片端点的枚举取值来自其 Image API OpenAPI 定义（ImageGenerationRequest）。
+// Enum values for OpenRouter's unified image endpoint come from its Image API OpenAPI spec (ImageGenerationRequest).
 const OPENROUTER_IMAGE_ASPECT_RATIOS = [
   "auto",
   "1:1",
@@ -120,7 +120,7 @@ const OPENROUTER_IMAGE_ASPECT_RATIOS = [
 ];
 const OPENROUTER_IMAGE_RESOLUTIONS = ["512", "1K", "2K", "4K"];
 const OPENROUTER_IMAGE_QUALITIES = ["auto", "low", "medium", "high", "xhigh", "max"];
-// svg 为矢量输出，媒体落库链路不支持，后端也会丢弃，因此不在预设中提供。
+// svg is vector output, which the media persistence pipeline doesn't support (the backend drops it), so it is not offered as a preset.
 const OPENROUTER_IMAGE_OUTPUT_FORMATS = ["png", "jpeg", "webp"];
 
 const OPENROUTER_IMAGE_OPTION_CONTROLS = [

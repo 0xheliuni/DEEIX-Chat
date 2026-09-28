@@ -16,7 +16,7 @@ import { PreviewSheet } from "@/shared/components/file-preview/preview-sheet";
 import { PreviewText } from "@/shared/components/file-preview/preview-text";
 import type { FileExtractState } from "@/features/files/hooks/use-file-extract";
 import type { FilePreviewState } from "@/features/files/hooks/use-file-preview";
-import type { FileObjectDTO } from "@/shared/api/file.types";
+import type { FileObjectDTO } from "@/shared/api/file-types";
 import { cn } from "@/lib/utils";
 
 type ContentPreviewProps = {

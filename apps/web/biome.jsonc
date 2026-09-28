@@ -116,8 +116,7 @@
     {
       "includes": [
         "components/ui/live-waveform.tsx",
-        "components/ui/virtual-table.tsx",
-        "shared/components/file-preview/preview-document.tsx"
+        "components/ui/virtual-table.tsx"
       ],
       "linter": {
         "rules": {

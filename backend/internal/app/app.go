@@ -597,8 +597,8 @@ func (a *App) Run() error {
 }
 
 // Serve 在已绑定的监听器上服务，直到收到终止信号；随后分阶段排空。
-// RequestShutdown triggers the same graceful drain as SIGTERM. Safe to call
-// more than once; used by local mode when the desktop shell goes away.
+// RequestShutdown 触发与 SIGTERM 相同的优雅排空流程，可安全重复调用；
+// 本地模式下桌面壳退出时使用。
 func (a *App) RequestShutdown() {
 	a.stopOnce.Do(func() { close(a.stopCh) })
 }
@@ -680,7 +680,7 @@ func (a *App) Close() {
 	if a.backgroundCancel != nil {
 		a.backgroundCancel()
 	}
-	// Workers must be drained before their dependencies (cache, database) close.
+	// Workers 必须在其依赖（cache、database）关闭前排空。
 	if a.contentModeration != nil {
 		a.contentModeration.Stop()
 	}

@@ -32,7 +32,7 @@ import {
 } from "@/features/admin/model/conversation-settings";
 import { buildTaskModelOptions } from "@/features/admin/model/task-model-options";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
-import type { PatchSettingItem } from "@/shared/api/settings.types";
+import type { PatchSettingItem } from "@/shared/api/settings-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import {
   SettingsFieldInset,

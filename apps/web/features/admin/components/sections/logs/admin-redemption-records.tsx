@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/table";
 import { TablePagination, TableToolbar } from "@/components/ui/table-tools";
 import { useVirtualTableRows, VirtualTablePaddingRow } from "@/components/ui/virtual-table";
-import type { AdminRedemptionRecordDTO } from "@/features/admin/api/admin.types";
+import type { AdminRedemptionRecordDTO } from "@/features/admin/api/admin-types";
 import { AdminDateRangeFilter } from "@/features/admin/components/admin-date-range-filter";
 import {
   REDEMPTION_SORT_OPTIONS,
@@ -29,7 +29,7 @@ import { formatDateTime, resolveUserDisplayName } from "@/features/admin/model/l
 import { formatTooltipUsageCost, formatUsageBalance } from "@/features/admin/model/usage-log-billing";
 import type { BillingDisplayOptions } from "@/shared/lib/billing-display";
 
-// nanousd 转 USD，供余额展示复用现有格式化函数。
+// Convert nanousd to USD so balance display can reuse the existing formatters.
 function nanousdToUSD(value: number | null | undefined): number | null {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return null;

@@ -1,7 +1,7 @@
 "use client";
 
 import { type AuthHost, type SessionStore, classifyAuthError, createAuthClient } from "@deeix/core";
-import type { LoginData } from "@/shared/api/auth.types";
+import type { LoginData } from "@/shared/api/auth-types";
 import { ApiError, apiRequest } from "@/shared/api/http-client";
 import { clearSessionSnapshot, readAccessToken, readSessionRevision, writeSessionSnapshot } from "@/shared/auth/session";
 import { isDesktopApp } from "@/shared/platform";

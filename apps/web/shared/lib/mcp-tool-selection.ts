@@ -1,4 +1,4 @@
-import type { MCPToolDTO } from "@/shared/api/mcp.types";
+import type { MCPToolDTO } from "@/shared/api/mcp-types";
 
 export function hasMultipleImageAttachmentProcessors(toolIDs: number[], tools: MCPToolDTO[]): boolean {
   const selectedIDs = new Set(toolIDs);

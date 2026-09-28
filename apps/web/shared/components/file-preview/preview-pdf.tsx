@@ -256,8 +256,8 @@ export function PreviewPdf({ source, toolbarContainer, showLoading = true, onLoa
         canvas.style.height = `${viewport.height}px`;
         context.setTransform(ratio, 0, 0, ratio, 0, 0);
 
-        // 预先对 context 做了 devicePixelRatio 变换，走 canvasContext 兼容路径；
-        // pdfjs v6 要求此时 canvas 显式传 null。
+        // The context already has the devicePixelRatio transform applied, so take the canvasContext compatibility path;
+        // pdfjs v6 requires canvas to be passed explicitly as null in this case.
         const renderTask = page.render({
           canvas: null,
           canvasContext: context,

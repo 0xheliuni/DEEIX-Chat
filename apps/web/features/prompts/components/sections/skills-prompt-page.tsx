@@ -46,7 +46,7 @@ import {
   useSkillsPromptPage,
 } from "@/features/prompts/hooks/use-skills-prompt-page";
 import { cn } from "@/lib/utils";
-import type { PromptPresetDTO } from "@/shared/api/prompt-presets.types";
+import type { PromptPresetDTO } from "@/shared/api/prompt-presets-types";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { PROMPT_PRESET_LIMITS } from "@/shared/model/prompt-presets";
 

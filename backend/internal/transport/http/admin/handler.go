@@ -1039,6 +1039,20 @@ func (h *Handler) ResetUserPassword(c *gin.Context) {
 	response.Success(c, ResetUserPasswordResponse{Reset: true})
 }
 
+// ResetUserTwoFactor godoc
+// @Summary 管理员重置用户双因素认证
+// @Description 管理员清除指定用户的 TOTP 与恢复码并吊销其全部会话；不允许重置超级管理员
+// @Tags admin
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "用户ID"
+// @Success 200 {object} ResetUserTwoFactorResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 403 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 409 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /admin/users/{id}/reset-2fa [post]
 func (h *Handler) ResetUserTwoFactor(c *gin.Context) {
 	actorUserID := middleware.MustUserID(c)
 	rawID := c.Param("id")

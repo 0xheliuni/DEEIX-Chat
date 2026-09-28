@@ -61,7 +61,7 @@ import type {
   AdminAnnouncementDTO,
   CreateAdminAnnouncementRequest,
   UpdateAdminAnnouncementRequest,
-} from "@/features/admin/api/announcements.types";
+} from "@/features/admin/api/announcements-types";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
 import { cn } from "@/lib/utils";

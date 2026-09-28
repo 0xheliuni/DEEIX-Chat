@@ -17,7 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { invalidateAdminReferenceDataCache, patchAdminBillingConfig, patchAdminSettings } from "@/features/admin/api";
-import type { AdminBillingConfigDTO, AdminBillingMode } from "@/features/admin/api/billing.types";
+import type { AdminBillingConfigDTO, AdminBillingMode } from "@/features/admin/api/billing-types";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import {
   flattenPaymentSettings,

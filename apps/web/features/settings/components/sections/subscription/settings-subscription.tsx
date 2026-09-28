@@ -16,7 +16,7 @@ import {
 } from "@/features/settings/model/subscription-format";
 import { useAppLocale } from "@/i18n/app-i18n-provider";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
-import type { UserDTO } from "@/shared/api/auth.types";
+import type { UserDTO } from "@/shared/api/auth-types";
 import {
   createBillingCheckout,
   getBillingConfig,
@@ -37,7 +37,7 @@ import type {
   BillingUsageDailyDTO,
   BillingUsageLedgerDTO,
   BillingUsageMonthlyDTO,
-} from "@/shared/api/billing.types";
+} from "@/shared/api/billing-types";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
 import { SettingsPage, SettingsSectionHeader } from "@/shared/components/settings-layout";
 import {
@@ -348,7 +348,7 @@ export function SettingsSubscription() {
     [billingOverview?.subscriptionEntitlements],
   );
   const paymentDisabled = paymentProviders.length === 0;
-  // 配置未加载时先不渲染充值入口,避免"置灰→消失"的闪现;确认无渠道后保持隐藏。
+  // Don't render the top-up entry until config loads, avoiding a "disabled → gone" flash; keep it hidden once no channel is confirmed.
   const topUpVisible = billingConfig !== null && paymentProviders.length > 0;
   const currentPlan = React.useMemo(() => {
     if (billingOverview?.plan) return billingOverview.plan;

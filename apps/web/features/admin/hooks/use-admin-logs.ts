@@ -20,7 +20,7 @@ import type {
   AdminRedemptionRecordDTO,
   AdminUsageLogDTO,
   AdminUserAuthEventDTO,
-} from "@/features/admin/api/admin.types";
+} from "@/features/admin/api/admin-types";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import type { ModelSelectOption } from "@/shared/components/model-select";
 import { resolveModelOptionIconUrl } from "@/shared/lib/model-option-display";

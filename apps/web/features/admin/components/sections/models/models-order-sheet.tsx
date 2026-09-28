@@ -23,7 +23,7 @@ import {
 } from "@/features/admin/api";
 import { invalidateAdminReferenceDataCache } from "@/features/admin/api/reference-data";
 import { listAllAdminPages } from "@/features/admin/api/shared";
-import type { AdminLLMModelDTO } from "@/features/admin/api/llm.types";
+import type { AdminLLMModelDTO } from "@/features/admin/api/llm-types";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { ModelIcon } from "@/shared/components/model-icon";
 import { resolveModelIconURL, resolveModelIdentity } from "@/shared/lib/model-identity";

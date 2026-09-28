@@ -1,4 +1,4 @@
-import type { SkillDTO, WriteSkillRequest } from "@/shared/api/skills.types";
+import type { SkillDTO, WriteSkillRequest } from "@/shared/api/skills-types";
 
 export const SKILL_LIMITS = {
   name: 64,

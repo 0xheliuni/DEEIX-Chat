@@ -1,4 +1,4 @@
-import type { AdminUserDTO, AdminUserRole, AdminUserStatus } from "@/features/admin/api/admin.types";
+import type { AdminUserDTO, AdminUserRole, AdminUserStatus } from "@/features/admin/api/admin-types";
 
 export const USER_STATUS_OPTIONS: AdminUserStatus[] = [
   "pending_activation",

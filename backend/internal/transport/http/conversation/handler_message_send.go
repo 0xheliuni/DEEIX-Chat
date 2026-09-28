@@ -331,7 +331,7 @@ func (h *Handler) StreamMessage(c *gin.Context) {
 	})
 
 	if err == nil && result != nil && result.IsModerationBlocked() {
-		// Guarantee a terminal event even if live OnEvent path missed emit.
+		// 即使实时 OnEvent 路径漏发，也要确保发送终止事件。
 		if !result.ModerationTerminalEmitted() {
 			_, _ = flushStreamEvent(moderationBlockedStreamPayload(result, session.Authorization()))
 		}

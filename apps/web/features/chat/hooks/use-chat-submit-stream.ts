@@ -14,8 +14,8 @@ import type {
   ConversationDTO,
   ConversationOptions,
   MessageDTO,
-} from "@/shared/api/conversation.types";
-import type { SkillSummaryDTO } from "@/shared/api/skills.types";
+} from "@/shared/api/conversation-types";
+import type { SkillSummaryDTO } from "@/shared/api/skills-types";
 
 export function useChatSubmitStream({
   conversationID,

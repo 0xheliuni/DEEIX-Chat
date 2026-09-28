@@ -24,7 +24,7 @@ import {
   type BillingDisplayOptions,
 } from "@/shared/lib/billing-display";
 import { resolveModelOptionIconUrl } from "@/shared/lib/model-option-display";
-import type { AdminUserDTO } from "@/features/admin/api/admin.types";
+import type { AdminUserDTO } from "@/features/admin/api/admin-types";
 import { useCapabilities } from "@/shared/capabilities";
 
 export type AdminStatisticsRangePreset = "7" | "30" | "90" | "custom";

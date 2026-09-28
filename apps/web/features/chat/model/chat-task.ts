@@ -1,5 +1,5 @@
 import type { ChatModelOption, PendingAttachment } from "@/features/chat/types/chat-runtime";
-import type { ConversationOptions } from "@/shared/api/conversation.types";
+import type { ConversationOptions } from "@/shared/api/conversation-types";
 
 export type ChatSubmitTask = "chat" | "image_generation" | "image_edit" | "video_generation" | "video_extension";
 export type ChatSubmitBlockReason =

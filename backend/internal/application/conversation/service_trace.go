@@ -618,10 +618,10 @@ func (r *messageTraceRecorder) syncStructuredThink(content string, summary strin
 	r.updateStructuredThinkDraft(draft, content, summary, payload)
 }
 
-// reconcileStructuredThink applies the final upstream snapshot to the reasoning
-// event already emitted for the same item. A completed stream event is still the
-// canonical event for that item; final response reconciliation must not create a
-// second round merely because the live event has already completed.
+// reconcileStructuredThink 将最终上游快照应用到同一条目
+// 已发出的推理事件上。已完成的流事件仍是该条目的
+// 权威事件；最终响应对账不得仅因实时事件
+// 已完成就创建第二轮。
 func (r *messageTraceRecorder) reconcileStructuredThink(content string, summary string, payload *tracePayload) {
 	if !r.enabled() || (content == "" && summary == "") {
 		return
@@ -854,9 +854,9 @@ func (r *messageTraceRecorder) persistDraft(draft *messageTraceDraft, force bool
 	r.persistDraftCtx(r.ctx, draft, force)
 }
 
-// enqueueDraftPersistence serializes terminal trace writes in event order. The
-// JSON payload is materialized before the goroutine starts so later live-event
-// reconciliation cannot mutate data being persisted in the background.
+// enqueueDraftPersistence 按事件顺序串行化终态 trace 写入。
+// JSON 载荷在 goroutine 启动前物化，使后续的实时事件
+// 对账无法修改正在后台持久化的数据。
 func (r *messageTraceRecorder) enqueueDraftPersistence(draft *messageTraceDraft, payloadJSON string) {
 	if !r.enabled() || r.ephemeral || draft == nil || r.service == nil || r.service.repo == nil {
 		return
@@ -914,8 +914,8 @@ func (r *messageTraceRecorder) waitForPendingPersistence(ctx context.Context) {
 	}
 }
 
-// persistDraftBackground uses a detached timeout because terminal trace
-// durability must not depend on the client request remaining connected.
+// persistDraftBackground 使用独立的超时，因为终态 trace 的
+// 持久性不能依赖客户端请求保持连接。
 func (r *messageTraceRecorder) persistDraftBackground(parent context.Context, draft *messageTraceDraft, payloadJSON string) {
 	ctx, cancel := background.WithTimeout(parent, 5*time.Second)
 	defer cancel()

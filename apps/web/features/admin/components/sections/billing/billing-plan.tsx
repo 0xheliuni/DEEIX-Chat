@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { updateAdminBillingPlan, invalidateAdminReferenceDataCache } from "@/features/admin/api";
-import type { AdminBillingPlanDTO } from "@/features/admin/api/billing.types";
+import type { AdminBillingPlanDTO } from "@/features/admin/api/billing-types";
 import type { PermissionGroup } from "@/features/admin/api/permission-groups";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { createPlanFormState, parsePrice, type PlanFormState } from "@/features/admin/model/billing-settings";

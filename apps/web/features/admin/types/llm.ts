@@ -1,4 +1,4 @@
-import type { AdminLLMModelDTO, AdminLLMModelVendor, AdminLLMStatus } from "@/features/admin/api/llm.types";
+import type { AdminLLMModelDTO, AdminLLMModelVendor, AdminLLMStatus } from "@/features/admin/api/llm-types";
 import { MODEL_KINDS, resolveProtocolLabel } from "@/features/admin/utils/llm-display";
 import { parseKindsJSON, stringifyKinds } from "@/shared/model/llm-schema";
 
@@ -44,7 +44,7 @@ export const ADAPTER_LABELS: Record<string, string> = {
 // Types
 // ---------------------------------------------------------------------------
 
-// 展示文案由消费组件通过 i18n（kinds.*）解析，此处仅提供枚举值。
+// Display labels are resolved by consuming components via i18n (kinds.*); only enum values are provided here.
 export const MODEL_KIND_OPTIONS = MODEL_KINDS.map((value) => ({ value: value as string }));
 
 export type ModelFormPayload = {

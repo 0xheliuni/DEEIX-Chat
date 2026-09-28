@@ -110,6 +110,7 @@ export function PreviewDocx({ source, toolbarContainer, showLoading = true, onLo
 
   React.useEffect(() => {
     let cancelled = false;
+    const abortController = new AbortController();
     const node = containerRef.current;
     let renderRoot: HTMLDivElement | null = null;
 
@@ -118,7 +119,7 @@ export function PreviewDocx({ source, toolbarContainer, showLoading = true, onLo
         setStatus("loading");
         const [docxModule, response] = await Promise.all([
           import("docx-preview"),
-          fetch(source),
+          fetch(source, { signal: abortController.signal }),
         ]);
         const buffer = await response.arrayBuffer();
         const renderAsync = docxModule.renderAsync ?? docxModule.default?.renderAsync;
@@ -166,6 +167,7 @@ export function PreviewDocx({ source, toolbarContainer, showLoading = true, onLo
 
     return () => {
       cancelled = true;
+      abortController.abort();
       if (!node) {
         return;
       }

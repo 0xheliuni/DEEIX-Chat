@@ -35,9 +35,9 @@ func translateError(err error) error {
 }
 
 func translateUniqueConstraint(err error) error {
-	// The generic uniqueness check has already validated the SQLSTATE or driver
-	// code. This narrow fallback only maps known constraint names to the more
-	// specific repository contract; it does not classify arbitrary errors.
+	// 通用唯一性检查已校验过 SQLSTATE 或驱动错误码。
+	// 此处的窄回退仅将已知约束名映射为更具体的
+	// 仓储契约，不会对任意错误进行分类。
 	msg := strings.ToLower(err.Error())
 	switch {
 	case strings.Contains(msg, "idx_identity_users_username"):
@@ -1148,7 +1148,7 @@ func (r *Repo) RotateSessionTokens(ctx context.Context, input repository.RotateS
 
 		switch classifyPresentedRefreshHash(item, input.PresentedRefreshHash, input.Now, input.PreviousTokenGrace) {
 		case refreshHashCurrent, refreshHashPreviousInGrace:
-			// fall through to rotation
+			// 落入轮换流程
 		case refreshHashReused:
 			// 已轮换的令牌在宽限期外再次出现：要么是被盗令牌，要么是持有旧令牌的
 			// 客户端与持有新令牌的攻击者并存。无法区分，因此吊销整个会话（OAuth 2.1 §4.3.1）。

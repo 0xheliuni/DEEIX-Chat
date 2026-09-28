@@ -263,6 +263,19 @@ func (h *Handler) CompletePasswordReset(c *gin.Context) {
 	response.Success(c, PasswordResetCompleteResponse{Changed: true})
 }
 
+// StartPasswordChangeVerification godoc
+// @Summary 发起修改密码安全验证
+// @Description 为当前用户发起修改密码前的安全验证；请求体可省略，未指定验证方式时由服务端选择可用方式
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body SecurityVerificationStartRequest false "安全验证方式"
+// @Success 200 {object} PasswordChangeVerificationStartResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Router /auth/password/change/start [post]
 func (h *Handler) StartPasswordChangeVerification(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
@@ -288,6 +301,19 @@ func (h *Handler) StartPasswordChangeVerification(c *gin.Context) {
 	response.Success(c, toPasswordChangeVerificationStartResponse(result))
 }
 
+// ChangePassword godoc
+// @Summary 修改当前用户密码
+// @Description 校验当前密码及安全验证码后修改密码；成功后吊销会话并清除刷新令牌 Cookie
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body ChangePasswordRequest true "修改密码参数"
+// @Success 200 {object} ChangePasswordResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Router /auth/password/change/complete [post]
 func (h *Handler) ChangePassword(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
@@ -323,6 +349,19 @@ func (h *Handler) ChangePassword(c *gin.Context) {
 	response.Success(c, ChangePasswordResponse{Changed: true})
 }
 
+// StartEmailBootstrap godoc
+// @Summary 发送初始邮箱验证码
+// @Description 为尚未绑定邮箱的当前用户向指定邮箱发送验证码
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body EmailVerificationStartRequest true "待绑定邮箱"
+// @Success 200 {object} EmailVerificationStartResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Router /me/email/bootstrap/start [post]
 func (h *Handler) StartEmailBootstrap(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
@@ -342,6 +381,20 @@ func (h *Handler) StartEmailBootstrap(c *gin.Context) {
 	response.Success(c, toEmailVerificationStartResponse(result))
 }
 
+// CompleteEmailBootstrap godoc
+// @Summary 完成初始邮箱绑定
+// @Description 使用邮箱与验证码为当前用户绑定初始邮箱，返回更新后的用户信息
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body EmailBootstrapCompleteRequest true "邮箱与验证码"
+// @Success 200 {object} MeResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /me/email/bootstrap/complete [post]
 func (h *Handler) CompleteEmailBootstrap(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
@@ -366,6 +419,17 @@ func (h *Handler) CompleteEmailBootstrap(c *gin.Context) {
 	response.Success(c, MeResponse{User: toUserResponse(view)})
 }
 
+// StartCurrentEmailVerification godoc
+// @Summary 发送当前邮箱验证码
+// @Description 向当前用户已绑定但未验证的邮箱发送验证码
+// @Tags auth
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} EmailVerificationStartResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Router /me/email/verify-current/start [post]
 func (h *Handler) StartCurrentEmailVerification(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
@@ -380,6 +444,20 @@ func (h *Handler) StartCurrentEmailVerification(c *gin.Context) {
 	response.Success(c, toEmailVerificationStartResponse(result))
 }
 
+// CompleteCurrentEmailVerification godoc
+// @Summary 完成当前邮箱验证
+// @Description 使用验证码验证当前用户已绑定的邮箱，返回更新后的用户信息
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body EmailVerificationCompleteRequest true "邮箱验证码"
+// @Success 200 {object} MeResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /me/email/verify-current/complete [post]
 func (h *Handler) CompleteCurrentEmailVerification(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
@@ -404,6 +482,19 @@ func (h *Handler) CompleteCurrentEmailVerification(c *gin.Context) {
 	response.Success(c, MeResponse{User: toUserResponse(view)})
 }
 
+// StartCurrentEmailChange godoc
+// @Summary 发起更换邮箱的当前身份验证
+// @Description 更换邮箱前先按指定方式验证当前身份；请求体可省略，未指定验证方式时由服务端选择可用方式
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body SecurityVerificationStartRequest false "安全验证方式"
+// @Success 200 {object} EmailVerificationStartResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Router /me/email/change/start-current [post]
 func (h *Handler) StartCurrentEmailChange(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
@@ -423,6 +514,19 @@ func (h *Handler) StartCurrentEmailChange(c *gin.Context) {
 	response.Success(c, toEmailVerificationStartResponse(result))
 }
 
+// StartNewEmailChange godoc
+// @Summary 发送新邮箱验证码
+// @Description 更换邮箱时向新邮箱发送验证码
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body EmailVerificationStartRequest true "新邮箱"
+// @Success 200 {object} EmailVerificationStartResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Router /me/email/change/start-new [post]
 func (h *Handler) StartNewEmailChange(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
@@ -442,6 +546,20 @@ func (h *Handler) StartNewEmailChange(c *gin.Context) {
 	response.Success(c, toEmailVerificationStartResponse(result))
 }
 
+// CompleteEmailChange godoc
+// @Summary 完成邮箱更换
+// @Description 校验当前身份验证码与新邮箱验证码后更换邮箱，返回更新后的用户信息
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body EmailChangeCompleteRequest true "邮箱更换参数"
+// @Success 200 {object} MeResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /me/email/change/complete [post]
 func (h *Handler) CompleteEmailChange(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
@@ -478,6 +596,17 @@ func (h *Handler) CompleteEmailChange(c *gin.Context) {
 	response.Success(c, MeResponse{User: toUserResponse(view)})
 }
 
+// ListCurrentUserIdentities godoc
+// @Summary 获取当前用户已绑定的第三方身份
+// @Description 列出当前用户已关联的 OIDC/OAuth2 第三方身份
+// @Tags auth
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} UserIdentityListResponseDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /me/identities [get]
 func (h *Handler) ListCurrentUserIdentities(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
@@ -492,6 +621,18 @@ func (h *Handler) ListCurrentUserIdentities(c *gin.Context) {
 	response.Success(c, UserIdentityListResponse{Results: toUserIdentityResponses(items)})
 }
 
+// DeleteCurrentUserIdentity godoc
+// @Summary 解绑当前用户的第三方身份
+// @Description 解除当前用户与指定第三方身份的关联；不允许移除最后一种登录方式
+// @Tags auth
+// @Produce json
+// @Security BearerAuth
+// @Param identity_id path int true "身份ID"
+// @Success 200 {object} DeleteUserIdentityResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Router /me/identities/{identity_id} [delete]
 func (h *Handler) DeleteCurrentUserIdentity(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if userID == 0 {
@@ -643,6 +784,20 @@ func (h *Handler) StartProviderAuthBridge(c *gin.Context) {
 	})
 }
 
+// ProviderCallback godoc
+// @Summary 第三方身份源授权回调
+// @Description 外部身份源完成授权后回调当前实例；校验 state 并签发一次性授权码后以 302 重定向回客户端 redirect_uri
+// @Tags auth
+// @Produce json
+// @Param slug path string true "身份源 slug"
+// @Param code query string false "授权码"
+// @Param state query string false "授权事务 state"
+// @Param error query string false "身份源返回的错误码"
+// @Success 302 {string} string "重定向到客户端 redirect_uri"
+// @Failure 400 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 423 {object} ErrorDoc
+// @Router /auth/providers/{slug}/callback [get]
 func (h *Handler) ProviderCallback(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	result, err := h.service.CompleteProviderAuthBridgeCallback(c.Request.Context(), c.Param("slug"), appauth.ProviderAuthBridgeCallbackInput{
@@ -775,6 +930,20 @@ func (h *Handler) Login(c *gin.Context) {
 	h.respondWithSession(c, result)
 }
 
+// VerifyTwoFactorLogin godoc
+// @Summary 校验登录双因素验证码
+// @Description 使用登录挑战令牌与 TOTP、恢复码或邮箱验证码完成双因素登录，成功后返回会话
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param body body TwoFactorVerifyRequest true "双因素校验参数"
+// @Success 200 {object} LoginResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 423 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @ID twoFactorVerifyCreate
+// @Router /auth/2fa/verify [post]
 func (h *Handler) VerifyTwoFactorLogin(c *gin.Context) {
 	var req TwoFactorVerifyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -809,6 +978,18 @@ func (h *Handler) VerifyTwoFactorLogin(c *gin.Context) {
 	h.respondWithSession(c, result)
 }
 
+// StartTwoFactorEmailVerification godoc
+// @Summary 发送登录双因素邮箱验证码
+// @Description 为待完成的双因素登录挑战向用户已验证邮箱发送验证码
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param body body TwoFactorEmailStartRequest true "登录挑战令牌"
+// @Success 200 {object} EmailVerificationStartResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 401 {object} ErrorDoc
+// @ID twoFactorEmailStartCreate
+// @Router /auth/2fa/email/start [post]
 func (h *Handler) StartTwoFactorEmailVerification(c *gin.Context) {
 	var req TwoFactorEmailStartRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -836,6 +1017,18 @@ func (h *Handler) StartTwoFactorEmailVerification(c *gin.Context) {
 	response.Success(c, toEmailVerificationStartResponse(result))
 }
 
+// CurrentTwoFactorStatus godoc
+// @Summary 获取当前用户双因素认证状态
+// @Description 返回 TOTP 是否可用、是否已启用、是否强制及剩余恢复码数量
+// @Tags auth
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} TwoFactorStatusResponseDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @ID twoFactorStatusList
+// @Router /me/2fa [get]
 func (h *Handler) CurrentTwoFactorStatus(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	result, err := h.service.GetCurrentTwoFactorStatus(c.Request.Context(), userID)
@@ -846,6 +1039,18 @@ func (h *Handler) CurrentTwoFactorStatus(c *gin.Context) {
 	response.Success(c, toTwoFactorStatusResponse(result))
 }
 
+// StartCurrentTwoFactorSetup godoc
+// @Summary 开始设置双因素认证
+// @Description 为当前用户生成新的 TOTP 密钥与 otpauth URL，需在过期前确认
+// @Tags auth
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} TwoFactorSetupStartResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @ID twoFactorSetupStartCreate
+// @Router /me/2fa/setup/start [post]
 func (h *Handler) StartCurrentTwoFactorSetup(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	result, err := h.service.StartCurrentTwoFactorSetup(c.Request.Context(), userID)
@@ -856,6 +1061,21 @@ func (h *Handler) StartCurrentTwoFactorSetup(c *gin.Context) {
 	response.Success(c, TwoFactorSetupStartResponse{Secret: result.Secret, OTPAuthURL: result.OTPAuthURL, ExpiresAt: result.ExpiresAt})
 }
 
+// ConfirmCurrentTwoFactorSetup godoc
+// @Summary 确认启用双因素认证
+// @Description 使用 TOTP 验证码确认设置并启用双因素认证，返回一次性恢复码
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body TwoFactorCodeRequest true "TOTP 验证码"
+// @Success 200 {object} TwoFactorRecoveryCodesResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @ID twoFactorSetupConfirmCreate
+// @Router /me/2fa/setup/confirm [post]
 func (h *Handler) ConfirmCurrentTwoFactorSetup(c *gin.Context) {
 	var req TwoFactorCodeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -890,6 +1110,18 @@ func (h *Handler) ConfirmCurrentTwoFactorSetup(c *gin.Context) {
 	})
 }
 
+// CancelCurrentTwoFactorSetup godoc
+// @Summary 取消双因素认证设置
+// @Description 丢弃当前用户尚未确认的 TOTP 设置
+// @Tags auth
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} TwoFactorSetupCancelResponseDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @ID twoFactorSetupDelete
+// @Router /me/2fa/setup [delete]
 func (h *Handler) CancelCurrentTwoFactorSetup(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	if err := h.service.CancelCurrentTwoFactorSetup(c.Request.Context(), userID); err != nil {
@@ -899,6 +1131,21 @@ func (h *Handler) CancelCurrentTwoFactorSetup(c *gin.Context) {
 	response.Success(c, TwoFactorSetupCancelResponse{Canceled: true})
 }
 
+// DisableCurrentTwoFactor godoc
+// @Summary 关闭双因素认证
+// @Description 校验 TOTP 验证码或恢复码后关闭当前用户的双因素认证
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body TwoFactorCodeRequest true "TOTP 验证码或恢复码"
+// @Success 200 {object} TwoFactorDisableResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @ID twoFactorDisableCreate
+// @Router /me/2fa/disable [post]
 func (h *Handler) DisableCurrentTwoFactor(c *gin.Context) {
 	var req TwoFactorCodeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -917,6 +1164,21 @@ func (h *Handler) DisableCurrentTwoFactor(c *gin.Context) {
 	response.Success(c, TwoFactorDisableResponse{Disabled: true})
 }
 
+// RegenerateCurrentTwoFactorRecoveryCodes godoc
+// @Summary 重新生成双因素恢复码
+// @Description 校验 TOTP 验证码后作废旧恢复码并返回新的一次性恢复码
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body TwoFactorCodeRequest true "TOTP 验证码"
+// @Success 200 {object} TwoFactorRecoveryCodesResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @ID twoFactorRecoveryRegenerateCreate
+// @Router /me/2fa/recovery/regenerate [post]
 func (h *Handler) RegenerateCurrentTwoFactorRecoveryCodes(c *gin.Context) {
 	var req TwoFactorCodeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

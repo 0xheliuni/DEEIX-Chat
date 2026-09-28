@@ -41,8 +41,8 @@ import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { CopyActionButton } from "@/shared/components/copy-action";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { configuredSettingsMap } from "@/shared/lib/settings-meta";
-import type { IdentityProviderDTO } from "@/shared/api/auth.types";
-import type { PatchSettingItem } from "@/shared/api/settings.types";
+import type { IdentityProviderDTO } from "@/shared/api/auth-types";
+import type { PatchSettingItem } from "@/shared/api/settings-types";
 import { IdentityProviderIcon } from "@/shared/components/identity-provider-icon";
 import {
   SettingsFieldInset,

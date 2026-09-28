@@ -59,9 +59,9 @@ import { listAdminLLMModels, listAdminLLMUpstreams } from "@/features/admin/api/
 import { listAdminUsers } from "@/features/admin/api/accounts";
 import { resolveProtocolLabel, sortProtocolsForDisplay } from "@/features/admin/utils/llm-display";
 import { ADAPTER_LABELS } from "@/features/admin/types/llm";
-import type { AdminLLMModelDTO, AdminLLMUpstreamView } from "@/features/admin/api/llm.types";
-import type { AdminUserDTO } from "@/features/admin/api/admin.types";
-import type { IdentityProviderDTO } from "@/shared/api/auth.types";
+import type { AdminLLMModelDTO, AdminLLMUpstreamView } from "@/features/admin/api/llm-types";
+import type { AdminUserDTO } from "@/features/admin/api/admin-types";
+import type { IdentityProviderDTO } from "@/shared/api/auth-types";
 import { cn } from "@/lib/utils";
 import { parseProtocolsJSON } from "@/shared/lib/model-protocols";
 import { GroupAccessPickerDialog } from "@/features/admin/components/sections/groups/group-access-picker-dialog";

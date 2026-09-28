@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// Models returns all persistent Gorm models used by the application.
+// Models 返回应用使用的全部持久化 Gorm 模型。
 func Models() []any {
 	return []any{
 		&model.User{},
@@ -164,7 +164,7 @@ func SeedUIComponents(db *gorm.DB) error {
 	})
 }
 
-// Migrate creates or updates the baseline schema with Gorm's portable migrator.
+// Migrate 使用 Gorm 的可移植 migrator 创建或更新基线 schema。
 func Migrate(db *gorm.DB) error {
 	for _, item := range Models() {
 		if db.Migrator().HasTable(item) {
@@ -186,8 +186,8 @@ func Migrate(db *gorm.DB) error {
 	return backfillUsageLedgerBillingAt(db)
 }
 
-// invalidateUnsignedFileEmbeddings makes legacy vectors enter the existing reindex flow.
-// Message and memory vectors without a signature stay hidden until naturally regenerated.
+// invalidateUnsignedFileEmbeddings 使旧版向量进入现有的重建索引流程。
+// 无签名的消息与记忆向量在自然重新生成前保持隐藏。
 func invalidateUnsignedFileEmbeddings(db *gorm.DB) error {
 	return db.Exec(`
 		UPDATE file_objects
@@ -258,7 +258,7 @@ func backfillUsageLedgerBillingAt(db *gorm.DB) error {
 		Update("billing_at", gorm.Expr("created_at")).Error
 }
 
-// CleanupRemovedColumns drops columns that were removed from the Gorm models.
+// CleanupRemovedColumns 删除已从 Gorm 模型中移除的列。
 func CleanupRemovedColumns(db *gorm.DB) error {
 	if err := dropColumns(db, &model.PromptPreset{}, []string{"use_count", "last_used_at", "category", "tags_json"}); err != nil {
 		return err
@@ -288,7 +288,7 @@ func dropColumns(db *gorm.DB, table any, columns []string) error {
 	return nil
 }
 
-// SeedLLMSettings inserts default LLM runtime settings if they do not exist.
+// SeedLLMSettings 在默认 LLM 运行时设置不存在时插入。
 func SeedLLMSettings(db *gorm.DB) error {
 	breakerDefaultsJSON, err := channelconfig.MarshalBreakerDefaults(domainchannel.DefaultBreakerDefaults())
 	if err != nil {
@@ -334,7 +334,7 @@ func SeedLLMSettings(db *gorm.DB) error {
 	return nil
 }
 
-// SeedPermissionGroups inserts the built-in default permission group if it does not exist.
+// SeedPermissionGroups 在内置默认权限组不存在时插入。
 func SeedPermissionGroups(db *gorm.DB) error {
 	return db.Transaction(func(tx *gorm.DB) error {
 		defaultGroup, err := ensureSingleDefaultPermissionGroup(tx)
@@ -401,7 +401,7 @@ func seedInitialDefaultModelAccessRule(db *gorm.DB, defaultGroupID uint) error {
 	return db.Where(rule).FirstOrCreate(&rule).Error
 }
 
-// SeedBillingCatalog inserts the default plans and prices if the billing catalog is empty.
+// SeedBillingCatalog 在计费目录为空时插入默认套餐与价格。
 func SeedBillingCatalog(db *gorm.DB) error {
 	defaultGroupID, err := defaultPermissionGroupID(db)
 	if err != nil {

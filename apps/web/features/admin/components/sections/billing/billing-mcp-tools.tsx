@@ -54,7 +54,7 @@ function mcpToolPriceDraftsFrom(rows: MCPToolPricingRow[]): Record<number, strin
   return Object.fromEntries(rows.map((row) => [row.toolID, formatMCPToolPriceInput(row.priceNanousd)]));
 }
 
-// BulkActionControlRow 与用户/模型/上游管理的批量菜单保持同一行布局：应用按钮 + 控件。
+// BulkActionControlRow shares the single-row layout of the user/model/upstream bulk menus: apply button + control.
 function BulkActionControlRow({
   icon,
   label,
@@ -204,7 +204,7 @@ export function BillingMCPToolsSection() {
 
   const bulkPriceNanousd = mcpToolPriceInputToNanousd(bulkPriceDraft);
 
-  // 批量设置只更新本地草稿，与单行编辑一致，统一由右上角保存按钮持久化。
+  // Bulk edits only update the local draft, like single-row edits; the top-right Save button persists everything.
   const applyBulkPrice = React.useCallback(() => {
     if (bulkPriceNanousd === null || bulkPriceDraft.trim() === "" || selectedToolIDs.size === 0) {
       return;

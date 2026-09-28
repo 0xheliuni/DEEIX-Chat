@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SpinnerLabel } from "@/components/ui/spinner";
-import { TWO_FACTOR_CHALLENGE_STORAGE_KEY, TWO_FACTOR_METHODS_STORAGE_KEY } from "@/features/auth/model/login-page";
+import { writeTwoFactorChallenge } from "@/features/auth/model/login-page";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { exchangeProviderAuthBridgeGrant, exchangeProviderBindBridgeGrant } from "@/shared/api/auth";
 import { ApiError } from "@/shared/api/http-client";
@@ -91,8 +91,7 @@ export function AuthCallbackPage() {
       void exchangeProviderAuthBridgeGrant(provider, exchangeInput)
         .then((result) => {
           if (result.twoFactorRequired) {
-            window.sessionStorage.setItem(TWO_FACTOR_CHALLENGE_STORAGE_KEY, result.twoFactorChallengeToken ?? "");
-            window.sessionStorage.setItem(TWO_FACTOR_METHODS_STORAGE_KEY, JSON.stringify(result.verificationMethods ?? ["two_factor"]));
+            writeTwoFactorChallenge(result.twoFactorChallengeToken ?? "", result.verificationMethods);
             router.replace(`/login?next=${encodeURIComponent(nextPath)}`);
             return;
           }

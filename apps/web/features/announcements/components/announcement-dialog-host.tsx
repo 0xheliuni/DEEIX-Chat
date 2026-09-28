@@ -19,7 +19,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { closeAnnouncement, dismissAnnouncementToday, listAnnouncements } from "@/shared/api/announcements";
-import type { AnnouncementDTO } from "@/shared/api/announcements.types";
+import type { AnnouncementDTO } from "@/shared/api/announcements-types";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
 import { dispatchAnnouncementUnreadChanged, subscribeOpenAnnouncements } from "@/shared/events/announcement-events";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";

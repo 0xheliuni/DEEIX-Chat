@@ -19,7 +19,7 @@ import {
   getChatFilePolicy,
   uploadFile,
 } from "@/shared/api/file";
-import type { ChatFilePolicyDTO, FileProcessingStatusDTO } from "@/shared/api/file.types";
+import type { ChatFilePolicyDTO, FileProcessingStatusDTO } from "@/shared/api/file-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import {
   type FileStatusPollingResult,

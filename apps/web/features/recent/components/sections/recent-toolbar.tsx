@@ -25,7 +25,7 @@ import type {
   ConversationProjectDTO,
   ConversationStarredFilter,
   ConversationStatusFilter,
-} from "@/shared/api/conversation.types";
+} from "@/shared/api/conversation-types";
 import { FeatureGate } from "@/shared/capabilities";
 
 type RecentToolbarProps = {

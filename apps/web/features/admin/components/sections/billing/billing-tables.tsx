@@ -16,7 +16,7 @@ import {
   TableLoadingRow,
   TableRow,
 } from "@/components/ui/table";
-import type { AdminBillingPlanDTO, AdminModelPricingDTO } from "@/features/admin/api/billing.types";
+import type { AdminBillingPlanDTO, AdminModelPricingDTO } from "@/features/admin/api/billing-types";
 import { cn } from "@/lib/utils";
 import { WEEKDAY_ORDER, formatRateMultiplier, parseSchedulePricing } from "@/shared/model/schedule-pricing";
 import {

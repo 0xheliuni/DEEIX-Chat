@@ -29,7 +29,7 @@ import type {
   ConversationProjectDTO,
   CreateConversationProjectRequest,
   UpdateConversationProjectRequest,
-} from "@/shared/api/conversation.types";
+} from "@/shared/api/conversation-types";
 
 import type {
   DeleteConversationOptions,
@@ -226,7 +226,7 @@ async function fetchActiveProjects(accessToken: string): Promise<ConversationPro
   return listConversationProjects(accessToken, { status: "active" });
 }
 
-export function useSidebarConversationsController({
+export function useConversationSidebarList({
   bulkPendingTitle,
   newConversationTitle,
 }: {

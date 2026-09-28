@@ -43,14 +43,14 @@ import {
 } from "@/components/ui/table";
 import { useVirtualTableRows, VirtualTablePaddingRow } from "@/components/ui/virtual-table";
 import { importOpenWebUIUsers } from "@/features/admin/api";
-import type { ImportOpenWebUIUsersData, ImportOpenWebUIUsersRequest } from "@/features/admin/api/admin.types";
+import type { ImportOpenWebUIUsersData, ImportOpenWebUIUsersRequest } from "@/features/admin/api/admin-types";
 import { resolveAvatarImageSrc } from "@/shared/lib/avatar";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { TimeZoneSelect } from "@/shared/components/time-zone-select";
-import type { AdminUserDTO, AdminUserRole, AdminUserStatus } from "@/features/admin/api/admin.types";
-import type { AdminBillingMode } from "@/features/admin/api/billing.types";
+import type { AdminUserDTO, AdminUserRole, AdminUserStatus } from "@/features/admin/api/admin-types";
+import type { AdminBillingMode } from "@/features/admin/api/billing-types";
 import type { BillingDisplayOptions } from "@/shared/lib/billing-display";
 
 import { AccountAvatarEditorDialog } from "./accounts-avatar-dialog";

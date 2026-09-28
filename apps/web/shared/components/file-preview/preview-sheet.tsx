@@ -126,11 +126,12 @@ export function PreviewSheet({ source, toolbarContainer, showLoading = true, onL
 
   React.useEffect(() => {
     let cancelled = false;
+    const abortController = new AbortController();
 
     void (async () => {
       try {
         setStatus("loading");
-        const response = await fetch(source);
+        const response = await fetch(source, { signal: abortController.signal });
         const text = await response.text();
         const rows = parseDelimitedRows(text);
 
@@ -152,6 +153,7 @@ export function PreviewSheet({ source, toolbarContainer, showLoading = true, onL
 
     return () => {
       cancelled = true;
+      abortController.abort();
     };
   }, [resolveErrorMessage, source, t]);
 

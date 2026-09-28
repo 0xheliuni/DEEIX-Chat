@@ -75,7 +75,7 @@ import type {
   AdminLLMModelDTO,
   AdminLLMModelUpstreamSourceDTO,
   AdminLLMStatus,
-} from "@/features/admin/api/llm.types";
+} from "@/features/admin/api/llm-types";
 import {
   ADAPTER_LABELS,
   formatDateTime,

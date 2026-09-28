@@ -25,7 +25,7 @@ import {
   runBulkActionInChunks,
 } from "@/shared/lib/bulk-action";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
-import type { AdminBatchDeleteData, AdminLLMUpstreamView } from "@/features/admin/api/llm.types";
+import type { AdminBatchDeleteData, AdminLLMUpstreamView } from "@/features/admin/api/llm-types";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { toast } from "sonner";
 

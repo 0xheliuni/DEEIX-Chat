@@ -1,4 +1,4 @@
-import type { ConversationDTO } from "@/shared/api/conversation.types";
+import type { ConversationDTO } from "@/shared/api/conversation-types";
 import { parseConversationLabelsJSON } from "@/shared/lib/conversation-labels";
 
 export function normalizeConversationSearchText(value: string) {

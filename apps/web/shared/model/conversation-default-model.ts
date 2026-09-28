@@ -1,6 +1,6 @@
 import { getConversationDefaultModelCandidate } from "@/shared/api/conversation";
 import { listPublicModels } from "@/shared/api/model";
-import type { PublicModelDTO } from "@/shared/api/model.types";
+import type { PublicModelDTO } from "@/shared/api/model-types";
 import { loadUserSettingsSnapshot } from "@/shared/model/user-settings-store";
 
 export type ConversationDefaultModelSource =

@@ -165,6 +165,18 @@ func (h *Handler) ListFiles(c *gin.Context) {
 }
 
 // GetFileProcessingStatus 查询文件处理状态。
+// @Summary 查询文件处理状态
+// @Description 查询当前用户单个文件的文本提取与向量化处理状态
+// @Tags chat
+// @Produce json
+// @Security BearerAuth
+// @Param file_id path string true "文件ID"
+// @Success 200 {object} FileProcessingStatusResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /files/{file_id}/processing [get]
 func (h *Handler) GetFileProcessingStatus(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	fileID := c.Param("file_id")
@@ -261,6 +273,19 @@ func (h *Handler) SubmitFileEmbeddings(c *gin.Context) {
 }
 
 // GetFileExtract 获取文件提取文本。
+// @Summary 获取文件提取文本
+// @Description 返回当前用户文件已完成提取的文本内容；提取尚未就绪时返回 409
+// @Tags chat
+// @Produce json
+// @Security BearerAuth
+// @Param file_id path string true "文件ID"
+// @Success 200 {object} FileExtractResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 409 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /files/{file_id}/extract [get]
 func (h *Handler) GetFileExtract(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	fileID := c.Param("file_id")
@@ -289,6 +314,15 @@ func (h *Handler) GetFileExtract(c *gin.Context) {
 }
 
 // GetChatFilePolicy 返回聊天文件策略。
+// @Summary 获取聊天文件策略
+// @Description 返回当前用户在聊天中上传与使用文件的运行时策略（大小、数量、类型与处理模式等）
+// @Tags chat
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} ChatFilePolicyResponseDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /runtime/chat-file-policy [get]
 func (h *Handler) GetChatFilePolicy(c *gin.Context) {
 	userID := middleware.MustUserID(c)
 	result, err := h.service.GetChatFilePolicy(c.Request.Context(), userID)

@@ -1,4 +1,4 @@
-import type { SettingsGrouped } from "@/shared/api/settings.types";
+import type { SettingsGrouped } from "@/shared/api/settings-types";
 
 export function configuredSettingsMap(grouped: SettingsGrouped): Record<string, boolean> {
   const result: Record<string, boolean> = {};

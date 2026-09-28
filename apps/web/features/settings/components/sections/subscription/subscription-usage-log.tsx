@@ -9,7 +9,7 @@ import { TablePagination, TableToolbar } from "@/components/ui/table-tools";
 import { useVirtualTableRows, VirtualTablePaddingRow } from "@/components/ui/virtual-table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAppLocale } from "@/i18n/app-i18n-provider";
-import type { BillingUsageLedgerDTO } from "@/shared/api/billing.types";
+import type { BillingUsageLedgerDTO } from "@/shared/api/billing-types";
 import { billingRateMultiplierNote, billingScheduleNote, cacheWriteBillingLabel, cacheWriteBillingNote } from "@/shared/lib/billing-display";
 import type { BillingDisplayLabels, BillingDisplayOptions } from "@/shared/lib/billing-display";
 import {
@@ -270,7 +270,7 @@ type BillingServiceItemEntry = {
   billedNanousd: number;
 };
 
-// billingServiceItemEntry 归一化服务项，按次计费口径与对话消息的费用明细保持一致。
+// billingServiceItemEntry normalizes service items; per-call billing matches the chat message cost breakdown.
 function billingServiceItemEntry(serviceItem: BillingServiceItemSnapshot, labels: BillingTooltipLabels): BillingServiceItemEntry {
   const label = String(serviceItem.service_name || serviceItem.service_code || labels.baseService).trim();
   const billedNanousd = readServiceItemNumber(serviceItem, "billed_nanousd");
@@ -370,7 +370,7 @@ function buildServiceBillingTooltipLines(item: BillingUsageLedgerDTO, labels: Bi
   const cacheWriteRate = readSnapshotNumber(snapshot, "cache_write_nanousd_per_m_tokens");
   const billedOutputTokens = item.outputTokens + item.reasoningTokens;
   const totalBilledNanousd = mainBilledNanousd + currentServiceBilledNanousd;
-  // 免费模型也可能因 MCP 等服务项产生费用，只有整单为 0 才按免费展示，与对话消息一致。
+  // Free models can still incur charges from service items like MCP; only show as free when the whole bill is 0, consistent with chat messages.
   const freeOfCharge = item.isFreeModel && totalBilledNanousd <= 0;
   const totalLine = formatBillingTotalLine(labels.total, freeOfCharge ? `${formatTooltipUsageCost(0, billingDisplay)} (${labels.freeModelNoBilling})` : formatTooltipUsageCost(nanousdToUSD(totalBilledNanousd), billingDisplay));
   const cacheWriteLabel = cacheWriteBillingLabel(snapshot, labels.display);
@@ -407,7 +407,7 @@ function buildServiceBillingTooltipLines(item: BillingUsageLedgerDTO, labels: Bi
     return lines;
   }
   if (pricingMode === "tiered") {
-    // 服务项并入阶梯表格行，表格总计即整单总计，与对话消息的费用明细布局一致。
+    // Service items are merged into the tier table rows so the table total equals the bill total, matching the chat message cost breakdown layout.
     const tieredRows = [
       formatTieredTableRow(labels.input, item.inputTokens, inputRate, readSnapshotNumber(snapshot, "input_billed_nanousd"), billingDisplay),
       formatTieredTableRow(labels.output, billedOutputTokens, outputRate, readSnapshotNumber(snapshot, "output_billed_nanousd"), billingDisplay),

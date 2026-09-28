@@ -19,7 +19,12 @@ export type DailyStat = ContentModerationDailyStatResponse;
 export type ModerationEvent = ContentModerationEventResponse;
 export type ContentModerationEventDetail = ContentModerationEventDetailResponse;
 
-type ContentModerationEventListQuery = Admin.ContentModerationEventsList.RequestQuery;
+type ContentModerationEventListQuery = Omit<
+  Admin.ContentModerationEventsList.RequestQuery,
+  "page_size"
+> & {
+  pageSize?: number;
+};
 
 export async function getContentModerationConfig(accessToken: string) {
   return authedRequest<ContentModerationConfigDataResponse>(
@@ -62,7 +67,7 @@ export async function listContentModerationEvents(
 ) {
   const query = new URLSearchParams();
   if (params.page) query.set("page", String(params.page));
-  if (params.pageSize) query.set("pageSize", String(params.pageSize));
+  if (params.pageSize) query.set("page_size", String(params.pageSize));
   if (params.query) query.set("query", params.query);
   if (params.result) query.set("result", params.result);
   if (params.direction) query.set("direction", params.direction);

@@ -28,7 +28,7 @@ import {
 import type {
   AdminBatchDeleteData,
   AdminLLMModelDTO,
-} from "@/features/admin/api/llm.types";
+} from "@/features/admin/api/llm-types";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";

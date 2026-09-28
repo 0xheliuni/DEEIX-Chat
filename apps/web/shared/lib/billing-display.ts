@@ -1,4 +1,4 @@
-import type { PublicModelPricingDTO } from "@/shared/api/model.types";
+import type { PublicModelPricingDTO } from "@/shared/api/model-types";
 
 export type BillingCacheWriteSnapshot = {
   provider_protocol?: string;

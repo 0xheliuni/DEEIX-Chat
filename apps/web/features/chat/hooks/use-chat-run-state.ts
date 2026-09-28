@@ -4,7 +4,7 @@ import * as React from "react";
 
 import { ConversationRunStore } from "@/features/chat/model/conversation-run-store";
 import { streamActiveConversationRuns } from "@/shared/api/conversation";
-import type { ActiveConversationRunEvent } from "@/shared/api/conversation.types";
+import type { ActiveConversationRunEvent } from "@/shared/api/conversation-types";
 import { useOptionalAuthSession } from "@/shared/auth/auth-session-context";
 
 const RUN_STREAM_RECONNECT_MIN_MS = 1_000;

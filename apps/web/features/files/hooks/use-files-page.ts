@@ -22,7 +22,7 @@ import type {
   FileProcessingStatusDTO,
   UploadFileResult,
   UserStorageQuotaDTO,
-} from "@/shared/api/file.types";
+} from "@/shared/api/file-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import {
   type FileStatusPollingResult,

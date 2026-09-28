@@ -24,8 +24,8 @@ import {
 } from "@/components/ui/table";
 import { TablePagination } from "@/components/ui/table-tools";
 import { listAdminRedemptions } from "@/features/admin/api";
-import type { AdminRedemptionRecordDTO } from "@/features/admin/api/admin.types";
-import type { AdminRedemptionCodeDTO } from "@/features/admin/api/billing.types";
+import type { AdminRedemptionRecordDTO } from "@/features/admin/api/admin-types";
+import type { AdminRedemptionCodeDTO } from "@/features/admin/api/billing-types";
 import { formatCreditUSD, formatDateTime } from "@/features/admin/model/billing-settings";
 import { resolveUserDisplayName } from "@/features/admin/model/log-display";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";

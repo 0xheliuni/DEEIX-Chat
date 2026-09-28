@@ -1,5 +1,5 @@
-import type { AdminServiceRuntimeView } from "@/features/admin/api/admin.types";
-import type { SettingsGrouped } from "@/shared/api/settings.types";
+import type { AdminServiceRuntimeView } from "@/features/admin/api/admin-types";
+import type { SettingsGrouped } from "@/shared/api/settings-types";
 
 export type SettingsFieldType = "int" | "bool" | "string" | "password" | "textarea" | "select" | "tabs" | "multi-check" | "button";
 

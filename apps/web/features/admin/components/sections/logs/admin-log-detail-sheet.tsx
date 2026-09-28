@@ -6,7 +6,7 @@ import * as React from "react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
 import { useUsageBillingLabels } from "@/features/admin/components/sections/logs/admin-usage-log-cells";
-import type { LogDetail } from "@/features/admin/hooks/use-admin-logs-actions";
+import type { LogDetail } from "@/features/admin/hooks/use-admin-log-detail";
 import {
   formatCount,
   formatDateTime,

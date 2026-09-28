@@ -68,7 +68,7 @@ func (m *Module) RegisterProtectedRoutes(authRequired *gin.RouterGroup, gate mid
 	identityProviders.DELETE("/me/identities/:identity_id", m.Handler.DeleteCurrentUserIdentity)
 }
 
-// RegisterAdminRoutes registers administrator-only identity-provider routes.
+// RegisterAdminRoutes 注册仅限管理员的身份提供方路由。
 func (m *Module) RegisterAdminRoutes(adminGroup *gin.RouterGroup, gate middleware.FeatureGate) {
 	identityProviders := adminGroup.Group("", gate.Require("identityProviders"))
 	identityProviders.GET("/auth/providers", m.Handler.ListIdentityProviders)

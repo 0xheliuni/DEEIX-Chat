@@ -4,7 +4,7 @@
 
 前端采用 Next.js 静态导出模式（`output: "export"`）。开发时使用 Next.js 开发服务器，构建后生成 `apps/web/out`，生产环境可由 Go 服务托管，也可以交给 Nginx、CDN 或其他静态文件服务。
 
-相关文档：[项目主 README](../README.md) · [后端 README](../backend/README.md) · [API 文档索引](../backend/docs/README.md)
+相关文档：[项目主 README](../../README.md) · [后端 README](../../backend/README.md) · [API 文档索引](../../backend/docs/README.md) · [多端架构](../../docs/ARCHITECTURE.md) · [Biome 规则与例外](./BIOME.md)
 
 ## 技术栈
 
@@ -18,9 +18,19 @@
 
 ```text
 apps/web/
-├── app/                       # App Router 路由入口、页面和布局
-│   ├── (auth)/                # 登录和 OAuth 回调路由组
-│   └── (project)/             # 用户工作区、设置和管理员路由组
+├── app/                       # App Router 路由入口、页面和布局（只做挂载）
+│   ├── globals.css            # 全局样式与设计 token
+│   ├── (app)/                 # 主应用根布局（Web 与桌面内容标签页）
+│   │   ├── (auth)/            # 登录和 OAuth 回调
+│   │   ├── (project)/         # 需登录的工作区、设置和管理员后台
+│   │   └── share/             # 公开分享页（无鉴权）
+│   └── (shell)/               # 桌面端壳 UI 根布局
+│       └── desktop/tabs/      # 桌面端标签栏
+├── components/                # 无业务语义的基础和视觉组件
+│   ├── ui/                    # 通用 UI primitives（shadcn）
+│   ├── animate-ui/            # 第三方动画组件与图标
+│   └── reactbits/             # 第三方视觉效果组件
+├── entities/conversation/     # 跨 feature 复用的会话实体（标签、分享、导出、侧栏列表）
 ├── features/                  # 按业务域组织页面组件、hooks 和模型
 │   ├── admin/                 # 管理后台
 │   ├── announcements/         # 公告
@@ -29,50 +39,61 @@ apps/web/
 │   ├── files/                 # 文件管理与处理状态
 │   ├── knowledge-bases/       # 知识库
 │   ├── layouts/               # 工作区布局
-│   ├── prompts/               # 提示词
+│   ├── platform/              # 桌面端启动、服务器设置、更新提示、标签栏
+│   ├── prompts/               # 技能与提示词
 │   ├── recent/                # 最近会话
 │   ├── settings/              # 用户设置
 │   └── share/                 # 分享页
-├── entities/conversation/     # 会话实体及其分享、导出能力
-├── shared/                    # 跨业务复用的基础能力
-│   ├── api/                   # HTTP client、API adapter 和契约类型
+├── shared/                    # 跨业务复用、无业务实体语义的基础能力
+│   ├── api/                   # HTTP client、鉴权 client、按资源拆分的请求函数与传输类型
 │   ├── auth/                  # 会话与访问令牌管理
-│   ├── components/            # 跨页面业务组件
+│   ├── capabilities/          # 服务器能力声明（useFeature、FeatureGate、useSectionGuard）
+│   ├── components/            # 跨业务组件
 │   ├── config/                # 品牌与运行时配置
-│   ├── generated/             # 资源同步生成文件
+│   ├── events/                # 跨模块事件
+│   ├── generated/             # 资源同步生成文件（禁止手改）
 │   ├── hooks/                 # 通用 hooks
 │   ├── lib/                   # 通用工具
-│   ├── model/                 # 前端模型
+│   ├── model/                 # 全局纯模型
+│   ├── platform/              # 桌面端（Tauri）原生能力绑定
 │   └── pwa/                   # PWA 资源与迁移
-├── components/                # 基础和视觉组件
-│   ├── ui/                    # 通用 UI primitives
-│   ├── animate-ui/            # 动画组件与图标
-│   └── reactbits/             # 视觉效果组件
-├── i18n/                      # en-US / zh-CN 国际化资源
+├── i18n/                      # 国际化配置、en-US / zh-CN 文案、错误 key 解析
+├── lib/                       # 根级通用工具（cn() 等）
+├── styles/                    # 分主题样式
+├── types/                     # 第三方模块的 .d.ts 声明
 ├── public/                    # 静态资源
-├── scripts/                   # 图标、PWA、截图 worker 等资源同步脚本
+├── scripts/                   # 资源同步脚本与架构检查脚本（check-architecture.mjs）
+├── biome.jsonc                # Biome lint 配置（说明见 BIOME.md）
 ├── next.config.ts             # 静态导出与 Next 配置
 └── package.json               # @deeix/web workspace 脚本
 ```
 
-`app/` 中的页面文件负责路由挂载、布局和边界处理。复杂业务放在对应的 `features/<domain>` 中；真正跨业务复用的能力放在 `shared/`。`components/ui`、`components/animate-ui` 和 `components/reactbits` 分别承载基础 UI、动画基础设施和视觉效果；跨页面业务组件放在 `shared/components/`。
+分层要点如下（可机械检查的部分由 `scripts/check-architecture.mjs` 强制）：
+
+- `app/` 只做路由挂载、布局和边界处理；`page.tsx` 是 Server Component 薄壳，不写 `"use client"`。
+- 业务代码放在 `features/<domain>`；被多个 feature 复用且带业务实体语义的内容放在 `entities/`；无业务语义的复用能力放在 `shared/`。
+- 一个 feature 只能通过另一个 feature 的 `index.ts`（`@/features/<x>`）引用它，不能深入其内部路径。
+- `components/ui` 不引用 `features/` 或 `entities/`。
 
 ### Feature 文件组织
 
-业务域内部按职责拆分：
+业务域内部按职责拆分，子目录按需创建：
 
-- `api/`：该业务域的请求封装和契约适配。传输类型从 `@deeix/api-contract` 引入，跨业务的基础接口放在 `shared/api/`。
-- `components/`：页面外壳、侧边栏、表格、弹窗、图表和编辑器等业务组件。
-- `hooks/`：加载、筛选、乐观更新、轮询和批量操作等状态编排。
-- `model/`：纯业务模型、常量、映射和排序规则，不放 React 副作用。
-- `types/`：业务域内部的 UI 状态和表单类型，不重复定义后端 wire contract。
-- `utils/`：业务域内部的格式化、错误解析和展示工具。
+- `components/`：页面外壳、section、表格、弹窗、图表和编辑器等业务组件。多页面 feature（`admin`、`settings`）按 `components/sections/<section>/` 组织。
+- `context/`：业务域内部共享的上下文状态。
+- `hooks/`：加载、筛选、提交、乐观更新、轮询和批量操作等状态编排；组件不直接调用 API 函数。
+- `model/`：纯业务模型、常量、映射和排序规则，不放 React 副作用和展示文案。
+- `types/`：业务域内部的 UI 状态和表单类型，不重复定义后端传输契约。
+- `utils/`：业务域内部的格式化和展示工具。
+- `events/`：仅本 feature 内部使用的事件。
 
-拆分以表达业务边界为目标。简单页面可以保留为单文件，复杂页面再按可见 section 和清晰功能边界拆分。
+请求函数默认放在 `shared/api/`，按资源拆成 `<resource>.ts` + `<resource>-types.ts`；只有管理侧专属端点放在 `features/admin/api/`。
+
+拆分以表达业务边界为目标：简单页面可以保留为单文件，复杂页面再按可见 section 和清晰功能边界拆分。
 
 ## 路由
 
-Next.js 的 route group（`(auth)`、`(project)`）只用于组织代码，不会出现在 URL 中。当前页面入口如下：
+Next.js 的 route group（`(app)`、`(auth)`、`(project)`、`(shell)`）只用于组织代码，不会出现在 URL 中。当前页面入口如下：
 
 | 路径 | 用途 |
 | --- | --- |
@@ -83,9 +104,9 @@ Next.js 的 route group（`(auth)`、`(project)`）只用于组织代码，不�
 | `/recent` | 最近会话 |
 | `/files` | 文件管理 |
 | `/knowledges` | 知识库管理 |
-| `/skills-prompt` | 技能与提示词入口 |
+| `/skills-prompt` | 技能与提示词 |
 | `/share` | 公开分享内容 |
-| `/preview/image-loading` | 图片预览加载页 |
+| `/preview/image-loading` | 开发用图片生成加载态预览 |
 | `/setting/general` | 通用偏好 |
 | `/setting/chat` | 对话偏好 |
 | `/setting/subscription` | 订阅与用量 |
@@ -107,6 +128,9 @@ Next.js 的 route group（`(auth)`、`(project)`）只用于组织代码，不�
 | `/admin/tools` | MCP 工具 |
 | `/admin/upstreams` | 上游渠道 |
 | `/admin/users` | 用户与账户 |
+| `/desktop/tabs` | 桌面端壳 UI：标签栏 |
+
+新增管理后台页面时，必须同时在 `features/admin/model/admin-sections.ts` 的 `ADMIN_SECTIONS` 中登记，否则 `pnpm check:arch` 会失败。
 
 ## API 契约
 
@@ -157,7 +181,7 @@ NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080
 NEXT_PUBLIC_API_BASE_URL=https://api.example.com pnpm --filter @deeix/web build
 ```
 
-`NEXT_PUBLIC_DEV_AUTO_LOGIN`、`NEXT_PUBLIC_DEV_USERNAME` 和 `NEXT_PUBLIC_DEV_PASSWORD` 只用于本地开发调试，不应带入生产构建。产品品牌和其他浏览器运行时配置由后端公开接口提供，因此修改品牌通常只需要更新后端配置并重启服务。
+`NEXT_PUBLIC_*` 变量会进入浏览器包，不放任何敏感信息。产品品牌和其他浏览器运行时配置由后端公开接口提供，因此修改品牌通常只需要更新后端配置并重启服务。
 
 构建后的 `apps/web/out` 可以交给静态服务器或 Go 后端托管。静态服务器需要把无扩展名页面映射到对应的 `index.html`；使用 Go 服务时由 `server.frontend_dist_dir` 指向该目录。由于这是静态导出应用，不使用 `next start` 作为生产启动方式。
 
@@ -184,15 +208,16 @@ pnpm dev
 cd deploy && docker compose -f docker-compose.full.yml up -d
 ```
 
-只启动前端时访问 `http://localhost:3000`。后端默认监听 `http://localhost:8080`；未设置 `NEXT_PUBLIC_API_BASE_URL` 时，开发配置默认使用该地址。
+只启动前端时访问 `http://localhost:3000`。后端默认监听 `http://localhost:8080`。API 地址按“运行时覆盖（桌面端）→ `NEXT_PUBLIC_API_BASE_URL` → 页面 origin”的顺序解析；未设置构建变量且页面运行在本机回环地址的非 8080 端口时，自动指向同主机的 8080 端口。
 
 从 `apps/web/` 目录工作时，等价命令是：
 
 ```bash
 pnpm dev
-pnpm check
+pnpm check        # lint + typecheck + check:arch
 pnpm lint
 pnpm typecheck
+pnpm check:arch
 pnpm build
 ```
 
@@ -207,12 +232,14 @@ pnpm --filter @deeix/web sync:screenshot-worker
 
 ## 开发约束
 
-- 路由文件保持薄，业务逻辑放在 `features/*` 或合适的实体模块中。
-- API 访问统一通过 `shared/api` 或业务域 API 模块完成。
+- 路由文件保持薄，业务逻辑放在 `features/*` 或 `entities/*` 中。
+- API 访问统一通过 `shared/api`（管理侧专属端点为 `features/admin/api`）完成；需要鉴权的请求一律走 `authedRequest` / `authedFetch`。
+- 功能显隐读取服务器能力声明（`useFeature` / `FeatureGate`）或管理员开关（`useFeaturePolicy`），不按 `isDesktopApp()` 判断；Tauri API 只在 `shared/platform/` 调用。
 - 保持静态导出能力，不引入依赖常驻 Next.js Server、Server Action 或服务端 API Route 的实现。
 - 除 API 定位等构建期常量外，不新增必须重新构建才能修改的品牌环境变量。
 - 不在 React render 阶段读取 `window`、`document`、`getComputedStyle` 或本地存储；使用现有 store、effect 或明确的客户端边界，保持静态导出和 hydration 一致。
-- Refresh Token 只由后端写入 HttpOnly Cookie，access token 只保存在前端内存中。
+- Refresh token 在 Web 端只由后端写入 HttpOnly Cookie，桌面端存于系统 keychain；access token 只保存在前端内存中。
+- 用户可见文案（含 `aria-label`）走 i18n；代码注释使用英文。
 - 不在前端硬编码上游模型私有规则；模型参数以模型能力 JSON、用户配置和后端策略为准。
 - 文件、MCP 工具、官方原生工具和消息轨迹只消费后端结构化状态，不在前端复制业务状态机。
 - AI 生成 HTML 只能使用项目允许的安全标签、内联样式属性和 `shared/lib/html-visual-theme.ts` 白名单变量；主题变量变更时同步后端 prompt 并运行相关检查。

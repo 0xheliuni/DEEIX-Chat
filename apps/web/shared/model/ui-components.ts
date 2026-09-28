@@ -1,4 +1,4 @@
-import type { UIComponentDTO, WriteUIComponentRequest } from "@/shared/api/ui-components.types";
+import type { UIComponentDTO, WriteUIComponentRequest } from "@/shared/api/ui-components-types";
 
 export const UI_COMPONENT_LIMITS = {
   name: 64,

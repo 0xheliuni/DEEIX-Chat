@@ -1,6 +1,6 @@
 "use client";
 
-import type { UserDTO } from "@/shared/api/auth.types";
+import type { UserDTO } from "@/shared/api/auth-types";
 
 export const USER_PROFILE_UPDATED_EVENT = "deeix-chat:user-profile-updated";
 

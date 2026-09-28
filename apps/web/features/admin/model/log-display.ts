@@ -1,4 +1,4 @@
-// 管理端日志通用展示格式化：时间、用户名、JSON、计数与金额。
+// Shared admin log display formatting: time, username, JSON, counts and amounts.
 
 export function formatDateTime(value: string | null | undefined, locale: string): string {
   if (!value) {

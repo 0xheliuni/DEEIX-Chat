@@ -184,6 +184,7 @@ function TabItem({
   closable: boolean;
   onClose: () => void;
 }) {
+  const t = useTranslations("desktopTabs");
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tab.id });
   const Icon = tab.server === null ? Plus : tab.server.mode === "local" ? Laptop : Globe;
   return (
@@ -229,7 +230,7 @@ function TabItem({
       {closable ? (
         <button
           type="button"
-          aria-label="close"
+          aria-label={t("closeTab")}
           className={cn(
             "flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground",
             active ? "opacity-70 hover:opacity-100" : "opacity-0 group-hover:opacity-70",

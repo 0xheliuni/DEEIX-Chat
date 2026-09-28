@@ -37,6 +37,15 @@ type GitHubRelease = {
   html_url?: string;
 };
 
+// GitHub can be slow or unreachable (e.g. behind a firewall); give up rather than spin forever.
+const RELEASE_CHECK_TIMEOUT_MS = 10_000;
+
+function isGitHubRelease(value: unknown): value is GitHubRelease {
+  if (typeof value !== "object" || value === null) return false;
+  const { tag_name: tagName, html_url: htmlURL } = value as Record<string, unknown>;
+  return (tagName === undefined || typeof tagName === "string") && (htmlURL === undefined || typeof htmlURL === "string");
+}
+
 type UpdateDialogState =
   | { type: "current" }
   | { type: "available"; release: ReleaseInfo }
@@ -55,13 +64,17 @@ function AdminUpdateCheck() {
       const response = await fetch(LATEST_RELEASE_ENDPOINT, {
         cache: "no-store",
         headers: { Accept: "application/vnd.github+json" },
+        signal: AbortSignal.timeout(RELEASE_CHECK_TIMEOUT_MS),
       });
 
       if (!response.ok) {
         throw new Error(`Release check failed with HTTP ${response.status}`);
       }
 
-      const release = (await response.json()) as GitHubRelease;
+      const release: unknown = await response.json();
+      if (!isGitHubRelease(release)) {
+        throw new Error("Latest release payload is malformed");
+      }
       const latestVersion = release.tag_name?.trim();
       const releaseURL = release.html_url?.trim();
 

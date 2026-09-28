@@ -1,4 +1,4 @@
-import type { AdminUserDTO } from "@/features/admin/api/admin.types";
+import type { AdminUserDTO } from "@/features/admin/api/admin-types";
 import {
   formatBillingDisplayBalanceFromUSD,
   type BillingDisplayOptions,

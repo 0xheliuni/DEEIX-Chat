@@ -17,7 +17,7 @@ import {
   type ChatMentionMenuKind,
 } from "@/features/chat/hooks/use-chat-mention-menu";
 import type { ChatModelOption, PendingAttachment } from "@/features/chat/types/chat-runtime";
-import type { MCPToolDTO } from "@/shared/api/mcp.types";
+import type { MCPToolDTO } from "@/shared/api/mcp-types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { FileContentLoader } from "@/shared/components/file-preview/preview-dialog";

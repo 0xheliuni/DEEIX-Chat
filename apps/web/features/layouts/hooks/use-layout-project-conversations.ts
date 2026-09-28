@@ -8,7 +8,7 @@ import {
   upsertByPublicID,
 } from "@/entities/conversation";
 import { listConversations } from "@/shared/api/conversation";
-import type { ConversationDTO, ConversationProjectDTO } from "@/shared/api/conversation.types";
+import type { ConversationDTO, ConversationProjectDTO } from "@/shared/api/conversation-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 
 export type ProjectConversationState = {

@@ -12,11 +12,11 @@ import { listAllAdminPages } from "@/features/admin/api/shared";
 import type {
   AdminLLMModelDisplayGroupDTO,
   AdminLLMModelVendorDTO,
-} from "@/features/admin/api/llm.types";
+} from "@/features/admin/api/llm-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 
-// useAdminModelPresentation 加载模型技术厂商和可选展示分组目录。
+// useAdminModelPresentation loads the model technical-vendor and optional display-group catalogs.
 export function useAdminModelPresentation() {
   const t = useTranslations("adminModels.presentation");
   const [vendors, setVendors] = React.useState<AdminLLMModelVendorDTO[]>([]);

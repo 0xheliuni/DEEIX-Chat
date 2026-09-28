@@ -1382,6 +1382,45 @@ definitions:
     - data
     - errorMsg
     type: object
+  ChangePasswordRequest:
+    properties:
+      code:
+        maxLength: 32
+        minLength: 6
+        type: string
+      currentPassword:
+        maxLength: 128
+        type: string
+      newPassword:
+        maxLength: 128
+        minLength: 8
+        type: string
+      verificationMethod:
+        enum:
+        - none
+        - two_factor
+        - email
+        type: string
+    required:
+    - newPassword
+    type: object
+  ChangePasswordResponse:
+    properties:
+      changed:
+        type: boolean
+    required:
+    - changed
+    type: object
+  ChangePasswordResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/ChangePasswordResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
   ChannelErrorDoc:
     properties:
       data: {}
@@ -1391,6 +1430,64 @@ definitions:
       errorMsg:
         type: string
       requestId:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  ChatFilePolicyResponse:
+    properties:
+      allowedMIMETypes:
+        items:
+          type: string
+        type: array
+      capabilityMode:
+        type: string
+      docMaxBytes:
+        type: integer
+      effectiveDocMaxBytes:
+        type: integer
+      effectiveImageMaxBytes:
+        type: integer
+      fileMode:
+        type: string
+      fullContextMaxBytes:
+        type: integer
+      fullContextMaxTokens:
+        type: integer
+      fullContextPDFMaxPages:
+        type: integer
+      imageMaxBytes:
+        type: integer
+      maxMessageFiles:
+        type: integer
+      maxUploadFileBytes:
+        type: integer
+      ragAvailabilityReason:
+        type: string
+      ragAvailable:
+        type: boolean
+    required:
+    - allowedMIMETypes
+    - capabilityMode
+    - docMaxBytes
+    - effectiveDocMaxBytes
+    - effectiveImageMaxBytes
+    - fileMode
+    - fullContextMaxBytes
+    - fullContextMaxTokens
+    - fullContextPDFMaxPages
+    - imageMaxBytes
+    - maxMessageFiles
+    - maxUploadFileBytes
+    - ragAvailabilityReason
+    - ragAvailable
+    type: object
+  ChatFilePolicyResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/ChatFilePolicyResponse'
+      errorMsg:
         type: string
     required:
     - data
@@ -3128,6 +3225,23 @@ definitions:
     - data
     - errorMsg
     type: object
+  DeleteUserIdentityResponse:
+    properties:
+      deleted:
+        type: boolean
+    required:
+    - deleted
+    type: object
+  DeleteUserIdentityResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/DeleteUserIdentityResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
   DeleteUserResponse:
     properties:
       deleted:
@@ -3144,6 +3258,36 @@ definitions:
     required:
     - data
     - errorMsg
+    type: object
+  EmailBootstrapCompleteRequest:
+    properties:
+      code:
+        type: string
+      email:
+        maxLength: 128
+        type: string
+    required:
+    - email
+    type: object
+  EmailChangeCompleteRequest:
+    properties:
+      currentCode:
+        maxLength: 32
+        minLength: 6
+        type: string
+      currentVerificationMethod:
+        enum:
+        - none
+        - two_factor
+        - email
+        type: string
+      email:
+        maxLength: 128
+        type: string
+      newCode:
+        type: string
+    required:
+    - email
     type: object
   EmailRegistrationCompleteRequest:
     properties:
@@ -3193,6 +3337,21 @@ definitions:
     required:
     - data
     - errorMsg
+    type: object
+  EmailVerificationCompleteRequest:
+    properties:
+      code:
+        type: string
+    required:
+    - code
+    type: object
+  EmailVerificationStartRequest:
+    properties:
+      email:
+        maxLength: 128
+        type: string
+    required:
+    - email
     type: object
   EmailVerificationStartResponse:
     properties:
@@ -3320,6 +3479,38 @@ definitions:
     properties:
       data:
         $ref: '#/definitions/FileEmbeddingSubmissionResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  FileExtractResponse:
+    properties:
+      extractChars:
+        type: integer
+      extractPages:
+        type: integer
+      extractText:
+        type: string
+      fileID:
+        type: string
+      ocrUsed:
+        type: boolean
+      previewText:
+        type: string
+    required:
+    - extractChars
+    - extractPages
+    - extractText
+    - fileID
+    - ocrUsed
+    - previewText
+    type: object
+  FileExtractResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/FileExtractResponse'
       errorMsg:
         type: string
     required:
@@ -3504,6 +3695,16 @@ definitions:
     - startedAt
     - updatedAt
     - vectorizationReason
+    type: object
+  FileProcessingStatusResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/FileProcessingStatusResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
     type: object
   FileUpdateResponseDoc:
     properties:
@@ -4382,6 +4583,42 @@ definitions:
     - data
     - errorMsg
     type: object
+  MediaImageRequest:
+    properties:
+      branchReason:
+        enum:
+        - default
+        - retry
+        - edit
+        type: string
+      clientRunID:
+        maxLength: 64
+        type: string
+      fileIDs:
+        items:
+          type: string
+        maxItems: 20
+        type: array
+      maskFileID:
+        maxLength: 128
+        type: string
+      model:
+        maxLength: 128
+        type: string
+      options:
+        additionalProperties: {}
+        type: object
+      parentMessagePublicID:
+        maxLength: 32
+        type: string
+      prompt:
+        type: string
+      sourceMessagePublicID:
+        maxLength: 32
+        type: string
+    required:
+    - prompt
+    type: object
   MediaVideoExtensionRequest:
     properties:
       branchReason:
@@ -4413,6 +4650,39 @@ definitions:
     required:
     - prompt
     - sourceVideoFileID
+    type: object
+  MediaVideoRequest:
+    properties:
+      branchReason:
+        enum:
+        - default
+        - retry
+        - edit
+        type: string
+      clientRunID:
+        maxLength: 64
+        type: string
+      fileIDs:
+        items:
+          type: string
+        maxItems: 1
+        type: array
+      model:
+        maxLength: 128
+        type: string
+      options:
+        additionalProperties: {}
+        type: object
+      parentMessagePublicID:
+        maxLength: 32
+        type: string
+      prompt:
+        type: string
+      sourceMessagePublicID:
+        maxLength: 32
+        type: string
+    required:
+    - prompt
     type: object
   MemoryErrorDoc:
     properties:
@@ -5785,6 +6055,34 @@ definitions:
     - inputCacheRead
     - inputCacheWrite
     - prompt
+    type: object
+  PasswordChangeVerificationStartResponse:
+    properties:
+      availableMethods:
+        items:
+          type: string
+        type: array
+      expiresAt:
+        type: string
+      sent:
+        type: boolean
+      verificationMethod:
+        type: string
+    required:
+    - availableMethods
+    - expiresAt
+    - sent
+    - verificationMethod
+    type: object
+  PasswordChangeVerificationStartResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/PasswordChangeVerificationStartResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
     type: object
   PasswordResetCompleteRequest:
     properties:
@@ -7253,6 +7551,23 @@ definitions:
     - data
     - errorMsg
     type: object
+  ResetUserTwoFactorResponse:
+    properties:
+      reset:
+        type: boolean
+    required:
+    - reset
+    type: object
+  ResetUserTwoFactorResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/ResetUserTwoFactorResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
   RevokeConversationSharesRequest:
     properties:
       conversationPublicIDs:
@@ -8232,6 +8547,153 @@ definitions:
     required:
     - data
     - errorMsg
+    type: object
+  TwoFactorCodeRequest:
+    properties:
+      code:
+        maxLength: 32
+        minLength: 6
+        type: string
+    required:
+    - code
+    type: object
+  TwoFactorDisableResponse:
+    properties:
+      disabled:
+        type: boolean
+    required:
+    - disabled
+    type: object
+  TwoFactorDisableResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/TwoFactorDisableResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  TwoFactorEmailStartRequest:
+    properties:
+      challengeToken:
+        maxLength: 4096
+        minLength: 20
+        type: string
+    required:
+    - challengeToken
+    type: object
+  TwoFactorRecoveryCodesResponse:
+    properties:
+      recoveryCodes:
+        items:
+          type: string
+        type: array
+      status:
+        $ref: '#/definitions/TwoFactorStatusResponse'
+    required:
+    - recoveryCodes
+    - status
+    type: object
+  TwoFactorRecoveryCodesResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/TwoFactorRecoveryCodesResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  TwoFactorSetupCancelResponse:
+    properties:
+      canceled:
+        type: boolean
+    required:
+    - canceled
+    type: object
+  TwoFactorSetupCancelResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/TwoFactorSetupCancelResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  TwoFactorSetupStartResponse:
+    properties:
+      expiresAt:
+        type: string
+      otpauthURL:
+        type: string
+      secret:
+        type: string
+    required:
+    - expiresAt
+    - otpauthURL
+    - secret
+    type: object
+  TwoFactorSetupStartResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/TwoFactorSetupStartResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  TwoFactorStatusResponse:
+    properties:
+      available:
+        type: boolean
+      enabledAt:
+        type: string
+        x-nullable: true
+        x-omitempty: false
+      recoveryCount:
+        type: integer
+      required:
+        type: boolean
+      totpEnabled:
+        type: boolean
+    required:
+    - available
+    - enabledAt
+    - recoveryCount
+    - required
+    - totpEnabled
+    type: object
+  TwoFactorStatusResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/TwoFactorStatusResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
+  TwoFactorVerifyRequest:
+    properties:
+      challengeToken:
+        maxLength: 4096
+        minLength: 20
+        type: string
+      code:
+        maxLength: 32
+        minLength: 6
+        type: string
+      verificationMethod:
+        enum:
+        - two_factor
+        - email
+        type: string
+    required:
+    - challengeToken
+    - code
     type: object
   UIComponentDataResponse:
     properties:
@@ -10058,6 +10520,25 @@ definitions:
     required:
     - errorMsg
     type: object
+  UserIdentityListResponse:
+    properties:
+      results:
+        items:
+          $ref: '#/definitions/UserIdentityResponse'
+        type: array
+    required:
+    - results
+    type: object
+  UserIdentityListResponseDoc:
+    properties:
+      data:
+        $ref: '#/definitions/UserIdentityListResponse'
+      errorMsg:
+        type: string
+    required:
+    - data
+    - errorMsg
+    type: object
   UserIdentityResponse:
     properties:
       email:
@@ -11206,13 +11687,13 @@ paths:
   /admin/content-moderation/events:
     get:
       parameters:
-      - description: Page number
+      - description: 页码
         in: query
         name: page
         type: integer
-      - description: Page size
+      - description: 每页数量（最大 1000）
         in: query
-        name: pageSize
+        name: page_size
         type: integer
       - description: Exact event, user, run, model, result, or summary search
         in: query
@@ -15507,6 +15988,47 @@ paths:
       summary: 管理员更新用户可编辑字段
       tags:
       - admin
+  /admin/users/{id}/reset-2fa:
+    post:
+      description: 管理员清除指定用户的 TOTP 与恢复码并吊销其全部会话；不允许重置超级管理员
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ResetUserTwoFactorResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AdminErrorDoc'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/AdminErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/AdminErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/AdminErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/AdminErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 管理员重置用户双因素认证
+      tags:
+      - admin
   /admin/users/{id}/reset-password:
     post:
       consumes:
@@ -15776,6 +16298,76 @@ paths:
       summary: 今日不再显示公告
       tags:
       - announcements
+  /auth/2fa/email/start:
+    post:
+      consumes:
+      - application/json
+      description: 为待完成的双因素登录挑战向用户已验证邮箱发送验证码
+      operationId: twoFactorEmailStartCreate
+      parameters:
+      - description: 登录挑战令牌
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/TwoFactorEmailStartRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/EmailVerificationStartResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      summary: 发送登录双因素邮箱验证码
+      tags:
+      - auth
+  /auth/2fa/verify:
+    post:
+      consumes:
+      - application/json
+      description: 使用登录挑战令牌与 TOTP、恢复码或邮箱验证码完成双因素登录，成功后返回会话
+      operationId: twoFactorVerifyCreate
+      parameters:
+      - description: 双因素校验参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/TwoFactorVerifyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/LoginResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "423":
+          description: Locked
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      summary: 校验登录双因素验证码
+      tags:
+      - auth
   /auth/local/exchange:
     post:
       consumes:
@@ -15907,6 +16499,77 @@ paths:
       summary: 登出全部会话
       tags:
       - auth
+  /auth/password/change/complete:
+    post:
+      consumes:
+      - application/json
+      description: 校验当前密码及安全验证码后修改密码；成功后吊销会话并清除刷新令牌 Cookie
+      parameters:
+      - description: 修改密码参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/ChangePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ChangePasswordResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 修改当前用户密码
+      tags:
+      - auth
+  /auth/password/change/start:
+    post:
+      consumes:
+      - application/json
+      description: 为当前用户发起修改密码前的安全验证；请求体可省略，未指定验证方式时由服务端选择可用方式
+      parameters:
+      - description: 安全验证方式
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/SecurityVerificationStartRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/PasswordChangeVerificationStartResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 发起修改密码安全验证
+      tags:
+      - auth
   /auth/password/reset/complete:
     post:
       consumes:
@@ -15996,6 +16659,49 @@ paths:
           schema:
             $ref: '#/definitions/AuthErrorDoc'
       summary: 创建第三方登录授权桥事务
+      tags:
+      - auth
+  /auth/providers/{slug}/callback:
+    get:
+      description: 外部身份源完成授权后回调当前实例；校验 state 并签发一次性授权码后以 302 重定向回客户端 redirect_uri
+      parameters:
+      - description: 身份源 slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: 授权码
+        in: query
+        name: code
+        type: string
+      - description: 授权事务 state
+        in: query
+        name: state
+        type: string
+      - description: 身份源返回的错误码
+        in: query
+        name: error
+        type: string
+      produces:
+      - application/json
+      responses:
+        "302":
+          description: 重定向到客户端 redirect_uri
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "423":
+          description: Locked
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      summary: 第三方身份源授权回调
       tags:
       - auth
   /auth/providers/{slug}/exchange:
@@ -17157,6 +17863,104 @@ paths:
       summary: 更新会话标签
       tags:
       - chat
+  /conversations/{id}/media/images/edits/stream:
+    post:
+      consumes:
+      - application/json
+      description: 在会话中基于参考图片（可附遮罩）按提示词编辑图片，并以 NDJSON 流式返回任务状态事件
+      parameters:
+      - description: 会话 public_id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 媒体任务参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/MediaImageRequest'
+      produces:
+      - application/x-ndjson
+      responses:
+        "200":
+          description: NDJSON stream
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 编辑会话图片
+      tags:
+      - chat
+  /conversations/{id}/media/images/generations/stream:
+    post:
+      consumes:
+      - application/json
+      description: 在会话中按提示词生成图片，并以 NDJSON 流式返回任务状态事件
+      parameters:
+      - description: 会话 public_id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 媒体任务参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/MediaImageRequest'
+      produces:
+      - application/x-ndjson
+      responses:
+        "200":
+          description: NDJSON stream
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 生成会话图片
+      tags:
+      - chat
   /conversations/{id}/media/videos/extensions/stream:
     post:
       consumes:
@@ -17192,9 +17996,60 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/Envelope'
+      security:
+      - BearerAuth: []
       summary: 扩展会话视频
       tags:
-      - Conversations
+      - chat
+  /conversations/{id}/media/videos/generations/stream:
+    post:
+      consumes:
+      - application/json
+      description: 在会话中按提示词生成视频，并以 NDJSON 流式返回任务状态事件
+      parameters:
+      - description: 会话 public_id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 媒体任务参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/MediaVideoRequest'
+      produces:
+      - application/x-ndjson
+      responses:
+        "200":
+          description: NDJSON stream
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 生成会话视频
+      tags:
+      - chat
   /conversations/{id}/messages:
     get:
       consumes:
@@ -18137,6 +18992,84 @@ paths:
       summary: 获取文件内容
       tags:
       - chat
+  /files/{file_id}/extract:
+    get:
+      description: 返回当前用户文件已完成提取的文本内容；提取尚未就绪时返回 409
+      parameters:
+      - description: 文件ID
+        in: path
+        name: file_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/FileExtractResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 获取文件提取文本
+      tags:
+      - chat
+  /files/{file_id}/processing:
+    get:
+      description: 查询当前用户单个文件的文本提取与向量化处理状态
+      parameters:
+      - description: 文件ID
+        in: path
+        name: file_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/FileProcessingStatusResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 查询文件处理状态
+      tags:
+      - chat
   /files/embeddings:
     post:
       consumes:
@@ -18739,6 +19672,213 @@ paths:
       summary: 更新当前用户资料
       tags:
       - auth
+  /me/2fa:
+    get:
+      description: 返回 TOTP 是否可用、是否已启用、是否强制及剩余恢复码数量
+      operationId: twoFactorStatusList
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/TwoFactorStatusResponseDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 获取当前用户双因素认证状态
+      tags:
+      - auth
+  /me/2fa/disable:
+    post:
+      consumes:
+      - application/json
+      description: 校验 TOTP 验证码或恢复码后关闭当前用户的双因素认证
+      operationId: twoFactorDisableCreate
+      parameters:
+      - description: TOTP 验证码或恢复码
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/TwoFactorCodeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/TwoFactorDisableResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 关闭双因素认证
+      tags:
+      - auth
+  /me/2fa/recovery/regenerate:
+    post:
+      consumes:
+      - application/json
+      description: 校验 TOTP 验证码后作废旧恢复码并返回新的一次性恢复码
+      operationId: twoFactorRecoveryRegenerateCreate
+      parameters:
+      - description: TOTP 验证码
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/TwoFactorCodeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/TwoFactorRecoveryCodesResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 重新生成双因素恢复码
+      tags:
+      - auth
+  /me/2fa/setup:
+    delete:
+      description: 丢弃当前用户尚未确认的 TOTP 设置
+      operationId: twoFactorSetupDelete
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/TwoFactorSetupCancelResponseDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 取消双因素认证设置
+      tags:
+      - auth
+  /me/2fa/setup/confirm:
+    post:
+      consumes:
+      - application/json
+      description: 使用 TOTP 验证码确认设置并启用双因素认证，返回一次性恢复码
+      operationId: twoFactorSetupConfirmCreate
+      parameters:
+      - description: TOTP 验证码
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/TwoFactorCodeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/TwoFactorRecoveryCodesResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 确认启用双因素认证
+      tags:
+      - auth
+  /me/2fa/setup/start:
+    post:
+      description: 为当前用户生成新的 TOTP 密钥与 otpauth URL，需在过期前确认
+      operationId: twoFactorSetupStartCreate
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/TwoFactorSetupStartResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 开始设置双因素认证
+      tags:
+      - auth
   /me/delete/start:
     post:
       consumes:
@@ -18772,6 +19912,320 @@ paths:
       security:
       - BearerAuth: []
       summary: 开始删除账号验证
+      tags:
+      - auth
+  /me/email/bootstrap/complete:
+    post:
+      consumes:
+      - application/json
+      description: 使用邮箱与验证码为当前用户绑定初始邮箱，返回更新后的用户信息
+      parameters:
+      - description: 邮箱与验证码
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/EmailBootstrapCompleteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/MeResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 完成初始邮箱绑定
+      tags:
+      - auth
+  /me/email/bootstrap/start:
+    post:
+      consumes:
+      - application/json
+      description: 为尚未绑定邮箱的当前用户向指定邮箱发送验证码
+      parameters:
+      - description: 待绑定邮箱
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/EmailVerificationStartRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/EmailVerificationStartResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 发送初始邮箱验证码
+      tags:
+      - auth
+  /me/email/change/complete:
+    post:
+      consumes:
+      - application/json
+      description: 校验当前身份验证码与新邮箱验证码后更换邮箱，返回更新后的用户信息
+      parameters:
+      - description: 邮箱更换参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/EmailChangeCompleteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/MeResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 完成邮箱更换
+      tags:
+      - auth
+  /me/email/change/start-current:
+    post:
+      consumes:
+      - application/json
+      description: 更换邮箱前先按指定方式验证当前身份；请求体可省略，未指定验证方式时由服务端选择可用方式
+      parameters:
+      - description: 安全验证方式
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/SecurityVerificationStartRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/EmailVerificationStartResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 发起更换邮箱的当前身份验证
+      tags:
+      - auth
+  /me/email/change/start-new:
+    post:
+      consumes:
+      - application/json
+      description: 更换邮箱时向新邮箱发送验证码
+      parameters:
+      - description: 新邮箱
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/EmailVerificationStartRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/EmailVerificationStartResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 发送新邮箱验证码
+      tags:
+      - auth
+  /me/email/verify-current/complete:
+    post:
+      consumes:
+      - application/json
+      description: 使用验证码验证当前用户已绑定的邮箱，返回更新后的用户信息
+      parameters:
+      - description: 邮箱验证码
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/EmailVerificationCompleteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/MeResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 完成当前邮箱验证
+      tags:
+      - auth
+  /me/email/verify-current/start:
+    post:
+      description: 向当前用户已绑定但未验证的邮箱发送验证码
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/EmailVerificationStartResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 发送当前邮箱验证码
+      tags:
+      - auth
+  /me/identities:
+    get:
+      description: 列出当前用户已关联的 OIDC/OAuth2 第三方身份
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/UserIdentityListResponseDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 获取当前用户已绑定的第三方身份
+      tags:
+      - auth
+  /me/identities/{identity_id}:
+    delete:
+      description: 解除当前用户与指定第三方身份的关联；不允许移除最后一种登录方式
+      parameters:
+      - description: 身份ID
+        in: path
+        name: identity_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/DeleteUserIdentityResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/AuthErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 解绑当前用户的第三方身份
       tags:
       - auth
   /me/identities/providers/{slug}/authorize:
@@ -19286,6 +20740,29 @@ paths:
       summary: 更新我的自定义提示词
       tags:
       - prompt-presets
+  /runtime/chat-file-policy:
+    get:
+      description: 返回当前用户在聊天中上传与使用文件的运行时策略（大小、数量、类型与处理模式等）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ChatFilePolicyResponseDoc'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ConversationErrorDoc'
+      security:
+      - BearerAuth: []
+      summary: 获取聊天文件策略
+      tags:
+      - chat
   /settings/chat-context-policy:
     get:
       produces:
@@ -19983,6 +21460,40 @@ paths:
       security:
       - BearerAuth: []
       summary: 查询每日活跃度
+      tags:
+      - user
+  /users/{public_id}/avatar:
+    get:
+      description: 公开读取用户当前上传的头像图片；仅返回 image/* 内容，未上传头像时返回 404
+      parameters:
+      - description: 用户 public_id
+        in: path
+        name: public_id
+        required: true
+        type: string
+      produces:
+      - image/png
+      - image/jpeg
+      - image/webp
+      - image/gif
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/UserErrorDoc'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/UserErrorDoc'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/UserErrorDoc'
+      summary: 获取用户头像
       tags:
       - user
 securityDefinitions:

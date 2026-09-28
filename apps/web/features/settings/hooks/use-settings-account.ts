@@ -31,7 +31,7 @@ import {
   startNewEmailChange,
   startPasswordChangeVerification,
 } from "@/shared/api/auth";
-import type { ActiveSessionDTO, IdentityProviderDTO, SecurityVerificationMethod, TwoFactorSetupStartData, TwoFactorStatusData, UserDTO, UserIdentityDTO } from "@/shared/api/auth.types";
+import type { ActiveSessionDTO, IdentityProviderDTO, SecurityVerificationMethod, TwoFactorSetupStartData, TwoFactorStatusData, UserDTO, UserIdentityDTO } from "@/shared/api/auth-types";
 import { beginProviderAuthorization } from "@/shared/auth/provider-bridge";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { clearSessionAndRedirectToLogin } from "@/shared/auth/session";

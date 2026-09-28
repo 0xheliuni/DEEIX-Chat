@@ -28,7 +28,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { resolveProtocolLabel } from "@/features/admin/utils/llm-display";
-import type { AdminLLMModelProbeDebug, AdminLLMModelProbeResult } from "@/features/admin/api/llm.types";
+import type { AdminLLMModelProbeDebug, AdminLLMModelProbeResult } from "@/features/admin/api/llm-types";
 
 type ModelProbeDialogProps = {
   open: boolean;

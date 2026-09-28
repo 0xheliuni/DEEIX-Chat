@@ -12,7 +12,7 @@ import type {
   PatchPromptPresetRequest,
   PromptPresetDTO,
   WritePromptPresetRequest,
-} from "@/shared/api/prompt-presets.types";
+} from "@/shared/api/prompt-presets-types";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
 import { removeByID, replaceByID } from "@/shared/lib/optimistic-list";
 import { PROMPT_PRESET_LIMITS, normalizePromptPresetName } from "@/shared/model/prompt-presets";

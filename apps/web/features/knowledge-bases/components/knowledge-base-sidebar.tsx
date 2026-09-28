@@ -23,7 +23,7 @@ import type {
   KnowledgeBaseSortKey,
 } from "@/features/knowledge-bases/types/knowledge-bases";
 import { cn } from "@/lib/utils";
-import type { KnowledgeBaseDTO } from "@/shared/api/knowledge-bases.types";
+import type { KnowledgeBaseDTO } from "@/shared/api/knowledge-bases-types";
 
 type KnowledgeBaseSidebarProps = {
   mode: KnowledgeBaseMode;

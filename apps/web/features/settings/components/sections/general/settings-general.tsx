@@ -4,14 +4,14 @@ import * as React from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { dispatchUserProfileUpdated } from "@/features/settings/events/user-profile-events";
+import { dispatchUserProfileUpdated } from "@/shared/auth/user-profile-events";
 import { useSettingsAppearancePersistence } from "@/features/settings/hooks/use-settings-appearance-persistence";
 import {
   type FontSizeOption,
   useFontSizePreference,
   writeFontSizePreference,
 } from "@/features/settings/utils/font-size";
-import { type ToastPosition, useToastPosition, writeToastPosition } from "@/features/settings/utils/toast-position";
+import { type ToastPosition, useToastPosition, writeToastPosition } from "@/shared/lib/toast-position";
 import type { ProfileDraft, ThemeMode } from "@/features/settings/types/settings";
 import {
   createDraftFromUser,
@@ -40,7 +40,7 @@ import {
   isDisplayNameLengthValid,
   isUsernamePolicyValid,
 } from "@/shared/auth/account-policy";
-import type { UserDTO } from "@/shared/api/auth.types";
+import type { UserDTO } from "@/shared/api/auth-types";
 import {
   SettingsPage,
   SettingsSectionSeparator,

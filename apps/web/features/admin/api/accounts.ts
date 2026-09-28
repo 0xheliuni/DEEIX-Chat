@@ -12,8 +12,8 @@ import type {
   UpdateAdminUserStatusRequest,
   ImportOpenWebUIUsersData,
   ImportOpenWebUIUsersRequest,
-} from "@/features/admin/api/admin.types";
-import type { PagePayload } from "@/shared/api/common.types";
+} from "@/features/admin/api/admin-types";
+import type { PagePayload } from "@/shared/api/common-types";
 
 import { normalizeAdminPagePayload, resolveAdminPage, type AdminListQueryOptions } from "./shared";
 

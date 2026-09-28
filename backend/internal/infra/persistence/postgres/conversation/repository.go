@@ -3271,9 +3271,9 @@ func (r *Repo) searchSQLiteFileChunks(ctx context.Context, userID uint, fileObjI
 	if len(uniqueFileObjIDs) == 0 {
 		return nil, nil
 	}
-	// sqlite-vec applies k before the outer JOIN predicates. Resolve the allowed
-	// file IDs first so unauthorized nearest neighbours cannot displace valid
-	// candidates from the virtual-table result window.
+	// sqlite-vec 会在外层 JOIN 谓词之前应用 k。因此先解析允许的
+	// 文件 ID，避免无权访问的近邻挤占虚拟表结果窗口中的
+	// 有效候选。
 	authorizedFileObjIDs := make([]uint, 0, len(uniqueFileObjIDs))
 	if err := r.db.WithContext(ctx).Table("file_chunks").
 		Distinct("file_chunks.file_obj_id").

@@ -942,9 +942,9 @@ func (c *conversationCache) IsGenerationStreamActive(ctx context.Context, runID 
 	return count > 0, nil
 }
 
-// ListActiveGenerationStreams returns the user's active runs from a compact
-// Redis index. Expired leases and entries reassigned to another user are
-// removed opportunistically.
+// ListActiveGenerationStreams 从精简的 Redis 索引返回用户的活跃 run。
+// 已过期的租约以及被重新分配给其他用户的条目
+// 会被顺带清理。
 func (c *conversationCache) ListActiveGenerationStreams(ctx context.Context, userID uint) ([]repository.ActiveGenerationStream, error) {
 	if c.client == nil || userID == 0 {
 		return []repository.ActiveGenerationStream{}, nil
@@ -1280,7 +1280,7 @@ func (c *conversationCache) ResetGenerationStreamEvents(ctx context.Context, lea
 	if lease.RunID == "" || lease.ExecutionID == "" {
 		return false, nil
 	}
-	// Keep seq key so subsequent appends stay monotonic for reconnect cursors.
+	// 保留 seq key，使后续追加对重连游标保持单调递增。
 	reset, err := resetGenerationStreamEventsScript.Run(ctx, c.client, []string{
 		generationStreamActiveKey(lease.RunID),
 		generationStreamEventsKey(lease.RunID),

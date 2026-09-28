@@ -21,7 +21,7 @@ import { listAdminUsers, type PermissionGroup } from "@/features/admin/api";
 import type { AdminStatisticsSubject } from "@/features/admin/hooks/use-admin-statistics";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { cn } from "@/lib/utils";
-import type { AdminUserDTO } from "@/features/admin/api/admin.types";
+import type { AdminUserDTO } from "@/features/admin/api/admin-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { resolveAvatarImageSrc } from "@/shared/lib/avatar";

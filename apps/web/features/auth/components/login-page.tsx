@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SpinnerLabel } from "@/components/ui/spinner";
 import { PASSWORD_MIN_LENGTH } from "@/shared/auth/account-policy";
-import { useLoginPage } from "@/features/auth/hooks/use-auth-login-page";
+import { useAuthLoginPage } from "@/features/auth/hooks/use-auth-login-page";
 import { AppLogo } from "@/shared/components/app-logo";
 import { IdentityProviderIcon } from "@/shared/components/identity-provider-icon";
 import { CustomBrandAttribution } from "@/shared/components/powered-by-deeix";
@@ -30,7 +30,7 @@ function LoginBrandMark() {
 
 export function LoginPage({ nextPath }: LoginPageProps) {
   const t = useTranslations("login");
-  const loginPage = useLoginPage({ nextPath });
+  const loginPage = useAuthLoginPage({ nextPath });
   const {
     cancelTwoFactorChallenge,
     canShowRegisterSwitch,

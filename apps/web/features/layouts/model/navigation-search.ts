@@ -1,5 +1,5 @@
 import type { ConversationSearchResult } from "@/features/layouts/types/navigation";
-import type { ConversationDTO, ConversationSearchResultDTO } from "@/shared/api/conversation.types";
+import type { ConversationDTO, ConversationSearchResultDTO } from "@/shared/api/conversation-types";
 import {
   conversationMatchesSearch,
   normalizeConversationSearchText,

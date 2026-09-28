@@ -12,7 +12,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { listVisibleKnowledgeBases } from "@/shared/api/knowledge-bases";
-import type { KnowledgeBaseDTO } from "@/shared/api/knowledge-bases.types";
+import type { KnowledgeBaseDTO } from "@/shared/api/knowledge-bases-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { useFeaturePolicy } from "@/shared/hooks/use-feature-policy";
 

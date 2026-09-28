@@ -1,6 +1,6 @@
 "use client";
 
-import type { UserStorageQuotaDTO } from "@/shared/api/file.types";
+import type { UserStorageQuotaDTO } from "@/shared/api/file-types";
 
 export type FileLibraryInvalidationReason =
   | "conversation_deleted"

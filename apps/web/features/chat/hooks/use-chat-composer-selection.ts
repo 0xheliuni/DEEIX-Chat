@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import type { SkillSummaryDTO } from "@/shared/api/skills.types";
+import type { SkillSummaryDTO } from "@/shared/api/skills-types";
 
 const LEGACY_CHAT_COMPOSER_SELECTION_STORAGE_KEY = "deeix-chat:chat-composer-selection:v1";
 const CHAT_COMPOSER_SELECTION_STORAGE_KEY_PREFIX = "deeix-chat:chat-composer-selection:v2:";

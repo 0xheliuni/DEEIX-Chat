@@ -1,4 +1,4 @@
-import type { ChatFilePolicyDTO } from "@/shared/api/file.types";
+import type { ChatFilePolicyDTO } from "@/shared/api/file-types";
 import { formatBytes } from "@/shared/lib/file-display";
 
 export type UploadCategory = "image" | "pdf" | "word" | "excel" | "text" | "unknown";

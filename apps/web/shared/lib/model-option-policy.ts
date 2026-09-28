@@ -1,4 +1,4 @@
-// 协议展示顺序统一按厂商：OpenAI → Anthropic → Google → xAI → OpenRouter。
+// Protocol display order is always by vendor: OpenAI → Anthropic → Google → xAI → OpenRouter.
 export const MODEL_OPTION_POLICY_PROTOCOLS = [
   "default",
   "openai_chat_completions",

@@ -431,7 +431,7 @@ export function UserMessageMeta({
               <Copy strokeWidth={1.8} animateOnHover="default" />
             )}
           </MetaIconButton>
-          {/* 根消息（parentPublicID 为空）后端禁止删除，前端直接不展示入口。 */}
+          {/* The backend forbids deleting the root message (empty parentPublicID), so the UI doesn't show the entry at all. */}
           {onDelete && hasPersistedMessage && item.parentPublicID ? (
             <DeleteMessageButton
               disabled={messagePending}
@@ -717,7 +717,7 @@ type BillingServiceItemEntry = {
   billedNanousd: number;
 };
 
-// billingServiceItemEntries 提取快照中的服务项（如 MCP 工具按次计费），保证明细行与总额对得上。
+// billingServiceItemEntries extracts service items from the snapshot (e.g. per-call MCP tool billing) so line items add up to the total.
 function billingServiceItemEntries(snapshot: BillingSnapshot): BillingServiceItemEntry[] {
   const items = Array.isArray(snapshot.service_items) ? snapshot.service_items : [];
   const entries: BillingServiceItemEntry[] = [];
@@ -756,9 +756,9 @@ function billingTooltipLines(item: ChatMetaMessage, labels: BillingMetaLabels, b
   const pricingMode = snapshot.pricing_mode === "call" || snapshot.pricing_mode === "duration" || snapshot.pricing_mode === "tiered" ? snapshot.pricing_mode : "token";
   const serviceEntries = billingServiceItemEntries(snapshot);
   const serviceLines = billingServiceItemLines(serviceEntries, labels, billingDisplay);
-  // 工具服务项与模型计费之间用分隔线隔开。
+  // Separate tool service items from model billing with a divider.
   const serviceSection: BillingTooltipLine[] = serviceLines.length > 0 ? [{ type: "divider" }, ...serviceLines] : [];
-  // 免费模型也可能因 MCP 等服务项产生费用，只有整单为 0 才按免费展示。
+  // Free models can still incur charges from service items like MCP; only show as free when the whole bill is 0.
   const freeOfCharge = snapshot.is_free_model === true && !(cost.billedNanousd > 0);
   const totalLine = freeOfCharge
     ? formatTotalLine(`${formatTooltipBillingCost(0, billingDisplay)} (${labels.freeModelNoBilling})`, labels)
@@ -1080,7 +1080,7 @@ export function AssistantMessageMeta({
   const canEdit = Boolean(canRetry && !busy && onEdit);
   const canContinue = Boolean(canRetry && !busy && item.status === "interrupted");
   const canFork = Boolean(canRetry && onFork);
-  // 根消息（parentPublicID 为空）后端禁止删除，前端直接不展示入口。
+  // The backend forbids deleting the root message (empty parentPublicID), so the UI doesn't show the entry at all.
   const canDelete = Boolean(canRetry && !busy && onDelete && item.parentPublicID);
   const canShowBranchNavigator = Boolean(showBranchNavigator && item.branchNavigator);
   const hasTokenUsage = Boolean(

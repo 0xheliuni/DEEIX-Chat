@@ -54,7 +54,7 @@ import {
   updateAdminMCPServerToolsStatus,
   updateAdminMCPTool,
 } from "@/features/admin/api";
-import type { AdminMCPServerDTO, AdminMCPServerPayload } from "@/features/admin/api/mcp.types";
+import type { AdminMCPServerDTO, AdminMCPServerPayload } from "@/features/admin/api/mcp-types";
 import { Table, TableBody, TableCell, TableEmptyRow, TableHead, TableHeader, TableLoadingRow, TableRow } from "@/components/ui/table";
 import { TablePagination, TableToolbar } from "@/components/ui/table-tools";
 import { useVirtualTableRows, VirtualTablePaddingRow } from "@/components/ui/virtual-table";
@@ -83,8 +83,8 @@ import {
   SettingsPage,
   SettingsSection,
 } from "@/shared/components/settings-layout";
-import type { MCPToolDTO } from "@/shared/api/mcp.types";
-import type { PatchSettingItem } from "@/shared/api/settings.types";
+import type { MCPToolDTO } from "@/shared/api/mcp-types";
+import type { PatchSettingItem } from "@/shared/api/settings-types";
 
 type ServerFormState = {
   id?: number;

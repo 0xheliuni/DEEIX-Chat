@@ -13,7 +13,7 @@ import {
 import { Table, TableBody, TableCell, TableEmptyRow, TableHead, TableHeader, TableLoadingRow, TableRow } from "@/components/ui/table";
 import { formatDateTime } from "@/features/settings/model/account-settings";
 import { useAppLocale } from "@/i18n/app-i18n-provider";
-import type { IdentityProviderDTO, UserIdentityDTO } from "@/shared/api/auth.types";
+import type { IdentityProviderDTO, UserIdentityDTO } from "@/shared/api/auth-types";
 import { IdentityProviderIcon } from "@/shared/components/identity-provider-icon";
 import { SettingsSection } from "@/shared/components/settings-layout";
 

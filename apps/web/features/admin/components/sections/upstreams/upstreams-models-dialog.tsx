@@ -81,7 +81,7 @@ import type {
   AdminLLMRemoteModelItem,
   AdminLLMUpstreamView,
   UpsertAdminLLMUpstreamModelRequest,
-} from "@/features/admin/api/llm.types";
+} from "@/features/admin/api/llm-types";
 import { ModelProbeDialog } from "@/features/admin/components/sections/models/models-probe-dialog";
 import {
   PROTOCOL_OPTIONS,
@@ -106,8 +106,8 @@ import { FeatureGate } from "@/shared/capabilities";
 import {
   isUpstreamModelSyncAbort,
   UpstreamModelBindingsApplyError,
-  useUpstreamModelSync,
-} from "@/features/admin/hooks/use-upstream-model-sync";
+  useAdminUpstreamModelSync,
+} from "@/features/admin/hooks/use-admin-upstream-model-sync";
 
 function KindsDropdown({
   value,
@@ -565,7 +565,7 @@ function RemoteModelsDialog({
     permissionGroupsLoading,
     reloadCatalog: loadRemoteModels,
     applySync,
-  } = useUpstreamModelSync(open, upstream?.id ?? null);
+  } = useAdminUpstreamModelSync(open, upstream?.id ?? null);
   const remoteTotal = catalog?.total ?? null;
   const remoteSnapshotID = catalog?.snapshotID ?? "";
   const syncPlan = catalog?.syncPlan ?? null;
@@ -1520,7 +1520,7 @@ export function UpstreamModelsDialog({
     setRows((prev) =>
       prev.map((row) => {
         if (routeIDsForRow(row).length === 0 || !selected.has(row.draftKey)) return row;
-        // 上游已下架的模型路由开关不可操作，批量修改路由状态时同样跳过，避免暗中改写被禁用的开关。
+        // Route toggles for models delisted upstream are not operable; skip them in bulk route-status changes too, to avoid silently rewriting disabled toggles.
         const { routeStatus: _routeStatus, ...rest } = patch;
         const rowPatch: RowDraftPatch = row.upstreamModelStatus === "inactive" ? rest : patch;
         if (Object.keys(rowPatch).length === 0) return row;

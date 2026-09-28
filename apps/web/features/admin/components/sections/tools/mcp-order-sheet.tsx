@@ -26,10 +26,10 @@ import {
   listAdminMCPServerTools,
   reorderAdminMCPServers,
 } from "@/features/admin/api";
-import type { AdminMCPOrderGroupDTO, AdminMCPServerDTO } from "@/features/admin/api/mcp.types";
+import type { AdminMCPOrderGroupDTO, AdminMCPServerDTO } from "@/features/admin/api/mcp-types";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import type { MCPToolDTO } from "@/shared/api/mcp.types";
+import type { MCPToolDTO } from "@/shared/api/mcp-types";
 
 type MCPOrderSheetProps = {
   open: boolean;

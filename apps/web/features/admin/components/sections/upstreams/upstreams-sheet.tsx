@@ -73,7 +73,7 @@ import type {
   AdminLLMUpstreamView,
   CreateAdminLLMUpstreamRequest,
   UpdateAdminLLMUpstreamRequest,
-} from "@/features/admin/api/llm.types";
+} from "@/features/admin/api/llm-types";
 import { COMPATIBLE_OPTIONS, resolveProtocolLabel } from "@/features/admin/utils/llm-display";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
@@ -107,7 +107,7 @@ const CODEX_COMPATIBLE_AFFINITY_HEADERS = [
 ] as const;
 
 const PROTOCOL_OPTIONS_BY_KIND: Record<(typeof PROTOCOL_DEFAULT_KINDS)[number], string[]> = {
-  // 展示顺序：厂商按 OpenAI → Anthropic → Google → xAI → OpenRouter，厂商内 Chat Completions → Responses → 生成 → 编辑。
+  // Display order: vendors OpenAI → Anthropic → Google → xAI → OpenRouter; within a vendor, Chat Completions → Responses → generation → editing.
   chat: [
     "openai_chat_completions",
     "openai_responses",

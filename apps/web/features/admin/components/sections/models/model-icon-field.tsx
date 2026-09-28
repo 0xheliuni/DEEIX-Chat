@@ -29,7 +29,7 @@ import {
   listAdminLLMModelIcons,
   uploadAdminLLMModelIcon,
 } from "@/features/admin/api";
-import type { AdminLLMModelIconAssetListItem } from "@/features/admin/api/llm.types";
+import type { AdminLLMModelIconAssetListItem } from "@/features/admin/api/llm-types";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { ApiError } from "@/shared/api/http-client";

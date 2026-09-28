@@ -307,7 +307,8 @@
     "memoryNamePlaceholder": "Preference name, e.g. response style",
     "memoryValuePlaceholder": "Preference content, e.g. answer concisely",
     "savingPreference": "Saving...",
-    "savePreference": "Save preference"
+    "savePreference": "Save preference",
+    "positionRail": "Message position"
   },
   "loadError": {
     "title": "Failed to load conversation",

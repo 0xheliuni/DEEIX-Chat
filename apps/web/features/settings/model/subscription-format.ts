@@ -1,5 +1,5 @@
-import type { UserDTO } from "@/shared/api/auth.types";
-import type { BillingPlanDTO, BillingPlanPriceDTO } from "@/shared/api/billing.types";
+import type { UserDTO } from "@/shared/api/auth-types";
+import type { BillingPlanDTO, BillingPlanPriceDTO } from "@/shared/api/billing-types";
 import {
   formatBillingDisplayBalanceFromUSD,
   formatBillingDisplayAmountFromUSD,

@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { getConversationToolCallDetail } from "@/shared/api/conversation";
-import type { ConversationToolCallDetailDTO } from "@/shared/api/conversation.types";
+import type { ConversationToolCallDetailDTO } from "@/shared/api/conversation-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { CopyActionButton } from "@/shared/components/copy-action";
 import { JsonCodeEditor } from "@/shared/components/json-code-editor";

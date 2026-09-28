@@ -2,9 +2,9 @@ import type {
   AdminBillingPlanDTO,
   AdminModelPricingDTO,
   UpsertAdminModelPricingRequest,
-} from "@/features/admin/api/billing.types";
-import type { AdminLLMModelDTO } from "@/features/admin/api/llm.types";
-import type { PatchSettingItem, SettingItem } from "@/shared/api/settings.types";
+} from "@/features/admin/api/billing-types";
+import type { AdminLLMModelDTO } from "@/features/admin/api/llm-types";
+import type { PatchSettingItem, SettingItem } from "@/shared/api/settings-types";
 import { parseKindsJSON } from "@/shared/model/llm-schema";
 import { normalizeSchedulePeriods, parseSchedulePricing, type SchedulePeriodForm, schedulePeriodsToForm, stringifySchedulePricing } from "@/shared/model/schedule-pricing";
 

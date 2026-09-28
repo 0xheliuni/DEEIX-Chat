@@ -72,7 +72,7 @@ import type {
   AdminLLMStatus,
   AdminLLMUpstreamModelDTO,
   AdminLLMUpstreamView,
-} from "@/features/admin/api/llm.types";
+} from "@/features/admin/api/llm-types";
 import {
   DEFAULT_MODEL_SOURCE_BIND_DRAFT,
   type ModelSourceBindDraft,

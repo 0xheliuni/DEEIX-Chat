@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { AdminLLMUpstreamView } from "@/features/admin/api/llm.types";
+import type { AdminLLMUpstreamView } from "@/features/admin/api/llm-types";
 import { ADAPTER_LABELS } from "@/features/admin/types/llm";
 import type {
   PermissionGroupModelRule,

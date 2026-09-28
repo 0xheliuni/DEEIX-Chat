@@ -5,15 +5,15 @@ import (
 	"strings"
 )
 
-// ErrorCodeProvider exposes the stable processing code for an extraction error.
-// The underlying error remains available to logs through Unwrap.
+// ErrorCodeProvider 暴露提取错误的稳定处理码。
+// 底层错误仍可通过 Unwrap 供日志使用。
 type ErrorCodeProvider interface {
 	ErrorCode() string
 }
 
-// NewOCRError attaches a provider-scoped, stable OCR failure code to cause.
-// The reason is selected by the extraction workflow and is never inferred from
-// the underlying provider error text.
+// NewOCRError 为 cause 附加提供方作用域的稳定 OCR 失败码。
+// 原因由提取流程选定，绝不从
+// 底层提供方错误文本推断。
 func NewOCRError(provider string, reason string, cause error) error {
 	provider = normalizeOCREngine(provider)
 	suffix := "ocr_failed"
@@ -46,7 +46,7 @@ type codedError struct {
 	cause error
 }
 
-// NewError attaches a stable extraction code to an underlying cause.
+// NewError 为底层原因附加稳定的提取错误码。
 func NewError(code string, cause error) error {
 	if cause == nil {
 		return nil
@@ -72,7 +72,7 @@ func withErrorCode(err error) error {
 	return &codedError{code: "extract_failed", cause: err}
 }
 
-// ErrorCode returns a stable extraction code, or an empty string for unrelated errors.
+// ErrorCode 返回稳定的提取错误码；对无关错误返回空字符串。
 func ErrorCode(err error) string {
 	if err == nil {
 		return ""
@@ -84,9 +84,9 @@ func ErrorCode(err error) string {
 	return provider.ErrorCode()
 }
 
-// IsEmptyContent reports whether err means the extractor or OCR engine ran
-// successfully but found no text. Every engine mints such codes with the
-// `_empty_content` suffix, so callers treat the file as empty rather than failed.
+// IsEmptyContent 报告 err 是否表示提取器或 OCR 引擎运行
+// 成功但未发现文本。所有引擎生成此类错误码时都带有
+// `_empty_content` 后缀，因此调用方将文件视为空而非失败。
 func IsEmptyContent(err error) bool {
 	return strings.HasSuffix(ErrorCode(err), "_empty_content")
 }

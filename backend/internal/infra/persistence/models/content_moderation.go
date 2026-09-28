@@ -2,7 +2,7 @@ package model
 
 import "time"
 
-// ContentModerationEvent stores retained moderation decision metadata.
+// ContentModerationEvent 存储保留的审核判定元数据。
 type ContentModerationEvent struct {
 	BaseModel
 	PublicID            string    `gorm:"size:40;not null;default:'';uniqueIndex:idx_content_moderation_events_public_id;comment:公开事件编号"`
@@ -35,7 +35,7 @@ func (ContentModerationEvent) TableName() string {
 	return "content_moderation_events"
 }
 
-// ContentModerationDailyStat stores anonymous daily aggregates.
+// ContentModerationDailyStat 存储匿名的每日聚合数据。
 type ContentModerationDailyStat struct {
 	BaseModel
 	StatDate     time.Time `gorm:"type:date;not null;uniqueIndex:uk_content_moderation_daily_stats,priority:1;comment:统计日期"`

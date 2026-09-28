@@ -51,7 +51,7 @@ import {
 } from "@/features/admin/model/files-settings";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { cn } from "@/lib/utils";
-import type { PatchSettingItem } from "@/shared/api/settings.types";
+import type { PatchSettingItem } from "@/shared/api/settings-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import {
   SettingsFieldInset,

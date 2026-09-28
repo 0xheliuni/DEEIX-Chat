@@ -33,7 +33,7 @@ import type {
   AdminLLMModelProbeResult,
   AdminLLMModelUpstreamSourceDTO,
   AdminLLMStatus,
-} from "@/features/admin/api/llm.types";
+} from "@/features/admin/api/llm-types";
 import { AdminBulkConfirmDialog } from "@/features/admin/components/bulk-confirm-dialog";
 import { useAdminCircuitBreaker } from "@/features/admin/hooks/use-admin-circuit-breaker";
 import { useAdminModelPresentation } from "@/features/admin/hooks/use-admin-model-presentation";

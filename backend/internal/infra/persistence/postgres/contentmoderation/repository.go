@@ -15,14 +15,14 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// Repo implements repository.ContentModerationRepository.
+// Repo 实现 repository.ContentModerationRepository。
 type Repo struct {
 	db *gorm.DB
 }
 
 var _ repository.ContentModerationRepository = (*Repo)(nil)
 
-// NewRepo creates a content moderation repository.
+// NewRepo 创建内容审核仓储。
 func NewRepo(db *gorm.DB) *Repo {
 	return &Repo{db: db}
 }
@@ -176,7 +176,7 @@ func (r *Repo) ListExpiredContentEvents(ctx context.Context, before time.Time, l
 		limit = 100
 	}
 	var rows []model.ContentModerationEvent
-	// Include text ciphertext and image isolation metadata so pure-text hits expire too.
+	// 同时包含文本密文与图片隔离元数据，使纯文本命中也能过期。
 	if err := r.db.WithContext(ctx).
 		Where("content_expires_at <= ? AND (encrypted_text <> '' OR image_count > 0 OR (image_meta_json <> '' AND image_meta_json <> '[]'))", before).
 		Limit(limit).
@@ -191,7 +191,7 @@ func (r *Repo) ListExpiredContentEvents(ctx context.Context, before time.Time, l
 }
 
 func (r *Repo) DeleteExpiredMetadata(ctx context.Context, before time.Time) (int64, error) {
-	// Physical delete: retention policy requires rows to disappear, not soft-delete.
+	// 物理删除：保留策略要求行彻底消失，而非软删除。
 	res := r.db.WithContext(ctx).
 		Unscoped().
 		Where(
@@ -285,8 +285,8 @@ func (r *Repo) UpdateRunModeration(ctx context.Context, runID string, state stri
 		Updates(updates).Error)
 }
 
-// ApplyRunBlock writes blocked message state, revokes assistant attachments, clears
-// assistant text/process traces, and marks the run blocked in a single transaction.
+// ApplyRunBlock 在单个事务中写入消息拦截状态、撤销助手附件、清除
+// 助手文本/过程轨迹，并将 run 标记为已拦截。
 func (r *Repo) ApplyRunBlock(ctx context.Context, runID string, includeUser bool, eventPublicID string, categoriesJSON string) ([]string, error) {
 	runID = strings.TrimSpace(runID)
 	if runID == "" {
@@ -359,7 +359,7 @@ func (r *Repo) ApplyRunBlock(ctx context.Context, runID string, includeUser bool
 			}).Error; err != nil {
 			return err
 		}
-		// Drop user-visible process traces / upstream-think so history cannot rehydrate withdrawn content.
+		// 丢弃用户可见的过程轨迹 / upstream-think，避免历史记录重新还原已撤回的内容。
 		if err := tx.Where("run_id = ? AND event_scope IN ?", runID, []string{"trace_block", "trace_event"}).
 			Delete(&model.ChatRunEvent{}).Error; err != nil {
 			return err

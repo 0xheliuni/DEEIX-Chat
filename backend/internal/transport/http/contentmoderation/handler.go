@@ -10,6 +10,7 @@ import (
 
 	appadmin "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/admin"
 	appcm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/contentmoderation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/response"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/middleware"
 	"github.com/gin-gonic/gin"
@@ -19,18 +20,18 @@ type userLabelResolver interface {
 	ResolveUserLabels(ctx context.Context, userIDs []uint) map[uint]appadmin.UserLabel
 }
 
-// Handler exposes admin content-moderation APIs.
+// Handler 提供管理端内容审核 API。
 type Handler struct {
 	service           *appcm.Service
 	userLabelResolver userLabelResolver
 }
 
-// NewHandler creates the HTTP handler.
+// NewHandler 创建 HTTP 处理器。
 func NewHandler(service *appcm.Service) *Handler {
 	return &Handler{service: service}
 }
 
-// SetUserLabelResolver injects batch user-label resolution for event lists/details.
+// SetUserLabelResolver 为事件列表/详情注入批量用户标签解析。
 func (h *Handler) SetUserLabelResolver(resolver userLabelResolver) {
 	h.userLabelResolver = resolver
 }
@@ -53,28 +54,6 @@ func parseOptionalRFC3339(c *gin.Context, key string) (*time.Time, bool) {
 		return nil, false
 	}
 	return &parsed, true
-}
-
-func parsePagination(c *gin.Context) (page int, pageSize int, ok bool) {
-	page = 1
-	pageSize = 20
-	if raw := strings.TrimSpace(c.Query("page")); raw != "" {
-		parsed, err := strconv.Atoi(raw)
-		if err != nil || parsed < 1 {
-			response.ErrorFrom(c, http.StatusBadRequest, errInvalidPage)
-			return 0, 0, false
-		}
-		page = parsed
-	}
-	if raw := strings.TrimSpace(c.Query("pageSize")); raw != "" {
-		parsed, err := strconv.Atoi(raw)
-		if err != nil || parsed < 1 || parsed > 100 {
-			response.ErrorFrom(c, http.StatusBadRequest, errInvalidPagesize)
-			return 0, 0, false
-		}
-		pageSize = parsed
-	}
-	return page, pageSize, true
 }
 
 // GetConfig godoc
@@ -170,15 +149,15 @@ func (h *Handler) GetStats(c *gin.Context) {
 	response.Success(c, ContentModerationStatsDataResponse{Items: out})
 }
 
-// parseOptionalUserID parses the optional userId query parameter.
-// Empty means no filter (UserID 0). Invalid values yield 400 and ok=false.
+// parseOptionalUserID 解析可选的 userId 查询参数。
+// 为空表示不过滤（UserID 0）。非法值返回 400 且 ok=false。
 func parseOptionalUserID(c *gin.Context) (uint, bool) {
 	raw := strings.TrimSpace(c.Query("userId"))
 	if raw == "" {
 		return 0, true
 	}
 
-	// Limit bit size to the platform's uint width to avoid truncation on 32-bit.
+	// 将位宽限制为平台 uint 宽度，避免在 32 位平台上截断。
 	parsed, err := strconv.ParseUint(raw, 10, strconv.IntSize)
 	if err != nil || parsed == 0 {
 		response.ErrorFrom(c, http.StatusBadRequest, errInvalidUserid)
@@ -193,8 +172,8 @@ func parseOptionalUserID(c *gin.Context) (uint, bool) {
 // @Tags admin-content-moderation
 // @Produce json
 // @Security BearerAuth
-// @Param page query int false "Page number"
-// @Param pageSize query int false "Page size"
+// @Param page query int false "页码"
+// @Param page_size query int false "每页数量（最大 1000）"
 // @Param query query string false "Exact event, user, run, model, result, or summary search"
 // @Param result query string false "Result filter"
 // @Param direction query string false "Direction filter"
@@ -207,10 +186,7 @@ func parseOptionalUserID(c *gin.Context) (uint, bool) {
 // @Success 200 {object} ContentModerationEventListResponseDoc
 // @Router /admin/content-moderation/events [get]
 func (h *Handler) ListEvents(c *gin.Context) {
-	page, pageSize, ok := parsePagination(c)
-	if !ok {
-		return
-	}
+	page, pageSize := pagination.Parse(c.Query("page"), c.Query("page_size"))
 	userID, ok := parseOptionalUserID(c)
 	if !ok {
 		return
@@ -341,20 +317,22 @@ func writeError(c *gin.Context, err error) {
 	case errors.Is(err, appcm.ErrEventNotFound):
 		response.ErrorFrom(c, http.StatusNotFound, appcm.ErrEventNotFound)
 	case errors.Is(err, appcm.ErrServiceConfigRequired):
-		response.ErrorWithCode(c, http.StatusBadRequest, "content_moderation.config_required")
-	case errors.Is(err, appcm.ErrInvalidBaseURL),
-		errors.Is(err, appcm.ErrInvalidModel),
+		response.ErrorFrom(c, http.StatusBadRequest, appcm.ErrServiceConfigRequired)
+	case errors.Is(err, appcm.ErrInvalidBaseURL):
+		// 端口层哨兵不携带 API 契约，统一按无效配置对外返回。
+		response.ErrorFrom(c, http.StatusBadRequest, appcm.ErrInvalidConfig)
+	case errors.Is(err, appcm.ErrInvalidModel),
 		errors.Is(err, appcm.ErrInvalidTimeout),
 		errors.Is(err, appcm.ErrInvalidConcurrency),
 		errors.Is(err, appcm.ErrInvalidQueueCapacity),
 		errors.Is(err, appcm.ErrInvalidCategories),
 		errors.Is(err, appcm.ErrImageTextOnlyCategory),
 		errors.Is(err, appcm.ErrInvalidConfig):
-		response.ErrorWithCode(c, http.StatusBadRequest, "content_moderation.invalid_config")
+		response.ErrorFrom(c, http.StatusBadRequest, appcm.ErrInvalidConfig)
 	case errors.Is(err, appcm.ErrProbeFailed):
-		response.ErrorWithCode(c, http.StatusBadRequest, "content_moderation.probe_failed")
+		response.ErrorFrom(c, http.StatusBadRequest, appcm.ErrProbeFailed)
 	case errors.Is(err, appcm.ErrInvalidEventFilter):
-		response.ErrorWithCode(c, http.StatusBadRequest, response.CodeRequestInvalidQuery)
+		response.ErrorFrom(c, http.StatusBadRequest, appcm.ErrInvalidEventFilter)
 	default:
 		response.InternalError(c)
 	}

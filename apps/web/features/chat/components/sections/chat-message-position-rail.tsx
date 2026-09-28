@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
+import { useTranslations } from "next-intl";
 import * as React from "react";
 import { createPortal } from "react-dom";
 
@@ -148,6 +149,7 @@ function ChatMessagePositionRailComponent({
   boundaryRef: React.RefObject<HTMLDivElement | null>;
   messages: ChatAreaMessage[];
 }) {
+  const t = useTranslations("chat.messages");
   const { scrollToMessage } = useMessageScroller();
   const { end: canScrollToEnd } = useMessageScrollerScrollable();
   const { visibleMessageIds } = useMessageScrollerVisibility();
@@ -326,7 +328,7 @@ function ChatMessagePositionRailComponent({
       ref={railViewportRef}
       className="pointer-events-auto h-full w-6 overflow-y-auto overscroll-contain text-muted-foreground/55 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       role="navigation"
-      aria-label="Message position"
+      aria-label={t("positionRail")}
       onScroll={clearPreview}
     >
       <div

@@ -56,7 +56,7 @@ import type { ChatAreaMessage, } from "@/features/chat/types/messages";
 import { useSettingsChatPreferences } from "@/features/settings";
 import { cn } from "@/lib/utils";
 import { getConversation } from "@/shared/api/conversation";
-import type { ConversationDTO, ConversationOptions } from "@/shared/api/conversation.types";
+import type { ConversationDTO, ConversationOptions } from "@/shared/api/conversation-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
 import { DeleteFilesOption } from "@/shared/components/delete-files-option";
@@ -130,7 +130,7 @@ export function AppChatArea() {
     router.push(projectID ? `/chat?project_id=${encodeURIComponent(projectID)}` : "/chat");
   }, [requestNewConversation, routeProjectID, router]);
   const activeGenerationRunsRef = React.useRef<Set<string>>(new Set());
-  // Set 的原地增删不会触发 effect，revision 用于同步断流恢复判断。
+  // In-place Set mutations don't trigger effects; revision keeps the stream-resume check in sync.
   const [activeGenerationRunsRevision, setActiveGenerationRunsRevision] = React.useState(0);
   const onActiveGenerationRunsChange = React.useCallback(() => {
     setActiveGenerationRunsRevision((current) => current + 1);

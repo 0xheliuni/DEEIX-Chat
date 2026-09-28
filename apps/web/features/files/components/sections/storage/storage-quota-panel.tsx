@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 
 import { formatBytes } from "@/shared/lib/file-display";
-import type { UserStorageQuotaDTO } from "@/shared/api/file.types";
+import type { UserStorageQuotaDTO } from "@/shared/api/file-types";
 
 type StorageQuotaPanelProps = {
   quota: UserStorageQuotaDTO | null;

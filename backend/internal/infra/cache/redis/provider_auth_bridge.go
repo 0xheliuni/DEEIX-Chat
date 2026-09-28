@@ -24,7 +24,7 @@ type providerAuthBridge struct {
 	client *redis.Client
 }
 
-// NewProviderAuthBridge creates the Redis-backed provider auth bridge store.
+// NewProviderAuthBridge 创建基于 Redis 的 provider auth bridge 存储。
 func NewProviderAuthBridge(client *redis.Client) repository.ProviderAuthBridgeRepository {
 	return &providerAuthBridge{client: client}
 }

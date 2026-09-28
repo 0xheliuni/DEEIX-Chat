@@ -1,6 +1,6 @@
 import { FEATURE_DISABLED_ERROR_CODE, resolveApiBaseUrl } from "@deeix/core";
 import { CLIENT_PLATFORM_HEADER, resolveClientPlatform } from "@/shared/platform";
-import type { ApiEnvelope } from "@/shared/api/common.types";
+import type { ApiEnvelope } from "@/shared/api/common-types";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -39,7 +39,7 @@ export class ApiError extends Error {
   }
 }
 
-// parseRetryAfterSeconds 解析 Retry-After 秒数；缺失或非法时返回 undefined。
+// parseRetryAfterSeconds parses Retry-After seconds; returns undefined if missing or invalid.
 export function parseRetryAfterSeconds(response: Response): number | undefined {
   const raw = response.headers.get("retry-after")?.trim();
   if (!raw) {
@@ -106,7 +106,7 @@ export function registerRuntimeApiBaseURLResolver(resolver: () => string): void 
   runtimeApiBaseURLResolver = resolver;
 }
 
-// resolveConfiguredApiBaseURL 返回显式配置（运行时覆盖优先，其次构建期变量），未配置时为空。
+// resolveConfiguredApiBaseURL returns the explicit config (runtime override first, then build-time variable), or empty if unset.
 export function resolveConfiguredApiBaseURL(): string {
   return resolveApiBaseUrl({
     runtimeOverride: runtimeApiBaseURLResolver?.(),
@@ -114,7 +114,7 @@ export function resolveConfiguredApiBaseURL(): string {
   });
 }
 
-// resolveApiBaseURL 在显式配置之外回退到当前页面 origin（本地开发回退到 :8080）。
+// resolveApiBaseURL falls back to the current page origin when not explicitly configured (:8080 in local development).
 export function resolveApiBaseURL(): string {
   return resolveApiBaseUrl({
     runtimeOverride: runtimeApiBaseURLResolver?.(),
@@ -166,7 +166,7 @@ function buildRequestInit(options: ApiRequestOptions): RequestInit {
   };
 }
 
-// toApiError 从失败响应中解析统一错误信封，生成携带错误码与请求 ID 的 ApiError。
+// toApiError parses the unified error envelope from a failed response into an ApiError carrying the error code and request ID.
 export async function toApiError(response: Response): Promise<ApiError> {
   const contentType = response.headers.get("content-type") || "";
   const requestId = response.headers.get("x-request-id") || undefined;
@@ -215,7 +215,7 @@ export async function toApiError(response: Response): Promise<ApiError> {
   }
 }
 
-// apiFetch 发起无鉴权请求并返回原始 Response；失败响应按统一错误信封抛出 ApiError。
+// apiFetch issues an unauthenticated request and returns the raw Response; failed responses throw ApiError per the unified error envelope.
 export async function apiFetch(path: string, options: ApiRequestOptions = {}): Promise<Response> {
   const endpoint = `${resolveApiBaseURL()}${path}`;
   let response: Response;

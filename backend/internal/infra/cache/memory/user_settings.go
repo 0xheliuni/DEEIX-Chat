@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetUserSettingCacheVersion returns the current version for a user's setting key.
+// GetUserSettingCacheVersion 返回用户设置 key 的当前版本。
 func (c *Cache) GetUserSettingCacheVersion(_ context.Context, userID uint, key string, ttl time.Duration) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -26,7 +26,7 @@ func (c *Cache) GetUserSettingCacheVersion(_ context.Context, userID uint, key s
 	return version, nil
 }
 
-// AdvanceUserSettingCacheVersion creates and stores a new version for a user's setting key.
+// AdvanceUserSettingCacheVersion 为用户设置 key 创建并保存新版本。
 func (c *Cache) AdvanceUserSettingCacheVersion(_ context.Context, userID uint, key string, ttl time.Duration) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -37,7 +37,7 @@ func (c *Cache) AdvanceUserSettingCacheVersion(_ context.Context, userID uint, k
 	return version, nil
 }
 
-// GetUserSettingCache returns a versioned value for a user's setting key.
+// GetUserSettingCache 返回用户设置 key 的带版本值。
 func (c *Cache) GetUserSettingCache(_ context.Context, userID uint, key, version string) (string, bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -54,7 +54,7 @@ func (c *Cache) GetUserSettingCache(_ context.Context, userID uint, key, version
 	return item.value, true, nil
 }
 
-// SetUserSettingCache stores a versioned value for a user's setting key.
+// SetUserSettingCache 保存用户设置 key 的带版本值。
 func (c *Cache) SetUserSettingCache(_ context.Context, userID uint, key, version, value string, ttl time.Duration) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

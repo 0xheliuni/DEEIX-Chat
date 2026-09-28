@@ -19,6 +19,8 @@ import { commitLocalServer, commitRemoteServer, validateApiBaseUrl } from "@/sha
 //   remote  a DEEIX Chat server you or your team operate.
 
 const HEALTH_PATH = "/healthz";
+// An unreachable host can leave the probe pending for minutes; fail fast instead.
+const HEALTH_PROBE_TIMEOUT_MS = 10_000;
 
 type Step = "pick" | "remote";
 
@@ -107,7 +109,11 @@ function RemoteForm({
       // Probe before pinning: a wrong address must not survive a restart.
       let response: Response;
       try {
-        response = await fetch(`${candidate}${HEALTH_PATH}`, { method: "GET", cache: "no-store" });
+        response = await fetch(`${candidate}${HEALTH_PATH}`, {
+          method: "GET",
+          cache: "no-store",
+          signal: AbortSignal.timeout(HEALTH_PROBE_TIMEOUT_MS),
+        });
       } catch {
         toast.error(labels("toasts.networkError"));
         return;

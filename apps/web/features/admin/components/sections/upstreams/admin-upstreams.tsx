@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 
 import { TablePagination, TableToolbar } from "@/components/ui/table-tools";
-import type { AdminLLMStatus } from "@/features/admin/api/llm.types";
+import type { AdminLLMStatus } from "@/features/admin/api/llm-types";
 import { AdminBulkConfirmDialog } from "@/features/admin/components/bulk-confirm-dialog";
 import { useAdminCircuitBreaker } from "@/features/admin/hooks/use-admin-circuit-breaker";
 import {

@@ -10,7 +10,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { AdminUsageLogDTO } from "@/features/admin/api/admin.types";
+import type { AdminUsageLogDTO } from "@/features/admin/api/admin-types";
 import { ADMIN_DATE_PICKER_TRIGGER_CLASSNAME } from "@/features/admin/components/admin-date-range-filter";
 import { formatCount } from "@/features/admin/model/log-display";
 import {

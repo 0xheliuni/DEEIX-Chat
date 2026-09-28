@@ -17,7 +17,7 @@ import type {
   UserDataResponse,
   UsageLogResponse,
 } from "@deeix/api-contract";
-import type { PagePayload } from "@/shared/api/common.types";
+import type { PagePayload } from "@/shared/api/common-types";
 
 export type AdminUserStatus = "pending_activation" | "active" | "locked" | "suspended" | "deactivated";
 export type AdminUserRole = "user" | "admin" | "superadmin";

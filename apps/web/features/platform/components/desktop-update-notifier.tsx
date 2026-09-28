@@ -4,6 +4,7 @@ import * as React from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { isDesktopApp } from "@/shared/platform";
 import { checkForUpdate, relaunchApp } from "@/shared/platform/desktop-updater";
 
@@ -17,6 +18,9 @@ export function DesktopUpdateNotifier(): null {
   const t = useTranslations("desktopUpdate");
   const tRef = React.useRef(t);
   tRef.current = t;
+  const resolveErrorMessage = useLocalizedErrorMessage();
+  const resolveErrorMessageRef = React.useRef(resolveErrorMessage);
+  resolveErrorMessageRef.current = resolveErrorMessage;
 
   React.useEffect(() => {
     if (!isDesktopApp()) {
@@ -34,7 +38,7 @@ export function DesktopUpdateNotifier(): null {
           action: { label: tRef.current("relaunch"), onClick: () => void relaunchApp() },
         });
       } catch (error) {
-        toast.error(tRef.current("installFailed", { message: error instanceof Error ? error.message : String(error) }), { id: TOAST_ID });
+        toast.error(tRef.current("installFailed", { message: resolveErrorMessageRef.current(error) }), { id: TOAST_ID });
       }
     };
 

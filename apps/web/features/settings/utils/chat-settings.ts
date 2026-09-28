@@ -1,7 +1,7 @@
 import { parseChatContentWidth } from "@/shared/model/chat-content-width";
 import type { ChatInputHeight, ChatSettings, FileMode, ModelPresentationGroup, SendShortcut } from "@/features/settings/types/settings";
 import type { UserSettingsMap } from "@/shared/api/user-settings";
-import type { PublicModelDTO } from "@/shared/api/model.types";
+import type { PublicModelDTO } from "@/shared/api/model-types";
 import { platformSendShortcut } from "@/shared/lib/platform-shortcuts";
 import { resolveModelPresentationGroup } from "@/shared/lib/model-presentation";
 

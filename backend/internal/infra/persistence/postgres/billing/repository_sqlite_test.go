@@ -164,7 +164,7 @@ func TestUsageQueriesUseSQLitePortableExpressions(t *testing.T) {
 
 func TestModelPricingCacheWriteBasisMigrationAndRoundTrip(t *testing.T) {
 	db := openBillingSQLiteTestDB(t)
-	// Simulate a price saved before the cache-write basis column existed.
+	// 模拟在 cache-write 计价基准列出现之前保存的价格。
 	if err := db.Exec(`CREATE TABLE billing_model_prices (id integer PRIMARY KEY AUTOINCREMENT, platform_model_name text NOT NULL)`).Error; err != nil {
 		t.Fatal(err)
 	}

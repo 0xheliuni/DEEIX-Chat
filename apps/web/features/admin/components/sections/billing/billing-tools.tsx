@@ -17,7 +17,7 @@ import type {
   AdminBillingConfigDTO,
   AdminNativeToolPricingPayload,
   NativeToolPricingDTO,
-} from "@/features/admin/api/billing.types";
+} from "@/features/admin/api/billing-types";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { CollapsibleMotionContent } from "@/shared/components/collapsible-motion-content";
 import {

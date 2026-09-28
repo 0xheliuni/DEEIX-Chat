@@ -51,14 +51,14 @@ import { resolveAvatarImageSrc } from "@/shared/lib/avatar";
 import { TimeZoneSelect } from "@/shared/components/time-zone-select";
 import { cn } from "@/lib/utils";
 import { AdminDateTimePicker } from "@/features/admin/components/admin-date-time-picker";
-import type { AdminUserDTO, AdminUserRole, AdminUserStatus } from "@/features/admin/api/admin.types";
+import type { AdminUserDTO, AdminUserRole, AdminUserStatus } from "@/features/admin/api/admin-types";
 import {
   USER_STATUS_OPTIONS,
   type CreateUserPayload,
   type EditUserPayload,
   type UserTier,
 } from "@/features/admin/types/accounts";
-import type { AdminBillingMode, AdminBillingPlanDTO } from "@/features/admin/api/billing.types";
+import type { AdminBillingMode, AdminBillingPlanDTO } from "@/features/admin/api/billing-types";
 import type { BillingDisplayOptions } from "@/shared/lib/billing-display";
 import { formatBillingBalance, resolveDetailValue } from "@/features/admin/utils/account-display";
 

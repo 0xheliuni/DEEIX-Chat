@@ -56,6 +56,54 @@ const rules = [
       return table !== undefined && new RegExp(`href:\\s*["']/${section}["']`).test(table.source);
     },
   },
+  {
+    // A feature reaches another feature only through its public entry point
+    // (`@/features/<name>`, i.e. its index.ts), so internals can move freely.
+    // Route files under app/ are exempt: they mount feature entry components.
+    name: "no deep cross-feature imports",
+    match: (file) => {
+      const own = /^features\/([^/]+)\//.exec(file.path)?.[1];
+      if (own === undefined) return false;
+      for (const [, target] of file.source.matchAll(/(?:from\s+|import\s*\(\s*)["']@\/features\/([^/"']+)\/[^"']*["']/g)) {
+        if (target !== own) return true;
+      }
+      return false;
+    },
+    allow: () => false,
+  },
+  {
+    // components/ui is a design-system layer; business code depends on it, never
+    // the other way round.
+    name: "components/ui has no business dependencies",
+    match: (file) =>
+      file.path.startsWith("components/ui/") &&
+      /(?:from\s+|import\s*\(\s*)["']@\/(features|entities)(\/|["'])/.test(file.source),
+    allow: () => false,
+  },
+  {
+    // entities sit below features: they are shared by several features and must
+    // not reach back up into any of them.
+    name: "entities do not depend on features",
+    match: (file) =>
+      file.path.startsWith("entities/") && /(?:from\s+|import\s*\(\s*)["']@\/features(\/|["'])/.test(file.source),
+    allow: () => false,
+  },
+  {
+    // Route pages and layouts stay server components so the static export keeps
+    // client boundaries inside features; interactive logic belongs to a feature
+    // entry component. The image-loading preview is a standalone visual playground.
+    name: "route pages are server components",
+    match: (file) =>
+      /^app\/(.+\/)?(page|layout)\.tsx$/.test(file.path) && /^\s*["']use client["']/.test(file.source),
+    allow: (file) => file.path === "app/(app)/(project)/preview/image-loading/page.tsx",
+  },
+  {
+    // File names are kebab-case with no extra dot segments (`admin-types.ts`, not
+    // `admin.types.ts`). Framework-mandated names are exempt.
+    name: "kebab-case file name without dot segments",
+    match: (file) => !/^[a-z0-9]+(-[a-z0-9]+)*\.tsx?$/.test(file.path.split("/").at(-1)),
+    allow: (file) => file.path === "next.config.ts",
+  },
 ];
 
 function walk(dir, out = []) {
@@ -86,3 +134,4 @@ if (violations.length > 0) {
   process.exit(1);
 }
 console.log(`Architecture rules OK (${rules.length} rules, ${files.length} files)`);
+for (const rule of rules) console.log(`  - ${rule.name}`);

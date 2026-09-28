@@ -54,11 +54,11 @@ import { useAdminUIComponents } from "@/features/admin/hooks/use-admin-ui-compon
 import { useAdminPromptPresets } from "@/features/admin/hooks/use-admin-prompt-presets";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { formatDateTime } from "@/features/admin/utils/account-display";
-import type { PromptPresetDTO } from "@/shared/api/prompt-presets.types";
-import type { SkillDTO } from "@/shared/api/skills.types";
-import type { UIComponentDTO } from "@/shared/api/ui-components.types";
+import type { PromptPresetDTO } from "@/shared/api/prompt-presets-types";
+import type { SkillDTO } from "@/shared/api/skills-types";
+import type { UIComponentDTO } from "@/shared/api/ui-components-types";
 import { UIComponentEditorDialog } from "@/shared/components/ui-component-editor-dialog";
-import type { PatchSettingItem } from "@/shared/api/settings.types";
+import type { PatchSettingItem } from "@/shared/api/settings-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import {
   SettingsFieldItem,

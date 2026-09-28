@@ -42,7 +42,7 @@ import type {
   KnowledgeBaseFileDTO,
   KnowledgeBaseFileProcessingSnapshotDTO,
   KnowledgeBaseFileProcessingStatusDTO,
-} from "@/shared/api/knowledge-bases.types";
+} from "@/shared/api/knowledge-bases-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import type { PreviewDialogFile } from "@/shared/components/file-preview/preview-dialog";
 import {
@@ -110,7 +110,7 @@ export function useKnowledgeBasesPage(mode: KnowledgeBaseMode) {
   const [bulkDeleting, setBulkDeleting] = React.useState(false);
   const [previewTarget, setPreviewTarget] = React.useState<KnowledgeBasePreviewTarget | null>(null);
 
-  // 选中知识库变化时在渲染期同步复位文件列表,使切换后的首帧即为加载态。
+  // When the selected knowledge base changes, reset the file list during render so the first frame after switching shows the loading state.
   const [filesSelectedID, setFilesSelectedID] = React.useState(selectedID);
   if (filesSelectedID !== selectedID) {
     setFilesSelectedID(selectedID);
@@ -1171,3 +1171,5 @@ async function requireAccessToken(): Promise<string> {
   if (!token) throw new Error("missing access token");
   return token;
 }
+
+export type KnowledgeBasesPageModel = ReturnType<typeof useKnowledgeBasesPage>;

@@ -71,7 +71,7 @@ type ConversationListInput struct {
 	SearchQuery   string
 }
 
-// DeleteConversationProjectOptions controls which project-owned records are removed.
+// DeleteConversationProjectOptions 控制删除哪些项目所属的记录。
 type DeleteConversationProjectOptions struct {
 	DeleteConversations bool
 	DeleteFiles         bool

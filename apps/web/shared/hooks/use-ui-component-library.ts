@@ -10,7 +10,7 @@ import type {
   UIComponentDeleteData,
   UIComponentPage,
   WriteUIComponentRequest,
-} from "@/shared/api/ui-components.types";
+} from "@/shared/api/ui-components-types";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { removeByID, replaceByID } from "@/shared/lib/optimistic-list";

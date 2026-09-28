@@ -34,7 +34,7 @@ import {
 } from "@/features/chat/model/conversation-options";
 import type { ModelOptionControl } from "@/features/chat/types/chat-runtime";
 import { cn } from "@/lib/utils";
-import type { ConversationOptions } from "@/shared/api/conversation.types";
+import type { ConversationOptions } from "@/shared/api/conversation-types";
 import { JsonCodeEditor } from "@/shared/components/json-code-editor";
 import type { ModelNativeToolConfig, ModelOptionPolicy, NativeToolDefinition } from "@/shared/lib/model-option-policy";
 import { isModelOptionPathFiltered, resolveModelOptionPolicyProtocol } from "@/shared/lib/model-option-policy";

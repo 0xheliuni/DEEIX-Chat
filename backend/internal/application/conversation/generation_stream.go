@@ -60,6 +60,9 @@ type retainedStreamEventsInput struct {
 }
 
 type pendingGenerationCompletion struct {
+	// baseCtx 是入队时从生成上下文分离出的上下文，保留日志/追踪值但不继承取消与截止时间，
+	// 供后台补偿重试使用。
+	baseCtx     context.Context
 	lease       repository.GenerationStreamLease
 	nextAttempt time.Time
 	retryDelay  time.Duration
@@ -490,7 +493,7 @@ func (r *generationStreamRegistry) cancel(ctx context.Context, userID uint, runI
 	return true
 }
 
-// cancelForced cancels a run without owner checks (internal system paths such as moderation).
+// cancelForced 在不校验所有者的情况下取消运行（用于审核等内部系统路径）。
 func (r *generationStreamRegistry) cancelForced(ctx context.Context, runID string) bool {
 	if r == nil || runID == "" {
 		return false
@@ -634,9 +637,9 @@ func (r *generationStreamRegistry) subscribeStore(
 	upstreamThinkSnapshot := repository.GenerationStreamUpstreamThinkSnapshot{}
 	hasUpstreamThinkSnapshot := false
 	if includeSnapshots {
-		// Read checkpoints after the retained window. Events appended in between
-		// are read again from cursor; deltas already covered by a checkpoint are
-		// filtered by its seq while non-content events remain replayable.
+		// 在保留窗口之后读取检查点。期间追加的事件
+		// 会从 cursor 重新读取；已被检查点覆盖的增量
+		// 按其 seq 过滤，而非内容事件仍可重放。
 		textSnapshot, hasTextSnapshot, err = store.GetGenerationStreamTextSnapshot(ctx, runID)
 		if err != nil {
 			return nil, nil, nil, false
@@ -760,7 +763,7 @@ func (r *generationStreamRegistry) finalizeGeneration(ctx context.Context, runID
 	lease := active.lease(runID)
 	completed, err := r.completeGenerationStream(ctx, lease)
 	if err != nil {
-		r.enqueueCompletion(lease)
+		r.enqueueCompletion(ctx, lease)
 		return
 	}
 	if completed {
@@ -793,7 +796,7 @@ func (r *generationStreamRegistry) completeGenerationStream(ctx context.Context,
 	return false, lastErr
 }
 
-func (r *generationStreamRegistry) enqueueCompletion(lease repository.GenerationStreamLease) {
+func (r *generationStreamRegistry) enqueueCompletion(ctx context.Context, lease repository.GenerationStreamLease) {
 	if r == nil || r.store == nil || strings.TrimSpace(lease.RunID) == "" {
 		return
 	}
@@ -805,6 +808,7 @@ func (r *generationStreamRegistry) enqueueCompletion(lease repository.Generation
 	key := generationCompletionKey(lease)
 	if _, exists := r.pendingCompletions[key]; !exists {
 		r.pendingCompletions[key] = pendingGenerationCompletion{
+			baseCtx:     background.Detach(ctx),
 			lease:       lease,
 			nextAttempt: time.Now(),
 			retryDelay:  generationStreamCompletionRetryDelay,
@@ -858,7 +862,7 @@ func (r *generationStreamRegistry) runCompletionWorker() {
 			r.completionMu.Unlock()
 			continue
 		}
-		cleanupCtx, cleanupCancel := background.WithTimeout(context.TODO(), generationStreamCleanupTimeout)
+		cleanupCtx, cleanupCancel := background.WithTimeout(pending.baseCtx, generationStreamCleanupTimeout)
 		completed, err := r.completeGenerationStream(cleanupCtx, pending.lease)
 		cleanupCancel()
 		if err != nil {
@@ -878,7 +882,7 @@ func (r *generationStreamRegistry) runCompletionWorker() {
 		delete(r.pendingCompletions, generationCompletionKey(pending.lease))
 		r.completionMu.Unlock()
 		if completed {
-			r.publishActiveEvent(background.Detach(context.TODO()), pending.lease.UserID, "finished", pending.lease.RunID, pending.lease.ConversationPublicID)
+			r.publishActiveEvent(pending.baseCtx, pending.lease.UserID, "finished", pending.lease.RunID, pending.lease.ConversationPublicID)
 		}
 	}
 }
@@ -1125,8 +1129,8 @@ func retainedStreamEvents(input retainedStreamEventsInput) ([]GenerationStreamEv
 			terminal = true
 		}
 		if streamString(event.Payload["type"]) == "delta" {
-			// A text delta without a cumulative checkpoint cannot be replayed
-			// safely once the bounded event window has trimmed older chunks.
+			// 没有累计检查点的文本增量，在有界事件窗口
+			// 裁剪掉较旧分块后，无法安全重放。
 			if input.IncludeSnapshots && !input.HasTextSnapshot {
 				return nil, cursor, terminal, false
 			}

@@ -3,7 +3,7 @@
 import * as React from "react";
 
 import { getConversationPreviewMessages } from "@/shared/api/conversation";
-import type { ConversationPreviewMessageDTO } from "@/shared/api/conversation.types";
+import type { ConversationPreviewMessageDTO } from "@/shared/api/conversation-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 
 const PREVIEW_DEBOUNCE_MS = 240;

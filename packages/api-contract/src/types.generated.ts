@@ -567,12 +567,59 @@ export interface CapabilitiesResponseDoc {
   errorMsg: string;
 }
 
+export interface ChangePasswordRequest {
+  /**
+   * @minLength 6
+   * @maxLength 32
+   */
+  code?: string;
+  /** @maxLength 128 */
+  currentPassword?: string;
+  /**
+   * @minLength 8
+   * @maxLength 128
+   */
+  newPassword: string;
+  verificationMethod?: "none" | "two_factor" | "email";
+}
+
+export interface ChangePasswordResponse {
+  changed: boolean;
+}
+
+export interface ChangePasswordResponseDoc {
+  data: ChangePasswordResponse;
+  errorMsg: string;
+}
+
 export interface ChannelErrorDoc {
   data: any;
   details?: any;
   errorCode?: string;
   errorMsg: string;
   requestId?: string;
+}
+
+export interface ChatFilePolicyResponse {
+  allowedMIMETypes: string[];
+  capabilityMode: string;
+  docMaxBytes: number;
+  effectiveDocMaxBytes: number;
+  effectiveImageMaxBytes: number;
+  fileMode: string;
+  fullContextMaxBytes: number;
+  fullContextMaxTokens: number;
+  fullContextPDFMaxPages: number;
+  imageMaxBytes: number;
+  maxMessageFiles: number;
+  maxUploadFileBytes: number;
+  ragAvailabilityReason: string;
+  ragAvailable: boolean;
+}
+
+export interface ChatFilePolicyResponseDoc {
+  data: ChatFilePolicyResponse;
+  errorMsg: string;
 }
 
 export interface CheckoutDataResponse {
@@ -1371,6 +1418,15 @@ export interface DeleteServerResponseDoc {
   errorMsg: string;
 }
 
+export interface DeleteUserIdentityResponse {
+  deleted: boolean;
+}
+
+export interface DeleteUserIdentityResponseDoc {
+  data: DeleteUserIdentityResponse;
+  errorMsg: string;
+}
+
 export interface DeleteUserResponse {
   deleted: boolean;
 }
@@ -1378,6 +1434,24 @@ export interface DeleteUserResponse {
 export interface DeleteUserResponseDoc {
   data: DeleteUserResponse;
   errorMsg: string;
+}
+
+export interface EmailBootstrapCompleteRequest {
+  code?: string;
+  /** @maxLength 128 */
+  email: string;
+}
+
+export interface EmailChangeCompleteRequest {
+  /**
+   * @minLength 6
+   * @maxLength 32
+   */
+  currentCode?: string;
+  currentVerificationMethod?: "none" | "two_factor" | "email";
+  /** @maxLength 128 */
+  email: string;
+  newCode?: string;
 }
 
 export interface EmailRegistrationCompleteRequest {
@@ -1408,6 +1482,15 @@ export interface EmailRegistrationStartResponse {
 export interface EmailRegistrationStartResponseDoc {
   data: EmailRegistrationStartResponse;
   errorMsg: string;
+}
+
+export interface EmailVerificationCompleteRequest {
+  code: string;
+}
+
+export interface EmailVerificationStartRequest {
+  /** @maxLength 128 */
+  email: string;
 }
 
 export interface EmailVerificationStartResponse {
@@ -1468,6 +1551,20 @@ export interface FileEmbeddingSubmissionResponse {
 
 export interface FileEmbeddingSubmissionResponseDoc {
   data: FileEmbeddingSubmissionResponse;
+  errorMsg: string;
+}
+
+export interface FileExtractResponse {
+  extractChars: number;
+  extractPages: number;
+  extractText: string;
+  fileID: string;
+  ocrUsed: boolean;
+  previewText: string;
+}
+
+export interface FileExtractResponseDoc {
+  data: FileExtractResponse;
   errorMsg: string;
 }
 
@@ -1532,6 +1629,11 @@ export interface FileProcessingStatusResponse {
   startedAt: string | null;
   updatedAt: string;
   vectorizationReason: string;
+}
+
+export interface FileProcessingStatusResponseDoc {
+  data: FileProcessingStatusResponse;
+  errorMsg: string;
 }
 
 export interface FileUpdateResponseDoc {
@@ -1937,6 +2039,24 @@ export interface MeResponseDoc {
   errorMsg: string;
 }
 
+export interface MediaImageRequest {
+  branchReason?: "default" | "retry" | "edit";
+  /** @maxLength 64 */
+  clientRunID?: string;
+  /** @maxItems 20 */
+  fileIDs?: string[];
+  /** @maxLength 128 */
+  maskFileID?: string;
+  /** @maxLength 128 */
+  model?: string;
+  options?: Record<string, any>;
+  /** @maxLength 32 */
+  parentMessagePublicID?: string;
+  prompt: string;
+  /** @maxLength 32 */
+  sourceMessagePublicID?: string;
+}
+
 export interface MediaVideoExtensionRequest {
   branchReason?: "default" | "retry" | "edit";
   /** @maxLength 64 */
@@ -1951,6 +2071,22 @@ export interface MediaVideoExtensionRequest {
   sourceMessagePublicID?: string;
   /** @maxLength 128 */
   sourceVideoFileID: string;
+}
+
+export interface MediaVideoRequest {
+  branchReason?: "default" | "retry" | "edit";
+  /** @maxLength 64 */
+  clientRunID?: string;
+  /** @maxItems 1 */
+  fileIDs?: string[];
+  /** @maxLength 128 */
+  model?: string;
+  options?: Record<string, any>;
+  /** @maxLength 32 */
+  parentMessagePublicID?: string;
+  prompt: string;
+  /** @maxLength 32 */
+  sourceMessagePublicID?: string;
 }
 
 export interface MemoryErrorDoc {
@@ -2511,6 +2647,18 @@ export interface OpenRouterOfficialPricingUnitPricingResponse {
   overrides?: OpenRouterOfficialPricingOverrideResponse[];
   prompt: string;
   unsupportedFields?: string[];
+}
+
+export interface PasswordChangeVerificationStartResponse {
+  availableMethods: string[];
+  expiresAt: string;
+  sent: boolean;
+  verificationMethod: string;
+}
+
+export interface PasswordChangeVerificationStartResponseDoc {
+  data: PasswordChangeVerificationStartResponse;
+  errorMsg: string;
 }
 
 export interface PasswordResetCompleteRequest {
@@ -3212,6 +3360,15 @@ export interface ResetUserPasswordResponseDoc {
   errorMsg: string;
 }
 
+export interface ResetUserTwoFactorResponse {
+  reset: boolean;
+}
+
+export interface ResetUserTwoFactorResponseDoc {
+  data: ResetUserTwoFactorResponse;
+  errorMsg: string;
+}
+
 export interface RevokeConversationSharesRequest {
   /** @maxItems 1000 */
   conversationPublicIDs?: string[];
@@ -3657,6 +3814,88 @@ export interface ToolResponse {
 export interface ToolResponseDoc {
   data: ToolResponse;
   errorMsg: string;
+}
+
+export interface TwoFactorCodeRequest {
+  /**
+   * @minLength 6
+   * @maxLength 32
+   */
+  code: string;
+}
+
+export interface TwoFactorDisableResponse {
+  disabled: boolean;
+}
+
+export interface TwoFactorDisableResponseDoc {
+  data: TwoFactorDisableResponse;
+  errorMsg: string;
+}
+
+export interface TwoFactorEmailStartRequest {
+  /**
+   * @minLength 20
+   * @maxLength 4096
+   */
+  challengeToken: string;
+}
+
+export interface TwoFactorRecoveryCodesResponse {
+  recoveryCodes: string[];
+  status: TwoFactorStatusResponse;
+}
+
+export interface TwoFactorRecoveryCodesResponseDoc {
+  data: TwoFactorRecoveryCodesResponse;
+  errorMsg: string;
+}
+
+export interface TwoFactorSetupCancelResponse {
+  canceled: boolean;
+}
+
+export interface TwoFactorSetupCancelResponseDoc {
+  data: TwoFactorSetupCancelResponse;
+  errorMsg: string;
+}
+
+export interface TwoFactorSetupStartResponse {
+  expiresAt: string;
+  otpauthURL: string;
+  secret: string;
+}
+
+export interface TwoFactorSetupStartResponseDoc {
+  data: TwoFactorSetupStartResponse;
+  errorMsg: string;
+}
+
+export interface TwoFactorStatusResponse {
+  available: boolean;
+  enabledAt: string | null;
+  recoveryCount: number;
+  required: boolean;
+  totpEnabled: boolean;
+}
+
+export interface TwoFactorStatusResponseDoc {
+  data: TwoFactorStatusResponse;
+  errorMsg: string;
+}
+
+export interface TwoFactorVerifyRequest {
+  /**
+   * @minLength 20
+   * @maxLength 4096
+   */
+  challengeToken: string;
+  /**
+   * @minLength 6
+   * @maxLength 32
+   */
+  code: string;
+  verificationMethod?: "two_factor" | "email";
 }
 
 export interface UIComponentDataResponse {
@@ -4474,6 +4713,15 @@ export interface UserErrorDoc {
   errorMsg: string;
 }
 
+export interface UserIdentityListResponse {
+  results: UserIdentityResponse[];
+}
+
+export interface UserIdentityListResponseDoc {
+  data: UserIdentityListResponse;
+  errorMsg: string;
+}
+
 export interface UserIdentityResponse {
   email: string;
   emailVerified: boolean;
@@ -5133,10 +5381,10 @@ export namespace Admin {
       from?: string;
       /** Modality filter */
       modality?: string;
-      /** Page number */
+      /** 页码 */
       page?: number;
-      /** Page size */
-      pageSize?: number;
+      /** 每页数量（最大 1000） */
+      page_size?: number;
       /** Exact event, user, run, model, result, or summary search */
       query?: string;
       /** Result filter */
@@ -7687,6 +7935,25 @@ export namespace Admin {
   }
 
   /**
+   * @description 管理员清除指定用户的 TOTP 与恢复码并吊销其全部会话；不允许重置超级管理员
+   * @tags admin
+   * @name UsersReset2FaCreate
+   * @summary 管理员重置用户双因素认证
+   * @request POST:/admin/users/{id}/reset-2fa
+   * @secure
+   */
+  export namespace UsersReset2FaCreate {
+    export type RequestParams = {
+      /** 用户ID */
+      id: number;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = ResetUserTwoFactorResponseDoc;
+  }
+
+  /**
    * @description 管理员重置指定用户密码并吊销其全部会话
    * @tags admin
    * @name UsersResetPasswordCreate
@@ -7805,6 +8072,36 @@ export namespace Announcements {
 
 export namespace Auth {
   /**
+   * @description 为待完成的双因素登录挑战向用户已验证邮箱发送验证码
+   * @tags auth
+   * @name TwoFactorEmailStartCreate
+   * @summary 发送登录双因素邮箱验证码
+   * @request POST:/auth/2fa/email/start
+   */
+  export namespace TwoFactorEmailStartCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = TwoFactorEmailStartRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = EmailVerificationStartResponseDoc;
+  }
+
+  /**
+   * @description 使用登录挑战令牌与 TOTP、恢复码或邮箱验证码完成双因素登录，成功后返回会话
+   * @tags auth
+   * @name TwoFactorVerifyCreate
+   * @summary 校验登录双因素验证码
+   * @request POST:/auth/2fa/verify
+   */
+  export namespace TwoFactorVerifyCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = TwoFactorVerifyRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = LoginResponseDoc;
+  }
+
+  /**
    * @description 仅在服务器以本地 sidecar 模式运行时可用；grant 由启动握手交给桌面壳，只能使用一次
    * @tags auth
    * @name LocalExchangeCreate
@@ -7882,6 +8179,38 @@ export namespace Auth {
   }
 
   /**
+   * @description 校验当前密码及安全验证码后修改密码；成功后吊销会话并清除刷新令牌 Cookie
+   * @tags auth
+   * @name PasswordChangeCompleteCreate
+   * @summary 修改当前用户密码
+   * @request POST:/auth/password/change/complete
+   * @secure
+   */
+  export namespace PasswordChangeCompleteCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = ChangePasswordRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = ChangePasswordResponseDoc;
+  }
+
+  /**
+   * @description 为当前用户发起修改密码前的安全验证；请求体可省略，未指定验证方式时由服务端选择可用方式
+   * @tags auth
+   * @name PasswordChangeStartCreate
+   * @summary 发起修改密码安全验证
+   * @request POST:/auth/password/change/start
+   * @secure
+   */
+  export namespace PasswordChangeStartCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = SecurityVerificationStartRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = PasswordChangeVerificationStartResponseDoc;
+  }
+
+  /**
    * @description 使用邮箱、验证码和新密码完成密码重置；失败时返回通用错误，避免暴露账号状态
    * @tags auth
    * @name PasswordResetCompleteCreate
@@ -7927,6 +8256,31 @@ export namespace Auth {
     export type RequestBody = ProviderAuthBridgeStartRequest;
     export type RequestHeaders = {};
     export type ResponseBody = ProviderAuthBridgeStartResponseDoc;
+  }
+
+  /**
+   * @description 外部身份源完成授权后回调当前实例；校验 state 并签发一次性授权码后以 302 重定向回客户端 redirect_uri
+   * @tags auth
+   * @name ProvidersCallbackList
+   * @summary 第三方身份源授权回调
+   * @request GET:/auth/providers/{slug}/callback
+   */
+  export namespace ProvidersCallbackList {
+    export type RequestParams = {
+      /** 身份源 slug */
+      slug: string;
+    };
+    export type RequestQuery = {
+      /** 授权码 */
+      code?: string;
+      /** 身份源返回的错误码 */
+      error?: string;
+      /** 授权事务 state */
+      state?: string;
+    };
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = any;
   }
 
   /**
@@ -8739,11 +9093,50 @@ export namespace Conversations {
   }
 
   /**
+   * @description 在会话中基于参考图片（可附遮罩）按提示词编辑图片，并以 NDJSON 流式返回任务状态事件
+   * @tags chat
+   * @name MediaImagesEditsStreamCreate
+   * @summary 编辑会话图片
+   * @request POST:/conversations/{id}/media/images/edits/stream
+   * @secure
+   */
+  export namespace MediaImagesEditsStreamCreate {
+    export type RequestParams = {
+      /** 会话 public_id */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = MediaImageRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = string;
+  }
+
+  /**
+   * @description 在会话中按提示词生成图片，并以 NDJSON 流式返回任务状态事件
+   * @tags chat
+   * @name MediaImagesGenerationsStreamCreate
+   * @summary 生成会话图片
+   * @request POST:/conversations/{id}/media/images/generations/stream
+   * @secure
+   */
+  export namespace MediaImagesGenerationsStreamCreate {
+    export type RequestParams = {
+      /** 会话 public_id */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = MediaImageRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = string;
+  }
+
+  /**
    * No description
-   * @tags Conversations
+   * @tags chat
    * @name MediaVideosExtensionsStreamCreate
    * @summary 扩展会话视频
    * @request POST:/conversations/{id}/media/videos/extensions/stream
+   * @secure
    */
   export namespace MediaVideosExtensionsStreamCreate {
     export type RequestParams = {
@@ -8752,6 +9145,25 @@ export namespace Conversations {
     };
     export type RequestQuery = {};
     export type RequestBody = MediaVideoExtensionRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = string;
+  }
+
+  /**
+   * @description 在会话中按提示词生成视频，并以 NDJSON 流式返回任务状态事件
+   * @tags chat
+   * @name MediaVideosGenerationsStreamCreate
+   * @summary 生成会话视频
+   * @request POST:/conversations/{id}/media/videos/generations/stream
+   * @secure
+   */
+  export namespace MediaVideosGenerationsStreamCreate {
+    export type RequestParams = {
+      /** 会话 public_id */
+      id: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = MediaVideoRequest;
     export type RequestHeaders = {};
     export type ResponseBody = string;
   }
@@ -9196,6 +9608,44 @@ export namespace Files {
     export type RequestHeaders = {};
     export type ResponseBody = Blob;
   }
+
+  /**
+   * @description 返回当前用户文件已完成提取的文本内容；提取尚未就绪时返回 409
+   * @tags chat
+   * @name ExtractList
+   * @summary 获取文件提取文本
+   * @request GET:/files/{file_id}/extract
+   * @secure
+   */
+  export namespace ExtractList {
+    export type RequestParams = {
+      /** 文件ID */
+      fileId: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = FileExtractResponseDoc;
+  }
+
+  /**
+   * @description 查询当前用户单个文件的文本提取与向量化处理状态
+   * @tags chat
+   * @name ProcessingList
+   * @summary 查询文件处理状态
+   * @request GET:/files/{file_id}/processing
+   * @secure
+   */
+  export namespace ProcessingList {
+    export type RequestParams = {
+      /** 文件ID */
+      fileId: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = FileProcessingStatusResponseDoc;
+  }
 }
 
 export namespace KnowledgeBases {
@@ -9569,6 +10019,102 @@ export namespace Me {
   }
 
   /**
+   * @description 返回 TOTP 是否可用、是否已启用、是否强制及剩余恢复码数量
+   * @tags auth
+   * @name TwoFactorStatusList
+   * @summary 获取当前用户双因素认证状态
+   * @request GET:/me/2fa
+   * @secure
+   */
+  export namespace TwoFactorStatusList {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = TwoFactorStatusResponseDoc;
+  }
+
+  /**
+   * @description 校验 TOTP 验证码或恢复码后关闭当前用户的双因素认证
+   * @tags auth
+   * @name TwoFactorDisableCreate
+   * @summary 关闭双因素认证
+   * @request POST:/me/2fa/disable
+   * @secure
+   */
+  export namespace TwoFactorDisableCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = TwoFactorCodeRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = TwoFactorDisableResponseDoc;
+  }
+
+  /**
+   * @description 校验 TOTP 验证码后作废旧恢复码并返回新的一次性恢复码
+   * @tags auth
+   * @name TwoFactorRecoveryRegenerateCreate
+   * @summary 重新生成双因素恢复码
+   * @request POST:/me/2fa/recovery/regenerate
+   * @secure
+   */
+  export namespace TwoFactorRecoveryRegenerateCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = TwoFactorCodeRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = TwoFactorRecoveryCodesResponseDoc;
+  }
+
+  /**
+   * @description 丢弃当前用户尚未确认的 TOTP 设置
+   * @tags auth
+   * @name TwoFactorSetupDelete
+   * @summary 取消双因素认证设置
+   * @request DELETE:/me/2fa/setup
+   * @secure
+   */
+  export namespace TwoFactorSetupDelete {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = TwoFactorSetupCancelResponseDoc;
+  }
+
+  /**
+   * @description 使用 TOTP 验证码确认设置并启用双因素认证，返回一次性恢复码
+   * @tags auth
+   * @name TwoFactorSetupConfirmCreate
+   * @summary 确认启用双因素认证
+   * @request POST:/me/2fa/setup/confirm
+   * @secure
+   */
+  export namespace TwoFactorSetupConfirmCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = TwoFactorCodeRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = TwoFactorRecoveryCodesResponseDoc;
+  }
+
+  /**
+   * @description 为当前用户生成新的 TOTP 密钥与 otpauth URL，需在过期前确认
+   * @tags auth
+   * @name TwoFactorSetupStartCreate
+   * @summary 开始设置双因素认证
+   * @request POST:/me/2fa/setup/start
+   * @secure
+   */
+  export namespace TwoFactorSetupStartCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = TwoFactorSetupStartResponseDoc;
+  }
+
+  /**
    * @description 发送删除当前账号前所需的邮箱验证码，或返回可用的两步验证方式
    * @tags auth
    * @name DeleteStartCreate
@@ -9582,6 +10128,134 @@ export namespace Me {
     export type RequestBody = SecurityVerificationStartRequest;
     export type RequestHeaders = {};
     export type ResponseBody = EmailVerificationStartResponseDoc;
+  }
+
+  /**
+   * @description 使用邮箱与验证码为当前用户绑定初始邮箱，返回更新后的用户信息
+   * @tags auth
+   * @name EmailBootstrapCompleteCreate
+   * @summary 完成初始邮箱绑定
+   * @request POST:/me/email/bootstrap/complete
+   * @secure
+   */
+  export namespace EmailBootstrapCompleteCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = EmailBootstrapCompleteRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = MeResponseDoc;
+  }
+
+  /**
+   * @description 为尚未绑定邮箱的当前用户向指定邮箱发送验证码
+   * @tags auth
+   * @name EmailBootstrapStartCreate
+   * @summary 发送初始邮箱验证码
+   * @request POST:/me/email/bootstrap/start
+   * @secure
+   */
+  export namespace EmailBootstrapStartCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = EmailVerificationStartRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = EmailVerificationStartResponseDoc;
+  }
+
+  /**
+   * @description 校验当前身份验证码与新邮箱验证码后更换邮箱，返回更新后的用户信息
+   * @tags auth
+   * @name EmailChangeCompleteCreate
+   * @summary 完成邮箱更换
+   * @request POST:/me/email/change/complete
+   * @secure
+   */
+  export namespace EmailChangeCompleteCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = EmailChangeCompleteRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = MeResponseDoc;
+  }
+
+  /**
+   * @description 更换邮箱前先按指定方式验证当前身份；请求体可省略，未指定验证方式时由服务端选择可用方式
+   * @tags auth
+   * @name EmailChangeStartCurrentCreate
+   * @summary 发起更换邮箱的当前身份验证
+   * @request POST:/me/email/change/start-current
+   * @secure
+   */
+  export namespace EmailChangeStartCurrentCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = SecurityVerificationStartRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = EmailVerificationStartResponseDoc;
+  }
+
+  /**
+   * @description 更换邮箱时向新邮箱发送验证码
+   * @tags auth
+   * @name EmailChangeStartNewCreate
+   * @summary 发送新邮箱验证码
+   * @request POST:/me/email/change/start-new
+   * @secure
+   */
+  export namespace EmailChangeStartNewCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = EmailVerificationStartRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = EmailVerificationStartResponseDoc;
+  }
+
+  /**
+   * @description 使用验证码验证当前用户已绑定的邮箱，返回更新后的用户信息
+   * @tags auth
+   * @name EmailVerifyCurrentCompleteCreate
+   * @summary 完成当前邮箱验证
+   * @request POST:/me/email/verify-current/complete
+   * @secure
+   */
+  export namespace EmailVerifyCurrentCompleteCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = EmailVerificationCompleteRequest;
+    export type RequestHeaders = {};
+    export type ResponseBody = MeResponseDoc;
+  }
+
+  /**
+   * @description 向当前用户已绑定但未验证的邮箱发送验证码
+   * @tags auth
+   * @name EmailVerifyCurrentStartCreate
+   * @summary 发送当前邮箱验证码
+   * @request POST:/me/email/verify-current/start
+   * @secure
+   */
+  export namespace EmailVerifyCurrentStartCreate {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = EmailVerificationStartResponseDoc;
+  }
+
+  /**
+   * @description 列出当前用户已关联的 OIDC/OAuth2 第三方身份
+   * @tags auth
+   * @name IdentitiesList
+   * @summary 获取当前用户已绑定的第三方身份
+   * @request GET:/me/identities
+   * @secure
+   */
+  export namespace IdentitiesList {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = UserIdentityListResponseDoc;
   }
 
   /**
@@ -9620,6 +10294,25 @@ export namespace Me {
     export type RequestBody = ProviderAuthBridgeExchangeRequest;
     export type RequestHeaders = {};
     export type ResponseBody = UserIdentityResponseDoc;
+  }
+
+  /**
+   * @description 解除当前用户与指定第三方身份的关联；不允许移除最后一种登录方式
+   * @tags auth
+   * @name IdentitiesDelete
+   * @summary 解绑当前用户的第三方身份
+   * @request DELETE:/me/identities/{identity_id}
+   * @secure
+   */
+  export namespace IdentitiesDelete {
+    export type RequestParams = {
+      /** 身份ID */
+      identityId: number;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = DeleteUserIdentityResponseDoc;
   }
 
   /**
@@ -9867,6 +10560,24 @@ export namespace PromptPresets {
     export type RequestBody = PatchPromptPresetRequest;
     export type RequestHeaders = {};
     export type ResponseBody = PromptPresetResponseDoc;
+  }
+}
+
+export namespace Runtime {
+  /**
+   * @description 返回当前用户在聊天中上传与使用文件的运行时策略（大小、数量、类型与处理模式等）
+   * @tags chat
+   * @name ChatFilePolicyList
+   * @summary 获取聊天文件策略
+   * @request GET:/runtime/chat-file-policy
+   * @secure
+   */
+  export namespace ChatFilePolicyList {
+    export type RequestParams = {};
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = ChatFilePolicyResponseDoc;
   }
 }
 
@@ -10307,5 +11018,25 @@ export namespace User {
     export type RequestBody = never;
     export type RequestHeaders = {};
     export type ResponseBody = UserDailyActivityListResponseDoc;
+  }
+}
+
+export namespace Users {
+  /**
+   * @description 公开读取用户当前上传的头像图片；仅返回 image/* 内容，未上传头像时返回 404
+   * @tags user
+   * @name AvatarList
+   * @summary 获取用户头像
+   * @request GET:/users/{public_id}/avatar
+   */
+  export namespace AvatarList {
+    export type RequestParams = {
+      /** 用户 public_id */
+      publicId: string;
+    };
+    export type RequestQuery = {};
+    export type RequestBody = never;
+    export type RequestHeaders = {};
+    export type ResponseBody = Blob;
   }
 }

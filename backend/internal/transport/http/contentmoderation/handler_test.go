@@ -58,7 +58,7 @@ func TestParseOptionalUserID(t *testing.T) {
 		{name: "non-numeric", query: "userId=abc"},
 		{name: "negative", query: "userId=-1"},
 		{name: "zero", query: "userId=0"},
-		// Larger than any platform uint (exceeds ParseUint bit-size limit).
+		// 大于任何平台的 uint（超出 ParseUint 位宽限制）。
 		{name: "overflow bit width", query: "userId=18446744073709551616"},
 	}
 	for _, tc := range invalidCases {
@@ -76,23 +76,6 @@ func TestParseOptionalUserID(t *testing.T) {
 			}
 			if recorder.Code != http.StatusBadRequest {
 				t.Fatalf("expected status 400, got %d", recorder.Code)
-			}
-		})
-	}
-}
-
-func TestParsePaginationRejectsInvalidValues(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	for _, query := range []string{"page=0", "page=abc", "pageSize=0", "pageSize=101", "pageSize=abc"} {
-		t.Run(query, func(t *testing.T) {
-			recorder := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(recorder)
-			c.Request = httptest.NewRequest(http.MethodGet, "/events?"+query, nil)
-			if _, _, ok := parsePagination(c); ok {
-				t.Fatalf("expected %q to be rejected", query)
-			}
-			if recorder.Code != http.StatusBadRequest {
-				t.Fatalf("status = %d, want 400", recorder.Code)
 			}
 		})
 	}

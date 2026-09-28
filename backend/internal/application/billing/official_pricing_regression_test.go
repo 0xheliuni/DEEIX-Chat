@@ -116,7 +116,7 @@ func TestImportedCacheWritePricingAcrossBillingPaths(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Exercise the persisted catalog representation before importing its prices.
+	// 在导入价格前先演练持久化的目录表示。
 	catalog := officialPricingResultFromCache(openRouterPricingCacheFile{Version: openRouterPricingCacheVersion, Items: officialPricingCacheItems(items)}, true, false).Items[0].Pricing
 	pricePerMillion := func(raw string) float64 {
 		value, err := strconv.ParseFloat(raw, 64)

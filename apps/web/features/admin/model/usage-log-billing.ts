@@ -1,6 +1,6 @@
-// 用量日志计价：pricing snapshot 解析、金额换算与账单 tooltip 行构建。
+// Usage log pricing: pricing snapshot parsing, amount conversion and billing tooltip row building.
 
-import type { AdminUsageLogDTO } from "@/features/admin/api/admin.types";
+import type { AdminUsageLogDTO } from "@/features/admin/api/admin-types";
 import { parseJSONRecord } from "@/features/admin/model/log-display";
 import { formatBillingBalance } from "@/features/admin/utils/account-display";
 import {

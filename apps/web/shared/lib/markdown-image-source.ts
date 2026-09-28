@@ -2,7 +2,7 @@ import { authedFetch } from "@/shared/api/authed-client";
 import { resolveApiBaseURL } from "@/shared/api/http-client";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 
-// 将受保护的完整图片 URL 还原为 API 相对路径，供 authedFetch 统一携带凭证与 401 刷新。
+// Restore protected absolute image URLs to API-relative paths so authedFetch uniformly attaches credentials and handles 401 refresh.
 function resolveProtectedMarkdownImagePath(src: string): string | null {
   const protectedSrc = resolveProtectedMarkdownImageSource(src);
   if (!protectedSrc) {
@@ -66,13 +66,17 @@ export function resolveMarkdownImageDownloadName(src: string, alt: string | unde
   return `${baseName}.png`;
 }
 
+// Upper bound for a user-triggered image download, so a stalled host cannot hang the action.
+const IMAGE_DOWNLOAD_TIMEOUT_MS = 60_000;
+
 export async function downloadMarkdownImageSource(src: string, fileName: string): Promise<void> {
   const protectedPath = resolveProtectedMarkdownImagePath(src);
+  const signal = AbortSignal.timeout(IMAGE_DOWNLOAD_TIMEOUT_MS);
   let response: Response;
   if (protectedPath) {
-    response = await fetchProtectedMarkdownImage(protectedPath);
+    response = await fetchProtectedMarkdownImage(protectedPath, signal);
   } else {
-    response = await fetch(resolveMarkdownImageSource(src));
+    response = await fetch(resolveMarkdownImageSource(src), { signal });
   }
   if (!response.ok) {
     throw new Error("Failed to download image");

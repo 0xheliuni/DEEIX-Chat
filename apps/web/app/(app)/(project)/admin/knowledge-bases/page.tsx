@@ -1,5 +1,5 @@
-import { AppKnowledgeBases } from "@/features/knowledge-bases/components/app-knowledge-bases";
+import { AdminKnowledgeBases } from "@/features/admin/components/sections/knowledge-bases/admin-knowledge-bases";
 
 export default function AdminKnowledgeBasesPage() {
-  return <AppKnowledgeBases mode="admin" />;
+  return <AdminKnowledgeBases />;
 }

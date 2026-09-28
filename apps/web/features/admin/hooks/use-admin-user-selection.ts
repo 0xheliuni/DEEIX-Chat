@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import type { AdminUserDTO } from "@/features/admin/api/admin.types";
+import type { AdminUserDTO } from "@/features/admin/api/admin-types";
 
 type UseAdminUserSelectionState = {
   selectedUserIDs: Set<number>;

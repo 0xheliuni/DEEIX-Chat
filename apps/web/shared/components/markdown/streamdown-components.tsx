@@ -28,7 +28,7 @@ import { StreamdownCheckIcon, StreamdownCopyIcon } from "./streamdown-icons";
 import { sanitizeHTMLStyle } from "./streamdown-style";
 import { UI_BLOCK_FENCE_LANGUAGE, UIBlockHost } from "./ui-blocks";
 
-// 未标注语言的围栏统一按纯文本处理:标签如实显示 text,避免内容被错误地按 Markdown 语法高亮。
+// Fences without a language are treated as plain text: the label shows text as-is, so content isn't wrongly highlighted as Markdown.
 const DEFAULT_CODE_BLOCK_LANGUAGE = "text";
 const CODE_BLOCK_ACTION_BUTTON_CLASSNAME =
   "size-5 cursor-pointer rounded-none p-1 text-muted-foreground transition-all outline-none hover:bg-foreground/[0.04] hover:text-foreground focus-visible:bg-foreground/[0.04] focus-visible:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50";
@@ -659,7 +659,7 @@ export function MarkdownSup({ children, className, node: _node, style, ...props 
 }
 
 export function MarkdownImage({ alt, className, onError, onLoad, src: srcProp, ...props }: MarkdownImageProps) {
-  // Markdown 渲染只产生字符串 src；Blob 形态的 src 不在渲染范围内。
+  // Markdown rendering only produces string src; Blob src is out of scope.
   const src = typeof srcProp === "string" ? srcProp : undefined;
   const t = useTranslations("chat.markdown");
   const insideLink = React.useContext(StreamdownLinkContext);

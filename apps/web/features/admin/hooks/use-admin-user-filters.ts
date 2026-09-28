@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import type { AdminUserDTO } from "@/features/admin/api/admin.types";
+import type { AdminUserDTO } from "@/features/admin/api/admin-types";
 import type { UserSortValue } from "@/features/admin/types/accounts";
 
 type UseAdminUserFiltersState = {

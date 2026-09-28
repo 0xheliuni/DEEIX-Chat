@@ -9,6 +9,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -34,11 +35,12 @@ func (r *Repo) ListKnowledgeBases(ctx context.Context, filter repository.Knowled
 	if limit <= 0 {
 		limit = 20
 	}
-	if limit > 100 {
-		limit = 100
+	// 上限与上层 pagination 校验保持一致，避免静默截断导致分页偏移跳过记录。
+	if limit > pagination.MaxPageSize {
+		limit = pagination.MaxPageSize
 	}
-	// Do not use the request-derived limit as a slice capacity. The SQL query
-	// still enforces the bounded limit, and Gorm grows this slice only as rows return.
+	// 不要把来自请求的 limit 用作切片容量。SQL 查询
+	// 仍会强制执行有界 limit，Gorm 仅随返回的行扩容该切片。
 	items := make([]model.KnowledgeBase, 0)
 	query := applyListFilter(r.db.WithContext(ctx).Model(&model.KnowledgeBase{}), filter)
 	var total int64
@@ -105,9 +107,9 @@ func (r *Repo) CreateKnowledgeBase(ctx context.Context, item *domainknowledgebas
 		if err := tx.Create(&record).Error; err != nil {
 			return err
 		}
-		// Enabled=false is a meaningful control-plane value. Gorm applies the
-		// model's default:true to a zero-value bool during Create, so restore the
-		// explicitly requested state in the same transaction.
+		// Enabled=false 是有意义的控制面取值。Gorm 在 Create 时会对零值 bool
+		// 应用模型的 default:true，因此需在同一事务中
+		// 恢复显式请求的状态。
 		if !enabled {
 			if err := tx.Model(&record).UpdateColumn("enabled", false).Error; err != nil {
 				return err
@@ -217,8 +219,9 @@ func (r *Repo) ListKnowledgeBaseFiles(ctx context.Context, knowledgeBaseID uint,
 	if limit <= 0 {
 		limit = 50
 	}
-	if limit > 100 {
-		limit = 100
+	// 上限与上层 pagination 校验保持一致，避免静默截断导致分页偏移跳过记录。
+	if limit > pagination.MaxPageSize {
+		limit = pagination.MaxPageSize
 	}
 	base := r.db.WithContext(ctx).Table("knowledge_base_files AS kbf").
 		Joins("JOIN file_objects AS fo ON fo.id = kbf.file_object_id AND fo.status = ? AND fo.deleted_at IS NULL", "active").
@@ -320,8 +323,9 @@ func (r *Repo) listKnowledgeBaseSourceFiles(
 	if limit <= 0 {
 		limit = 50
 	}
-	if limit > 100 {
-		limit = 100
+	// 上限与上层 pagination 校验保持一致，避免静默截断导致分页偏移跳过记录。
+	if limit > pagination.MaxPageSize {
+		limit = pagination.MaxPageSize
 	}
 
 	query := r.db.WithContext(ctx).Table("file_objects AS fo").

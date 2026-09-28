@@ -307,7 +307,8 @@
     "memoryNamePlaceholder": "偏好名称（如：回复风格）",
     "memoryValuePlaceholder": "偏好内容（如：请用简洁的中文回复）",
     "savingPreference": "保存中…",
-    "savePreference": "保存偏好"
+    "savePreference": "保存偏好",
+    "positionRail": "消息位置"
   },
   "loadError": {
     "title": "会话加载失败",

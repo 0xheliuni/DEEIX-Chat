@@ -3,7 +3,7 @@
 import * as React from "react";
 
 import { getMe } from "@/shared/api/auth";
-import type { UserDTO } from "@/shared/api/auth.types";
+import type { UserDTO } from "@/shared/api/auth-types";
 import { USER_PROFILE_UPDATED_EVENT } from "@/shared/auth/user-profile-events";
 
 type AuthSessionUserStatus = "loading" | "ready" | "failed";

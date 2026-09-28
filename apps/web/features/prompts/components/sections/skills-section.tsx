@@ -27,7 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { cn } from "@/lib/utils";
 import { createMySkill, deleteMySkill, getVisibleSkill, listMySkills, listVisibleSkills, updateMySkill } from "@/shared/api/skills";
-import type { SkillDTO, SkillSummaryDTO } from "@/shared/api/skills.types";
+import type { SkillDTO, SkillSummaryDTO } from "@/shared/api/skills-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import {

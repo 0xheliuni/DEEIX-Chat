@@ -92,8 +92,8 @@ func run(args []string, handoffOut io.Writer) error {
 		return fmt.Errorf("write handoff: %w", err)
 	}
 
-	// Shut down when the parent dies: the shell holds our stdin pipe, so EOF
-	// means it is gone — including SIGKILL, where it cannot signal us.
+	// 父进程退出时关闭：壳进程持有我们的 stdin 管道，因此 EOF
+	// 即表示其已退出——包括无法向我们发信号的 SIGKILL 场景。
 	go func() {
 		_, _ = io.Copy(io.Discard, os.Stdin)
 		instance.RequestShutdown()

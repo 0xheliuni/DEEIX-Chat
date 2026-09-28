@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/table";
 import { TablePagination, TableToolbar, type TableToolbarFilter } from "@/components/ui/table-tools";
 import { IdentityProviderIcon } from "@/shared/components/identity-provider-icon";
-import type { UserIdentityProviderSummaryDTO } from "@/shared/api/auth.types";
+import type { UserIdentityProviderSummaryDTO } from "@/shared/api/auth-types";
 import { cn } from "@/lib/utils";
 
 export type GroupAccessTableItem = {

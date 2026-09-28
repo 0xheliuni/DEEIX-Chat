@@ -14,12 +14,12 @@ import {
   mapServerMessage,
   reconcileBranchSelections,
   toBranchKey,
+  ChatArtifactWorkspace,
   type ChatAreaMessage,
+  type OpenCodeArtifactInput,
+  useChatArtifactResize,
+  useChatArtifacts,
 } from "@/features/chat";
-import { ChatArtifactWorkspace } from "@/features/chat/components/sections/chat-artifact";
-import { useChatArtifactResize } from "@/features/chat/hooks/use-chat-artifact-resize";
-import { useChatArtifacts } from "@/features/chat/hooks/use-chat-artifacts";
-import type { OpenCodeArtifactInput } from "@/features/chat/model/chat-artifacts";
 import { cn } from "@/lib/utils";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import { UIBlockRegistryProvider } from "@/shared/components/markdown/ui-blocks";
@@ -28,7 +28,7 @@ import type {
   MessageDTO,
   PublicSharedConversationDTO,
   PublicSharedMessageDTO,
-} from "@/shared/api/conversation.types";
+} from "@/shared/api/conversation-types";
 import { fetchSharedFileContent } from "@/shared/api/file";
 import type { FileContentLoader } from "@/shared/components/file-preview/preview-dialog";
 import { CenteredEmptyState } from "@/components/ui/empty-state";
@@ -233,6 +233,7 @@ export function PublicSharePage() {
   const t = useTranslations("share");
   const messageT = useTranslations("chat.messages");
   const submitT = useTranslations("chat.submit");
+  const attributionT = useTranslations("common.attribution");
   const branding = useBranding();
   const { locale } = useAppLocale();
   const resolveErrorMessage = useLocalizedErrorMessage();
@@ -483,7 +484,7 @@ export function PublicSharePage() {
               href="https://github.com/DEEIX-AI/DEEIX-Chat"
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="DEEIX Chat on GitHub"
+              aria-label={attributionT("githubLink")}
               className="inline-flex h-8 shrink-0 items-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2"
             >
               <DeeixLogo width={78} height={24} className="h-6 w-auto opacity-75" />

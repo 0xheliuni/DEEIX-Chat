@@ -11,9 +11,9 @@ import type {
 import { parseSendShortcut, type SendShortcut } from "@/features/settings";
 import { getBillingConfig } from "@/shared/api/billing";
 import { listConversationRuns } from "@/shared/api/conversation";
-import type { ConversationOptions } from "@/shared/api/conversation.types";
+import type { ConversationOptions } from "@/shared/api/conversation-types";
 import { listPublicModels } from "@/shared/api/model";
-import type { PublicModelDTO } from "@/shared/api/model.types";
+import type { PublicModelDTO } from "@/shared/api/model-types";
 import { getMCPPolicy, getModelOptionPolicy } from "@/shared/api/settings";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import {
@@ -541,7 +541,7 @@ export function useChatModelOptions({
   React.useEffect(() => {
     const normalizedConversationID = conversationPublicID?.trim() || null;
     if (!normalizedConversationID) {
-      // 普通无会话重渲染保留手动选择；显式新对话由 resetToken 重置。
+      // Ordinary re-renders without a conversation keep the manual selection; an explicit new chat resets via resetToken.
       activeConversationRef.current = null;
       return;
     }
@@ -561,7 +561,7 @@ export function useChatModelOptions({
     const requestID = runModelRequestRef.current + 1;
     runModelRequestRef.current = requestID;
 
-    // 本次请求绑定的会话 ID（非空）。
+    // Conversation ID bound to this request (non-empty).
     const activeConversationID = normalizedConversationID;
 
     async function loadLatestRunModel() {

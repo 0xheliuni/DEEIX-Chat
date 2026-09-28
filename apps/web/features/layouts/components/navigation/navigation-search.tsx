@@ -26,7 +26,7 @@ import {
   groupConversationSearchResultsByDate,
 } from "@/features/layouts/model/navigation-search";
 import type { ConversationSearchResult } from "@/features/layouts/types/navigation";
-import type { ConversationPreviewMessageDTO } from "@/shared/api/conversation.types";
+import type { ConversationPreviewMessageDTO } from "@/shared/api/conversation-types";
 import { useLoadMoreSentinel } from "@/shared/hooks/use-load-more-sentinel";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { usePointerInteraction } from "@/shared/hooks/use-pointer-interaction";

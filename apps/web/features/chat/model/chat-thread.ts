@@ -1,6 +1,6 @@
 import { MODERATION_BLOCKED_BILLED_REASON, parseBillingSnapshot } from "@/features/chat/model/billing-snapshot";
 import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
-import type { MessageDTO, UpstreamDebugInfo } from "@/shared/api/conversation.types";
+import type { MessageDTO, UpstreamDebugInfo } from "@/shared/api/conversation-types";
 
 function parseAttachmentDurationSeconds(value: unknown): number | undefined {
   const parsed = Number(value);
@@ -174,7 +174,7 @@ type MessageLabels = {
   moderationBlockedDescription?: string;
   moderationEventID?: (eventID: string) => string;
   moderationCategories?: (categories: string[]) => string;
-  /** 拦截后上游已产生用量照常结算的说明；账本快照带 `billed_reason` 时追加到拦截提示。 */
+  /** Notice that upstream usage incurred before a block is still billed; appended to the block notice when the ledger snapshot has `billed_reason`. */
   moderationBilled?: string;
   resolveErrorMessage?: (errorCode: string, fallback: string, details?: UpstreamDebugInfo) => string;
 };

@@ -4,8 +4,8 @@ import type {
   ImageLoadingAspectRatio,
   MessageAttachment,
 } from "@/features/chat/types/messages";
-import type { ConversationOptions } from "@/shared/api/conversation.types";
-import type { PublicModelPricingDTO } from "@/shared/api/model.types";
+import type { ConversationOptions } from "@/shared/api/conversation-types";
+import type { PublicModelPricingDTO } from "@/shared/api/model-types";
 import type { ModelNativeToolConfig } from "@/shared/lib/model-option-policy";
 
 export type ViewerProfile = {

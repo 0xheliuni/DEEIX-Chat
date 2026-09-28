@@ -5,7 +5,7 @@ import type {
   MessageTraceEventResponse,
 } from "@deeix/api-contract";
 import { authedFetch, authedRequest } from "@/shared/api/authed-client";
-import type { PagePayload } from "@/shared/api/common.types";
+import type { PagePayload } from "@/shared/api/common-types";
 import type {
   ActiveConversationRunEvent,
   ConversationRunStatusDTO,
@@ -54,7 +54,7 @@ import type {
   UpdateConversationLabelsRequest,
   UpdateConversationProjectRequest,
   UpdateMessageRequest,
-} from "@/shared/api/conversation.types";
+} from "@/shared/api/conversation-types";
 import { ApiError, apiRequest, pathParam } from "@/shared/api/http-client";
 
 type RawTraceBlock = MessageTraceBlockResponse;

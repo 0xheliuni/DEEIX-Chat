@@ -4,7 +4,7 @@ import { toast } from "sonner";
 
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { listAdminUsers } from "@/features/admin/api";
-import type { AdminUserDTO } from "@/features/admin/api/admin.types";
+import type { AdminUserDTO } from "@/features/admin/api/admin-types";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 

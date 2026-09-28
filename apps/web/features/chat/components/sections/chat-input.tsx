@@ -63,11 +63,11 @@ import {
 } from "@/features/chat/utils/markdown-paste";
 import type { SendShortcut } from "@/features/settings";
 import { cn } from "@/lib/utils";
-import type { ConversationOptions } from "@/shared/api/conversation.types";
-import type { FileObjectDTO } from "@/shared/api/file.types";
-import type { MCPToolDTO } from "@/shared/api/mcp.types";
-import type { SkillSummaryDTO } from "@/shared/api/skills.types";
-import type { UIComponentDTO } from "@/shared/api/ui-components.types";
+import type { ConversationOptions } from "@/shared/api/conversation-types";
+import type { FileObjectDTO } from "@/shared/api/file-types";
+import type { MCPToolDTO } from "@/shared/api/mcp-types";
+import type { SkillSummaryDTO } from "@/shared/api/skills-types";
+import type { UIComponentDTO } from "@/shared/api/ui-components-types";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { useScrollFadeFallbackRef } from "@/shared/hooks/use-scroll-fade-fallback-ref";

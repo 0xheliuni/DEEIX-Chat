@@ -26,7 +26,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// LoginOptions describes the authentication methods enabled for the login UI.
+// LoginOptions 描述登录界面已启用的认证方式。
 type LoginOptions struct {
 	UsernameEnabled              bool
 	EmailEnabled                 bool
@@ -39,14 +39,14 @@ type LoginOptions struct {
 	Providers                    []IdentityProviderView
 }
 
-// ProviderAuthBridgeOptions describes native OAuth handoff availability.
+// ProviderAuthBridgeOptions 描述原生 OAuth 交接的可用性。
 type ProviderAuthBridgeOptions struct {
 	Enabled         bool
 	ProtocolVersion int
 	CallbackBaseURL string
 }
 
-// IdentityProviderView is the safe, user-facing view of an identity provider.
+// IdentityProviderView 是身份提供方面向用户的安全视图。
 type IdentityProviderView struct {
 	PublicID            string
 	Type                string
@@ -73,7 +73,7 @@ type IdentityProviderView struct {
 	UpdatedAt           time.Time
 }
 
-// UserIdentityView describes an identity linked to a user account.
+// UserIdentityView 描述关联到用户账号的身份。
 type UserIdentityView struct {
 	ID                  uint
 	ProviderID          uint
@@ -88,7 +88,7 @@ type UserIdentityView struct {
 	LastLoginAt         *time.Time
 }
 
-// UpsertIdentityProviderInput contains administrator-managed provider settings.
+// UpsertIdentityProviderInput 包含管理员维护的提供方设置。
 type UpsertIdentityProviderInput struct {
 	ActorRole           string
 	Type                string
@@ -153,7 +153,7 @@ type githubEmailAddress struct {
 	Verified bool   `json:"verified"`
 }
 
-// GetLoginOptions returns the authentication methods and providers available to the client.
+// GetLoginOptions 返回客户端可用的认证方式与提供方。
 func (s *Service) GetLoginOptions(ctx context.Context) (*LoginOptions, error) {
 	cfg := s.cfg.Snapshot()
 	providerViews := []IdentityProviderView{}
@@ -177,7 +177,7 @@ func (s *Service) GetLoginOptions(ctx context.Context) (*LoginOptions, error) {
 	}, nil
 }
 
-// ListIdentityProviders returns configured identity providers for administration.
+// ListIdentityProviders 返回供管理使用的已配置身份提供方。
 func (s *Service) ListIdentityProviders(ctx context.Context) ([]IdentityProviderView, error) {
 	providers, err := s.repo.ListIdentityProviders(ctx, true)
 	if err != nil {
@@ -186,7 +186,7 @@ func (s *Service) ListIdentityProviders(ctx context.Context) ([]IdentityProvider
 	return toProviderViews(providers, true), nil
 }
 
-// CreateIdentityProvider validates and persists a new identity provider.
+// CreateIdentityProvider 校验并持久化新的身份提供方。
 func (s *Service) CreateIdentityProvider(ctx context.Context, input UpsertIdentityProviderInput) (*IdentityProviderView, error) {
 	provider, err := s.normalizeProviderInput(input, nil)
 	if err != nil {
@@ -201,7 +201,7 @@ func (s *Service) CreateIdentityProvider(ctx context.Context, input UpsertIdenti
 	return &view, nil
 }
 
-// UpdateIdentityProvider validates and persists changes to an identity provider.
+// UpdateIdentityProvider 校验并持久化身份提供方的变更。
 func (s *Service) UpdateIdentityProvider(ctx context.Context, publicID string, input UpsertIdentityProviderInput) (*IdentityProviderView, error) {
 	current, err := s.repo.GetIdentityProviderByPublicID(ctx, publicID)
 	if err != nil {
@@ -220,7 +220,7 @@ func (s *Service) UpdateIdentityProvider(ctx context.Context, publicID string, i
 	return &view, nil
 }
 
-// DeleteIdentityProvider removes an identity provider when its dependencies allow it.
+// DeleteIdentityProvider 在依赖关系允许时删除身份提供方。
 func (s *Service) DeleteIdentityProvider(ctx context.Context, publicID string, force bool) error {
 	if err := s.repo.DeleteIdentityProvider(ctx, publicID, force); err != nil {
 		var dependentErr *repository.IdentityProviderDeleteConflictError
@@ -235,12 +235,12 @@ func (s *Service) DeleteIdentityProvider(ctx context.Context, publicID string, f
 	return nil
 }
 
-// HasActiveSuperAdminIdentity reports whether a superadmin identity provider is active.
+// HasActiveSuperAdminIdentity 报告是否存在启用的超级管理员身份提供方。
 func (s *Service) HasActiveSuperAdminIdentity(ctx context.Context) (bool, error) {
 	return s.repo.HasActiveSuperAdminIdentity(ctx)
 }
 
-// ListCurrentUserIdentities returns the identities linked to a user account.
+// ListCurrentUserIdentities 返回关联到用户账号的身份。
 func (s *Service) ListCurrentUserIdentities(ctx context.Context, userID uint) ([]UserIdentityView, error) {
 	identities, err := s.repo.ListUserIdentitiesByUserID(ctx, userID)
 	if err != nil {
@@ -274,7 +274,7 @@ func (s *Service) ListCurrentUserIdentities(ctx context.Context, userID uint) ([
 	return results, nil
 }
 
-// UnlinkCurrentUserIdentity removes a linked identity after login-safety checks.
+// UnlinkCurrentUserIdentity 在通过登录安全检查后移除已关联身份。
 func (s *Service) UnlinkCurrentUserIdentity(ctx context.Context, userID uint, identityID uint) error {
 	if err := s.ensureIdentityUnlinkAllowed(ctx, userID, identityID); err != nil {
 		return err
@@ -314,7 +314,7 @@ func (s *Service) ensureIdentityUnlinkAllowed(ctx context.Context, userID uint, 
 	return nil
 }
 
-// ReorderIdentityProviders persists the administrator-selected provider order.
+// ReorderIdentityProviders 持久化管理员选定的提供方顺序。
 func (s *Service) ReorderIdentityProviders(ctx context.Context, publicIDs []string) error {
 	normalizedIDs := make([]string, 0, len(publicIDs))
 	seen := make(map[string]struct{}, len(publicIDs))

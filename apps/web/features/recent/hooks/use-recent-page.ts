@@ -33,7 +33,7 @@ import type {
   ConversationShareFilter,
   ConversationStarredFilter,
   ConversationStatusFilter,
-} from "@/shared/api/conversation.types";
+} from "@/shared/api/conversation-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { useLoadMoreSentinel } from "@/shared/hooks/use-load-more-sentinel";

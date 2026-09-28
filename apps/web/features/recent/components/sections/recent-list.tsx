@@ -37,7 +37,7 @@ import type {
   ConversationShareFilter,
   ConversationStarredFilter,
   ConversationStatusFilter,
-} from "@/shared/api/conversation.types";
+} from "@/shared/api/conversation-types";
 
 function RecentRowSkeleton({
   showCheckbox = true,

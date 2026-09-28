@@ -1,4 +1,4 @@
-import type { ConversationOptions } from "@/shared/api/conversation.types";
+import type { ConversationOptions } from "@/shared/api/conversation-types";
 
 const RESERVED_CONVERSATION_OPTION_KEYS = new Set([
   "contents",

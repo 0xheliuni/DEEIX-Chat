@@ -1,6 +1,6 @@
 "use client";
 
-// 热力图骨架屏：dynamic 加载期与数据请求期共用同一结构，避免两段骨架之间布局跳变。
+// Heatmap skeleton: the dynamic-import phase and data-fetch phase share one structure to avoid layout jumps between two skeletons.
 export function ActivityHeatmapSkeleton() {
   return (
     <div className="space-y-3 rounded-md bg-muted/35 p-3">

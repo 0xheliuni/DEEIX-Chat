@@ -65,9 +65,9 @@ Commit message subjects that do not match this format will fail CI.
 
 ## Architecture Boundaries
 
-- `frontend/` owns the user interface, client-side state, message rendering, and admin/user workflows.
+- `apps/web/` owns the user interface, client-side state, message rendering, and admin/user workflows. `apps/desktop/` is a Tauri shell around the same web build and contains no business UI. `packages/core` holds platform-neutral client logic (auth state machine, server address resolution, capabilities).
 - `backend/` owns business APIs, authentication, authorization, model routing, file processing, billing, audit logs, and persistence.
-- `docker/` contains optional local services for document extraction, OCR, and related runtime dependencies.
+- `deploy/` contains Docker Compose setups, config templates, and optional services for document extraction, OCR, and related runtime dependencies.
 - The frontend should not duplicate backend authorization, billing, provider routing, or file-processing business rules.
 - Keep cross-cutting concerns such as security, tracing, storage, and provider clients behind backend infrastructure boundaries.
 - Backend startup flows through `cmd -> internal/cli -> internal/app`.
@@ -112,7 +112,8 @@ Core expectations:
 
 Read the frontend documentation before making frontend changes:
 
-- [Frontend docs](../frontend/README.md)
+- [Frontend docs](../apps/web/README.md)
+- [Frontend Biome rules and exceptions](../apps/web/BIOME.md)
 
 Core expectations:
 
@@ -122,7 +123,7 @@ Core expectations:
 - derive wire types from `@deeix/api-contract` and keep UI state types inside the owning feature
 - do not hard-code provider-private model behavior in the frontend
 - keep authentication tokens aligned with the existing session model
-- run `pnpm --filter @deeix/web lint`, and run `pnpm build` for routing, dependency, or Next.js changes
+- run `pnpm --filter @deeix/web check` (lint, typecheck, architecture rules), and run `pnpm build` for routing, dependency, or Next.js changes
 
 ## Code Style
 

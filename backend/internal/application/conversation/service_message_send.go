@@ -278,8 +278,8 @@ func (s *Service) sendMessageInternal(
 				retainedOutput = true
 				applyRetainedGenerationRunUsage(run, retained, len(toolCallRows), startedAt)
 			}
-			// Input checks and any retained visible output continue after
-			// cancel/interrupt/error; either surface may still block the turn.
+			// 在取消/中断/出错后，输入检查及任何保留的可见输出
+			// 仍会继续审核；任一检查面都可能拦截该轮次。
 			if moderationCoord != nil {
 				if result == nil && userMessage != nil && assistantMessage != nil {
 					result = &SendMessageResult{
@@ -1209,7 +1209,7 @@ func (s *Service) sendMessageInternal(
 		StartedAt:             startedAt,
 		postBillingCompaction: postBillingCompaction,
 	}
-	// Soft moderation barrier: show checking, then block or pass.
+	// 软审核屏障：先显示检查中，再拦截或放行。
 	if moderationCoord != nil {
 		outputImages := s.loadOutputImagesForModeration(ctx, moderationCoord, input.UserID, assistantMessage.Attachments)
 		s.completeModerationAfterSuccess(ctx, completeModerationAfterSuccessInput{

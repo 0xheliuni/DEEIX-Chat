@@ -9,7 +9,7 @@ import {
 } from "lucide-react"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 
-import { useToastPosition } from "@/features/settings/utils/toast-position"
+import { useToastPosition } from "@/shared/lib/toast-position"
 import { useTheme } from "@/shared/components/theme-provider"
 
 const Toaster = ({ ...props }: ToasterProps) => {

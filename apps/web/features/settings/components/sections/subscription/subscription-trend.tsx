@@ -15,7 +15,7 @@ import type { ChartConfig, ChartInteractiveLegendItem } from "@/components/ui/ch
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppLocale } from "@/i18n/app-i18n-provider";
-import type { BillingUsageDailyDTO, BillingUsageMonthlyDTO } from "@/shared/api/billing.types";
+import type { BillingUsageDailyDTO, BillingUsageMonthlyDTO } from "@/shared/api/billing-types";
 import {
   formatDay,
   formatFormulaTokenCount,
@@ -101,7 +101,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-// 返回该列当前可见、数值大于 0 的最顶部模型分段 key，决定顶部圆角落在哪个分段。
+// Returns the key of the topmost visible model segment in this column with value > 0; it gets the top rounded corners.
 function dailyColumnTopSegmentKey(
   payload: unknown,
   modelSeries: ModelSeries[],
@@ -445,7 +445,7 @@ function DailyUsageChart({
       : [{ id: "totalTokens", label: "Tokens", color: "var(--chart-1)" }],
     [modelSeries],
   );
-  // 顶部圆角按每根柱当前可见的最顶部分段绘制，而不是固定给某个系列。
+  // Top rounded corners go on each bar's topmost currently visible segment, not on a fixed series.
   const modelBarShapes = React.useMemo(
     () =>
       new Map(

@@ -14,7 +14,7 @@ import type {
   KnowledgeBaseMode,
 } from "@/features/knowledge-bases/types/knowledge-bases";
 import { cn } from "@/lib/utils";
-import type { KnowledgeBaseDTO, KnowledgeBaseFileDTO } from "@/shared/api/knowledge-bases.types";
+import type { KnowledgeBaseDTO, KnowledgeBaseFileDTO } from "@/shared/api/knowledge-bases-types";
 import { formatBytes, resolveFileIcon } from "@/shared/lib/file-display";
 import { canManuallyVectorizeFile, isVectorIndexOutdated, resolveFileRetrievalBadge } from "@/shared/lib/file-processing";
 

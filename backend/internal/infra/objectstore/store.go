@@ -25,7 +25,7 @@ type (
 	Store      = portobjectstore.Store
 )
 
-// S3Config lives outside s3.go so it exists in -tags nos3 builds.
+// S3Config 定义在 s3.go 之外，以便在 -tags nos3 构建中仍然存在。
 type S3Config struct {
 	Endpoint        string
 	Region          string

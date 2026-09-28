@@ -9,6 +9,8 @@ const LOBEHUB_ICON_PREFIX = "/vendor/lobehub-icons/";
 const LOBEHUB_ICON_SPRITE = `${LOBEHUB_ICON_PREFIX}__sprite.svg`;
 const LOBEHUB_ICON_SPRITE_CONTAINER_ID = "lobehub-icon-sprite";
 const MODEL_ICON_API_PREFIX = "/api/v1/llm/icon-assets/";
+// Same-origin static asset; a stalled request is retried on the next icon mount.
+const SPRITE_FETCH_TIMEOUT_MS = 15_000;
 
 let spriteReady = false;
 let spriteRequest: Promise<void> | null = null;
@@ -32,7 +34,7 @@ function ensureLobeHubSprite(): Promise<void> {
   if (spriteRequest) {
     return spriteRequest;
   }
-  spriteRequest = fetch(LOBEHUB_ICON_SPRITE, { cache: "force-cache" })
+  spriteRequest = fetch(LOBEHUB_ICON_SPRITE, { cache: "force-cache", signal: AbortSignal.timeout(SPRITE_FETCH_TIMEOUT_MS) })
     .then(async (response) => {
       if (!response.ok) {
         throw new Error(`Failed to load LobeHub icon sprite: ${response.status}`);

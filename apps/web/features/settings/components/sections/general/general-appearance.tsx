@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import type { FontSizeOption } from "@/features/settings/utils/font-size";
-import { TOAST_POSITIONS, type ToastPosition } from "@/features/settings/utils/toast-position";
+import { TOAST_POSITIONS, type ToastPosition } from "@/shared/lib/toast-position";
 import type {
   FontSizePreview,
   ThemeMode,
