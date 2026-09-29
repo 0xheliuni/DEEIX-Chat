@@ -1,4 +1,4 @@
-package db
+package postgres
 
 import (
 	"fmt"
@@ -10,14 +10,14 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/schema"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/vectorutil"
-	"gorm.io/driver/postgres"
+	gormpostgres "gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 )
 
 // New 初始化 PostgreSQL 连接并执行迁移与种子数据。
 func New(cfg config.Config) (*gorm.DB, error) {
-	db, err := gorm.Open(postgres.Open(cfg.PostgresDSN), newGORMConfig(cfg))
+	db, err := gorm.Open(gormpostgres.Open(cfg.PostgresDSN), newGORMConfig(cfg))
 	if err != nil {
 		return nil, err
 	}

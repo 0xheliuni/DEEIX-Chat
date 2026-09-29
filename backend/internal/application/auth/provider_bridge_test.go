@@ -161,9 +161,9 @@ func TestProviderAuthBridgeDesktopRedirectMustBeLoopbackWithPort(t *testing.T) {
 		}
 	}
 	for _, bad := range []string{
-		"https://127.0.0.1:49152/oauth/callback", // must be plain http on loopback
-		"http://127.0.0.1/oauth/callback",        // ephemeral port is mandatory
-		"http://127.0.0.1:49152/other",           // fixed path
+		"https://127.0.0.1:49152/oauth/callback", // 回环地址必须使用纯 http
+		"http://127.0.0.1/oauth/callback",        // 必须指定临时端口
+		"http://127.0.0.1:49152/other",           // 路径必须固定为 /oauth/callback
 		"http://127.0.0.1:49152/oauth/callback?x=1",
 		"http://evil.example.com:49152/oauth/callback",
 		"http://127.0.0.1.evil.com:49152/oauth/callback",
@@ -287,7 +287,7 @@ func TestProviderAuthBridgeBindsIdentityOnlyForTheStartingUser(t *testing.T) {
 	if _, err = service.ExchangeProviderAuthBridgeGrant(context.Background(), "acme", exchangeInput, "request-id", requestmeta.SessionAuditContext{}); !errors.Is(err, ErrProviderGrantMismatch) {
 		t.Fatalf("a bind grant must not create a login session, got %v", err)
 	}
-	// The login exchange consumed the grant; run the flow again for the bind exchange.
+	// 登录兑换已消费该授权凭证；再次执行流程以进行绑定兑换。
 	start, err = service.StartProviderAuthBridge(context.Background(), "acme", startInput)
 	if err != nil {
 		t.Fatalf("restart bind: %v", err)
@@ -306,7 +306,7 @@ func TestProviderAuthBridgeBindsIdentityOnlyForTheStartingUser(t *testing.T) {
 	if _, err = service.ExchangeProviderAuthBridgeBindGrant(context.Background(), 7, "acme", exchangeInput, "request-id", requestmeta.SessionAuditContext{}); !errors.Is(err, ErrProviderGrantMismatch) {
 		t.Fatalf("another user must not be able to consume the bind grant, got %v", err)
 	}
-	// Mismatch consumed the grant as well; the last run performs the bind.
+	// 不匹配同样消费了授权凭证；最后一次执行完成绑定。
 	start, _ = service.StartProviderAuthBridge(context.Background(), "acme", startInput)
 	authorizationURL, _ = url.Parse(start.AuthorizationURL)
 	callback, _ = service.CompleteProviderAuthBridgeCallback(context.Background(), "acme", ProviderAuthBridgeCallbackInput{

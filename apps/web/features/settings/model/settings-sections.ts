@@ -27,8 +27,5 @@ export function resolveSettingsSectionFromPath(pathname: string, basePath: strin
 }
 
 export function resolveSettingsSection(section?: string | null): SettingsSection {
-  if (SETTINGS_SECTIONS.some((item) => item.id === section)) {
-    return section as SettingsSection;
-  }
-  return DEFAULT_SETTINGS_SECTION;
+  return SETTINGS_SECTIONS.find((item) => item.id === section)?.id ?? DEFAULT_SETTINGS_SECTION;
 }

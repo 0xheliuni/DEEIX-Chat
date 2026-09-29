@@ -88,8 +88,8 @@ func (s *Service) Seed(ctx context.Context) error {
 	if err := s.repo.UpsertWithDescription(ctx, items); err != nil {
 		return err
 	}
-	// Install replacement defaults before deleting obsolete keys so a partial
-	// startup failure never leaves the deployment without either configuration.
+	// 先安装替代默认值再删除过时键，确保部分
+	// 启动失败时部署不会同时缺失两种配置。
 	for _, item := range obsoleteSettings() {
 		if err := s.repo.Delete(ctx, item.Namespace, item.Key); err != nil {
 			return err

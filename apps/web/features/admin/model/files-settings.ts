@@ -1,5 +1,6 @@
-import type { AdminServiceRuntimeView } from "@/features/admin/api/admin.types";
-import type { SettingsGrouped } from "@/shared/api/settings.types";
+import type { AdminServiceRuntimeView } from "@/features/admin/api/admin-types";
+import type { SettingsGrouped } from "@/shared/api/settings-types";
+import { isOneOf } from "@/shared/lib/type-guards";
 
 export type SettingsFieldType = "int" | "bool" | "string" | "password" | "textarea" | "select" | "tabs" | "multi-check" | "button";
 
@@ -107,6 +108,7 @@ export const DEFAULT_MINERU_FILE_TYPES = [
 ].join(",");
 
 export type MinerUFileType = (typeof MINERU_FILE_TYPES)[keyof typeof MINERU_FILE_TYPES];
+const isMinerUFileType = isOneOf(Object.values(MINERU_FILE_TYPES));
 
 export type MinerUMIMERequirement = {
   type: MinerUFileType;
@@ -974,14 +976,15 @@ export function resolveMinerUMIMERequirements(settings: Record<string, string>):
   const selected = normalizeMinerUFileTypes(settings["extract.mineru_file_types"] ?? "").split(",");
   const result: MinerUMIMERequirement[] = [];
   for (const type of selected) {
-    const requirements = MINERU_MIME_REQUIREMENTS[type as MinerUFileType]?.[source] ?? [];
+    const requirements = isMinerUFileType(type) ? (MINERU_MIME_REQUIREMENTS[type][source] ?? []) : [];
     result.push(...requirements);
   }
   return result;
 }
 
 export function resolveMinerUFileTypeFormats(type: string, source: string): string[] {
-  return (MINERU_MIME_REQUIREMENTS[type as MinerUFileType]?.[resolveMinerUSource(source)] ?? []).map((item) => item.format);
+  if (!isMinerUFileType(type)) return [];
+  return (MINERU_MIME_REQUIREMENTS[type][resolveMinerUSource(source)] ?? []).map((item) => item.format);
 }
 
 export function parseAllowedMIMETypes(raw: string): Set<string> {

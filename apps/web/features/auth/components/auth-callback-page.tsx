@@ -6,39 +6,15 @@ import { useTranslations } from "next-intl";
 import { Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SpinnerLabel } from "@/components/ui/spinner";
-import { TWO_FACTOR_CHALLENGE_STORAGE_KEY, TWO_FACTOR_METHODS_STORAGE_KEY } from "@/features/auth/model/login-page";
-import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
-import { exchangeProviderAuthBridgeGrant, exchangeProviderBindBridgeGrant } from "@/shared/api/auth";
-import { ApiError } from "@/shared/api/http-client";
-import { normalizeAuthNextPath } from "@/shared/auth/local-path";
-import { clearProviderBridgeRequest, readProviderBridgeRequest } from "@/shared/auth/provider-bridge";
+import { useAuthProviderCallback } from "@/features/auth/hooks/use-auth-provider-callback";
 import { AppLogo } from "@/shared/components/app-logo";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import { resolveOAuthClientId } from "@/shared/platform/desktop-oauth";
-import { completeNativeSignIn } from "@/shared/platform/desktop-session";
 
-const PROVIDER_EMAIL_CONFLICT_ERROR_CODE = "auth.provider_email_conflict";
-const PROVIDER_EMAIL_CONFLICT_ACTION_SIGN_IN_THEN_BIND = "sign_in_then_bind";
-const ACCOUNT_SETTINGS_PATH = "/setting/account";
-
-type ProviderEmailConflictDetails = {
-  action?: string;
-  providerSlug?: string;
-  email?: string;
-};
-
-type EmailConflictState = {
-  providerSlug?: string;
-  email?: string;
-};
+const ACCOUNT_SETTINGS_PATH = "/settings/account";
 
 export function AuthCallbackPage() {
   const t = useTranslations("login.oauthCallback");
-  const resolveErrorMessage = useLocalizedErrorMessage();
   const router = useRouter();
-  const [error, setError] = React.useState("");
-  const [emailConflict, setEmailConflict] = React.useState<EmailConflictState | null>(null);
-  const handledRef = React.useRef(false);
+  const { error, emailConflict } = useAuthProviderCallback();
 
   const redirectToLogin = React.useCallback(() => {
     router.replace("/login");
@@ -47,73 +23,6 @@ export function AuthCallbackPage() {
   const redirectToLoginWithAccountSettingsNext = React.useCallback(() => {
     router.replace(`/login?next=${encodeURIComponent(ACCOUNT_SETTINGS_PATH)}`);
   }, [router]);
-
-  React.useEffect(() => {
-    if (handledRef.current) {
-      return;
-    }
-    handledRef.current = true;
-
-    const params = new URLSearchParams(window.location.search);
-    const errorMessage = params.get("error");
-    if (errorMessage) {
-      setError(t("providerError", { error: errorMessage }));
-      return;
-    }
-
-    const provider = params.get("provider") ?? "";
-    const grant = params.get("grant") ?? "";
-    if (provider && grant) {
-      const stored = readProviderBridgeRequest(provider);
-      clearProviderBridgeRequest(provider);
-      if (!stored || !constantTimeStringEqual(params.get("state") ?? "", stored.state)) {
-        setError(t("expiredSession"));
-        return;
-      }
-      const exchangeInput = { clientID: resolveOAuthClientId(), grant, codeVerifier: stored.verifier };
-      const nextPath = normalizeAuthNextPath(stored.next);
-      if (stored.intent === "bind") {
-        void resolveAccessToken()
-          .then((accessToken) => {
-            if (!accessToken) {
-              throw new Error(t("bindSessionExpired"));
-            }
-            return exchangeProviderBindBridgeGrant(accessToken, provider, exchangeInput);
-          })
-          .then(() => {
-            router.replace(nextPath);
-          })
-          .catch((caught) => {
-            setError(resolveErrorMessage(caught, t("bindFailed")));
-          });
-        return;
-      }
-      void exchangeProviderAuthBridgeGrant(provider, exchangeInput)
-        .then((result) => {
-          if (result.twoFactorRequired) {
-            window.sessionStorage.setItem(TWO_FACTOR_CHALLENGE_STORAGE_KEY, result.twoFactorChallengeToken ?? "");
-            window.sessionStorage.setItem(TWO_FACTOR_METHODS_STORAGE_KEY, JSON.stringify(result.verificationMethods ?? ["two_factor"]));
-            router.replace(`/login?next=${encodeURIComponent(nextPath)}`);
-            return;
-          }
-          void completeNativeSignIn(result);
-          router.replace(nextPath);
-        })
-        .catch((caught) => {
-          if (isProviderEmailConflictError(caught)) {
-            const details = caught.details as ProviderEmailConflictDetails | undefined;
-            setEmailConflict({
-              providerSlug: details?.providerSlug?.trim() || undefined,
-              email: details?.email?.trim() || undefined,
-            });
-            return;
-          }
-          setError(resolveErrorMessage(caught, t("loginFailed")));
-        });
-      return;
-    }
-    setError(t("missingParams"));
-  }, [resolveErrorMessage, router, t]);
 
   const conflictProviderLabel = React.useMemo(() => {
     if (!emailConflict?.providerSlug) {
@@ -189,21 +98,4 @@ export function AuthCallbackPage() {
       </div>
     </main>
   );
-}
-
-function constantTimeStringEqual(left: string, right: string): boolean {
-  if (left.length !== right.length) return false;
-  let difference = 0;
-  for (let index = 0; index < left.length; index += 1) {
-    difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
-  }
-  return difference === 0;
-}
-
-function isProviderEmailConflictError(error: unknown): boolean {
-  if (!(error instanceof ApiError) || error.errorCode !== PROVIDER_EMAIL_CONFLICT_ERROR_CODE) {
-    return false;
-  }
-  const details = error.details as ProviderEmailConflictDetails | undefined;
-  return details?.action === PROVIDER_EMAIL_CONFLICT_ACTION_SIGN_IN_THEN_BIND;
 }

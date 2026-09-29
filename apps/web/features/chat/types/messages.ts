@@ -1,4 +1,4 @@
-import type { UpstreamDebugInfo } from "@/shared/api/conversation.types";
+import type { UpstreamDebugInfo } from "@/shared/api/conversation-types";
 
 export type MessageAttachment = {
   fileID: string;

@@ -18,7 +18,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/conv"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/llm"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/objectstore"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/objectstorage"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 )
@@ -716,7 +716,7 @@ func (s *Service) injectConversationImageContext(
 	}
 	storeProvider := s.storeProvider
 
-	var store objectstore.Store
+	var store objectstorage.Store
 	partsByRef := make(map[int]llm.ContentPart, len(refs))
 	loadedByFileID := make(map[string]llm.ContentPart, len(refs))
 	totalBytes := 0

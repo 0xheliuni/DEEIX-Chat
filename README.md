@@ -356,7 +356,7 @@ Use this mode when the frontend and backend are served from different public ori
    | --- | --- |
    | `/_next/static/*` | Cache for 1 year with immutable assets enabled. |
    | `/logo*.svg`, `/*.ico`, `/*.png`, `/*.jpg`, `/*.webp`, `/*.woff2` | Cache for 1 day to 30 days. |
-   | `/`, `/*.html`, `/login*`, `/auth*`, `/chat*`, `/recent*`, `/files*`, `/knowledges*`, `/skills-prompt*`, `/setting*`, `/admin*`, `/share*`, `/preview*` | Do not long-cache. Use `no-cache` or a short TTL. |
+   | `/`, `/*.html`, `/login*`, `/auth*`, `/chat*`, `/recent*`, `/files*`, `/knowledge-bases*`, `/library*`, `/settings*`, `/admin*`, `/share*`, `/preview*` | Do not long-cache. Use `no-cache` or a short TTL. |
    | `/api/*`, `/healthz`, `/readyz`, `/swagger/*` | Bypass CDN cache and forward all request headers, methods, query strings, and request bodies. |
 
    If the CDN serves `apps/web/out` from object storage, enable route fallback so clean URLs resolve to their exported `index.html` files, for example `/chat` -> `/chat/index.html`.
@@ -501,7 +501,7 @@ Sign-in, registration, and account identity binding on Web, App, and Desktop all
 - [Admin Guide](https://deeix.com/docs/deeix-chat/admin-accounts)
 - [Advanced Guide](https://deeix.com/docs/deeix-chat/advanced-capabilities-passthrough-tools)
 - Backend guide: [backend/README.md](./backend/README.md)
-- Backend standards: [backend/docs/README.md](./backend/docs/README.md)
+- API documentation index: [backend/docs/README.md](./backend/docs/README.md)
 - Frontend guide: [apps/web/README.md](./apps/web/README.md)
 - API contract package: [packages/api-contract/README.md](./packages/api-contract/README.md)
 - Contributing: [CONTRIBUTING.md](./.github/CONTRIBUTING.md)

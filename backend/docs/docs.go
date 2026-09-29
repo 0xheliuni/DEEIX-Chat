@@ -60,13 +60,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -274,13 +274,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -744,13 +744,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -977,13 +977,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -1285,13 +1285,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -1367,18 +1367,31 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "返回当前内容审核配置与可选审核类别目录",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "admin-content-moderation"
                 ],
-                "summary": "Get content moderation config",
+                "summary": "查询内容审核配置",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/ContentModerationConfigResponseDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
                         }
                     }
                 }
@@ -1389,6 +1402,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "保存内容审核服务、策略与队列配置；启用时必须提供审核服务配置与策略",
                 "consumes": [
                     "application/json"
                 ],
@@ -1398,10 +1412,10 @@ const docTemplate = `{
                 "tags": [
                     "admin-content-moderation"
                 ],
-                "summary": "Update content moderation config",
+                "summary": "更新内容审核配置",
                 "parameters": [
                     {
-                        "description": "Content moderation configuration",
+                        "description": "内容审核配置",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -1416,6 +1430,24 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/ContentModerationConfigUpdateResponseDoc"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
                     }
                 }
             }
@@ -1427,77 +1459,78 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "按结果、方向、模态、类别、用户、运行与时间范围筛选审核事件，按事件 ID 倒序返回",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "admin-content-moderation"
                 ],
-                "summary": "List content moderation events",
+                "summary": "分页查询内容审核事件",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "Page number",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page size",
-                        "name": "pageSize",
+                        "description": "每页数量（1-1000，默认 20）",
+                        "name": "page_size",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Exact event, user, run, model, result, or summary search",
+                        "description": "按事件、用户、运行、模型、结果或摘要精确搜索",
                         "name": "query",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Result filter",
+                        "description": "审核结果筛选（hit/failed_open/passed）",
                         "name": "result",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Direction filter",
+                        "description": "方向筛选（input/output）",
                         "name": "direction",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Modality filter",
+                        "description": "模态筛选（text/image）",
                         "name": "modality",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Category filter",
+                        "description": "类别筛选",
                         "name": "category",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "User ID",
-                        "name": "userId",
+                        "description": "用户 ID",
+                        "name": "user_id",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Run ID",
-                        "name": "runId",
+                        "description": "运行 ID",
+                        "name": "run_id",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Start time (RFC3339)",
+                        "description": "起始时间（RFC3339）",
                         "name": "from",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "End time (RFC3339)",
+                        "description": "结束时间（RFC3339）",
                         "name": "to",
                         "in": "query"
                     }
@@ -1507,6 +1540,24 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/ContentModerationEventListResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
                         }
                     }
                 }
@@ -1519,17 +1570,18 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "返回单个审核事件；文本仍在保留期内时一并返回解密后的文本，并记录审计日志",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "admin-content-moderation"
                 ],
-                "summary": "Get content moderation event detail",
+                "summary": "查询内容审核事件详情",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Moderation event ID",
+                        "description": "审核事件 ID",
                         "name": "eventID",
                         "in": "path",
                         "required": true
@@ -1540,6 +1592,24 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/ContentModerationEventDetailResponseDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
                         }
                     }
                 }
@@ -1552,24 +1622,25 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "返回审核事件中按序号指定的隔离图片原始内容，并记录审计日志",
                 "produces": [
                     "application/octet-stream"
                 ],
                 "tags": [
                     "admin-content-moderation"
                 ],
-                "summary": "Stream a isolated moderation image",
+                "summary": "读取审核事件的隔离图片",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Moderation event ID",
+                        "description": "审核事件 ID",
                         "name": "eventID",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "integer",
-                        "description": "Image index",
+                        "description": "图片序号（从 0 开始）",
                         "name": "index",
                         "in": "path",
                         "required": true
@@ -1580,6 +1651,30 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
                         }
                     }
                 }
@@ -1592,18 +1687,37 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "使用当前配置向审核服务发送探测请求，验证连通性以及文本与图片审核能力",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "admin-content-moderation"
                 ],
-                "summary": "Probe content moderation service",
+                "summary": "探测内容审核服务",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/ContentModerationProbeResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
                         }
                     }
                 }
@@ -1616,23 +1730,24 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "按天汇总指定时间范围内的内容审核结果",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "admin-content-moderation"
                 ],
-                "summary": "Get content moderation daily stats",
+                "summary": "查询内容审核每日统计",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Start time (RFC3339)",
+                        "description": "起始时间（RFC3339）",
                         "name": "from",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "End time (RFC3339)",
+                        "description": "结束时间（RFC3339）",
                         "name": "to",
                         "in": "query"
                     }
@@ -1642,6 +1757,24 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/ContentModerationStatsResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
                         }
                     }
                 }
@@ -1668,13 +1801,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -1883,13 +2016,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -1955,13 +2088,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -2334,13 +2467,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -2394,13 +2527,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -2689,13 +2822,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -2833,13 +2966,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -3040,13 +3173,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -3251,13 +3384,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -3749,13 +3882,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -4175,13 +4308,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -4587,13 +4720,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -6002,13 +6135,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -6567,13 +6700,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -6790,13 +6923,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -7338,13 +7471,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -7578,13 +7711,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -7929,13 +8062,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -7983,13 +8116,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -8244,6 +8377,70 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AdminErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/AdminErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/AdminErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/AdminErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/users/{id}/reset-2fa": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "管理员清除指定用户的 TOTP 与恢复码并吊销其全部会话；不允许重置超级管理员",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "管理员重置用户双因素认证",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "用户ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ResetUserTwoFactorResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AdminErrorDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/AdminErrorDoc"
                         }
@@ -8634,9 +8831,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/auth/local/exchange": {
+        "/auth/2fa/email/start": {
             "post": {
-                "description": "仅在服务器以本地 sidecar 模式运行时可用；grant 由启动握手交给桌面壳，只能使用一次",
+                "description": "为待完成的双因素登录挑战向用户已验证邮箱发送验证码",
                 "consumes": [
                     "application/json"
                 ],
@@ -8646,10 +8843,128 @@ const docTemplate = `{
                 "tags": [
                     "auth"
                 ],
-                "summary": "本地模式：一次性 grant 换取会话",
+                "summary": "发送登录双因素邮箱验证码",
+                "operationId": "twoFactorEmailStartCreate",
                 "parameters": [
                     {
-                        "description": "本地登录 grant",
+                        "description": "登录挑战令牌",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/TwoFactorEmailStartRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/EmailVerificationStartResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/2fa/verify": {
+            "post": {
+                "description": "使用登录挑战令牌与 TOTP、恢复码或邮箱验证码完成双因素登录，成功后返回会话",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "校验登录双因素验证码",
+                "operationId": "twoFactorVerifyCreate",
+                "parameters": [
+                    {
+                        "description": "双因素校验参数",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/TwoFactorVerifyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/LoginResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "423": {
+                        "description": "Locked",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/local/exchange": {
+            "post": {
+                "description": "仅在服务器以本地 sidecar 模式运行时可用；一次性授权凭证由启动握手交给桌面壳，只能使用一次",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "本地模式：用一次性授权凭证换取会话",
+                "parameters": [
+                    {
+                        "description": "本地登录一次性授权凭证",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -8749,6 +9064,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/LoginOptionsResponseDoc"
                         }
                     },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -8831,6 +9152,119 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/password/change/complete": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "校验当前密码及安全验证码后修改密码；成功后吊销该用户全部会话并清除刷新令牌 Cookie",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "修改当前用户密码",
+                "parameters": [
+                    {
+                        "description": "修改密码参数",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ChangePasswordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ChangePasswordResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/password/change/start": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "为当前用户发起修改密码前的安全验证；请求体可省略，未指定验证方式时由服务端选择可用方式",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "发起修改密码安全验证",
+                "parameters": [
+                    {
+                        "description": "安全验证方式",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/SecurityVerificationStartRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/PasswordChangeVerificationStartResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
@@ -8973,23 +9407,26 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
                     }
                 }
             }
         },
-        "/auth/providers/{slug}/exchange": {
-            "post": {
-                "description": "使用客户端 PKCE verifier 原子兑换服务端回调签发的一次性授权码，并进入统一 2FA/会话流程",
-                "consumes": [
-                    "application/json"
-                ],
+        "/auth/providers/{slug}/callback": {
+            "get": {
+                "description": "外部身份源完成授权后回调当前实例；校验 state 并签发一次性授权凭证后以 302 重定向回客户端 redirect_uri",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "auth"
                 ],
-                "summary": "兑换第三方登录一次性授权码",
+                "summary": "第三方身份源授权回调",
                 "parameters": [
                     {
                         "type": "string",
@@ -8999,7 +9436,81 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "授权码兑换参数",
+                        "type": "string",
+                        "description": "授权码",
+                        "name": "code",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "授权事务 state",
+                        "name": "state",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "身份源返回的错误码",
+                        "name": "error",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "302": {
+                        "description": "重定向到客户端 redirect_uri",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "423": {
+                        "description": "Locked",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/providers/{slug}/exchange": {
+            "post": {
+                "description": "使用客户端 PKCE verifier 原子兑换服务端回调签发的一次性授权凭证，并进入统一 2FA/会话流程",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "兑换第三方登录一次性授权凭证",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "身份源 slug",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "一次性授权凭证兑换参数",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -9029,6 +9540,12 @@ const docTemplate = `{
                     },
                     "423": {
                         "description": "Locked",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
                         "schema": {
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
@@ -9110,6 +9627,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
                     }
                 }
             }
@@ -9147,6 +9670,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
                         "schema": {
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
@@ -9617,13 +10146,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -10197,14 +10726,14 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Sends an authoritative snapshot followed by live user-scoped run state events; the snapshot is re-sent periodically for client-side reconciliation",
+                "description": "先推送当前用户进行中运行的权威快照，再持续推送该用户范围内的运行状态事件；快照会定期重发，供客户端对账",
                 "produces": [
                     "text/event-stream"
                 ],
                 "tags": [
                     "chat"
                 ],
-                "summary": "Stream active conversation generations",
+                "summary": "订阅进行中的会话生成",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -10396,13 +10925,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -10645,13 +11174,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -11038,8 +11567,14 @@ const docTemplate = `{
                 }
             }
         },
-        "/conversations/{id}/media/videos/extensions/stream": {
+        "/conversations/{id}/media/images/edits/stream": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "在会话中基于参考图片（可附遮罩）按提示词编辑图片，并以 NDJSON 流式返回任务状态事件",
                 "consumes": [
                     "application/json"
                 ],
@@ -11047,20 +11582,220 @@ const docTemplate = `{
                     "application/x-ndjson"
                 ],
                 "tags": [
-                    "Conversations"
+                    "chat"
                 ],
-                "summary": "扩展会话视频",
+                "summary": "编辑会话图片",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "会话 Public ID",
+                        "description": "会话 public_id",
                         "name": "id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "视频扩展请求",
-                        "name": "payload",
+                        "description": "媒体任务参数",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/MediaImageRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "NDJSON stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/conversations/{id}/media/images/generations/stream": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "在会话中按提示词生成图片，并以 NDJSON 流式返回任务状态事件",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/x-ndjson"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "生成会话图片",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "会话 public_id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "媒体任务参数",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/MediaImageRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "NDJSON stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/conversations/{id}/media/videos/extensions/stream": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "在会话中基于来源视频按提示词扩展视频，并以 NDJSON 流式返回任务状态事件",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/x-ndjson"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "扩展会话视频",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "会话 public_id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "视频扩展参数",
+                        "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
@@ -11078,19 +11813,155 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/Envelope"
+                            "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/Envelope"
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/Envelope"
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/conversations/{id}/media/videos/generations/stream": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "在会话中按提示词生成视频，并以 NDJSON 流式返回任务状态事件",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/x-ndjson"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "生成会话视频",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "会话 public_id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "媒体任务参数",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/MediaVideoRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "NDJSON stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
                 }
@@ -11124,13 +11995,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -11578,13 +12449,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -12053,13 +12924,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -12443,6 +13314,128 @@ const docTemplate = `{
                 }
             }
         },
+        "/files/{file_id}/extract": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "返回当前用户文件已完成提取的文本内容；提取尚未就绪时返回 409",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "获取文件提取文本",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "文件ID",
+                        "name": "file_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/FileExtractResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/files/{file_id}/processing": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "查询当前用户单个文件的文本提取与向量化处理状态",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "查询文件处理状态",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "文件ID",
+                        "name": "file_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/FileProcessingStatusResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/knowledge-bases": {
             "get": {
                 "security": [
@@ -12479,13 +13472,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -12542,13 +13535,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -12694,13 +13687,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -12860,13 +13853,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -13287,6 +14280,330 @@ const docTemplate = `{
                 }
             }
         },
+        "/me/2fa": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "返回 TOTP 是否可用、是否已启用、是否强制及剩余恢复码数量",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "获取当前用户双因素认证状态",
+                "operationId": "twoFactorStatusList",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/TwoFactorStatusResponseDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/2fa/disable": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "校验 TOTP 验证码或恢复码后关闭当前用户的双因素认证",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "关闭双因素认证",
+                "operationId": "twoFactorDisableCreate",
+                "parameters": [
+                    {
+                        "description": "TOTP 验证码或恢复码",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/TwoFactorCodeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/TwoFactorDisableResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/2fa/recovery/regenerate": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "校验 TOTP 验证码或恢复码（恢复码校验通过即被消耗）后作废旧恢复码，并返回新的一次性恢复码",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "重新生成双因素恢复码",
+                "operationId": "twoFactorRecoveryRegenerateCreate",
+                "parameters": [
+                    {
+                        "description": "TOTP 验证码或恢复码",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/TwoFactorCodeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/TwoFactorRecoveryCodesResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/2fa/setup": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "丢弃当前用户尚未确认的 TOTP 设置",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "取消双因素认证设置",
+                "operationId": "twoFactorSetupDelete",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/TwoFactorSetupCancelResponseDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/2fa/setup/confirm": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "使用 TOTP 验证码确认设置并启用双因素认证，返回一次性恢复码",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "确认启用双因素认证",
+                "operationId": "twoFactorSetupConfirmCreate",
+                "parameters": [
+                    {
+                        "description": "TOTP 验证码",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/TwoFactorCodeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/TwoFactorRecoveryCodesResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/2fa/setup/start": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "为当前用户生成新的 TOTP 密钥与 otpauth URL，需在过期前确认",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "开始设置双因素认证",
+                "operationId": "twoFactorSetupStartCreate",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/TwoFactorSetupStartResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/me/delete/start": {
             "post": {
                 "security": [
@@ -13330,6 +14647,451 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/email/bootstrap/complete": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "使用邮箱与验证码为当前用户绑定初始邮箱，返回更新后的用户信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "完成初始邮箱绑定",
+                "parameters": [
+                    {
+                        "description": "邮箱与验证码",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/EmailBootstrapCompleteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/MeResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/email/bootstrap/start": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "为尚未绑定邮箱的当前用户向指定邮箱发送验证码",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "发送初始邮箱验证码",
+                "parameters": [
+                    {
+                        "description": "待绑定邮箱",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/EmailVerificationStartRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/EmailVerificationStartResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/email/change/complete": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "校验当前身份验证码与新邮箱验证码后更换邮箱，返回更新后的用户信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "完成邮箱更换",
+                "parameters": [
+                    {
+                        "description": "邮箱更换参数",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/EmailChangeCompleteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/MeResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/email/change/start-current": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "更换邮箱前先按指定方式验证当前身份；请求体可省略，未指定验证方式时由服务端选择可用方式",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "发起更换邮箱的当前身份验证",
+                "parameters": [
+                    {
+                        "description": "安全验证方式",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/SecurityVerificationStartRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/EmailVerificationStartResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/email/change/start-new": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "更换邮箱时向新邮箱发送验证码",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "发送新邮箱验证码",
+                "parameters": [
+                    {
+                        "description": "新邮箱",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/EmailVerificationStartRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/EmailVerificationStartResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/email/verify-current/complete": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "使用验证码验证当前用户已绑定的邮箱，返回更新后的用户信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "完成当前邮箱验证",
+                "parameters": [
+                    {
+                        "description": "邮箱验证码",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/EmailVerificationCompleteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/MeResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/email/verify-current/start": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "向当前用户已绑定但未验证的邮箱发送验证码",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "发送当前邮箱验证码",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/EmailVerificationStartResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/identities": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "列出当前用户已关联的 OIDC/OAuth2 第三方身份",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "获取当前用户已绑定的第三方身份",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/UserIdentityListResponseDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
@@ -13408,7 +15170,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "使用客户端 PKCE verifier 兑换绑定授权码，将身份绑到当前登录用户",
+                "description": "使用客户端 PKCE verifier 兑换绑定用的一次性授权凭证，将身份绑到当前登录用户",
                 "consumes": [
                     "application/json"
                 ],
@@ -13418,7 +15180,7 @@ const docTemplate = `{
                 "tags": [
                     "auth"
                 ],
-                "summary": "兑换第三方身份绑定一次性授权码",
+                "summary": "兑换第三方身份绑定一次性授权凭证",
                 "parameters": [
                     {
                         "type": "string",
@@ -13428,7 +15190,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "授权码兑换参数",
+                        "description": "一次性授权凭证兑换参数",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -13452,6 +15214,58 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/identities/{identity_id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "解除当前用户与指定第三方身份的关联；不允许移除最后一种登录方式",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "解绑当前用户的第三方身份",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "身份ID",
+                        "name": "identity_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/DeleteUserIdentityResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
@@ -13889,13 +15703,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -13949,13 +15763,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -14146,6 +15960,43 @@ const docTemplate = `{
                         "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/PromptPresetErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/runtime/chat-file-policy": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "返回当前用户在聊天中上传与使用文件的运行时策略（大小、数量、类型与处理模式等）",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "获取聊天文件策略",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ChatFilePolicyResponseDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
                 }
@@ -14468,13 +16319,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -14533,13 +16384,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -14869,13 +16720,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -14928,13 +16779,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -15245,6 +17096,57 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/UserErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/UserErrorDoc"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{public_id}/avatar": {
+            "get": {
+                "description": "公开读取用户当前上传的头像图片。头像须为已上传的图片文件，实际类型受上传 MIME 白名单约束（默认 PNG/JPEG/WebP/GIF，SVG 等活动内容始终拒绝）；未上传头像时返回 404，错误响应为 JSON",
+                "produces": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "获取用户头像",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "用户 public_id",
+                        "name": "public_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/UserErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/UserErrorDoc"
                         }
@@ -17197,6 +19099,62 @@ const docTemplate = `{
                 }
             }
         },
+        "ChangePasswordRequest": {
+            "type": "object",
+            "required": [
+                "newPassword"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "maxLength": 32,
+                    "minLength": 6
+                },
+                "currentPassword": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "newPassword": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "minLength": 8
+                },
+                "verificationMethod": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "two_factor",
+                        "email"
+                    ]
+                }
+            }
+        },
+        "ChangePasswordResponse": {
+            "type": "object",
+            "required": [
+                "changed"
+            ],
+            "properties": {
+                "changed": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "ChangePasswordResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ChangePasswordResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
         "ChannelErrorDoc": {
             "type": "object",
             "required": [
@@ -17213,6 +19171,87 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "requestId": {
+                    "type": "string"
+                }
+            }
+        },
+        "ChatFilePolicyResponse": {
+            "type": "object",
+            "required": [
+                "allowedMIMETypes",
+                "capabilityMode",
+                "docMaxBytes",
+                "effectiveDocMaxBytes",
+                "effectiveImageMaxBytes",
+                "fileMode",
+                "fullContextMaxBytes",
+                "fullContextMaxTokens",
+                "fullContextPDFMaxPages",
+                "imageMaxBytes",
+                "maxMessageFiles",
+                "maxUploadFileBytes",
+                "ragAvailabilityReason",
+                "ragAvailable"
+            ],
+            "properties": {
+                "allowedMIMETypes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "capabilityMode": {
+                    "type": "string"
+                },
+                "docMaxBytes": {
+                    "type": "integer"
+                },
+                "effectiveDocMaxBytes": {
+                    "type": "integer"
+                },
+                "effectiveImageMaxBytes": {
+                    "type": "integer"
+                },
+                "fileMode": {
+                    "type": "string"
+                },
+                "fullContextMaxBytes": {
+                    "type": "integer"
+                },
+                "fullContextMaxTokens": {
+                    "type": "integer"
+                },
+                "fullContextPDFMaxPages": {
+                    "type": "integer"
+                },
+                "imageMaxBytes": {
+                    "type": "integer"
+                },
+                "maxMessageFiles": {
+                    "type": "integer"
+                },
+                "maxUploadFileBytes": {
+                    "type": "integer"
+                },
+                "ragAvailabilityReason": {
+                    "type": "string"
+                },
+                "ragAvailable": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "ChatFilePolicyResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ChatFilePolicyResponse"
+                },
+                "errorMsg": {
                     "type": "string"
                 }
             }
@@ -17920,6 +19959,26 @@ const docTemplate = `{
                 },
                 "timeoutSeconds": {
                     "type": "integer"
+                }
+            }
+        },
+        "ContentmoderationErrorDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {},
+                "details": {},
+                "errorCode": {
+                    "type": "string"
+                },
+                "errorMsg": {
+                    "type": "string"
+                },
+                "requestId": {
+                    "type": "string"
                 }
             }
         },
@@ -19674,6 +21733,32 @@ const docTemplate = `{
                 }
             }
         },
+        "DeleteUserIdentityResponse": {
+            "type": "object",
+            "required": [
+                "deleted"
+            ],
+            "properties": {
+                "deleted": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "DeleteUserIdentityResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/DeleteUserIdentityResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
         "DeleteUserResponse": {
             "type": "object",
             "required": [
@@ -19696,6 +21781,49 @@ const docTemplate = `{
                     "$ref": "#/definitions/DeleteUserResponse"
                 },
                 "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "EmailBootstrapCompleteRequest": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string",
+                    "maxLength": 128
+                }
+            }
+        },
+        "EmailChangeCompleteRequest": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "currentCode": {
+                    "type": "string",
+                    "maxLength": 32,
+                    "minLength": 6
+                },
+                "currentVerificationMethod": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "two_factor",
+                        "email"
+                    ]
+                },
+                "email": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "newCode": {
                     "type": "string"
                 }
             }
@@ -19768,6 +21896,29 @@ const docTemplate = `{
                 },
                 "errorMsg": {
                     "type": "string"
+                }
+            }
+        },
+        "EmailVerificationCompleteRequest": {
+            "type": "object",
+            "required": [
+                "code"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                }
+            }
+        },
+        "EmailVerificationStartRequest": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "maxLength": 128
                 }
             }
         },
@@ -19958,6 +22109,52 @@ const docTemplate = `{
             "properties": {
                 "data": {
                     "$ref": "#/definitions/FileEmbeddingSubmissionResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "FileExtractResponse": {
+            "type": "object",
+            "required": [
+                "extractChars",
+                "extractPages",
+                "extractText",
+                "fileID",
+                "ocrUsed",
+                "previewText"
+            ],
+            "properties": {
+                "extractChars": {
+                    "type": "integer"
+                },
+                "extractPages": {
+                    "type": "integer"
+                },
+                "extractText": {
+                    "type": "string"
+                },
+                "fileID": {
+                    "type": "string"
+                },
+                "ocrUsed": {
+                    "type": "boolean"
+                },
+                "previewText": {
+                    "type": "string"
+                }
+            }
+        },
+        "FileExtractResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/FileExtractResponse"
                 },
                 "errorMsg": {
                     "type": "string"
@@ -20203,6 +22400,21 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "vectorizationReason": {
+                    "type": "string"
+                }
+            }
+        },
+        "FileProcessingStatusResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/FileProcessingStatusResponse"
+                },
+                "errorMsg": {
                     "type": "string"
                 }
             }
@@ -21474,6 +23686,56 @@ const docTemplate = `{
                 }
             }
         },
+        "MediaImageRequest": {
+            "type": "object",
+            "required": [
+                "prompt"
+            ],
+            "properties": {
+                "branchReason": {
+                    "type": "string",
+                    "enum": [
+                        "default",
+                        "retry",
+                        "edit"
+                    ]
+                },
+                "clientRunID": {
+                    "type": "string",
+                    "maxLength": 64
+                },
+                "fileIDs": {
+                    "type": "array",
+                    "maxItems": 20,
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "maskFileID": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "model": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "options": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "parentMessagePublicID": {
+                    "type": "string",
+                    "maxLength": 32
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "sourceMessagePublicID": {
+                    "type": "string",
+                    "maxLength": 32
+                }
+            }
+        },
         "MediaVideoExtensionRequest": {
             "type": "object",
             "required": [
@@ -21515,6 +23777,52 @@ const docTemplate = `{
                 "sourceVideoFileID": {
                     "type": "string",
                     "maxLength": 128
+                }
+            }
+        },
+        "MediaVideoRequest": {
+            "type": "object",
+            "required": [
+                "prompt"
+            ],
+            "properties": {
+                "branchReason": {
+                    "type": "string",
+                    "enum": [
+                        "default",
+                        "retry",
+                        "edit"
+                    ]
+                },
+                "clientRunID": {
+                    "type": "string",
+                    "maxLength": 64
+                },
+                "fileIDs": {
+                    "type": "array",
+                    "maxItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "model": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "options": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "parentMessagePublicID": {
+                    "type": "string",
+                    "maxLength": 32
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "sourceMessagePublicID": {
+                    "type": "string",
+                    "maxLength": 32
                 }
             }
         },
@@ -23468,6 +25776,47 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "PasswordChangeVerificationStartResponse": {
+            "type": "object",
+            "required": [
+                "availableMethods",
+                "expiresAt",
+                "sent",
+                "verificationMethod"
+            ],
+            "properties": {
+                "availableMethods": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "expiresAt": {
+                    "type": "string"
+                },
+                "sent": {
+                    "type": "boolean"
+                },
+                "verificationMethod": {
+                    "type": "string"
+                }
+            }
+        },
+        "PasswordChangeVerificationStartResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/PasswordChangeVerificationStartResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
                 }
             }
         },
@@ -25550,6 +27899,32 @@ const docTemplate = `{
                 }
             }
         },
+        "ResetUserTwoFactorResponse": {
+            "type": "object",
+            "required": [
+                "reset"
+            ],
+            "properties": {
+                "reset": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "ResetUserTwoFactorResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/ResetUserTwoFactorResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
         "RevokeConversationSharesRequest": {
             "type": "object",
             "properties": {
@@ -26942,6 +29317,221 @@ const docTemplate = `{
                 },
                 "errorMsg": {
                     "type": "string"
+                }
+            }
+        },
+        "TwoFactorCodeRequest": {
+            "type": "object",
+            "required": [
+                "code"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "maxLength": 32,
+                    "minLength": 6
+                }
+            }
+        },
+        "TwoFactorDisableResponse": {
+            "type": "object",
+            "required": [
+                "disabled"
+            ],
+            "properties": {
+                "disabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "TwoFactorDisableResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/TwoFactorDisableResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "TwoFactorEmailStartRequest": {
+            "type": "object",
+            "required": [
+                "challengeToken"
+            ],
+            "properties": {
+                "challengeToken": {
+                    "type": "string",
+                    "maxLength": 4096,
+                    "minLength": 20
+                }
+            }
+        },
+        "TwoFactorRecoveryCodesResponse": {
+            "type": "object",
+            "required": [
+                "recoveryCodes",
+                "status"
+            ],
+            "properties": {
+                "recoveryCodes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "status": {
+                    "$ref": "#/definitions/TwoFactorStatusResponse"
+                }
+            }
+        },
+        "TwoFactorRecoveryCodesResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/TwoFactorRecoveryCodesResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "TwoFactorSetupCancelResponse": {
+            "type": "object",
+            "required": [
+                "canceled"
+            ],
+            "properties": {
+                "canceled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "TwoFactorSetupCancelResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/TwoFactorSetupCancelResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "TwoFactorSetupStartResponse": {
+            "type": "object",
+            "required": [
+                "expiresAt",
+                "otpauthURL",
+                "secret"
+            ],
+            "properties": {
+                "expiresAt": {
+                    "type": "string"
+                },
+                "otpauthURL": {
+                    "type": "string"
+                },
+                "secret": {
+                    "type": "string"
+                }
+            }
+        },
+        "TwoFactorSetupStartResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/TwoFactorSetupStartResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "TwoFactorStatusResponse": {
+            "type": "object",
+            "required": [
+                "available",
+                "enabledAt",
+                "recoveryCount",
+                "required",
+                "totpEnabled"
+            ],
+            "properties": {
+                "available": {
+                    "type": "boolean"
+                },
+                "enabledAt": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "x-omitempty": false
+                },
+                "recoveryCount": {
+                    "type": "integer"
+                },
+                "required": {
+                    "type": "boolean"
+                },
+                "totpEnabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "TwoFactorStatusResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/TwoFactorStatusResponse"
+                },
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "TwoFactorVerifyRequest": {
+            "type": "object",
+            "required": [
+                "challengeToken",
+                "code"
+            ],
+            "properties": {
+                "challengeToken": {
+                    "type": "string",
+                    "maxLength": 4096,
+                    "minLength": 20
+                },
+                "code": {
+                    "type": "string",
+                    "maxLength": 32,
+                    "minLength": 6
+                },
+                "verificationMethod": {
+                    "type": "string",
+                    "enum": [
+                        "two_factor",
+                        "email"
+                    ]
                 }
             }
         },
@@ -29496,6 +32086,35 @@ const docTemplate = `{
                 "errorMsg"
             ],
             "properties": {
+                "errorMsg": {
+                    "type": "string"
+                }
+            }
+        },
+        "UserIdentityListResponse": {
+            "type": "object",
+            "required": [
+                "results"
+            ],
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/UserIdentityResponse"
+                    }
+                }
+            }
+        },
+        "UserIdentityListResponseDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/UserIdentityListResponse"
+                },
                 "errorMsg": {
                     "type": "string"
                 }

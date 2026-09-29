@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { ExternalLink, Globe, Mail, Newspaper } from "lucide-react";
 
@@ -9,7 +9,6 @@ import { useTranslations } from "next-intl";
 import packageMeta from "@/package.json";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { IdentityProviderIcon } from "@/shared/components/identity-provider-icon";
 import { DeeixLogo } from "@/shared/components/app-logo";
 import {
   SettingsPage,
@@ -37,20 +36,38 @@ type AboutSettingsContentProps = {
   versionBadgeContent?: ReactNode;
   versionBadgeTooltip?: ReactNode;
   versionActions?: ReactNode;
+  // Renders third-party brand marks (GitHub, X) of the official links. Injected by the
+  // caller so this product panel stays free of the identity-provider entity.
+  brandIcon?: AboutBrandIcon;
 };
+
+export type AboutBrandIcon = ComponentType<{
+  name: string;
+  slug: string;
+  className?: string;
+  iconClassName?: string;
+}>;
 
 type AboutLinkItem = {
   label: string;
   value: string;
   href: string;
   icon?: LucideIcon;
-  providerIcon?: {
+  brand?: {
     name: string;
     slug: string;
   };
 };
 
-function AboutLink({ item, className }: { item: AboutLinkItem; className?: string }) {
+function AboutLink({
+  item,
+  brandIcon: BrandIcon,
+  className,
+}: {
+  item: AboutLinkItem;
+  brandIcon?: AboutBrandIcon;
+  className?: string;
+}) {
   const Icon = item.icon;
 
   return (
@@ -65,10 +82,10 @@ function AboutLink({ item, className }: { item: AboutLinkItem; className?: strin
       )}
     >
       <span className="flex min-w-0 items-center gap-2.5 text-muted-foreground">
-        {item.providerIcon ? (
-          <IdentityProviderIcon
-            name={item.providerIcon.name}
-            slug={item.providerIcon.slug}
+        {item.brand && BrandIcon ? (
+          <BrandIcon
+            name={item.brand.name}
+            slug={item.brand.slug}
             className="size-3.5"
             iconClassName="size-3.5"
           />
@@ -93,6 +110,7 @@ export function AboutSettingsContent({
   versionBadgeContent,
   versionBadgeTooltip,
   versionActions,
+  brandIcon,
 }: AboutSettingsContentProps) {
   const tCommon = useTranslations("common.appVersion");
   // A "-" in the version means a pre-release build (e.g. 0.4.4-beta.1).
@@ -114,19 +132,19 @@ export function AboutSettingsContent({
       label: labels.official,
       value: "DEEIX",
       href: "https://github.com/DEEIX-AI",
-      providerIcon: { name: "GitHub", slug: "github" },
+      brand: { name: "GitHub", slug: "github" },
     },
     {
       label: labels.social,
       value: "@DEEIX_AI",
       href: "https://x.com/DEEIX_AI",
-      providerIcon: { name: "X", slug: "x" },
+      brand: { name: "X", slug: "x" },
     },
     {
       label: labels.repository,
       value: "DEEIX-Chat",
       href: "https://github.com/DEEIX-AI/DEEIX-Chat",
-      providerIcon: { name: "GitHub", slug: "github" },
+      brand: { name: "GitHub", slug: "github" },
     },
     {
       label: labels.blog,
@@ -177,7 +195,7 @@ export function AboutSettingsContent({
       <SettingsSection title={labels.details}>
         <div className="grid gap-x-8 px-0.5 md:grid-cols-2">
           {links.map((item) => (
-            <AboutLink key={`${item.label}-${item.value}`} item={item} />
+            <AboutLink key={`${item.label}-${item.value}`} item={item} brandIcon={brandIcon} />
           ))}
         </div>
         <div className="space-y-1 px-0.5 pt-4 text-xs text-muted-foreground">

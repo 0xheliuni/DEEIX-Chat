@@ -10,10 +10,11 @@ import type {
   AdminRedemptionRecordDTO,
   AdminUsageLogDTO,
   AdminUserAuthEventDTO,
-} from "@/features/admin/api/admin.types";
-import type { PagePayload } from "@/shared/api/common.types";
+} from "@/features/admin/api/admin-types";
+import type { PagePayload } from "@/shared/api/common-types";
 
 import { normalizeAdminPagePayload, resolveAdminPage, type AdminPageOptions } from "./shared";
+import type { ADMIN_LOG_CLEANUP_TYPES } from "@/features/admin/model/admin-unions";
 
 type ListAdminUserAuthEventsOptions = AdminPageOptions & {
   userID?: number;
@@ -74,13 +75,7 @@ type ListAdminConversationEventsOptions = AdminPageOptions & {
   sort?: string;
 };
 
-export type AdminLogCleanupType =
-  | "audit"
-  | "auth"
-  | "usage"
-  | "orders"
-  | "conversation"
-  | "moderation";
+export type AdminLogCleanupType = (typeof ADMIN_LOG_CLEANUP_TYPES)[number];
 
 export type AdminLogCleanupResult = Omit<CleanupLogsResponse, "type"> & {
   type: AdminLogCleanupType;

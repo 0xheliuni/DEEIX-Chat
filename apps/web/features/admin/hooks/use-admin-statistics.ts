@@ -17,14 +17,10 @@ import {
 } from "@/features/admin/api";
 import { listAllAdminPages } from "@/features/admin/api/shared";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
-import type { ModelSelectOption } from "@/shared/components/model-select";
+import { type ModelSelectOption, resolveModelOptionIconUrl } from "@/entities/model";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import {
-  normalizeBillingDisplayCurrency,
-  type BillingDisplayOptions,
-} from "@/shared/lib/billing-display";
-import { resolveModelOptionIconUrl } from "@/shared/lib/model-option-display";
-import type { AdminUserDTO } from "@/features/admin/api/admin.types";
+import { normalizeBillingDisplayCurrency, type BillingDisplayOptions } from "@/entities/billing";
+import type { AdminUserDTO } from "@/features/admin/api/admin-types";
 import { useCapabilities } from "@/shared/capabilities";
 
 export type AdminStatisticsRangePreset = "7" | "30" | "90" | "custom";

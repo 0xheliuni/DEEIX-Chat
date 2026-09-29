@@ -9,16 +9,17 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AdminDateRangeFilter } from "@/features/admin/components/admin-date-range-filter";
+import { AdminDateRangeFilter } from "@/features/admin/components/shared/date-range-filter";
 import type {
   AdminUsageStatisticsMetricsDTO,
   AdminUsageStatisticsRankBy,
 } from "@/features/admin/api";
 import { useAdminStatistics } from "@/features/admin/hooks/use-admin-statistics";
+import { isAdminUsageStatisticsRankBy } from "@/features/admin/model/admin-unions";
 import { cn } from "@/lib/utils";
-import { AdminStatisticsBillingFilter } from "./admin-statistics-billing-filter";
-import { AdminStatisticsModelFilter } from "./admin-statistics-model-filter";
-import { AdminStatisticsSubjectFilter } from "./admin-statistics-subject-filter";
+import { AdminStatisticsBillingFilter } from "./statistics-billing-filter";
+import { AdminStatisticsModelFilter } from "./statistics-model-filter";
+import { AdminStatisticsSubjectFilter } from "./statistics-subject-filter";
 import {
   formatStatisticsCost,
   formatStatisticsCount,
@@ -26,8 +27,8 @@ import {
   StatisticsModelRankingChart,
   StatisticsTrendChart,
   StatisticsUserRankingChart,
-} from "./admin-statistics-charts";
-import { AdminModerationStatisticsSection } from "./admin-moderation-statistics";
+} from "./statistics-charts";
+import { AdminModerationStatisticsSection } from "./statistics-moderation";
 import { FeatureGate } from "@/shared/capabilities";
 
 const ALL_MODELS_VALUE = "__all_models__";
@@ -301,7 +302,9 @@ export function AdminStatisticsPage() {
           <h3 className="text-sm font-semibold">{t("trend.title")}</h3>
           <Tabs
             value={trendMetric}
-            onValueChange={(value) => setTrendMetric(value as AdminUsageStatisticsRankBy)}
+            onValueChange={(value) => {
+              if (isAdminUsageStatisticsRankBy(value)) setTrendMetric(value);
+            }}
           >
             <TabsList>
               {(["tokens", "cost", "calls"] as const).map((metric) => (
@@ -332,7 +335,9 @@ export function AdminStatisticsPage() {
           <h3 className="text-sm font-semibold">{t("rankings.models")}</h3>
           <Tabs
             value={statistics.modelRankingMetric}
-            onValueChange={(value) => statistics.setModelRankingMetric(value as AdminUsageStatisticsRankBy)}
+            onValueChange={(value) => {
+              if (isAdminUsageStatisticsRankBy(value)) statistics.setModelRankingMetric(value);
+            }}
           >
             <TabsList>
               {(["tokens", "cost", "calls"] as const).map((metric) => (
@@ -364,7 +369,9 @@ export function AdminStatisticsPage() {
           <h3 className="text-sm font-semibold">{t("rankings.users")}</h3>
           <Tabs
             value={statistics.userRankingMetric}
-            onValueChange={(value) => statistics.setUserRankingMetric(value as AdminUsageStatisticsRankBy)}
+            onValueChange={(value) => {
+              if (isAdminUsageStatisticsRankBy(value)) statistics.setUserRankingMetric(value);
+            }}
           >
             <TabsList>
               {(["tokens", "cost", "calls"] as const).map((metric) => (

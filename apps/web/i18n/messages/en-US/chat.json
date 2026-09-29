@@ -136,6 +136,7 @@
     "previewImage": "Preview image",
     "editImage": "Edit image",
     "downloadImage": "Download image",
+    "downloadImageFailed": "Could not download image",
     "scrollableTable": "Scrollable data table",
     "scrollableTableHint": "Scroll horizontally to view more columns.",
     "table": {
@@ -307,7 +308,8 @@
     "memoryNamePlaceholder": "Preference name, e.g. response style",
     "memoryValuePlaceholder": "Preference content, e.g. answer concisely",
     "savingPreference": "Saving...",
-    "savePreference": "Save preference"
+    "savePreference": "Save preference",
+    "positionRail": "Message position"
   },
   "loadError": {
     "title": "Failed to load conversation",

@@ -3,7 +3,6 @@
 import * as React from "react";
 import { Save } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
 
 import { FeatureGate } from "@/shared/capabilities";
 
@@ -16,15 +15,10 @@ import { SpinnerLabel } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { invalidateAdminReferenceDataCache, patchAdminBillingConfig, patchAdminSettings } from "@/features/admin/api";
-import type { AdminBillingConfigDTO, AdminBillingMode } from "@/features/admin/api/billing.types";
-import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
+import type { AdminBillingConfigDTO, AdminBillingMode } from "@/features/admin/api/billing-types";
+import { type BillingDisplayCurrency, useAdminBillingConfig } from "@/features/admin/hooks/use-admin-billing-config";
 import {
-  flattenPaymentSettings,
-  formatBillingAmountInput,
   normalizePaymentProviders,
-  parseEPayTypesJSON,
-  paymentPatchItems,
   paymentProviderSetting,
   paymentSettingsChanged,
   type PaymentProvider,
@@ -38,9 +32,14 @@ import {
   SettingsFieldRow,
   SettingsSection,
 } from "@/shared/components/settings-layout";
-import { resolveApiBaseURL } from "@/shared/api/http-client";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import { configuredSettingsMap } from "@/shared/lib/settings-meta";
+import { isOneOf } from "@/shared/lib/type-guards";
+
+const BILLING_MODES = ["self", "period", "usage"] as const satisfies readonly AdminBillingMode[];
+const isBillingMode = isOneOf(BILLING_MODES);
+const BILLING_DISPLAY_CURRENCIES = ["USD", "CNY"] as const satisfies readonly BillingDisplayCurrency[];
+const isBillingDisplayCurrency = isOneOf(BILLING_DISPLAY_CURRENCIES);
+const PAYMENT_PROVIDERS = ["stripe", "epay"] as const satisfies readonly PaymentProvider[];
+const isPaymentProvider = isOneOf(PAYMENT_PROVIDERS);
 
 type BillingConfigSectionProps = {
   billingConfig: AdminBillingConfigDTO | null;
@@ -69,30 +68,31 @@ export function BillingConfigSection({
   const tActions = useTranslations("common.actions");
   const tCommonErrors = useTranslations("common.errors");
   const tInput = useTranslations("common.input");
-  const [saving, setSaving] = React.useState(false);
   const [paymentTab, setPaymentTab] = React.useState<PaymentProvider>("stripe");
-  const [billingUsdToCnyRate, setBillingUsdToCnyRate] = React.useState("7.2");
-  const [savedBillingUsdToCnyRate, setSavedBillingUsdToCnyRate] = React.useState("7.2");
-  const [prepaidAmount, setPrepaidAmount] = React.useState("0");
-  const [savedPrepaidAmount, setSavedPrepaidAmount] = React.useState("0");
-  const stripeWebhookEndpoint = React.useMemo(() => `${resolveApiBaseURL()}/api/v1/billing/payments/stripe/webhook`, []);
-
-  const billingMode = billingConfig?.mode ?? "self";
-  const billingDisplayCurrency = billingConfig?.displayCurrency === "CNY" ? "CNY" : "USD";
-  const billingPrepaidAmountUSD = billingConfig?.prepaidAmountUSD;
-  const billingUsdToCNYRate = billingConfig?.usdToCNYRate;
-
-  React.useEffect(() => {
-    if (billingPrepaidAmountUSD == null || billingUsdToCNYRate == null) {
-      return;
-    }
-    const nextPrepaidAmount = formatBillingAmountInput(billingPrepaidAmountUSD);
-    const nextUsdToCnyRate = formatBillingAmountInput(billingUsdToCNYRate);
-    setPrepaidAmount(nextPrepaidAmount);
-    setSavedPrepaidAmount(nextPrepaidAmount);
-    setBillingUsdToCnyRate(nextUsdToCnyRate);
-    setSavedBillingUsdToCnyRate(nextUsdToCnyRate);
-  }, [billingPrepaidAmountUSD, billingUsdToCNYRate]);
+  const {
+    saving,
+    billingMode,
+    billingDisplayCurrency,
+    billingUsdToCnyRate,
+    setBillingUsdToCnyRate,
+    prepaidAmount,
+    setPrepaidAmount,
+    prepaidAmountChanged,
+    billingRateChanged,
+    stripeWebhookEndpoint,
+    savePaymentSettings,
+    changeBillingMode,
+    changeBillingDisplayCurrency,
+    saveBillingConfig,
+  } = useAdminBillingConfig({
+    billingConfig,
+    setBillingConfig,
+    paymentSettings,
+    setPaymentSettings,
+    setSavedPaymentSettings,
+    paymentConfiguredMap,
+    setPaymentConfiguredMap,
+  });
 
   const paymentProviders = React.useMemo(() => normalizePaymentProviders(paymentSettings.payment_providers), [paymentSettings.payment_providers]);
   const stripeEnabled = paymentProviders.includes("stripe");
@@ -101,14 +101,12 @@ export function BillingConfigSection({
     () => paymentSettingsChanged(paymentSettings, savedPaymentSettings),
     [paymentSettings, savedPaymentSettings],
   );
-  const prepaidAmountChanged = prepaidAmount.trim() !== savedPrepaidAmount.trim();
-  const billingRateChanged = billingUsdToCnyRate.trim() !== savedBillingUsdToCnyRate.trim();
   const billingConfigActions = ((billingMode !== "self" && prepaidAmountChanged) || billingRateChanged) ? (
     <Button
       type="button"
       size="sm"
       disabled={loading || saving}
-      onClick={() => void handleBillingConfigSave()}
+      onClick={() => void saveBillingConfig()}
     >
       {saving ? <SpinnerLabel>{tActions("saving")}</SpinnerLabel> : (
         <>
@@ -133,135 +131,6 @@ export function BillingConfigSection({
     });
   }
 
-  async function savePaymentSettings() {
-    const providers = normalizePaymentProviders(paymentSettings.payment_providers);
-    if (providers.includes("stripe") && ((!paymentSettings.stripe_secret_key.trim() && !paymentConfiguredMap["billing.stripe_secret_key"]) || (!paymentSettings.stripe_webhook_secret.trim() && !paymentConfiguredMap["billing.stripe_webhook_secret"]))) {
-      toast.error(t("toast.paymentIncomplete"), { description: t("toast.stripeRequired") });
-      return;
-    }
-    if (providers.includes("epay") && (!paymentSettings.epay_gateway_url.trim() || !paymentSettings.epay_types.trim() || !paymentSettings.epay_pid.trim() || (!paymentSettings.epay_key.trim() && !paymentConfiguredMap["billing.epay_key"]))) {
-      toast.error(t("toast.paymentIncomplete"), { description: t("toast.epayRequired") });
-      return;
-    }
-    if (providers.includes("epay") && !parseEPayTypesJSON(paymentSettings.epay_types)) {
-      toast.error(t("toast.paymentIncomplete"), { description: t("toast.epayTypesInvalid") });
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
-        return;
-      }
-      const grouped = await patchAdminSettings(token, { items: paymentPatchItems(paymentSettings) });
-      const next = flattenPaymentSettings(grouped.billing || []);
-      setPaymentConfiguredMap(configuredSettingsMap(grouped));
-      setPaymentSettings(next);
-      setSavedPaymentSettings(next);
-      toast.success(t("toast.paymentSaved"));
-    } catch (error) {
-      toast.error(t("toast.paymentSaveFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleBillingModeChange(nextMode: AdminBillingMode) {
-    if (nextMode === billingMode) {
-      return;
-    }
-    const previous = billingMode;
-    setBillingConfig((current) => current ? { ...current, mode: nextMode } : current);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
-        setBillingConfig((current) => current ? { ...current, mode: previous } : current);
-        return;
-      }
-      await patchAdminBillingConfig(token, { mode: nextMode });
-      invalidateAdminReferenceDataCache();
-      toast.success(t("toast.billingModeChanged", { mode: t(`billingConfig.modes.${nextMode}`) }));
-    } catch (error) {
-      setBillingConfig((current) => current ? { ...current, mode: previous } : current);
-      toast.error(t("toast.billingModeFailed"), { description: resolveAdminErrorMessage(error) });
-    }
-  }
-
-  async function handleBillingDisplayCurrencyChange(nextCurrency: "USD" | "CNY") {
-    if (nextCurrency === billingDisplayCurrency) {
-      return;
-    }
-    const previous = billingDisplayCurrency;
-    setBillingConfig((current) => current ? { ...current, displayCurrency: nextCurrency } : current);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
-        setBillingConfig((current) => current ? { ...current, displayCurrency: previous } : current);
-        return;
-      }
-      const result = await patchAdminBillingConfig(token, {
-        mode: billingMode,
-        displayCurrency: nextCurrency,
-      });
-      setBillingConfig((current) => current ? { ...current, displayCurrency: result.config.displayCurrency } : result.config);
-      invalidateAdminReferenceDataCache();
-      toast.success(t("toast.displayCurrencySaved"));
-    } catch (error) {
-      setBillingConfig((current) => current ? { ...current, displayCurrency: previous } : current);
-      toast.error(t("toast.displayCurrencySaveFailed"), { description: resolveAdminErrorMessage(error) });
-    }
-  }
-
-  async function handleBillingConfigSave() {
-    const amount = Number(prepaidAmount);
-    const usdToCnyRate = Number(billingUsdToCnyRate);
-    if (billingMode !== "self" && (!Number.isFinite(amount) || amount < 0)) {
-      toast.error(t("toast.prepaidInvalid"), { description: t("toast.prepaidInvalidDescription") });
-      return;
-    }
-    if (!Number.isFinite(usdToCnyRate) || usdToCnyRate <= 0) {
-      toast.error(t("toast.usdToCnyRateInvalid"), { description: t("toast.usdToCnyRateInvalidDescription") });
-      return;
-    }
-    setSaving(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("toast.sessionExpired"), { description: t("toast.sessionExpiredDescription") });
-        return;
-      }
-      const result = await patchAdminBillingConfig(token, {
-        mode: billingMode,
-        prepaidAmountUSD: billingMode !== "self" ? amount : undefined,
-        usdToCNYRate: usdToCnyRate,
-      });
-      const nextAmount = formatBillingAmountInput(result.config.prepaidAmountUSD);
-      const nextUsdToCnyRate = formatBillingAmountInput(result.config.usdToCNYRate);
-      setPrepaidAmount(nextAmount);
-      setSavedPrepaidAmount(nextAmount);
-      setBillingUsdToCnyRate(nextUsdToCnyRate);
-      setSavedBillingUsdToCnyRate(nextUsdToCnyRate);
-      setBillingConfig((current) => current ? {
-        ...current,
-        mode: result.config.mode,
-        prepaidAmountUSD: result.config.prepaidAmountUSD,
-        prepaidAmountNanousd: result.config.prepaidAmountNanousd,
-        usdToCNYRate: result.config.usdToCNYRate,
-        displayCurrency: result.config.displayCurrency,
-      } : result.config);
-      invalidateAdminReferenceDataCache();
-      toast.success(t("toast.billingConfigSaved"));
-    } catch (error) {
-      toast.error(t("toast.billingConfigSaveFailed"), { description: resolveAdminErrorMessage(error) });
-    } finally {
-      setSaving(false);
-    }
-  }
-
   return (
     <>
       <SettingsSection title={t("billingConfig.title")} actions={billingConfigActions} className="px-1">
@@ -273,7 +142,9 @@ export function BillingConfigSection({
                 description={t("billingConfig.modeDescription")}
               >
                 <div className="w-full">
-                  <Select value={billingMode} onValueChange={(value) => void handleBillingModeChange(value as AdminBillingMode)} disabled={loading || saving}>
+                  <Select value={billingMode} onValueChange={(value) => {
+                    if (isBillingMode(value)) void changeBillingMode(value);
+                  }} disabled={loading || saving}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -295,7 +166,9 @@ export function BillingConfigSection({
               <div className="w-full">
                 <Select
                   value={billingDisplayCurrency}
-                  onValueChange={(value) => void handleBillingDisplayCurrencyChange(value as "USD" | "CNY")}
+                  onValueChange={(value) => {
+                    if (isBillingDisplayCurrency(value)) void changeBillingDisplayCurrency(value);
+                  }}
                   disabled={loading || saving}
                 >
                   <SelectTrigger>
@@ -371,7 +244,9 @@ export function BillingConfigSection({
 
           <FieldGroup className="gap-0">
             <div>
-              <Tabs value={paymentTab} onValueChange={(value) => setPaymentTab(value as PaymentProvider)}>
+              <Tabs value={paymentTab} onValueChange={(value) => {
+                if (isPaymentProvider(value)) setPaymentTab(value);
+              }}>
                 <SettingsFieldRow
                   title={t("payment.channels")}
                   description={t("payment.channelsDescription")}

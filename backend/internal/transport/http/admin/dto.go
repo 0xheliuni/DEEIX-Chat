@@ -532,6 +532,12 @@ type ResetUserPasswordResponseDoc struct {
 	Data     ResetUserPasswordResponse `json:"data"`
 }
 
+// ResetUserTwoFactorResponseDoc 管理员重置用户双因素认证响应。
+type ResetUserTwoFactorResponseDoc struct {
+	ErrorMsg string                     `json:"errorMsg"`
+	Data     ResetUserTwoFactorResponse `json:"data"`
+}
+
 // DeleteUserResponseDoc 管理员删除用户响应。
 type DeleteUserResponseDoc struct {
 	ErrorMsg string             `json:"errorMsg"`

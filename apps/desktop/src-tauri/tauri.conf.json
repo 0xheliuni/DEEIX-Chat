@@ -6,7 +6,7 @@
   "build": {
     "frontendDist": "../../web/out",
     "devUrl": "http://localhost:3000",
-    "beforeDevCommand": "pnpm --filter @deeix/web dev",
+    "beforeDevCommand": "node scripts/dev-web.mjs",
     "beforeBuildCommand": "pnpm turbo run build --filter=@deeix/web"
   },
   "app": {

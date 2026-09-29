@@ -166,7 +166,9 @@ and cannot redirect the credential to a server it controls.
 pnpm --filter @deeix/desktop dev
 ```
 
-`beforeDevCommand` starts `next dev` on port 3000 and the shell loads it. The Go
+`beforeDevCommand` (`scripts/dev-web.mjs`) starts `next dev` on port 3000, or reuses a
+web dev server that is already running there (e.g. from `pnpm dev:web`), and the shell
+loads it. The Go
 server must already be reachable at the address you enter on the setup screen
 (default `http://127.0.0.1:8080`).
 

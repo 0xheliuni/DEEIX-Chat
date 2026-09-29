@@ -3,6 +3,7 @@ import zhErrors from "@/i18n/messages/zh-CN/errors.json";
 import { DEFAULT_LOCALE, LOCALE_COOKIE_NAME, normalizeAppLocale, resolveBrowserLocale, type AppLocale } from "@/i18n/config";
 import { disabledFeatureOf } from "@deeix/core";
 import { ApiError } from "@/shared/api/http-client";
+import { isRecord } from "@/shared/lib/type-guards";
 
 const ERROR_MESSAGES: Record<AppLocale, unknown> = {
   "en-US": enErrors,
@@ -227,10 +228,10 @@ function readClientLocale(): AppLocale {
 function lookupErrorMessage(locale: AppLocale, errorCode: string): string | undefined {
   let current: unknown = ERROR_MESSAGES[locale];
   for (const segment of toErrorMessagePath(errorCode)) {
-    if (!current || typeof current !== "object" || !Object.hasOwn(current, segment)) {
+    if (!isRecord(current) || !Object.hasOwn(current, segment)) {
       return undefined;
     }
-    current = (current as Record<string, unknown>)[segment];
+    current = current[segment];
   }
   return typeof current === "string" ? current : undefined;
 }

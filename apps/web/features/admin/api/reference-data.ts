@@ -4,8 +4,8 @@ import {
   listAdminModelPricing,
 } from "./billing";
 import { listAdminLLMModels } from "./llm";
-import type { AdminBillingConfigData, AdminBillingPlanDTO, AdminModelPricingDTO } from "@/features/admin/api/billing.types";
-import type { AdminLLMModelDTO } from "@/features/admin/api/llm.types";
+import type { AdminBillingConfigData, AdminBillingPlanDTO, AdminModelPricingDTO } from "@/features/admin/api/billing-types";
+import type { AdminLLMModelDTO } from "@/features/admin/api/llm-types";
 import { listAllAdminPages } from "./shared";
 import { whenFeatureAvailable } from "@/shared/api/capabilities";
 

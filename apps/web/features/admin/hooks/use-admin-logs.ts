@@ -20,11 +20,11 @@ import type {
   AdminRedemptionRecordDTO,
   AdminUsageLogDTO,
   AdminUserAuthEventDTO,
-} from "@/features/admin/api/admin.types";
+} from "@/features/admin/api/admin-types";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
-import type { ModelSelectOption } from "@/shared/components/model-select";
-import { resolveModelOptionIconUrl } from "@/shared/lib/model-option-display";
+import { type ModelSelectOption, resolveModelOptionIconUrl } from "@/entities/model";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
+import { isOneOf } from "@/shared/lib/type-guards";
 
 export const ADMIN_LOGS_PAGE_SIZE = 25;
 
@@ -75,6 +75,14 @@ export type UsageLogSortValue = (typeof USAGE_LOG_SORT_OPTIONS)[number]["value"]
 export type PaymentOrderSortValue = (typeof PAYMENT_ORDER_SORT_OPTIONS)[number]["value"];
 export type RedemptionSortValue = (typeof REDEMPTION_SORT_OPTIONS)[number]["value"];
 export type ConversationEventSortValue = (typeof CONVERSATION_EVENT_SORT_OPTIONS)[number]["value"];
+
+const sortValuesOf = <T extends string>(options: readonly { value: T }[]): T[] => options.map((option) => option.value);
+export const isAuditLogSortValue = isOneOf(sortValuesOf(AUDIT_LOG_SORT_OPTIONS));
+export const isSecurityLogSortValue = isOneOf(sortValuesOf(SECURITY_LOG_SORT_OPTIONS));
+export const isUsageLogSortValue = isOneOf(sortValuesOf(USAGE_LOG_SORT_OPTIONS));
+export const isPaymentOrderSortValue = isOneOf(sortValuesOf(PAYMENT_ORDER_SORT_OPTIONS));
+export const isRedemptionSortValue = isOneOf(sortValuesOf(REDEMPTION_SORT_OPTIONS));
+export const isConversationEventSortValue = isOneOf(sortValuesOf(CONVERSATION_EVENT_SORT_OPTIONS));
 
 const AUDIT_RESOURCE_VALUES = [
   "user",
@@ -202,7 +210,7 @@ type UseAdminLogsState = {
   loadAuditLogs: (page?: number, pageSize?: number) => Promise<void>;
 };
 
-type UseAdminSecurityLogsState = {
+type UseAdminLogsSecurityState = {
   events: AdminUserAuthEventDTO[];
   sortedEvents: AdminUserAuthEventDTO[];
   total: number;
@@ -219,7 +227,7 @@ type UseAdminSecurityLogsState = {
   loadSecurityLogs: (page?: number, pageSize?: number) => Promise<void>;
 };
 
-type UseAdminUsageLogsState = {
+type UseAdminLogsUsageState = {
   logs: AdminUsageLogDTO[];
   total: number;
   page: number;
@@ -242,7 +250,7 @@ type UseAdminUsageLogsState = {
   loadUsageLogs: (page?: number, pageSize?: number) => Promise<void>;
 };
 
-type UseAdminPaymentOrdersState = {
+type UseAdminLogsPaymentOrdersState = {
   orders: AdminPaymentOrderDTO[];
   total: number;
   page: number;
@@ -266,7 +274,7 @@ type UseAdminPaymentOrdersState = {
   loadPaymentOrders: (page?: number, pageSize?: number) => Promise<void>;
 };
 
-type UseAdminRedemptionsState = {
+type UseAdminLogsRedemptionsState = {
   records: AdminRedemptionRecordDTO[];
   total: number;
   page: number;
@@ -290,7 +298,7 @@ type UseAdminRedemptionsState = {
   loadRedemptions: (page?: number, pageSize?: number) => Promise<void>;
 };
 
-type UseAdminConversationEventsState = {
+type UseAdminLogsConversationEventsState = {
   events: AdminConversationEventDTO[];
   total: number;
   page: number;
@@ -508,7 +516,7 @@ export function useAdminLogs(): UseAdminLogsState {
   };
 }
 
-export function useAdminSecurityLogs(): UseAdminSecurityLogsState {
+export function useAdminLogsSecurity(): UseAdminLogsSecurityState {
   const t = useTranslations("adminLogs");
   const [events, setEvents] = React.useState<AdminUserAuthEventDTO[]>([]);
   const [total, setTotal] = React.useState(0);
@@ -619,7 +627,7 @@ export function useAdminSecurityLogs(): UseAdminSecurityLogsState {
 }
 
 
-export function useAdminUsageLogs(): UseAdminUsageLogsState {
+export function useAdminLogsUsage(): UseAdminLogsUsageState {
   const t = useTranslations("adminLogs");
   const [logs, setLogs] = React.useState<AdminUsageLogDTO[]>([]);
   const [total, setTotal] = React.useState(0);
@@ -770,7 +778,7 @@ export function useAdminUsageLogs(): UseAdminUsageLogsState {
   };
 }
 
-export function useAdminPaymentOrders(): UseAdminPaymentOrdersState {
+export function useAdminLogsPaymentOrders(): UseAdminLogsPaymentOrdersState {
   const t = useTranslations("adminLogs");
   const [orders, setOrders] = React.useState<AdminPaymentOrderDTO[]>([]);
   const [total, setTotal] = React.useState(0);
@@ -887,7 +895,7 @@ export function useAdminPaymentOrders(): UseAdminPaymentOrdersState {
   };
 }
 
-export function useAdminRedemptions(initialCodeID?: number): UseAdminRedemptionsState {
+export function useAdminLogsRedemptions(initialCodeID?: number): UseAdminLogsRedemptionsState {
   const t = useTranslations("adminLogs");
   const [records, setRecords] = React.useState<AdminRedemptionRecordDTO[]>([]);
   const [total, setTotal] = React.useState(0);
@@ -1005,7 +1013,7 @@ export function useAdminRedemptions(initialCodeID?: number): UseAdminRedemptions
   };
 }
 
-export function useAdminConversationEvents(): UseAdminConversationEventsState {
+export function useAdminLogsConversationEvents(): UseAdminLogsConversationEventsState {
   const t = useTranslations("adminLogs");
   const [events, setEvents] = React.useState<AdminConversationEventDTO[]>([]);
   const [total, setTotal] = React.useState(0);

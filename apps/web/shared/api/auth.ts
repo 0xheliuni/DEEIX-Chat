@@ -30,7 +30,7 @@ import type {
   UserDTO,
   UserIdentityData,
   UserIdentityListData,
-} from "@/shared/api/auth.types";
+} from "@/shared/api/auth-types";
 
 export const AUTH_ERROR_CODES = {
   accountLocked: "auth.account_locked",

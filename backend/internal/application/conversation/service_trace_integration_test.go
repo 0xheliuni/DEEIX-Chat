@@ -8,7 +8,7 @@ import (
 
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	persistencemodels "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	persistenceconversation "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/postgres/conversation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"gorm.io/driver/sqlite"
@@ -128,7 +128,7 @@ func TestCanceledTraceSettlementPersistsCompleteReasoningForReload(t *testing.T)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&persistencemodels.ChatRunEvent{}); err != nil {
+	if err := db.AutoMigrate(&models.ChatRunEvent{}); err != nil {
 		t.Fatalf("migrate trace table: %v", err)
 	}
 
@@ -178,7 +178,7 @@ func TestToolTraceRoundsSurviveReload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&persistencemodels.ChatRunEvent{}); err != nil {
+	if err := db.AutoMigrate(&models.ChatRunEvent{}); err != nil {
 		t.Fatalf("migrate trace table: %v", err)
 	}
 

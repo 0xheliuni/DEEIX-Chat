@@ -10,8 +10,8 @@ import {
   listPermissionGroups,
 } from "@/features/admin/api";
 import type { PermissionGroup } from "@/features/admin/api/permission-groups";
-import type { AdminBillingConfigDTO, AdminBillingPlanDTO, AdminModelPricingDTO } from "@/features/admin/api/billing.types";
-import type { AdminLLMModelDTO } from "@/features/admin/api/llm.types";
+import type { AdminBillingConfigDTO, AdminBillingPlanDTO, AdminModelPricingDTO } from "@/features/admin/api/billing-types";
+import type { AdminLLMModelDTO } from "@/features/admin/api/llm-types";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import {
   flattenPaymentSettings,
@@ -19,7 +19,7 @@ import {
   type PaymentSettings,
 } from "@/features/admin/model/billing-settings";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import { configuredSettingsMap } from "@/shared/lib/settings-meta";
+import { configuredSettingsMap } from "@/features/admin/utils/settings-meta";
 import { useCapabilities } from "@/shared/capabilities";
 
 type UseAdminBillingReferenceState = {

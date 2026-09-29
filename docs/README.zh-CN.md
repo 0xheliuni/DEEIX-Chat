@@ -353,7 +353,7 @@ docker compose -f services/docling/docker-compose.yml up -d --build
    | --- | --- |
    | `/_next/static/*` | 缓存 1 年，并启用 immutable 静态资源缓存。 |
    | `/logo*.svg`、`/*.ico`、`/*.png`、`/*.jpg`、`/*.webp`、`/*.woff2` | 缓存 1 天到 30 天。 |
-   | `/`、`/*.html`、`/login*`、`/auth*`、`/chat*`、`/recent*`、`/files*`、`/knowledges*`、`/skills-prompt*`、`/setting*`、`/admin*`、`/share*`、`/preview*` | 不做长期缓存，建议使用 `no-cache` 或较短 TTL。 |
+   | `/`、`/*.html`、`/login*`、`/auth*`、`/chat*`、`/recent*`、`/files*`、`/knowledge-bases*`、`/library*`、`/settings*`、`/admin*`、`/share*`、`/preview*` | 不做长期缓存，建议使用 `no-cache` 或较短 TTL。 |
    | `/api/*`、`/healthz`、`/readyz`、`/swagger/*` | 绕过 CDN 缓存，并完整转发请求头、方法、查询参数和请求体。 |
 
    如果 CDN 从对象存储托管 `apps/web/out`，需要开启路由回退，让无扩展名地址能命中导出的 `index.html`，例如 `/chat` -> `/chat/index.html`。
@@ -498,7 +498,7 @@ Web、App 与桌面端的登录、注册和账号身份绑定都走这一个回�
 - [管理指南](https://deeix.com/zh/docs/deeix-chat/admin-accounts)
 - [进阶指南](https://deeix.com/zh/docs/deeix-chat/advanced-capabilities-passthrough-tools)
 - 后端说明：[backend/README.md](../backend/README.md)
-- 后端规范：[backend/docs/README.md](../backend/docs/README.md)
+- API 文档索引：[backend/docs/README.md](../backend/docs/README.md)
 - 前端说明：[apps/web/README.md](../apps/web/README.md)
 - API 契约包：[packages/api-contract/README.md](../packages/api-contract/README.md)
 - 贡献指南：[CONTRIBUTING.md](../.github/CONTRIBUTING.md)

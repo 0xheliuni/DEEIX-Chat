@@ -15,5 +15,5 @@ const fallbackHref = SETTINGS_SECTIONS.find((item) => item.id === DEFAULT_SETTIN
 export function SettingsSectionGuard({ basePath, children }: { basePath: string; children: React.ReactNode }) {
   const pathname = usePathname();
   const blocked = useSectionGuard(resolveSettingsSectionFromPath(pathname, basePath), `${basePath}${fallbackHref}`);
-  return blocked ? null : <>{children}</>;
+  return blocked ? null : children;
 }

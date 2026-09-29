@@ -19,7 +19,7 @@ import {
   ChatInlineAlertCard,
   ChatMessageBot,
 } from "@/features/chat/components/message/message-bot";
-import { type AssistantReaction } from "@/features/chat/components/message/message-meta";
+import type { AssistantReaction } from "@/features/chat/components/message/message-meta";
 import { ChatMessageUser } from "@/features/chat/components/message/message-user";
 import { ChatLabel } from "@/features/chat/components/sections/chat-label";
 import {
@@ -36,13 +36,13 @@ import type { ChatModelOption } from "@/features/chat/types/chat-runtime";
 import type { ChatAreaMessage, MessageAttachment, UserMessageEditMode } from "@/features/chat/types/messages";
 import { cn } from "@/lib/utils";
 import { AppLogo, DeeixLogo } from "@/shared/components/app-logo";
-import { ConversationShareExportIconDropdown } from "@/shared/components/conversation-share-export-menu";
+import { ConversationShareExportIconDropdown } from "@/entities/conversation";
 import { useCopyAction } from "@/shared/components/copy-action";
-import type { FileContentLoader } from "@/shared/components/file-preview/preview-dialog";
+import type { FileContentLoader } from "@/entities/file";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import { PoweredByDeeix } from "@/shared/components/powered-by-deeix";
 import { useBranding } from "@/shared/config/branding-provider";
-import type { BillingDisplayCurrency } from "@/shared/lib/billing-display";
+import type { BillingDisplayCurrency } from "@/entities/billing";
 
 function LiveMessageFollower({ activeKey }: { activeKey: string }): null {
   const { scrollToEnd } = useMessageScroller();

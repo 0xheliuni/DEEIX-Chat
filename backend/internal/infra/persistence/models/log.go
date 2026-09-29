@@ -1,4 +1,4 @@
-package model
+package models
 
 // AuditLog 记录可追溯的业务审计日志。
 type AuditLog struct {

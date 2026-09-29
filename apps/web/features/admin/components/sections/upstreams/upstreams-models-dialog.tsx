@@ -57,57 +57,51 @@ import {
 } from "@/components/ui/table";
 import { TablePagination, TableToolbar } from "@/components/ui/table-tools";
 import { useVirtualTableRows, VirtualTablePaddingRow } from "@/components/ui/virtual-table";
-import { AdminBulkConfirmDialog } from "@/features/admin/components/bulk-confirm-dialog";
+import { AdminBulkConfirmDialog } from "@/features/admin/components/shared/bulk-confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { ApiError } from "@/shared/api/http-client";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
-import {
-  mergeBatchResultData,
-  runBulkActionInChunks,
-} from "@/shared/lib/bulk-action";
-import {
-  batchDeleteAdminLLMUpstreamModels,
-  deleteAdminLLMUpstreamModel,
-  listAdminLLMUpstreamModels,
-  testAdminLLMUpstreamModelRoute,
-  upsertAdminLLMUpstreamModel,
-} from "@/features/admin/api";
+import { isOneOf } from "@/shared/lib/type-guards";
 import { cn } from "@/lib/utils";
 import type {
   AdminLLMAdapter,
-  AdminLLMModelProbeResult,
   AdminLLMRemoteModelItem,
   AdminLLMUpstreamView,
-  UpsertAdminLLMUpstreamModelRequest,
-} from "@/features/admin/api/llm.types";
-import { ModelProbeDialog } from "@/features/admin/components/sections/models/models-probe-dialog";
+} from "@/features/admin/api/llm-types";
+import { ModelProbeDialog } from "@/features/admin/components/shared/model-probe-dialog";
 import {
   PROTOCOL_OPTIONS,
   resolveKindsDisplayForProtocols,
   resolveNextRouteProtocolSelection,
   sortProtocolsForDisplay,
 } from "@/features/admin/utils/llm-display";
-import { MODEL_KIND_OPTIONS, PAGE_SIZE_DEFAULT } from "@/features/admin/types/llm";
+import { MODEL_KIND_OPTIONS, } from "@/features/admin/types/llm";
 import {
-  buildRowDrafts,
   createDraftPlatformModelNameMap,
   DEFAULT_NEW_BINDING,
-  displayToKindsJson,
-  summarizeBatchDeleteResult,
   summarizeImportResult,
-  validateRowDrafts,
   type NewBindingFormState,
   type RowDraft,
 } from "@/features/admin/model/upstreams-models";
-import { PermissionGroupSelector } from "@/features/admin/components/sections/groups/permission-group-selector";
+import { PermissionGroupSelector } from "@/features/admin/components/shared/permission-group-selector";
 import { FeatureGate } from "@/shared/capabilities";
+import { useAdminUpstreamsModelBinding } from "@/features/admin/hooks/use-admin-upstreams-model-binding";
+import {
+  ROUTE_SORT_VALUES,
+  ROUTE_STATUS_FILTERS,
+  routeIDsForRow,
+  type RowDraftPatch,
+  UPSTREAM_STATUS_FILTERS,
+  useAdminUpstreamsModels,
+} from "@/features/admin/hooks/use-admin-upstreams-models";
+import { useAdminUpstreamsRouteProbe } from "@/features/admin/hooks/use-admin-upstreams-route-probe";
+import { isAdminLLMStatus } from "@/features/admin/model/admin-unions";
 import {
   isUpstreamModelSyncAbort,
   UpstreamModelBindingsApplyError,
-  useUpstreamModelSync,
-} from "@/features/admin/hooks/use-upstream-model-sync";
+  useAdminUpstreamsModelSync,
+} from "@/features/admin/hooks/use-admin-upstreams-model-sync";
 
 function KindsDropdown({
   value,
@@ -289,46 +283,6 @@ function BulkActionControlRow({
   );
 }
 
-function routeIDsForRow(row: RowDraft): number[] {
-  return Object.values(row.routeIDsByProtocol).filter((id) => id > 0);
-}
-
-function removeRouteIDFromRows(rows: RowDraft[], routeID: number): RowDraft[] {
-  return rows.flatMap((row) => {
-    if (!routeIDsForRow(row).includes(routeID)) {
-      return [row];
-    }
-    const nextRouteIDsByProtocol = Object.fromEntries(
-      Object.entries(row.routeIDsByProtocol).filter(([, id]) => id !== routeID),
-    );
-    const nextRouteIDs = Object.values(nextRouteIDsByProtocol).filter((id) => id > 0);
-    if (nextRouteIDs.length === 0) {
-      return [];
-    }
-    const nextProtocols = row.protocols.filter((protocol) => nextRouteIDsByProtocol[protocol] > 0);
-    return [
-      {
-        ...row,
-        protocol: nextProtocols[0] ?? row.protocol,
-        protocols: nextProtocols,
-        routeID: Math.min(...nextRouteIDs),
-        routeIDsByProtocol: nextRouteIDsByProtocol,
-      },
-    ];
-  });
-}
-
-function selectedProtocolsForSave(row: RowDraft): AdminLLMAdapter[] {
-  const protocols = row.protocols.length > 0 ? row.protocols : [];
-  return Array.from(new Set(protocols));
-}
-
-async function runOperationsInOrder(operations: Array<() => Promise<unknown>>): Promise<void> {
-  for (const operation of operations) {
-    await operation();
-  }
-}
-
 type ModelRowProps = {
   row: RowDraft;
   isSelected: boolean;
@@ -337,8 +291,6 @@ type ModelRowProps = {
   onUpdate: (draftKey: string, patch: RowDraftPatch) => void;
   onTest: (row: RowDraft, routeID: number) => void;
 };
-
-type RowDraftPatch = Partial<Omit<RowDraft, "draftKey" | "isDirty" | "routeStatusOverridden">>;
 
 const ModelRow = React.memo(function ModelRow({ row, isSelected, upstreamInactive, onSelect, onUpdate, onTest }: ModelRowProps) {
   const t = useTranslations("adminUpstreams");
@@ -407,6 +359,7 @@ const ModelRow = React.memo(function ModelRow({ row, isSelected, upstreamInactiv
               <TooltipTrigger asChild>
                 <span
                   className="inline-flex shrink-0 items-center text-muted-foreground/70"
+                  role="img"
                   aria-label={t("modelsDialog.upstreamModelInactive")}
                 >
                   <CircleOff className="size-3 stroke-[1.5]" />
@@ -565,7 +518,7 @@ function RemoteModelsDialog({
     permissionGroupsLoading,
     reloadCatalog: loadRemoteModels,
     applySync,
-  } = useUpstreamModelSync(open, upstream?.id ?? null);
+  } = useAdminUpstreamsModelSync(open, upstream?.id ?? null);
   const remoteTotal = catalog?.total ?? null;
   const remoteSnapshotID = catalog?.snapshotID ?? "";
   const syncPlan = catalog?.syncPlan ?? null;
@@ -1086,9 +1039,8 @@ function NewBindingDialog({
 }: NewBindingDialogProps) {
   const t = useTranslations("adminUpstreams");
   const commonT = useTranslations("common");
-  const resolveErrorMessage = useLocalizedErrorMessage();
   const [form, setForm] = React.useState<NewBindingFormState>(DEFAULT_NEW_BINDING);
-  const [saving, setSaving] = React.useState(false);
+  const { saving, createBinding } = useAdminUpstreamsModelBinding();
 
   React.useEffect(() => {
     if (!open) return;
@@ -1103,32 +1055,11 @@ function NewBindingDialog({
   }
 
   async function handleSave() {
-    if (!form.upstreamModelName.trim() || !form.platformModelName.trim()) {
-      toast.error(t("modelsDialog.bindingNamesRequired"));
-      return;
-    }
-    setSaving(true);
-    try {
-      const token = await resolveAccessToken();
-      const payload: UpsertAdminLLMUpstreamModelRequest = {
-        upstreamModelName: form.upstreamModelName.trim(),
-        platformModelName: form.platformModelName.trim(),
-        protocols: form.protocols,
-        kindsJSON: displayToKindsJson(form.kindsDisplay),
-        status: form.status,
-        priority: 1,
-        weight: 1,
-      };
-      await upsertAdminLLMUpstreamModel(token, upstreamId, payload);
-      toast.success(t("modelsDialog.bindingCreated"));
+    await createBinding(upstreamId, form, () => {
       setForm(DEFAULT_NEW_BINDING);
       onOpenChange(false);
       onCreated();
-    } catch (err) {
-      toast.error(t("toast.createFailed"), { description: resolveErrorMessage(err) });
-    } finally {
-      setSaving(false);
-    }
+    });
   }
 
   return (
@@ -1225,35 +1156,13 @@ type UpstreamModelsDialogProps = {
   onRemoteOpenHandled?: () => void;
 };
 
-type RouteStatusFilter = "bound" | "active" | "inactive";
-type UpstreamStatusFilter = "all" | "active" | "inactive";
-type RouteSortValue = "upstream_asc" | "upstream_desc" | "platform_asc" | "platform_desc" | "status_asc" | "protocol_asc";
-
-type RouteListParams = {
-  upstreamID: number | null;
-  page: number;
-  pageSize: number;
-  query: string;
-  routeStatusFilter: RouteStatusFilter;
-  upstreamStatusFilter: UpstreamStatusFilter;
-  protocolFilter: string;
-  sortValue: RouteSortValue;
-};
-
 type BulkPatchConfirm = {
   patch: RowDraftPatch;
 };
 
-const DEFAULT_ROUTE_LIST_PARAMS: RouteListParams = {
-  upstreamID: null,
-  page: 1,
-  pageSize: PAGE_SIZE_DEFAULT,
-  query: "",
-  routeStatusFilter: "bound",
-  upstreamStatusFilter: "all",
-  protocolFilter: "",
-  sortValue: "upstream_asc",
-};
+const isRouteStatusFilter = isOneOf(ROUTE_STATUS_FILTERS);
+const isUpstreamStatusFilter = isOneOf(UPSTREAM_STATUS_FILTERS);
+const isRouteSortValue = isOneOf(ROUTE_SORT_VALUES);
 
 export function UpstreamModelsDialog({
   open,
@@ -1264,111 +1173,56 @@ export function UpstreamModelsDialog({
   onRemoteOpenHandled,
 }: UpstreamModelsDialogProps) {
   const t = useTranslations("adminUpstreams");
-  const modelT = useTranslations("adminModels");
   const commonT = useTranslations("common");
-  const resolveErrorMessage = useLocalizedErrorMessage();
-  const [rows, setRows] = React.useState<RowDraft[]>([]);
-  const [loadedUpstreamID, setLoadedUpstreamID] = React.useState<number | null>(null);
-  const [loadingList, setLoadingList] = React.useState(false);
   const [remoteModelsOpen, setRemoteModelsOpen] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
-  const [deleting, setDeleting] = React.useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = React.useState(false);
-  const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [newBindingOpen, setNewBindingOpen] = React.useState(false);
   const [bulkRouteStatus, setBulkRouteStatus] = React.useState<"active" | "inactive">("active");
   const [bulkProtocols, setBulkProtocols] = React.useState<AdminLLMAdapter[]>([]);
   const [bulkKindsDisplay, setBulkKindsDisplay] = React.useState("chat");
   const [bulkPatchConfirm, setBulkPatchConfirm] = React.useState<BulkPatchConfirm | null>(null);
-  const [query, setQuery] = React.useState("");
-  const [listParams, setListParams] = React.useState<RouteListParams>(DEFAULT_ROUTE_LIST_PARAMS);
-  const [total, setTotal] = React.useState(0);
-  const [probeOpen, setProbeOpen] = React.useState(false);
-  const [probeLoading, setProbeLoading] = React.useState(false);
-  const [probeTargetName, setProbeTargetName] = React.useState("");
-  const [probeResults, setProbeResults] = React.useState<AdminLLMModelProbeResult[]>([]);
-  const requestSeqRef = React.useRef(0);
   const stableUpstream = useDialogSnapshot(upstream);
   const upstreamID = stableUpstream?.id ?? null;
+  const {
+    rows,
+    loadedUpstreamID,
+    loadingList,
+    saving,
+    deleting,
+    selected,
+    setSelected,
+    query,
+    setQuery,
+    listParams,
+    total,
+    loadBindings,
+    updateListParams,
+    updateRow,
+    applyBulkPatch,
+    removeRouteLocally,
+    deleteSelected,
+    save: handleSave,
+  } = useAdminUpstreamsModels({ open, upstream: stableUpstream, onUpstreamUpdated });
+  const {
+    probeOpen,
+    setProbeOpen,
+    probeLoading,
+    probeTargetName,
+    probeResults,
+    testRoute: handleTestRoute,
+    deleteProbeRoute: handleDeleteProbeRoute,
+  } = useAdminUpstreamsRouteProbe({
+    upstream: stableUpstream,
+    onRouteDeleted: (result, probedUpstream) => {
+      removeRouteLocally(result.routeID);
+      void loadBindings();
+      onUpstreamUpdated({ ...probedUpstream });
+    },
+  });
 
   React.useEffect(() => {
     setBulkProtocols([]);
   }, [upstreamID]);
-
-  const loadBindings = React.useCallback(async (params: RouteListParams = listParams) => {
-    if (!upstreamID || params.upstreamID !== upstreamID) return;
-    const requestSeq = requestSeqRef.current + 1;
-    requestSeqRef.current = requestSeq;
-    setLoadingList(true);
-    try {
-      const token = await resolveAccessToken();
-      const result = await listAdminLLMUpstreamModels(token, upstreamID, {
-        page: params.page,
-        pageSize: params.pageSize,
-        query: params.query,
-        routeStatus: params.routeStatusFilter,
-        upstreamStatus: params.upstreamStatusFilter === "all" ? "" : params.upstreamStatusFilter,
-        protocol: params.protocolFilter,
-        sort: params.sortValue,
-      });
-      if (requestSeq !== requestSeqRef.current) {
-        return;
-      }
-      setRows(buildRowDrafts(result.results));
-      setTotal(result.total);
-      setLoadedUpstreamID(upstreamID);
-      setSelected(new Set());
-    } catch (err) {
-      if (requestSeq !== requestSeqRef.current) {
-        return;
-      }
-      setRows([]);
-      setTotal(0);
-      setLoadedUpstreamID(upstreamID);
-      toast.error(t("modelsDialog.loadFailed"), { description: resolveErrorMessage(err) });
-    } finally {
-      if (requestSeq === requestSeqRef.current) {
-        setLoadingList(false);
-      }
-    }
-  }, [listParams, resolveErrorMessage, t, upstreamID]);
-
-  React.useEffect(() => {
-    if (!open || !upstreamID) return;
-    requestSeqRef.current += 1;
-    setRows([]);
-    setTotal(0);
-    setLoadedUpstreamID(null);
-    setSelected(new Set());
-    setQuery("");
-    setListParams({ ...DEFAULT_ROUTE_LIST_PARAMS, upstreamID });
-    return () => {
-      requestSeqRef.current += 1;
-    };
-  }, [open, upstreamID]);
-
-  React.useEffect(() => {
-    if (!open || !upstreamID || listParams.upstreamID !== upstreamID) {
-      return;
-    }
-    void loadBindings(listParams);
-  }, [listParams, loadBindings, open, upstreamID]);
-
-  React.useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const nextQuery = query.trim();
-      setListParams((prev) => {
-        if (!open || !upstreamID || prev.upstreamID !== upstreamID) {
-          return prev;
-        }
-        if (prev.query === nextQuery && prev.page === 1) {
-          return prev;
-        }
-        return { ...prev, query: nextQuery, page: 1 };
-      });
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [open, query, upstreamID]);
 
   React.useEffect(() => {
     if (!open || !stableUpstream || !openRemoteOnOpen) return;
@@ -1404,10 +1258,6 @@ export function UpstreamModelsDialog({
     upstreamStatusFilter !== "all" ||
     protocolFilter !== "";
 
-  const updateListParams = React.useCallback((patch: Partial<RouteListParams>) => {
-    setListParams((prev) => ({ ...prev, ...patch, page: patch.page ?? 1 }));
-  }, []);
-
   const selectableRows = React.useMemo(
     () => visibleRows.filter((row) => routeIDsForRow(row).length > 0),
     [visibleRows],
@@ -1436,236 +1286,11 @@ export function UpstreamModelsDialog({
       else next.delete(draftKey);
       return next;
     });
-  }, []);
-
-  const handleTestRoute = React.useCallback(
-    async (row: RowDraft, routeID: number) => {
-      if (!upstreamID || routeID <= 0 || row.upstreamModelStatus === "inactive" || stableUpstream?.status === "inactive") return;
-      setProbeTargetName(`${row.platformModelNameDraft || row.platformModelName} / ${row.upstreamModelName}`);
-      setProbeResults([]);
-      setProbeOpen(true);
-      setProbeLoading(true);
-      try {
-        const token = await resolveAccessToken();
-        if (!token) {
-          toast.error(modelT("toast.sessionExpired"), { description: modelT("toast.signInAgain") });
-          setProbeOpen(false);
-          return;
-        }
-        setProbeResults([await testAdminLLMUpstreamModelRoute(token, upstreamID, routeID)]);
-      } catch (error) {
-        toast.error(t("toast.operationFailed"), { description: resolveErrorMessage(error) });
-        setProbeOpen(false);
-      } finally {
-        setProbeLoading(false);
-      }
-    },
-    [modelT, resolveErrorMessage, stableUpstream?.status, t, upstreamID],
-  );
-
-  const handleDeleteProbeRoute = React.useCallback(
-    async (result: AdminLLMModelProbeResult) => {
-      if (!stableUpstream) {
-        return;
-      }
-      try {
-        const token = await resolveAccessToken();
-        await deleteAdminLLMUpstreamModel(token, result.upstreamID, result.routeID);
-        const nextResults = probeResults.filter((item) => item.routeID !== result.routeID);
-        setRows((prev) => removeRouteIDFromRows(prev, result.routeID));
-        setProbeResults(nextResults);
-        if (nextResults.length === 0) {
-          setProbeOpen(false);
-        }
-        setSelected((prev) => {
-          const next = new Set(prev);
-          rows.forEach((row) => {
-            if (routeIDsForRow(row).includes(result.routeID)) {
-              next.delete(row.draftKey);
-            }
-          });
-          return next;
-        });
-        toast.success(modelT("toast.sourceDeleted"));
-        void loadBindings();
-        onUpstreamUpdated({ ...stableUpstream });
-      } catch (error) {
-        toast.error(modelT("toast.sourceDeleteFailed"), { description: resolveErrorMessage(error) });
-        throw error;
-      }
-    },
-    [loadBindings, modelT, onUpstreamUpdated, probeResults, resolveErrorMessage, rows, stableUpstream],
-  );
-
-  const updateRow = React.useCallback((
-    draftKey: string,
-    patch: RowDraftPatch,
-  ) => {
-    setRows((prev) =>
-      prev.map((r) =>
-        r.draftKey === draftKey
-          ? {
-              ...r,
-              ...patch,
-              isDirty: true,
-              routeStatusOverridden: r.routeStatusOverridden || patch.routeStatus !== undefined,
-            }
-          : r,
-      ),
-    );
-  }, []);
-
-  const applyBulkPatch = React.useCallback((patch: RowDraftPatch) => {
-    if (selected.size === 0) return;
-    setRows((prev) =>
-      prev.map((row) => {
-        if (routeIDsForRow(row).length === 0 || !selected.has(row.draftKey)) return row;
-        // 上游已下架的模型路由开关不可操作，批量修改路由状态时同样跳过，避免暗中改写被禁用的开关。
-        const { routeStatus: _routeStatus, ...rest } = patch;
-        const rowPatch: RowDraftPatch = row.upstreamModelStatus === "inactive" ? rest : patch;
-        if (Object.keys(rowPatch).length === 0) return row;
-        return {
-          ...row,
-          ...rowPatch,
-          isDirty: true,
-          routeStatusOverridden: row.routeStatusOverridden || rowPatch.routeStatus !== undefined,
-        };
-      }),
-    );
-  }, [selected]);
+  }, [setSelected]);
 
   async function handleDeleteSelected() {
-    if (!stableUpstream || selected.size === 0) return;
-    const routeIDs = rows
-      .filter((row) => selected.has(row.draftKey))
-      .flatMap(routeIDsForRow);
-    if (routeIDs.length === 0) return;
-    setDeleting(true);
-    try {
-      const token = await resolveAccessToken();
-      const result = mergeBatchResultData(await runBulkActionInChunks({
-        items: routeIDs,
-        title: t("modelsDialog.batchDeleteTitle"),
-        runChunk: (ids) => batchDeleteAdminLLMUpstreamModels(token, stableUpstream.id, { ids }),
-      }));
-      const deletedIDs = new Set(
-        result.results
-          .filter((item) => item.status === "deleted" || item.status === "not_found")
-          .map((item) => item.id),
-      );
-      setRows((prev) =>
-        prev.filter((row) => routeIDsForRow(row).some((routeID) => !deletedIDs.has(routeID))),
-      );
-      setSelected(new Set());
-      if (result.failedCount > 0) {
-        toast.error(t("modelsDialog.batchDeletePartialFailed"), {
-          description: summarizeBatchDeleteResult(result, {
-            batchDeleteSummary: (successCount, notFoundCount, failedCount) =>
-              t("modelsDialog.batchDeleteSummary", { successCount, notFoundCount, failedCount }),
-          }),
-        });
-      } else {
-        toast.success(t("modelsDialog.batchDeleteDone"), {
-          description: summarizeBatchDeleteResult(result, {
-            batchDeleteSummary: (successCount, notFoundCount, failedCount) =>
-              t("modelsDialog.batchDeleteSummary", { successCount, notFoundCount, failedCount }),
-          }),
-        });
-      }
-      void loadBindings();
-      onUpstreamUpdated({ ...stableUpstream });
-    } catch (err) {
-      toast.error(t("toast.deleteFailed"), { description: resolveErrorMessage(err) });
-    } finally {
-      setDeleting(false);
+    if (await deleteSelected()) {
       setDeleteConfirmOpen(false);
-    }
-  }
-
-  async function handleSave() {
-    if (!stableUpstream) return;
-    const dirty = rows.filter((r) => r.isDirty);
-    if (dirty.length === 0) {
-      toast.info(t("modelsDialog.noPendingChanges"));
-      return;
-    }
-    const validationError = validateRowDrafts(rows, {
-      upstreamModelRequired: t("modelsDialog.upstreamModelRequired"),
-      activeRouteRequiresPlatformModel: t("modelsDialog.activeRouteRequiresPlatformModel"),
-      duplicateBinding: (upstreamModelName, platformModelName) =>
-        t("modelsDialog.duplicateBinding", { upstreamModelName, platformModelName }),
-    });
-    if (validationError) {
-      toast.error(validationError);
-      return;
-    }
-    setSaving(true);
-    try {
-      const token = await resolveAccessToken();
-      const deleteOperations: Array<() => Promise<unknown>> = [];
-      const upsertOperations: Array<() => Promise<unknown>> = [];
-      let savedCount = 0;
-      let deletedCount = 0;
-
-      for (const row of dirty) {
-        const platformModelName = row.platformModelNameDraft.trim();
-        const existingRouteIDs = routeIDsForRow(row);
-        const shouldDeleteRoute =
-          existingRouteIDs.length > 0 &&
-          row.routeStatus === "inactive" &&
-          platformModelName.length === 0;
-
-        if (shouldDeleteRoute) {
-          for (const routeID of existingRouteIDs) {
-            deleteOperations.push(() => deleteAdminLLMUpstreamModel(token, stableUpstream.id, routeID));
-            deletedCount += 1;
-          }
-          continue;
-        }
-        if (!platformModelName) {
-          continue;
-        }
-
-        const basePayload: Omit<UpsertAdminLLMUpstreamModelRequest, "protocols"> = {
-          platformModelName,
-          upstreamModelName: row.upstreamModelName.trim(),
-          kindsJSON: displayToKindsJson(row.kindsDisplay),
-          ...(row.routeStatusOverridden ? { status: row.routeStatus || "active" } : {}),
-        };
-        const desiredProtocols = selectedProtocolsForSave(row);
-        upsertOperations.push(() =>
-          upsertAdminLLMUpstreamModel(token, stableUpstream.id, {
-            ...basePayload,
-            routeIDs: existingRouteIDs,
-            protocols: desiredProtocols,
-          }),
-        );
-        savedCount += 1;
-      }
-
-      if (deleteOperations.length === 0 && upsertOperations.length === 0) {
-        toast.info(t("modelsDialog.noSavableChanges"));
-        await loadBindings();
-        return;
-      }
-
-      await runOperationsInOrder(upsertOperations);
-      await runOperationsInOrder(deleteOperations);
-      if (savedCount > 0 && deletedCount > 0) {
-        toast.success(t("modelsDialog.savedAndDeleted", { savedCount, deletedCount }));
-      } else if (deletedCount > 0) {
-        toast.success(t("modelsDialog.deletedBindings", { deletedCount }), {
-          description: t("modelsDialog.deleteBindingDescription"),
-        });
-      } else {
-        toast.success(t("modelsDialog.savedChanges", { savedCount }));
-      }
-      await loadBindings();
-      onUpstreamUpdated({ ...stableUpstream });
-    } catch (err) {
-      toast.error(t("toast.updateFailed"), { description: resolveErrorMessage(err) });
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -1709,7 +1334,10 @@ export function UpstreamModelsDialog({
                     key: "route-status",
                     label: t("modelsDialog.routeStatus"),
                     value: routeStatusFilter === "bound" ? "" : routeStatusFilter,
-                    onValueChange: (value) => updateListParams({ routeStatusFilter: (value || "bound") as RouteStatusFilter }),
+                    onValueChange: (value) => {
+                      const routeStatusFilter = value || "bound";
+                      if (isRouteStatusFilter(routeStatusFilter)) updateListParams({ routeStatusFilter });
+                    },
                     options: [
                       { label: t("modelsDialog.allRoutes"), value: "" },
                       { label: t("status.active"), value: "active" },
@@ -1720,7 +1348,10 @@ export function UpstreamModelsDialog({
                     key: "upstream-status",
                     label: t("modelsDialog.upstreamStatus"),
                     value: upstreamStatusFilter === "all" ? "" : upstreamStatusFilter,
-                    onValueChange: (value) => updateListParams({ upstreamStatusFilter: (value || "all") as UpstreamStatusFilter }),
+                    onValueChange: (value) => {
+                      const upstreamStatusFilter = value || "all";
+                      if (isUpstreamStatusFilter(upstreamStatusFilter)) updateListParams({ upstreamStatusFilter });
+                    },
                     options: [
                       { label: t("modelsDialog.allUpstreams"), value: "" },
                       { label: t("modelsDialog.upstreamActive"), value: "active" },
@@ -1740,7 +1371,9 @@ export function UpstreamModelsDialog({
                 ]}
                 sort={{
                   value: sortValue,
-                  onValueChange: (value) => updateListParams({ sortValue: value as RouteSortValue }),
+                  onValueChange: (value) => {
+                    if (isRouteSortValue(value)) updateListParams({ sortValue: value });
+                  },
                   options: [
                     { label: t("modelsDialog.sort.upstreamAsc"), value: "upstream_asc" },
                     { label: t("modelsDialog.sort.upstreamDesc"), value: "upstream_desc" },
@@ -1761,7 +1394,7 @@ export function UpstreamModelsDialog({
                       <Select
                         value={bulkRouteStatus}
                         onValueChange={(value) => {
-                          setBulkRouteStatus(value as "active" | "inactive");
+                          if (isAdminLLMStatus(value)) setBulkRouteStatus(value);
                         }}
                         disabled={selectedCount === 0}
                       >

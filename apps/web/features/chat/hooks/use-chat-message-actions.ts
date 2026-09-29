@@ -13,7 +13,7 @@ import type { PendingAttachment } from "@/features/chat/types/chat-runtime";
 import type { ChatAreaMessage, UserMessageEditMode } from "@/features/chat/types/messages";
 import { resolveErrorMessage } from "@/features/chat/utils/chat-runtime";
 import { deleteConversationMessage, forkConversationFromMessage, updateMessage } from "@/shared/api/conversation";
-import type { ConversationDTO, MessageDTO } from "@/shared/api/conversation.types";
+import type { ConversationDTO, MessageDTO } from "@/shared/api/conversation-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 
 export type SubmitChatMessageInput = {
@@ -31,8 +31,8 @@ function buildContinueGenerationPrompt(t: ReturnType<typeof useTranslations>): s
 }
 
 /**
- * 消息级动作：重试用户/助手消息、继续被中断的生成、编辑用户/助手消息、
- * 从消息 fork 新会话、在同级分支间切换。
+ * Message-level actions: retry user/assistant messages, continue interrupted generations, edit user/assistant messages,
+ * fork a new conversation from a message, and switch between sibling branches.
  */
 export function useChatMessageActions({
   submitMessage,
@@ -211,7 +211,7 @@ export function useChatMessageActions({
       }
       try {
         await deleteConversationMessage(token, conversationPublicID, messagePublicID);
-        // splice 会让后续消息向前衔接、分支选择自动收敛，全量刷新即可。
+        // splice reconnects subsequent messages and branch selection converges on its own, so a full refresh suffices.
         reload();
       } catch (error) {
         toast.error(t("deleteMessageFailed"), {

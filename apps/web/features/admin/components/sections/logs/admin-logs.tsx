@@ -44,43 +44,41 @@ import type {
   AdminPaymentOrderDTO,
   AdminUsageLogDTO,
   AdminUserAuthEventDTO,
-} from "@/features/admin/api/admin.types";
-import { type AdminLogCleanupType } from "@/features/admin/api/audit";
-import { AdminDateRangeFilter } from "@/features/admin/components/admin-date-range-filter";
-import { AdminDateTimePicker } from "@/features/admin/components/admin-date-time-picker";
-import { LogDetailSheet } from "@/features/admin/components/sections/logs/admin-log-detail-sheet";
-import { ModerationEventTable } from "@/features/admin/components/sections/logs/admin-moderation-events";
-import { RedemptionRecordTable } from "@/features/admin/components/sections/logs/admin-redemption-records";
+} from "@/features/admin/api/admin-types";
+import type { AdminLogCleanupType } from "@/features/admin/api/audit";
+import { isAdminLogCleanupType } from "@/features/admin/model/admin-unions";
+import { AdminDateRangeFilter } from "@/features/admin/components/shared/date-range-filter";
+import { AdminDateTimePicker } from "@/features/admin/components/shared/date-time-picker";
+import { LogDetailSheet } from "@/features/admin/components/sections/logs/logs-detail-sheet";
+import { ModerationEventTable } from "@/features/admin/components/sections/logs/logs-moderation-events";
+import { RedemptionRecordTable } from "@/features/admin/components/sections/logs/logs-redemption-records";
 import {
   UsageLogCostCell,
   UsageLogModelCell,
   UsageLogModelFilter,
   UsageLogUsageCell,
   useUsageBillingLabels,
-} from "@/features/admin/components/sections/logs/admin-usage-log-cells";
+} from "@/features/admin/components/sections/logs/logs-usage-cells";
 import {
   AUDIT_LOG_SORT_OPTIONS,
-  type AuditLogSortValue,
   CONVERSATION_EVENT_SORT_OPTIONS,
-  type ConversationEventSortValue,
+  isAuditLogSortValue,
+  isConversationEventSortValue,
+  isPaymentOrderSortValue,
+  isSecurityLogSortValue,
+  isUsageLogSortValue,
   PAYMENT_ORDER_SORT_OPTIONS,
-  type PaymentOrderSortValue,
   SECURITY_LOG_SORT_OPTIONS,
-  type SecurityLogSortValue,
   USAGE_LOG_SORT_OPTIONS,
-  type UsageLogSortValue,
-  useAdminConversationEvents,
+  useAdminLogsConversationEvents,
   useAdminLogs,
-  useAdminPaymentOrders,
-  useAdminSecurityLogs,
-  useAdminUsageLogs,
+  useAdminLogsPaymentOrders,
+  useAdminLogsSecurity,
+  useAdminLogsUsage,
 } from "@/features/admin/hooks/use-admin-logs";
-import {
-  cleanupDateToISOString,
-  useAdminBillingDisplayOptions,
-  useAdminLogCleanupDialog,
-  useAdminLogDetail,
-} from "@/features/admin/hooks/use-admin-logs-actions";
+import { useAdminBillingDisplayOptions } from "@/features/admin/hooks/use-admin-billing-display-options";
+import { cleanupDateToISOString, useAdminLogsCleanupDialog } from "@/features/admin/hooks/use-admin-logs-cleanup-dialog";
+import { useAdminLogsDetail } from "@/features/admin/hooks/use-admin-logs-detail";
 import {
   formatCount,
   formatDateTime,
@@ -90,7 +88,7 @@ import {
 import { formatUsageBalance } from "@/features/admin/model/usage-log-billing";
 import { cn } from "@/lib/utils";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
-import type { BillingDisplayOptions } from "@/shared/lib/billing-display";
+import type { BillingDisplayOptions } from "@/entities/billing";
 import type { Feature } from "@deeix/core";
 import { useCapabilities } from "@/shared/capabilities";
 
@@ -142,7 +140,9 @@ function AuditLogTable({ onOpenDetail }: { onOpenDetail: (item: AdminAuditLogDTO
         ]}
         sort={{
           value: logs.sortValue,
-          onValueChange: (value) => logs.setSortValue(value as AuditLogSortValue),
+          onValueChange: (value) => {
+            if (isAuditLogSortValue(value)) logs.setSortValue(value);
+          },
           options: AUDIT_LOG_SORT_OPTIONS.map((item) => ({ label: t(item.labelKey), value: item.value })),
         }}
         loading={logs.loading}
@@ -208,7 +208,7 @@ function AuditLogTable({ onOpenDetail }: { onOpenDetail: (item: AdminAuditLogDTO
 function AuthLogTable({ onOpenDetail }: { onOpenDetail: (item: AdminUserAuthEventDTO) => void }) {
   const locale = useLocale();
   const t = useTranslations("adminLogs");
-  const logs = useAdminSecurityLogs();
+  const logs = useAdminLogsSecurity();
   const virtualRows = useVirtualTableRows(logs.sortedEvents, {
     enabled: logs.sortedEvents.length > 100,
     estimateSize: 40,
@@ -251,7 +251,9 @@ function AuthLogTable({ onOpenDetail }: { onOpenDetail: (item: AdminUserAuthEven
         ]}
         sort={{
           value: logs.sortValue,
-          onValueChange: (value) => logs.setSortValue(value as SecurityLogSortValue),
+          onValueChange: (value) => {
+            if (isSecurityLogSortValue(value)) logs.setSortValue(value);
+          },
           options: SECURITY_LOG_SORT_OPTIONS.map((item) => ({ label: t(item.labelKey), value: item.value })),
         }}
         loading={logs.loading}
@@ -326,7 +328,7 @@ function UsageLogTable({
   const locale = useLocale();
   const t = useTranslations("adminLogs");
   const usageLabels = useUsageBillingLabels();
-  const logs = useAdminUsageLogs();
+  const logs = useAdminLogsUsage();
   const virtualRows = useVirtualTableRows(logs.logs, {
     enabled: logs.logs.length > 100,
     estimateSize: 40,
@@ -383,7 +385,9 @@ function UsageLogTable({
         ]}
         sort={{
           value: logs.sortValue,
-          onValueChange: (value) => logs.setSortValue(value as UsageLogSortValue),
+          onValueChange: (value) => {
+            if (isUsageLogSortValue(value)) logs.setSortValue(value);
+          },
           options: USAGE_LOG_SORT_OPTIONS.map((item) => ({ label: t(item.labelKey), value: item.value })),
         }}
         loading={logs.loading}
@@ -453,7 +457,7 @@ function UsageLogTable({
 function PaymentOrderTable({ onOpenDetail }: { onOpenDetail: (item: AdminPaymentOrderDTO) => void }) {
   const locale = useLocale();
   const t = useTranslations("adminLogs");
-  const logs = useAdminPaymentOrders();
+  const logs = useAdminLogsPaymentOrders();
   const virtualRows = useVirtualTableRows(logs.orders, {
     enabled: logs.orders.length > 100,
     estimateSize: 40,
@@ -542,7 +546,9 @@ function PaymentOrderTable({ onOpenDetail }: { onOpenDetail: (item: AdminPayment
         ]}
         sort={{
           value: logs.sortValue,
-          onValueChange: (value) => logs.setSortValue(value as PaymentOrderSortValue),
+          onValueChange: (value) => {
+            if (isPaymentOrderSortValue(value)) logs.setSortValue(value);
+          },
           options: PAYMENT_ORDER_SORT_OPTIONS.map((item) => ({ label: t(item.labelKey), value: item.value })),
         }}
         loading={logs.loading}
@@ -607,7 +613,7 @@ function ConversationEventTable({ onOpenDetail }: { onOpenDetail: (item: AdminCo
   const locale = useLocale();
   const t = useTranslations("adminLogs");
   const _commonT = useTranslations("common.actions");
-  const logs = useAdminConversationEvents();
+  const logs = useAdminLogsConversationEvents();
   const virtualRows = useVirtualTableRows(logs.events, {
     enabled: logs.events.length > 100,
     estimateSize: 40,
@@ -692,7 +698,9 @@ function ConversationEventTable({ onOpenDetail }: { onOpenDetail: (item: AdminCo
         ]}
         sort={{
           value: logs.sortValue,
-          onValueChange: (value) => logs.setSortValue(value as ConversationEventSortValue),
+          onValueChange: (value) => {
+            if (isConversationEventSortValue(value)) logs.setSortValue(value);
+          },
           options: CONVERSATION_EVENT_SORT_OPTIONS.map((item) => ({ label: t(item.labelKey), value: item.value })),
         }}
         loading={logs.loading}
@@ -810,7 +818,7 @@ function LogCleanupDialog({
 }) {
   const t = useTranslations("adminLogs.cleanup");
   const commonT = useTranslations("common.actions");
-  const { logType, setLogType, date, setDate, pending, handleOpenChange, submit } = useAdminLogCleanupDialog({
+  const { logType, setLogType, date, setDate, pending, handleOpenChange, submit } = useAdminLogsCleanupDialog({
     onOpenChange,
     onSuccess,
   });
@@ -830,7 +838,9 @@ function LogCleanupDialog({
             <Select
               value={logType}
               disabled={pending}
-              onValueChange={(value) => setLogType(value as AdminLogCleanupType)}
+              onValueChange={(value) => {
+                if (isAdminLogCleanupType(value)) setLogType(value);
+              }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue />
@@ -906,13 +916,13 @@ export function AdminLogsPage() {
   );
   const [initialTab] = React.useState<LogTabID>(() => {
     const tabParam = searchParams.get("tab") ?? "";
-    return visibleTabs.some((tab) => tab.id === tabParam) ? (tabParam as LogTabID) : "audit";
+    return visibleTabs.find((tab) => tab.id === tabParam)?.id ?? "audit";
   });
   const [initialRedemptionCodeID] = React.useState(() => {
     const parsed = Number.parseInt(searchParams.get("code_id") ?? "", 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
   });
-  const { detail, setDetail, conversationDetailLoading, openConversationDetail, closeDetail } = useAdminLogDetail();
+  const { detail, setDetail, conversationDetailLoading, openConversationDetail, closeDetail } = useAdminLogsDetail();
   const [cleanupOpen, setCleanupOpen] = React.useState(false);
   const billingDisplay = useAdminBillingDisplayOptions();
   // Bumping a type's revision remounts its table after a cleanup.

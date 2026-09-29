@@ -5,8 +5,8 @@ import (
 	"time"
 )
 
-// ProviderAuthTransaction is the short-lived server-side state for an OAuth
-// provider authorization started by a public client.
+// ProviderAuthTransaction 是由公共客户端发起的 OAuth provider 授权
+// 在服务端保存的短期状态。
 type ProviderAuthTransaction struct {
 	ProviderSlug         string `json:"providerSlug"`
 	ClientID             string `json:"clientID"`
@@ -21,8 +21,8 @@ type ProviderAuthTransaction struct {
 	ExpiresAt time.Time `json:"expiresAt"`
 }
 
-// ProviderAuthGrant is the one-time handoff from the server callback to the
-// public client. Sensitive provider codes and tokens never leave the server.
+// ProviderAuthGrant 是服务端完成 provider 回调后交给公共客户端的一次性交接凭证。
+// 敏感的 provider code 与 token 永远不会离开服务端。
 type ProviderAuthGrant struct {
 	ProviderSlug string `json:"providerSlug"`
 	ClientID     string `json:"clientID"`
@@ -45,8 +45,8 @@ type ProviderAuthGrantProfile struct {
 	ProfileJSON   string `json:"profileJSON"`
 }
 
-// ProviderAuthBridgeRepository stores and atomically consumes the short-lived
-// transaction and grant records used by the provider auth bridge.
+// ProviderAuthBridgeRepository 存储并原子地消费 provider auth bridge
+// 使用的短期事务与授权记录。
 type ProviderAuthBridgeRepository interface {
 	PutProviderAuthTransaction(ctx context.Context, id string, item ProviderAuthTransaction, ttl time.Duration) error
 	ConsumeProviderAuthTransaction(ctx context.Context, id string) (*ProviderAuthTransaction, error)

@@ -62,8 +62,8 @@ func (h *Handler) SetConversationExporter(exporter conversationExporter) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Param q query string false "搜索用户名、昵称、邮箱或公开ID"
 // @Param subscription_status query string false "订阅状态过滤(active/free)"
 // @Param identity_provider query string false "身份源 slug 过滤"
@@ -319,8 +319,8 @@ func (h *Handler) PatchUser(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Param query query string false "搜索关键词"
 // @Param resource query string false "资源类型"
 // @Param action query string false "动作"
@@ -430,8 +430,8 @@ func (h *Handler) CleanupLogs(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Param query query string false "搜索模型、上游、绑定编码、协议"
 // @Param platform_model_name query string false "平台模型名筛选"
 // @Param billing_mode query string false "计费模式筛选：free/token/call/duration/tiered"
@@ -609,8 +609,8 @@ func (h *Handler) GetUsageStatistics(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Param query query string false "搜索订单号、支付渠道、外部支付ID"
 // @Param order_type query string false "订单类型(subscription/topup)"
 // @Param provider query string false "支付渠道"
@@ -671,8 +671,8 @@ func (h *Handler) ListPaymentOrders(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Param query query string false "搜索兑换流水号、兑换码摘要、兑换码备注"
 // @Param code_id query int false "兑换码ID"
 // @Param user_id query int false "用户ID"
@@ -735,8 +735,8 @@ func (h *Handler) ListRedemptions(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Param query query string false "搜索运行ID、事件、阶段、标题、工具名"
 // @Param event_scope query string false "事件范围(trace_block/trace_event/tool_call)"
 // @Param event_type query string false "事件类型"
@@ -1039,6 +1039,20 @@ func (h *Handler) ResetUserPassword(c *gin.Context) {
 	response.Success(c, ResetUserPasswordResponse{Reset: true})
 }
 
+// ResetUserTwoFactor godoc
+// @Summary 管理员重置用户双因素认证
+// @Description 管理员清除指定用户的 TOTP 与恢复码并吊销其全部会话；不允许重置超级管理员
+// @Tags admin
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "用户ID"
+// @Success 200 {object} ResetUserTwoFactorResponseDoc
+// @Failure 400 {object} ErrorDoc
+// @Failure 403 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 409 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Router /admin/users/{id}/reset-2fa [post]
 func (h *Handler) ResetUserTwoFactor(c *gin.Context) {
 	actorUserID := middleware.MustUserID(c)
 	rawID := c.Param("id")
@@ -1139,8 +1153,8 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 // @Param user_id query int false "用户ID过滤"
 // @Param event_type query string false "事件类型过滤"
 // @Param result query string false "结果过滤(success/failure/blocked)"
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Success 200 {object} UserAuthEventListResponseDoc
 // @Failure 400 {object} ErrorDoc
 // @Failure 500 {object} ErrorDoc

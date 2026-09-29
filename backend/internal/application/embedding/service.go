@@ -17,23 +17,10 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	portembedding "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/embedding"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/embeddingutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/tokenestimate"
 	"go.uber.org/zap"
-)
-
-var (
-	ErrEmbeddingServiceNotConfigured = apperr.NewMasked("embedding.service_not_configured", "embedding service is not configured", "embedding service not configured")
-	ErrEmbeddingServiceUnavailable   = errors.New("embedding service unavailable")
-	ErrEmbeddingQueueUnavailable     = errors.New("embedding queue unavailable")
-	ErrTooManyTargetedFiles          = errors.New("too many files for targeted embedding")
-	errNoExtractableText             = errors.New("no extractable text in file")
-	errEmptyChunks                   = errors.New("embedding produced no chunks")
-	errImageTooLarge                 = errors.New("image exceeds embedding size limit after resize")
-	errImageFormatUnsupported        = errors.New("image format is not supported for embedding")
-	errEmbeddingConfigurationChanged = errors.New("embedding configuration changed")
 )
 
 const (
@@ -51,8 +38,8 @@ const (
 	embeddingModalityMessage      = "当前向量化协议不支持该输入类型。"
 )
 
-// ErrorSummary returns a bounded, user-visible description without exposing
-// provider responses, URLs, credentials, or internal storage details.
+// ErrorSummary 返回长度有限、用户可见的描述，不暴露
+// 提供方响应、URL、凭据或内部存储细节。
 func ErrorSummary(err error) string {
 	if err == nil {
 		return ""
@@ -668,9 +655,9 @@ func (s *Service) completeFileEmbedding(ctx context.Context, fileObj domainconve
 	if err != nil || !current {
 		return err
 	}
-	// The second check closes the window where configuration changes between
-	// the first check and publishing the ready state. A later change observes
-	// a ready file and is handled by the normal global invalidation path.
+	// 第二次检查用于封闭首次检查与发布就绪状态之间
+	// 配置发生变化的窗口。之后的变更会观察到
+	// 已就绪文件，并由常规的全局失效路径处理。
 	if !s.embeddingConfigurationCurrent(expectedSignature, expectedHost) {
 		_, err = s.repo.UpdateFileObjectEmbedStatus(ctx, fileObj.UserID, fileObj.FileID, expectedSignature, "stale", configurationChanged)
 		return err
@@ -898,8 +885,8 @@ func ComputeModelSignature(model string, outputDimensions int) string {
 	return embeddingutil.ModelSignature(model, outputDimensions)
 }
 
-// ComputeSpaceSignature derives a new opaque vector-space identifier when an
-// administrator changes the model, output dimensions, or provider endpoint.
+// ComputeSpaceSignature 在管理员修改模型、输出维度或提供方端点时，
+// 派生新的不透明向量空间标识。
 func ComputeSpaceSignature(model string, outputDimensions int, endpoint string) string {
 	return embeddingutil.SpaceSignature(model, outputDimensions, endpoint)
 }

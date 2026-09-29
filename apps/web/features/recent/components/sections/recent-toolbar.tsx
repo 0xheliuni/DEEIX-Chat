@@ -18,14 +18,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ConversationProjectMenuItems } from "@/shared/components/conversation-project-submenu";
+import { ConversationProjectMenuItems } from "@/entities/conversation";
 import { cn } from "@/lib/utils";
 import type {
   ConversationShareFilter,
   ConversationProjectDTO,
   ConversationStarredFilter,
   ConversationStatusFilter,
-} from "@/shared/api/conversation.types";
+} from "@/shared/api/conversation-types";
 import { FeatureGate } from "@/shared/capabilities";
 
 type RecentToolbarProps = {

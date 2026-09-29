@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	uicomponenthttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/uicomponent"
 	"github.com/gin-gonic/gin"
 )
 
@@ -74,10 +75,10 @@ func TestFrontendStaticFallbackServesExportedPage(t *testing.T) {
 func TestFrontendStaticRevalidatesNextExportData(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, "setting"), 0o755); err != nil {
-		t.Fatalf("create setting dir: %v", err)
+	if err := os.MkdirAll(filepath.Join(root, "settings"), 0o755); err != nil {
+		t.Fatalf("create settings dir: %v", err)
 	}
-	for _, name := range []string{"__next._tree.txt", filepath.Join("setting", "general.txt")} {
+	for _, name := range []string{"__next._tree.txt", filepath.Join("settings", "general.txt")} {
 		if err := os.WriteFile(filepath.Join(root, name), []byte("rsc"), 0o644); err != nil {
 			t.Fatalf("write %s: %v", name, err)
 		}
@@ -86,7 +87,7 @@ func TestFrontendStaticRevalidatesNextExportData(t *testing.T) {
 	engine := gin.New()
 	registerFrontendStatic(engine, root, nil)
 
-	for _, requestPath := range []string{"/__next._tree.txt?_rsc=abc", "/setting/general.txt?_rsc=abc"} {
+	for _, requestPath := range []string{"/__next._tree.txt?_rsc=abc", "/settings/general.txt?_rsc=abc"} {
 		recorder := httptest.NewRecorder()
 		engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, requestPath, nil))
 		if recorder.Code != http.StatusOK {
@@ -167,6 +168,33 @@ func TestSwaggerEnabledByEnvironment(t *testing.T) {
 	for _, tt := range tests {
 		if got := swaggerEnabled(tt.env); got != tt.want {
 			t.Fatalf("swaggerEnabled(%q) = %v, want %v", tt.env, got, tt.want)
+		}
+	}
+}
+
+func TestAdminRoutesRegisteredWhenUIComponentIsOnlyAdminModule(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	modules := Modules{UIComponent: uicomponenthttp.NewModule(uicomponenthttp.NewHandler(nil))}
+	engine, err := NewEngine(config.NewRuntime(config.Config{AppName: "test", JWTSecret: "test-jwt-secret-value"}), nil, modules, nil, nil)
+	if err != nil {
+		t.Fatalf("create engine: %v", err)
+	}
+
+	want := map[string]bool{
+		http.MethodGet + " /api/v1/admin/ui-components":        false,
+		http.MethodPost + " /api/v1/admin/ui-components":       false,
+		http.MethodPatch + " /api/v1/admin/ui-components/:id":  false,
+		http.MethodDelete + " /api/v1/admin/ui-components/:id": false,
+	}
+	for _, route := range engine.Routes() {
+		key := route.Method + " " + route.Path
+		if _, ok := want[key]; ok {
+			want[key] = true
+		}
+	}
+	for key, registered := range want {
+		if !registered {
+			t.Fatalf("expected admin route %s to be registered", key)
 		}
 	}
 }

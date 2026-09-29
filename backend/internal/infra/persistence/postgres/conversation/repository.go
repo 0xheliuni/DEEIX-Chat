@@ -12,7 +12,7 @@ import (
 	domainknowledgebase "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/knowledgebase"
 	domainuser "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/user"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
-	models "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/sqlitevec"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/vectorutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
@@ -857,7 +857,7 @@ func (r *Repo) UpdateConversationStatefulResponse(ctx context.Context, conversat
 		Error)
 }
 
-// UpdateConversationModel 更新会话当前使用模型与提供商。
+// UpdateConversationModel 更新会话当前使用模型与提供方。
 func (r *Repo) UpdateConversationModel(ctx context.Context, conversationID uint, platformModelName string, provider string) error {
 	return dberror.Translate(r.db.WithContext(ctx).
 		Model(&models.Conversation{}).
@@ -1919,7 +1919,7 @@ func (r *Repo) ListConversationMessageTraceEventsByMessageIDs(ctx context.Contex
 	return toConversationMessageTraceEventDomains(items), nil
 }
 
-// CreateConversationToolCalls 批量写入工具调用日志。
+// CreateConversationToolCall 写入单条工具调用日志，并回填 ID 与时间戳。
 func (r *Repo) CreateConversationToolCall(ctx context.Context, item *domainconversation.ToolCall) error {
 	if item == nil {
 		return nil
@@ -1934,6 +1934,7 @@ func (r *Repo) CreateConversationToolCall(ctx context.Context, item *domainconve
 	return nil
 }
 
+// CreateConversationToolCalls 批量写入工具调用日志。
 func (r *Repo) CreateConversationToolCalls(ctx context.Context, items []domainconversation.ToolCall) error {
 	if len(items) == 0 {
 		return nil
@@ -3271,9 +3272,9 @@ func (r *Repo) searchSQLiteFileChunks(ctx context.Context, userID uint, fileObjI
 	if len(uniqueFileObjIDs) == 0 {
 		return nil, nil
 	}
-	// sqlite-vec applies k before the outer JOIN predicates. Resolve the allowed
-	// file IDs first so unauthorized nearest neighbours cannot displace valid
-	// candidates from the virtual-table result window.
+	// sqlite-vec 会在外层 JOIN 谓词之前应用 k。因此先解析允许的
+	// 文件 ID，避免无权访问的近邻挤占虚拟表结果窗口中的
+	// 有效候选。
 	authorizedFileObjIDs := make([]uint, 0, len(uniqueFileObjIDs))
 	if err := r.db.WithContext(ctx).Table("file_chunks").
 		Distinct("file_chunks.file_obj_id").

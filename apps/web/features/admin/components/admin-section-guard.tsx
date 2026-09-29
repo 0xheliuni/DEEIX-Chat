@@ -11,5 +11,5 @@ const fallbackHref = ADMIN_SECTIONS.find((item) => item.id === DEFAULT_ADMIN_SEC
 export function AdminSectionGuard({ basePath, children }: { basePath: string; children: React.ReactNode }) {
   const pathname = usePathname();
   const blocked = useSectionGuard(resolveAdminSectionFromPath(pathname, basePath), `${basePath}${fallbackHref}`);
-  return blocked ? null : <>{children}</>;
+  return blocked ? null : children;
 }

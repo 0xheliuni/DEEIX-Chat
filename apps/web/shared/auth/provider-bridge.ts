@@ -2,6 +2,7 @@
 
 import { startProviderAuthBridge, startProviderBindBridge } from "@/shared/api/auth";
 import { isDesktopApp } from "@/shared/platform";
+import { isRecord } from "@/shared/lib/type-guards";
 import {
   openInSystemBrowser,
   resolveOAuthClientId,
@@ -20,6 +21,33 @@ export type ProviderBridgeRequest = {
   next: string;
 };
 
+// The verifier is needed until the grant exchange, which can happen as late as the end of the
+// backend transaction window (providerAuthTransactionTTL, 10m: the provider may call back at its
+// very end) plus the grant window that callback opens (providerAuthGrantTTL, 90s), both in
+// backend/internal/application/auth/provider_bridge.go. The 30s margin absorbs clock skew and
+// redirect latency; past that the server has forgotten both and the stored verifier is useless.
+const PROVIDER_BRIDGE_REQUEST_TTL_MS = 10 * 60 * 1000 + 90 * 1000 + 30 * 1000;
+
+type StoredProviderBridgeRequest = {
+  verifier: string;
+  state: string;
+  intent?: string;
+  next?: string;
+  expiresAt: number;
+};
+
+function isStoredProviderBridgeRequest(value: unknown): value is StoredProviderBridgeRequest {
+  if (!isRecord(value)) return false;
+  const record = value;
+  return (
+    typeof record.verifier === "string" &&
+    typeof record.state === "string" &&
+    typeof record.expiresAt === "number" &&
+    (record.intent === undefined || typeof record.intent === "string") &&
+    (record.next === undefined || typeof record.next === "string")
+  );
+}
+
 export function providerBridgeStorageKey(slug: string): string {
   return `deeix-chat:oauth:${slug}:bridge`;
 }
@@ -28,7 +56,11 @@ export function readProviderBridgeRequest(slug: string): ProviderBridgeRequest |
   try {
     const raw = window.sessionStorage.getItem(providerBridgeStorageKey(slug));
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as { verifier?: string; state?: string; intent?: string; next?: string };
+    const parsed: unknown = JSON.parse(raw);
+    if (!isStoredProviderBridgeRequest(parsed) || parsed.expiresAt <= Date.now()) {
+      clearProviderBridgeRequest(slug);
+      return null;
+    }
     if (!parsed.verifier || !parsed.state) return null;
     return {
       verifier: parsed.verifier,
@@ -91,7 +123,13 @@ export async function beginProviderAuthorization(
     : `${window.location.origin}/auth/callback?provider=${encodeURIComponent(input.slug)}`;
   window.sessionStorage.setItem(
     providerBridgeStorageKey(input.slug),
-    JSON.stringify({ verifier: pkce.verifier, state: clientState, intent: input.intent, next: input.next } satisfies ProviderBridgeRequest),
+    JSON.stringify({
+      verifier: pkce.verifier,
+      state: clientState,
+      intent: input.intent,
+      next: input.next,
+      expiresAt: Date.now() + PROVIDER_BRIDGE_REQUEST_TTL_MS,
+    } satisfies StoredProviderBridgeRequest),
   );
 
   const startInput = {

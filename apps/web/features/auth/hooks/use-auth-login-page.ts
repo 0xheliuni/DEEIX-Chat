@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { completeEmailRegistration, completePasswordReset, getLoginOptions, getLoginPageSettings, isAccountLockedError, login, startEmailRegistration, startPasswordReset, startTwoFactorEmailVerification, verifyTwoFactorLogin } from "@/shared/api/auth";
-import type { LoginData, LoginOptionsData, LoginPageSettings, SecurityVerificationMethod } from "@/shared/api/auth.types";
+import type { LoginData, LoginOptionsData, LoginPageSettings, SecurityVerificationMethod } from "@/shared/api/auth-types";
 import { resolveApiBaseURL } from "@/shared/api/http-client";
 import { isPasswordPolicyValid } from "@/shared/auth/account-policy";
 import { normalizeAuthNextPath } from "@/shared/auth/local-path";
@@ -20,38 +20,22 @@ import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import {
   DEFAULT_LOGIN_OPTIONS,
   DEFAULT_LOGIN_SETTINGS,
+  clearTwoFactorChallenge,
   isTwoFactorChallengeExpired,
   normalizeRegisterCode,
   normalizeTwoFactorInput,
-  TWO_FACTOR_CHALLENGE_STORAGE_KEY,
-  TWO_FACTOR_METHODS_STORAGE_KEY,
+  readTwoFactorChallenge,
   type LoginMode,
   type ProviderAuthIntent,
 } from "@/features/auth/model/login-page";
 
-type UseLoginPageInput = {
+type UseAuthLoginPageInput = {
   nextPath: string;
 };
 
 const VERIFICATION_CODE_RESEND_COOLDOWN_MS = 60_000;
 
-function parseSecurityVerificationMethods(value: string | null): SecurityVerificationMethod[] {
-  if (!value) {
-    return ["two_factor"];
-  }
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    if (!Array.isArray(parsed)) {
-      return ["two_factor"];
-    }
-    const methods = parsed.filter((item): item is SecurityVerificationMethod => item === "two_factor" || item === "email");
-    return methods.length > 0 ? methods : ["two_factor"];
-  } catch {
-    return ["two_factor"];
-  }
-}
-
-export function useLoginPage({ nextPath }: UseLoginPageInput) {
+export function useAuthLoginPage({ nextPath }: UseAuthLoginPageInput) {
   const router = useRouter();
   const t = useTranslations("login");
   const resolveErrorMessage = useLocalizedErrorMessage();
@@ -131,15 +115,11 @@ export function useLoginPage({ nextPath }: UseLoginPageInput) {
   }, [resolvedNextPath, router]);
 
   React.useEffect(() => {
-    const challenge = window.sessionStorage.getItem(TWO_FACTOR_CHALLENGE_STORAGE_KEY);
+    const challenge = readTwoFactorChallenge();
     if (challenge) {
-      window.sessionStorage.removeItem(TWO_FACTOR_CHALLENGE_STORAGE_KEY);
-      const rawMethods = window.sessionStorage.getItem(TWO_FACTOR_METHODS_STORAGE_KEY);
-      window.sessionStorage.removeItem(TWO_FACTOR_METHODS_STORAGE_KEY);
-      const parsedMethods = parseSecurityVerificationMethods(rawMethods);
-      setTwoFactorChallengeToken(challenge);
-      setTwoFactorVerificationMethods(parsedMethods);
-      setTwoFactorVerificationMethod(parsedMethods[0] ?? "two_factor");
+      setTwoFactorChallengeToken(challenge.token);
+      setTwoFactorVerificationMethods(challenge.methods);
+      setTwoFactorVerificationMethod(challenge.methods[0] ?? "two_factor");
       setMode("login");
     }
   }, []);
@@ -179,6 +159,7 @@ export function useLoginPage({ nextPath }: UseLoginPageInput) {
     (result: LoginData) => {
       // completeNativeSignIn writes the session snapshot and, on desktop, the
       // keychain copy of the rotating refresh token.
+      clearTwoFactorChallenge();
       void completeNativeSignIn(result);
       router.replace(resolvedNextPath);
     },
@@ -214,6 +195,8 @@ export function useLoginPage({ nextPath }: UseLoginPageInput) {
           : await login(submittedUsername, submittedPassword);
         if (result.twoFactorRequired) {
           const methods: SecurityVerificationMethod[] = result.verificationMethods?.length ? result.verificationMethods : ["two_factor"];
+          // A fresh challenge supersedes any stored provider-login challenge.
+          clearTwoFactorChallenge();
           setTwoFactorChallengeToken(result.twoFactorChallengeToken ?? "");
           setTwoFactorVerificationMethods(methods);
           setTwoFactorVerificationMethod(methods[0] ?? "two_factor");
@@ -229,6 +212,7 @@ export function useLoginPage({ nextPath }: UseLoginPageInput) {
         completeAuth(result);
       } catch (error) {
         if (isTwoFactorChallengeExpired(error)) {
+          clearTwoFactorChallenge();
           setTwoFactorChallengeToken("");
           setTwoFactorVerificationMethods(["two_factor"]);
           setTwoFactorVerificationMethod("two_factor");
@@ -420,6 +404,7 @@ export function useLoginPage({ nextPath }: UseLoginPageInput) {
   }, []);
 
   const cancelTwoFactorChallenge = React.useCallback(() => {
+    clearTwoFactorChallenge();
     setTwoFactorChallengeToken("");
     setTwoFactorVerificationMethods(["two_factor"]);
     setTwoFactorVerificationMethod("two_factor");
