@@ -295,7 +295,7 @@ export function mergeColumnType(previousType: ColumnType, nextType: ColumnType):
 }
 
 function isASCIIIdentifierLike(value: string): boolean {
-  const asciiCharacters = Array.from(value).filter((character) => character.codePointAt(0)! <= 0x7f).length;
+  const asciiCharacters = Array.from(value).filter((character) => (character.codePointAt(0) ?? 0) <= 0x7f).length;
   return asciiCharacters / Math.max(Array.from(value).length, 1) >= 0.8;
 }
 

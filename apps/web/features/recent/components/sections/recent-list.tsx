@@ -103,7 +103,6 @@ function RecentConversationRow({
   onManageLabels,
   onArchive,
   onShare,
-  onRevokeShare,
   onSetProject,
   onExport,
   onDelete,
@@ -124,7 +123,6 @@ function RecentConversationRow({
   onManageLabels: (item: ConversationDTO) => void;
   onArchive: (publicID: string, archived: boolean) => void;
   onShare: (item: ConversationDTO) => void;
-  onRevokeShare: (publicID: string) => void | Promise<void>;
   onSetProject: (publicID: string, projectID?: string) => void | Promise<void>;
   onExport: (item: ConversationDTO) => void | Promise<void>;
   onDelete: (item: ConversationDTO) => void;
@@ -361,7 +359,6 @@ type RecentListProps = {
   onManageLabels: (item: ConversationDTO) => void;
   onArchive: (publicID: string, archived: boolean) => void;
   onShare: (item: ConversationDTO) => void;
-  onRevokeShare: (publicID: string) => void | Promise<void>;
   onSetProject: (publicID: string, projectID?: string) => void | Promise<void>;
   onExport: (item: ConversationDTO) => void | Promise<void>;
   onDelete: (item: ConversationDTO) => void;
@@ -450,7 +447,6 @@ export function RecentList({
   onManageLabels,
   onArchive,
   onShare,
-  onRevokeShare,
   onSetProject,
   onExport,
   onDelete,
@@ -529,7 +525,6 @@ export function RecentList({
                     onManageLabels={onManageLabels}
                     onArchive={onArchive}
                     onShare={onShare}
-                    onRevokeShare={onRevokeShare}
                     onSetProject={onSetProject}
                     onExport={onExport}
                     onDelete={onDelete}

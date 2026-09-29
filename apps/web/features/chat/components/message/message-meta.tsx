@@ -489,7 +489,8 @@ function TokenMetric({ label, value, icon }: { label: string; value: number; ico
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="inline-flex items-center gap-0.5" aria-label={label}>
+        <span className="inline-flex items-center gap-0.5">
+          <span className="sr-only">{label}</span>
           {icon}
           {value.toLocaleString()}
         </span>
@@ -517,8 +518,8 @@ function LatencyBadge({ item }: { item: ChatMetaMessage }) {
       <TooltipTrigger asChild>
         <span
           className="ml-0.5 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] leading-3.5 font-mono text-muted-foreground/70 bg-muted/30 select-none whitespace-nowrap"
-          aria-label={isLive ? t("generationDuration") : t("totalDuration")}
         >
+          <span className="sr-only">{isLive ? t("generationDuration") : t("totalDuration")}</span>
           {isLive ? (
             <ClockArrowUp className="size-3" strokeWidth={1.4} />
           ) : (
@@ -542,10 +543,10 @@ function EditedBadge({ messageRole = "assistant" }: { messageRole?: "user" | "as
       <TooltipTrigger asChild>
         <span
           className="ml-0.5 inline-flex items-center gap-1 rounded bg-muted/30 px-1.5 py-0.5 text-[10px] leading-3.5 text-muted-foreground/70 select-none whitespace-nowrap"
-          aria-label={tooltip}
         >
           <FilePenLine className="size-3" strokeWidth={1.4} />
           {label}
+          <span className="sr-only">{tooltip}</span>
         </span>
       </TooltipTrigger>
       <TooltipContent className="max-w-64">{tooltip}</TooltipContent>
@@ -565,8 +566,8 @@ function ModelBadge({ label }: { label: string }) {
       <TooltipTrigger asChild>
         <span
           className="ml-0.5 inline-flex max-w-48 items-center gap-1 rounded bg-muted/30 px-1.5 py-0.5 font-mono text-[10px] leading-3.5 text-muted-foreground/70 select-none whitespace-nowrap"
-          aria-label={t("model")}
         >
+          <span className="sr-only">{t("model")}</span>
           <Cpu className="size-3 shrink-0" strokeWidth={1.4} />
           <span className="truncate">{normalized}</span>
         </span>
@@ -866,9 +867,9 @@ function BillingCostBadge({ item, billingDisplay }: { item: ChatMetaMessage; bil
       <TooltipTrigger asChild>
         <span
           tabIndex={0}
-          aria-label={t("billingCost")}
           className="ml-0.5 inline-flex cursor-default items-center gap-1 rounded bg-muted/30 px-1.5 py-0.5 font-mono text-[10px] leading-3.5 text-muted-foreground/70 select-none whitespace-nowrap outline-none focus-visible:bg-muted/50 focus-visible:ring-0"
         >
+          <span className="sr-only">{t("billingCost")}</span>
           {freeModel ? (
             <TicketSlash className="size-3" strokeWidth={1.4} />
           ) : (

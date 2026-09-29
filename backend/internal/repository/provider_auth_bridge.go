@@ -21,7 +21,7 @@ type ProviderAuthTransaction struct {
 	ExpiresAt time.Time `json:"expiresAt"`
 }
 
-// ProviderAuthGrant 是从服务端回调到公共客户端的一次性交接凭证。
+// ProviderAuthGrant 是服务端完成 provider 回调后交给公共客户端的一次性交接凭证。
 // 敏感的 provider code 与 token 永远不会离开服务端。
 type ProviderAuthGrant struct {
 	ProviderSlug string `json:"providerSlug"`

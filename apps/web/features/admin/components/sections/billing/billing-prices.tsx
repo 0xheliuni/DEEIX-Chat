@@ -883,6 +883,7 @@ export function BillingPricesSection({ models, pricingItems, setPricingItems, lo
                                       <TooltipTrigger asChild>
                                         <span
                                           className="inline-flex text-amber-700 dark:text-amber-300"
+                                          role="img"
                                           aria-label={t("modelPricing.officialPricingIgnored")}
                                         >
                                           <Info className="size-3.5" strokeWidth={1.5} />

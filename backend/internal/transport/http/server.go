@@ -75,6 +75,22 @@ type Modules struct {
 	Shutdown *lifecycle.Shutdown
 }
 
+// hasAdminRoutes 报告是否存在需要注册到 /admin 路由组的模块；新增管理端模块时须同步更新此处。
+func (m Modules) hasAdminRoutes() bool {
+	return m.Admin != nil ||
+		m.Auth != nil ||
+		m.Billing != nil ||
+		m.Channel != nil ||
+		m.MCP != nil ||
+		m.Settings != nil ||
+		m.Announcement != nil ||
+		m.PromptPreset != nil ||
+		m.Skill != nil ||
+		m.UIComponent != nil ||
+		m.KnowledgeBase != nil ||
+		m.ContentModeration != nil
+}
+
 // NewEngine 创建并注册 API 路由。
 func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthChecker, limiter middleware.RateLimiter) (*gin.Engine, error) {
 	snapshot := cfg.Snapshot()
@@ -202,7 +218,7 @@ func NewEngine(cfg *config.Runtime, log *zap.Logger, modules Modules, hc HealthC
 	if modules.User != nil {
 		modules.User.RegisterRoutes(authRequired)
 	}
-	if modules.Admin != nil || modules.Auth != nil || modules.Billing != nil || modules.Channel != nil || modules.MCP != nil || modules.Settings != nil || modules.Announcement != nil || modules.PromptPreset != nil || modules.Skill != nil || modules.KnowledgeBase != nil || modules.ContentModeration != nil {
+	if modules.hasAdminRoutes() {
 		adminGroup := authRequired.Group("/admin")
 		adminGroup.Use(middleware.AdminOnly())
 		if modules.Auth != nil {

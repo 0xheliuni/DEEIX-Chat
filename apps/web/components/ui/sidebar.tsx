@@ -203,6 +203,7 @@ function SidebarProvider({
       }
 
       // This sets the cookie to keep the sidebar state.
+      // biome-ignore lint/suspicious/noDocumentCookie: shadcn sidebar persistence; the Cookie Store API is missing in the supported WebKit (Safari <= 15.6).
       document.cookie = `sidebar_state=${openState}; path=/; max-age=${60 * 60 * 24 * 7}`
       try {
         window.localStorage.setItem(SIDEBAR_STORAGE_KEY, openState ? "true" : "false")

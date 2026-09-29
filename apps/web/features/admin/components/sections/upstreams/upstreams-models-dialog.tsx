@@ -407,6 +407,7 @@ const ModelRow = React.memo(function ModelRow({ row, isSelected, upstreamInactiv
               <TooltipTrigger asChild>
                 <span
                   className="inline-flex shrink-0 items-center text-muted-foreground/70"
+                  role="img"
                   aria-label={t("modelsDialog.upstreamModelInactive")}
                 >
                   <CircleOff className="size-3 stroke-[1.5]" />

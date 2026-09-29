@@ -26,6 +26,8 @@ export const DEFAULT_LOGIN_OPTIONS: LoginOptionsData = {
 };
 
 const TWO_FACTOR_CHALLENGE_STORAGE_KEY = "deeix-chat:2fa:challenge";
+// Written by older builds next to a plain-token challenge entry.
+const LEGACY_TWO_FACTOR_METHODS_STORAGE_KEY = "deeix-chat:2fa:methods";
 // Matches the backend two-factor challenge TTL (twoFactorChallengeTTL); an older
 // token would only be rejected on submit, so it is dropped on read instead.
 const TWO_FACTOR_CHALLENGE_TTL_MS = 5 * 60 * 1000;
@@ -55,7 +57,11 @@ function isStoredTwoFactorChallenge(value: unknown): value is StoredTwoFactorCha
 }
 
 // Hands a provider-login 2FA challenge from the callback page to the login page.
-export function writeTwoFactorChallenge(token: string, methods: readonly SecurityVerificationMethod[] | undefined): void {
+// Returns false when the challenge could not be stored (e.g. sessionStorage is unavailable).
+export function writeTwoFactorChallenge(token: string, methods: readonly SecurityVerificationMethod[] | undefined): boolean {
+  if (!token) {
+    return false;
+  }
   const stored: StoredTwoFactorChallenge = {
     token,
     methods: normalizeVerificationMethods(methods),
@@ -63,26 +69,45 @@ export function writeTwoFactorChallenge(token: string, methods: readonly Securit
   };
   try {
     window.sessionStorage.setItem(TWO_FACTOR_CHALLENGE_STORAGE_KEY, JSON.stringify(stored));
+    return true;
   } catch {
-    // sessionStorage may be unavailable; the user simply signs in again.
+    return false;
   }
 }
 
-// Reads and removes the pending challenge. Malformed or expired entries count as absent.
-export function takeTwoFactorChallenge(): TwoFactorChallenge | null {
+// Reads the pending challenge without consuming it, so a refresh during 2FA keeps the prompt;
+// the login page clears it on success, cancel or expiry, and the TTL bounds it otherwise.
+// Malformed, expired and legacy entries (a plain token string plus a separate methods key) are
+// removed and count as absent.
+export function readTwoFactorChallenge(): TwoFactorChallenge | null {
   try {
+    window.sessionStorage.removeItem(LEGACY_TWO_FACTOR_METHODS_STORAGE_KEY);
     const raw = window.sessionStorage.getItem(TWO_FACTOR_CHALLENGE_STORAGE_KEY);
-    window.sessionStorage.removeItem(TWO_FACTOR_CHALLENGE_STORAGE_KEY);
     if (!raw) {
       return null;
     }
-    const parsed: unknown = JSON.parse(raw);
+    let parsed: unknown = null;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      // Legacy plain-token entry; it carries no expiry, so it is not trusted.
+    }
     if (!isStoredTwoFactorChallenge(parsed) || !parsed.token || parsed.expiresAt <= Date.now()) {
+      window.sessionStorage.removeItem(TWO_FACTOR_CHALLENGE_STORAGE_KEY);
       return null;
     }
     return { token: parsed.token, methods: normalizeVerificationMethods(parsed.methods) };
   } catch {
     return null;
+  }
+}
+
+export function clearTwoFactorChallenge(): void {
+  try {
+    window.sessionStorage.removeItem(TWO_FACTOR_CHALLENGE_STORAGE_KEY);
+    window.sessionStorage.removeItem(LEGACY_TWO_FACTOR_METHODS_STORAGE_KEY);
+  } catch {
+    // sessionStorage may be unavailable; nothing was stored then.
   }
 }
 

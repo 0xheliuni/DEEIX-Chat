@@ -26,7 +26,11 @@ import (
 // @Success 200 {string} string "NDJSON stream"
 // @Failure 400 {object} ErrorDoc
 // @Failure 401 {object} ErrorDoc
+// @Failure 402 {object} ErrorDoc
+// @Failure 403 {object} ErrorDoc
 // @Failure 404 {object} ErrorDoc
+// @Failure 409 {object} ErrorDoc
+// @Failure 429 {object} ErrorDoc
 // @Failure 500 {object} ErrorDoc
 // @Failure 503 {object} ErrorDoc
 // @Router /conversations/{id}/media/images/generations/stream [post]
@@ -46,7 +50,11 @@ func (h *Handler) StreamImageGeneration(c *gin.Context) {
 // @Success 200 {string} string "NDJSON stream"
 // @Failure 400 {object} ErrorDoc
 // @Failure 401 {object} ErrorDoc
+// @Failure 402 {object} ErrorDoc
+// @Failure 403 {object} ErrorDoc
 // @Failure 404 {object} ErrorDoc
+// @Failure 409 {object} ErrorDoc
+// @Failure 429 {object} ErrorDoc
 // @Failure 500 {object} ErrorDoc
 // @Failure 503 {object} ErrorDoc
 // @Router /conversations/{id}/media/images/edits/stream [post]
@@ -66,7 +74,11 @@ func (h *Handler) StreamImageEdit(c *gin.Context) {
 // @Success 200 {string} string "NDJSON stream"
 // @Failure 400 {object} ErrorDoc
 // @Failure 401 {object} ErrorDoc
+// @Failure 402 {object} ErrorDoc
+// @Failure 403 {object} ErrorDoc
 // @Failure 404 {object} ErrorDoc
+// @Failure 409 {object} ErrorDoc
+// @Failure 429 {object} ErrorDoc
 // @Failure 500 {object} ErrorDoc
 // @Failure 503 {object} ErrorDoc
 // @Router /conversations/{id}/media/videos/generations/stream [post]
@@ -76,16 +88,23 @@ func (h *Handler) StreamVideoGeneration(c *gin.Context) {
 
 // StreamVideoExtension 处理会话内视频扩展流式状态接口。
 // @Summary 扩展会话视频
+// @Description 在会话中基于来源视频按提示词扩展视频，并以 NDJSON 流式返回任务状态事件
 // @Tags chat
 // @Accept json
 // @Produce application/x-ndjson
 // @Security BearerAuth
-// @Param id path string true "会话 Public ID"
-// @Param payload body MediaVideoExtensionRequest true "视频扩展请求"
+// @Param id path string true "会话 public_id"
+// @Param body body MediaVideoExtensionRequest true "视频扩展参数"
 // @Success 200 {string} string "NDJSON stream"
-// @Failure 400 {object} response.Envelope
-// @Failure 401 {object} response.Envelope
-// @Failure 404 {object} response.Envelope
+// @Failure 400 {object} ErrorDoc
+// @Failure 401 {object} ErrorDoc
+// @Failure 402 {object} ErrorDoc
+// @Failure 403 {object} ErrorDoc
+// @Failure 404 {object} ErrorDoc
+// @Failure 409 {object} ErrorDoc
+// @Failure 429 {object} ErrorDoc
+// @Failure 500 {object} ErrorDoc
+// @Failure 503 {object} ErrorDoc
 // @Router /conversations/{id}/media/videos/extensions/stream [post]
 func (h *Handler) StreamVideoExtension(c *gin.Context) {
 	h.streamMediaVideo(c, appconversation.MediaVideoTaskExtension)

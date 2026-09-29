@@ -72,7 +72,8 @@ apps/web/
 
 - `app/` 只做路由挂载、布局和边界处理；`page.tsx` 是 Server Component 薄壳，不写 `"use client"`。
 - 业务代码放在 `features/<domain>`；被多个 feature 复用且带业务实体语义的内容放在 `entities/`；无业务语义的复用能力放在 `shared/`。
-- 一个 feature 只能通过另一个 feature 的 `index.ts`（`@/features/<x>`）引用它，不能深入其内部路径。
+- 一个 feature 只能通过另一个 feature 的 `index.ts`（`@/features/<x>`）引用它，不能深入其内部路径；副作用导入（`import "..."`）和相对路径（`../<other-feature>/...`）同样受检。
+- 文件名使用 kebab-case，除 `*.test.ts(x)`、`*.spec.ts(x)`、`*.config.ts` 外不带额外点号段。
 - `components/ui` 不引用 `features/` 或 `entities/`。
 
 ### Feature 文件组织

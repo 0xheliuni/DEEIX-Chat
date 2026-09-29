@@ -30,7 +30,6 @@ export function AppFiles() {
     fileInputRef,
     mobileView,
     files,
-    total,
     selectedFile,
     selectedFileID,
     quota,
@@ -113,7 +112,6 @@ export function AppFiles() {
         >
           <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col px-3 md:px-2", sidebarCollapsed && "md:px-0")}>
             <SidebarHeader
-              total={total}
               query={query}
               searchOpen={isSearchOpen}
               filterKeys={filterKeys}

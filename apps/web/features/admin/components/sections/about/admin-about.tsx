@@ -30,6 +30,7 @@ import {
 } from "@/features/admin/model/update-check";
 import { AboutSettingsContent } from "@/shared/components/about-settings-content";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
+import { fetchWithHeaderTimeout } from "@/shared/lib/fetch-timeout";
 import { cn } from "@/lib/utils";
 
 type GitHubRelease = {
@@ -37,7 +38,7 @@ type GitHubRelease = {
   html_url?: string;
 };
 
-// GitHub can be slow or unreachable (e.g. behind a firewall); give up rather than spin forever.
+// GitHub can be slow or unreachable (e.g. behind a firewall); give up if it does not start responding.
 const RELEASE_CHECK_TIMEOUT_MS = 10_000;
 
 function isGitHubRelease(value: unknown): value is GitHubRelease {
@@ -61,10 +62,10 @@ function AdminUpdateCheck() {
 
     setChecking(true);
     try {
-      const response = await fetch(LATEST_RELEASE_ENDPOINT, {
+      const response = await fetchWithHeaderTimeout(LATEST_RELEASE_ENDPOINT, {
         cache: "no-store",
         headers: { Accept: "application/vnd.github+json" },
-        signal: AbortSignal.timeout(RELEASE_CHECK_TIMEOUT_MS),
+        timeoutMs: RELEASE_CHECK_TIMEOUT_MS,
       });
 
       if (!response.ok) {

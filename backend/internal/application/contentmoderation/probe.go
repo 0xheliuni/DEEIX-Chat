@@ -72,7 +72,7 @@ func (s *Service) Probe(ctx context.Context, actorRole string) (*ProbeResponse, 
 		} else if resp == nil || len(resp.Results) == 0 || resp.Results[0].Categories == nil {
 			out.Image.Error = probeErrorMessage(ErrModerationInvalidResp)
 		} else {
-			// 官方 Omni 响应包含 category_applied_input_types；需要图片证明。
+			// 官方 Omni 响应包含 category_applied_input_types；要求其中出现 image，以证明图片确实参与了审核。
 			applied := resp.Results[0].CategoryAppliedInputTypes
 			foundImage := false
 			for _, types := range applied {

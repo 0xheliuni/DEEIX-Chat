@@ -729,12 +729,14 @@ function nativeToolProtocolSelectOptions(
 }
 
 function NativeToolProtocolsSelect({
+  id,
   value,
   options,
   invalid,
   placeholder,
   onChange,
 }: {
+  id?: string;
   value: string;
   options: { value: string; label: string }[];
   invalid?: boolean;
@@ -762,6 +764,7 @@ function NativeToolProtocolsSelect({
     <Popover>
       <PopoverTrigger asChild>
         <Button
+          id={id}
           type="button"
           variant="outline"
           size="sm"
@@ -1796,11 +1799,12 @@ export function ModelCapabilitiesQuickConfig({
                                 />
                                 {rowErrors.type ? <p className="truncate px-1 text-[10px] text-destructive">{rowErrors.type}</p> : null}
                               </label>
-                              <label className="min-w-0 space-y-1">
+                              <label className="min-w-0 space-y-1" htmlFor={`native-tool-protocols-${row.id}`}>
                                 <span className="block truncate px-1 text-[11px] text-muted-foreground">
                                   {t("sheet.capabilitiesQuick.nativeToolProtocols")} *
                                 </span>
                                 <NativeToolProtocolsSelect
+                                  id={`native-tool-protocols-${row.id}`}
                                   value={row.protocols}
                                   options={protocolOptions}
                                   invalid={Boolean(rowErrors.protocols)}

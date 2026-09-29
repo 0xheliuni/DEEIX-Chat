@@ -324,7 +324,7 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	authService.SetSubscriptionResolver(billingService)
 	var bootstrapSuperAdmin *auth.BootstrapSuperAdmin
 	if cfg.LocalMode {
-		// 本地模式：唯一用户无密码、无初始化引导，通过启动握手的一次性 grant 登录。
+		// 本地模式：唯一用户无密码、无初始化引导，通过启动握手拿到的一次性授权凭证登录。
 		if _, err = authService.EnsureLocalOwner(context.Background()); err != nil {
 			return nil, err
 		}
@@ -557,8 +557,7 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	return app, nil
 }
 
-// Run 启动 HTTP 服务并支持优雅停机。
-// IssueLocalGrant 生成本地模式的一次性登录 grant（仅本地模式）。
+// IssueLocalGrant 为本地模式生成一次性登录授权凭证；非本地模式返回错误。
 func (a *App) IssueLocalGrant() (string, error) {
 	if !a.cfg.LocalMode {
 		return "", errors.New("local grant is only available in local mode")
@@ -596,13 +595,13 @@ func (a *App) Run() error {
 	return a.Serve(listener)
 }
 
-// Serve 在已绑定的监听器上服务，直到收到终止信号；随后分阶段排空。
 // RequestShutdown 触发与 SIGTERM 相同的优雅排空流程，可安全重复调用；
 // 本地模式下桌面壳退出时使用。
 func (a *App) RequestShutdown() {
 	a.stopOnce.Do(func() { close(a.stopCh) })
 }
 
+// Serve 在已绑定的监听器上服务，直到收到终止信号；随后分阶段排空。
 func (a *App) Serve(listener net.Listener) error {
 	srv := &http.Server{
 		Handler:           a.engine,

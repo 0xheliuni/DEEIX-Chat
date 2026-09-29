@@ -15,6 +15,7 @@
     "invalidUrl": "Enter a full address including https:// or http://",
     "unexpectedStatus": "The server answered with status {status}",
     "networkError": "Could not reach the server",
+    "timeout": "The server did not respond within {seconds} seconds",
     "bootstrapFailed": "Could not connect to the configured server",
     "alreadyOpen": "That server is already open in another tab"
   }

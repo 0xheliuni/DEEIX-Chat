@@ -385,8 +385,8 @@ func (h *Handler) CancelMessageGeneration(c *gin.Context) {
 }
 
 // StreamActiveMessageGenerations godoc
-// @Summary Stream active conversation generations
-// @Description Sends an authoritative snapshot followed by live user-scoped run state events; the snapshot is re-sent periodically for client-side reconciliation
+// @Summary 订阅进行中的会话生成
+// @Description 先推送当前用户进行中运行的权威快照，再持续推送该用户范围内的运行状态事件；快照会定期重发，供客户端对账
 // @Tags chat
 // @Produce text/event-stream
 // @Security BearerAuth

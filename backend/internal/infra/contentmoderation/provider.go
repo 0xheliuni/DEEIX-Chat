@@ -370,8 +370,7 @@ func providerDeadline(timeout time.Duration) time.Time {
 }
 
 func mapHTTPStatus(status int) error {
-	// 切勿包含 provider 响应体：兼容服务可能回显
-	// 被审核内容或凭据，而该错误可能被持久化。
+	// 切勿包含提供方响应体：兼容服务可能回显被审核内容或凭据，而该错误可能被持久化。
 	if status == http.StatusTooManyRequests {
 		return fmt.Errorf("%w: status %d", cmport.ErrRateLimited, status)
 	}

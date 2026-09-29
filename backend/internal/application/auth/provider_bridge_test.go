@@ -163,7 +163,7 @@ func TestProviderAuthBridgeDesktopRedirectMustBeLoopbackWithPort(t *testing.T) {
 	for _, bad := range []string{
 		"https://127.0.0.1:49152/oauth/callback", // 回环地址必须使用纯 http
 		"http://127.0.0.1/oauth/callback",        // 必须指定临时端口
-		"http://127.0.0.1:49152/other",           // 固定路径
+		"http://127.0.0.1:49152/other",           // 路径必须固定为 /oauth/callback
 		"http://127.0.0.1:49152/oauth/callback?x=1",
 		"http://evil.example.com:49152/oauth/callback",
 		"http://127.0.0.1.evil.com:49152/oauth/callback",

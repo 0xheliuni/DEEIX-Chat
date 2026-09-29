@@ -33,7 +33,7 @@ func (r *Repo) ListSkills(ctx context.Context, filter repository.SkillListFilter
 		limit = pagination.MaxPageSize
 	}
 
-	items := make([]model.Skill, 0, limit)
+	items := make([]model.Skill, 0)
 	var total int64
 	query := r.db.WithContext(ctx).Model(&model.Skill{})
 	query = applySkillFilter(query, filter)

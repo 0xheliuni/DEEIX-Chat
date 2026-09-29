@@ -38,7 +38,11 @@ export function DesktopUpdateNotifier(): null {
           action: { label: tRef.current("relaunch"), onClick: () => void relaunchApp() },
         });
       } catch (error) {
-        toast.error(tRef.current("installFailed", { message: resolveErrorMessageRef.current(error) }), { id: TOAST_ID });
+        // Tauri commands reject with plain strings; surface that text instead of "unknown error".
+        const reason = typeof error === "string" && error.trim() ? error.trim() : undefined;
+        toast.error(tRef.current("installFailed", { message: resolveErrorMessageRef.current(error, reason) }), {
+          id: TOAST_ID,
+        });
       }
     };
 

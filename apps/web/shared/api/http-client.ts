@@ -97,9 +97,10 @@ export function registerFeatureDisabledListener(listener: () => void): void {
   featureDisabledListener = listener;
 }
 
-// Runtime API base URL source, registered by the platform layer (desktop reads
-// the user-chosen server from storage). Read on every request so a change takes
-// effect immediately; http-client itself stays free of storage concerns.
+// Runtime API base URL source, registered by the platform layer. On desktop the
+// server address is persisted by the Rust shell and read through shared/platform
+// (server-address.ts). Read on every request so a change takes effect immediately;
+// http-client itself stays free of platform concerns.
 let runtimeApiBaseURLResolver: (() => string) | null = null;
 
 export function registerRuntimeApiBaseURLResolver(resolver: () => string): void {

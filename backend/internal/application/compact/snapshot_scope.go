@@ -35,12 +35,9 @@ func SnapshotBoundaryIndex(messages []domainconversation.Message, snapshot *doma
 	return -1, false
 }
 
-// SnapshotBoundaryAncestorIndex 返回连续祖先路径中的
-// 快照边界索引。用于已加载路径起始于原始分支根
-// 或其之后、因而无法在本地重新计算完整覆盖前缀哈希的
-// 场景。父链接不可变，因此当前祖先路径中存在匹配的边界
-// 消息即可证明该快照属于此
-// 分支。
+// SnapshotBoundaryAncestorIndex 返回快照边界在连续祖先路径中的索引。
+// 适用于已加载路径起始于原始分支根或其之后、因而无法在本地重新计算完整覆盖前缀哈希的场景。
+// 父链接不可变，因此只要当前祖先路径中存在匹配的边界消息，即可证明该快照属于此分支。
 func SnapshotBoundaryAncestorIndex(messages []domainconversation.Message, snapshot *domainconversation.ContextSnapshot) (int, bool) {
 	if !SnapshotHasCoverage(snapshot) || len(messages) == 0 {
 		return -1, false

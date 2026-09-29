@@ -552,8 +552,7 @@ const ModelTableRow = React.memo(function ModelTableRow({
       </TableRow>
 
       {expanded ? (
-        <>
-          {inlineData?.loading ? (
+          inlineData?.loading ? (
             <TableRow tone="muted">
               <CollapsibleTableCell
                 colSpan={10}
@@ -739,8 +738,7 @@ const ModelTableRow = React.memo(function ModelTableRow({
                 {t("sources.empty")}
               </CollapsibleTableCell>
             </TableRow>
-          )}
-        </>
+          )
       ) : null}
     </React.Fragment>
   );

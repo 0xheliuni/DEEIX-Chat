@@ -907,6 +907,7 @@ export function BillingRedemptionSection({ plans, billingMode, loading }: Billin
                             <TooltipTrigger asChild>
                               <span
                                 tabIndex={0}
+                                role="img"
                                 aria-label={t("redemption.unavailable")}
                                 className="inline-flex size-4 items-center justify-center text-amber-600 outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-amber-400"
                               >

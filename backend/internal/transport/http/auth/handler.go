@@ -117,6 +117,7 @@ func (h *Handler) shouldUseSecureCookie(c *gin.Context) bool {
 // @Tags auth
 // @Produce json
 // @Success 200 {object} LoginOptionsResponseDoc
+// @Failure 429 {object} ErrorDoc
 // @Failure 500 {object} ErrorDoc
 // @Router /auth/login-options [get]
 func (h *Handler) LoginOptions(c *gin.Context) {
@@ -137,6 +138,7 @@ func (h *Handler) LoginOptions(c *gin.Context) {
 // @Param body body EmailRegistrationStartRequest true "邮箱注册验证码请求"
 // @Success 200 {object} EmailRegistrationStartResponseDoc
 // @Failure 400 {object} ErrorDoc
+// @Failure 429 {object} ErrorDoc
 // @Router /auth/register/email/start [post]
 func (h *Handler) StartEmailRegistration(c *gin.Context) {
 	var req EmailRegistrationStartRequest
@@ -168,6 +170,7 @@ func (h *Handler) StartEmailRegistration(c *gin.Context) {
 // @Param body body EmailRegistrationCompleteRequest true "邮箱注册完成请求"
 // @Success 200 {object} LoginResponseDoc
 // @Failure 400 {object} ErrorDoc
+// @Failure 429 {object} ErrorDoc
 // @Router /auth/register/email/complete [post]
 func (h *Handler) CompleteEmailRegistration(c *gin.Context) {
 	var req EmailRegistrationCompleteRequest
@@ -303,7 +306,7 @@ func (h *Handler) StartPasswordChangeVerification(c *gin.Context) {
 
 // ChangePassword godoc
 // @Summary 修改当前用户密码
-// @Description 校验当前密码及安全验证码后修改密码；成功后吊销会话并清除刷新令牌 Cookie
+// @Description 校验当前密码及安全验证码后修改密码；成功后吊销该用户全部会话并清除刷新令牌 Cookie
 // @Tags auth
 // @Accept json
 // @Produce json
@@ -705,14 +708,14 @@ func (h *Handler) StartProviderBindBridge(c *gin.Context) {
 }
 
 // ExchangeProviderBindBridgeGrant godoc
-// @Summary 兑换第三方身份绑定一次性授权码
-// @Description 使用客户端 PKCE verifier 兑换绑定授权码，将身份绑到当前登录用户
+// @Summary 兑换第三方身份绑定一次性授权凭证
+// @Description 使用客户端 PKCE verifier 兑换绑定用的一次性授权凭证，将身份绑到当前登录用户
 // @Tags auth
 // @Accept json
 // @Produce json
 // @Security BearerAuth
 // @Param slug path string true "身份源 slug"
-// @Param body body ProviderAuthBridgeExchangeRequest true "授权码兑换参数"
+// @Param body body ProviderAuthBridgeExchangeRequest true "一次性授权凭证兑换参数"
 // @Success 200 {object} UserIdentityResponseDoc
 // @Failure 400 {object} ErrorDoc
 // @Failure 401 {object} ErrorDoc
@@ -758,6 +761,7 @@ func (h *Handler) ExchangeProviderBindBridgeGrant(c *gin.Context) {
 // @Param body body ProviderAuthBridgeStartRequest true "授权桥参数"
 // @Success 200 {object} ProviderAuthBridgeStartResponseDoc
 // @Failure 400 {object} ErrorDoc
+// @Failure 429 {object} ErrorDoc
 // @Router /auth/providers/{slug}/authorize [post]
 func (h *Handler) StartProviderAuthBridge(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
@@ -786,7 +790,7 @@ func (h *Handler) StartProviderAuthBridge(c *gin.Context) {
 
 // ProviderCallback godoc
 // @Summary 第三方身份源授权回调
-// @Description 外部身份源完成授权后回调当前实例；校验 state 并签发一次性授权码后以 302 重定向回客户端 redirect_uri
+// @Description 外部身份源完成授权后回调当前实例；校验 state 并签发一次性授权凭证后以 302 重定向回客户端 redirect_uri
 // @Tags auth
 // @Produce json
 // @Param slug path string true "身份源 slug"
@@ -797,6 +801,7 @@ func (h *Handler) StartProviderAuthBridge(c *gin.Context) {
 // @Failure 400 {object} ErrorDoc
 // @Failure 404 {object} ErrorDoc
 // @Failure 423 {object} ErrorDoc
+// @Failure 429 {object} ErrorDoc
 // @Router /auth/providers/{slug}/callback [get]
 func (h *Handler) ProviderCallback(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
@@ -817,17 +822,18 @@ func (h *Handler) ProviderCallback(c *gin.Context) {
 }
 
 // ExchangeProviderAuthBridgeGrant godoc
-// @Summary 兑换第三方登录一次性授权码
-// @Description 使用客户端 PKCE verifier 原子兑换服务端回调签发的一次性授权码，并进入统一 2FA/会话流程
+// @Summary 兑换第三方登录一次性授权凭证
+// @Description 使用客户端 PKCE verifier 原子兑换服务端回调签发的一次性授权凭证，并进入统一 2FA/会话流程
 // @Tags auth
 // @Accept json
 // @Produce json
 // @Param slug path string true "身份源 slug"
-// @Param body body ProviderAuthBridgeExchangeRequest true "授权码兑换参数"
+// @Param body body ProviderAuthBridgeExchangeRequest true "一次性授权凭证兑换参数"
 // @Success 200 {object} LoginResponseDoc
 // @Failure 400 {object} ErrorDoc
 // @Failure 409 {object} ErrorDoc
 // @Failure 423 {object} ErrorDoc
+// @Failure 429 {object} ErrorDoc
 // @Router /auth/providers/{slug}/exchange [post]
 func (h *Handler) ExchangeProviderAuthBridgeGrant(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
@@ -941,6 +947,7 @@ func (h *Handler) Login(c *gin.Context) {
 // @Failure 400 {object} ErrorDoc
 // @Failure 401 {object} ErrorDoc
 // @Failure 423 {object} ErrorDoc
+// @Failure 429 {object} ErrorDoc
 // @Failure 500 {object} ErrorDoc
 // @ID twoFactorVerifyCreate
 // @Router /auth/2fa/verify [post]
@@ -988,6 +995,7 @@ func (h *Handler) VerifyTwoFactorLogin(c *gin.Context) {
 // @Success 200 {object} EmailVerificationStartResponseDoc
 // @Failure 400 {object} ErrorDoc
 // @Failure 401 {object} ErrorDoc
+// @Failure 429 {object} ErrorDoc
 // @ID twoFactorEmailStartCreate
 // @Router /auth/2fa/email/start [post]
 func (h *Handler) StartTwoFactorEmailVerification(c *gin.Context) {
@@ -1166,12 +1174,12 @@ func (h *Handler) DisableCurrentTwoFactor(c *gin.Context) {
 
 // RegenerateCurrentTwoFactorRecoveryCodes godoc
 // @Summary 重新生成双因素恢复码
-// @Description 校验 TOTP 验证码后作废旧恢复码并返回新的一次性恢复码
+// @Description 校验 TOTP 验证码或恢复码（恢复码校验通过即被消耗）后作废旧恢复码，并返回新的一次性恢复码
 // @Tags auth
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param body body TwoFactorCodeRequest true "TOTP 验证码"
+// @Param body body TwoFactorCodeRequest true "TOTP 验证码或恢复码"
 // @Success 200 {object} TwoFactorRecoveryCodesResponseDoc
 // @Failure 400 {object} ErrorDoc
 // @Failure 401 {object} ErrorDoc

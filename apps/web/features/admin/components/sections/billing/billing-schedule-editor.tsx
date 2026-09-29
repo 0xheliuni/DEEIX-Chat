@@ -74,7 +74,7 @@ export function BillingScheduleEditor({
           <p className="text-xs font-medium">{t("title")}</p>
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="inline-flex text-muted-foreground" aria-label={t("hint")}>
+              <span className="inline-flex text-muted-foreground" role="img" aria-label={t("hint")}>
                 <Info className="size-3.5" strokeWidth={1.5} />
               </span>
             </TooltipTrigger>

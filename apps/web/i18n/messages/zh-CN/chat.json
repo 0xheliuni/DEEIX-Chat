@@ -136,6 +136,7 @@
     "previewImage": "放大图片",
     "editImage": "编辑图片",
     "downloadImage": "下载图片",
+    "downloadImageFailed": "图片下载失败",
     "scrollableTable": "可横向滚动的数据表格",
     "scrollableTableHint": "横向滚动可查看更多列。",
     "table": {

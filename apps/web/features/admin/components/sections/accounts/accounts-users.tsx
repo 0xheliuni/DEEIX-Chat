@@ -509,7 +509,6 @@ export function AccountsUsers({
     items,
     total,
     page,
-    pageSize,
     query,
     setQuery,
     viewerRole: viewer?.role,

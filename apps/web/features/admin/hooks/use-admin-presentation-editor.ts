@@ -134,7 +134,7 @@ export function useAdminPresentationEditor({
 
   const toggleEditorModel = React.useCallback((modelID: number, checked: boolean) => {
     setEditor((current) => {
-      if (!current || current.kind !== "groups") {
+      if (current?.kind !== "groups") {
         return current;
       }
       const selected = new Set(current.modelIDs);

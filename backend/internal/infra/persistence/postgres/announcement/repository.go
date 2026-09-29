@@ -77,7 +77,7 @@ func (r *Repo) ListAdminAnnouncements(ctx context.Context, filter repository.Ann
 	if limit > pagination.MaxPageSize {
 		limit = pagination.MaxPageSize
 	}
-	items := make([]model.Announcement, 0, limit)
+	items := make([]model.Announcement, 0)
 	var total int64
 	query := r.db.WithContext(ctx).Model(&model.Announcement{})
 	if status := strings.TrimSpace(filter.Status); status != "" {

@@ -3,6 +3,7 @@
 import { CornerUpLeft, Download, Eye, Maximize2, WandSparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -457,6 +458,15 @@ function ExternalLinkSafetyDialog({ isOpen, onClose, onConfirm, url }: ExternalL
   );
 }
 
+function isHTTPURL(url: string): boolean {
+  try {
+    const { protocol } = new URL(url, window.location.origin);
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function openExternalURL(url: string) {
   window.open(url, "_blank", "noreferrer");
 }
@@ -740,9 +750,15 @@ export function MarkdownImage({ alt, className, onError, onLoad, src: srcProp, .
     try {
       await downloadMarkdownImageSource(src, resolveMarkdownImageDownloadName(src, alt));
     } catch {
-      openExternalURL(resolvedSrc);
+      // Protected API URLs need the bearer token, so opening them in a new tab would only 401.
+      if (!protectedSrc && isHTTPURL(resolvedSrc)) {
+        // Public hosts often block cross-origin fetches; let the browser download it directly.
+        openExternalURL(resolvedSrc);
+        return;
+      }
+      toast.error(t("downloadImageFailed"));
     }
-  }, [alt, resolvedSrc, src]);
+  }, [alt, protectedSrc, resolvedSrc, src, t]);
 
   const canUseImageActions = !insideLink && !failed && Boolean(displaySrc);
   const canEditImage = Boolean(src && imageActions?.onEditImage && (imageActions.canEditImage?.(src) ?? true));

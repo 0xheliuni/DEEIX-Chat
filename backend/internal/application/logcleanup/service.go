@@ -7,7 +7,6 @@ import (
 
 	appaudit "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/audit"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/apperr"
 )
 
 const (
@@ -17,12 +16,6 @@ const (
 	TypeOrders       = repository.LogCleanupTypeOrders
 	TypeConversation = repository.LogCleanupTypeConversation
 	TypeModeration   = repository.LogCleanupTypeModeration
-)
-
-var (
-	ErrInvalidType   = apperr.New("request.invalid_log_cleanup_type", "invalid log cleanup type")
-	ErrInvalidBefore = apperr.New("request.invalid_log_cleanup_before", "invalid log cleanup before")
-	ErrFutureBefore  = apperr.New("log_cleanup.before_in_future", "log cleanup before must not be in the future")
 )
 
 type auditWriter interface {

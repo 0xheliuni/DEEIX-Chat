@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"strings"
 	"time"
 
 	domaincm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/contentmoderation"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 )
 
 // StatsFilter 限定管理员统计查询范围。
@@ -95,17 +96,7 @@ func (s *Service) ListEvents(ctx context.Context, actorRole string, input EventL
 	if len(query) > 200 {
 		return nil, 0, ErrInvalidEventFilter
 	}
-	page := input.Page
-	if page < 1 {
-		page = 1
-	}
-	pageSize := input.PageSize
-	if pageSize < 1 {
-		pageSize = 20
-	}
-	if pageSize > 1000 {
-		pageSize = 1000
-	}
+	offset, limit := pagination.Offset(input.Page, input.PageSize)
 	return s.repo.ListEvents(ctx, domaincm.EventListFilter{
 		Query:     query,
 		Direction: direction,
@@ -116,8 +107,8 @@ func (s *Service) ListEvents(ctx context.Context, actorRole string, input EventL
 		RunID:     strings.TrimSpace(input.RunID),
 		From:      input.From,
 		To:        input.To,
-		Offset:    (page - 1) * pageSize,
-		Limit:     pageSize,
+		Offset:    offset,
+		Limit:     limit,
 	})
 }
 

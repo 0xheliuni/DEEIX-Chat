@@ -45,7 +45,7 @@ import type {
   AdminUsageLogDTO,
   AdminUserAuthEventDTO,
 } from "@/features/admin/api/admin-types";
-import { type AdminLogCleanupType } from "@/features/admin/api/audit";
+import type { AdminLogCleanupType } from "@/features/admin/api/audit";
 import { AdminDateRangeFilter } from "@/features/admin/components/admin-date-range-filter";
 import { AdminDateTimePicker } from "@/features/admin/components/admin-date-time-picker";
 import { LogDetailSheet } from "@/features/admin/components/sections/logs/admin-log-detail-sheet";

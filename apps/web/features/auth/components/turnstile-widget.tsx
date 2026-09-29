@@ -20,6 +20,7 @@ type TurnstileAPI = {
 };
 
 declare global {
+  // biome-ignore lint/style/useConsistentTypeDefinitions: augmenting the global Window requires interface declaration merging.
   interface Window {
     turnstile?: TurnstileAPI;
   }

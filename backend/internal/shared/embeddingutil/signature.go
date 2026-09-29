@@ -15,10 +15,9 @@ func ModelSignature(model string, outputDimensions int) string {
 	return hex.EncodeToString(sum[:4]) + "@" + strconv.Itoa(outputDimensions)
 }
 
-// SpaceSignature 标识包含 provider 端点在内的 embedding 向量空间。
+// SpaceSignature 标识包含提供方端点在内的 embedding 向量空间。
 // 端点会被规范化，使末尾斜杠不会产生不同的空间；
-// 同时切换 provider 时，也不会误用其他服务在相同模型名下
-// 生成的向量。
+// 同时切换提供方时，也不会误用其他服务在相同模型名下生成的向量。
 func SpaceSignature(model string, outputDimensions int, endpoint string) string {
 	normalizedEndpoint := strings.TrimRight(strings.TrimSpace(endpoint), "/")
 	raw := strings.TrimSpace(model) + "@" + strconv.Itoa(outputDimensions) + "@" + normalizedEndpoint

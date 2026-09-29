@@ -762,7 +762,6 @@ export function ChatModelPicker({
   }, [activeDesktopGroupKey]);
 
   return (
-    <>
       <div className="min-w-0 max-w-[min(320px,100%)] shrink">
         <Popover open={open} onOpenChange={handleOpenChange}>
           <PopoverTrigger asChild>
@@ -979,6 +978,5 @@ export function ChatModelPicker({
         </PopoverContent>
       </Popover>
       </div>
-    </>
   );
 }

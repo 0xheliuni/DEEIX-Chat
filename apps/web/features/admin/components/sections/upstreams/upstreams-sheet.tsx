@@ -107,7 +107,9 @@ const CODEX_COMPATIBLE_AFFINITY_HEADERS = [
 ] as const;
 
 const PROTOCOL_OPTIONS_BY_KIND: Record<(typeof PROTOCOL_DEFAULT_KINDS)[number], string[]> = {
-  // Display order: vendors OpenAI → Anthropic → Google → xAI → OpenRouter; within a vendor, Chat Completions → Responses → generation → editing.
+  // Display order (same as PROTOCOL_OPTIONS in features/admin/utils/llm-display.ts): vendors
+  // OpenAI → Anthropic → Google → xAI → OpenRouter; within a vendor, Chat Completions →
+  // Responses → image generation → image editing → video.
   chat: [
     "openai_chat_completions",
     "openai_responses",

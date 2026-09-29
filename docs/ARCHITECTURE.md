@@ -4,7 +4,7 @@
 
 ## 1. 仓库结构
 
-```
+```text
 DEEIX-Chat/
 ├── backend/                  Go 服务，唯一的业务真相（鉴权、授权、模型路由、文件、计费、审计）
 ├── apps/                     客户端应用，每个平台一个目录
@@ -13,7 +13,7 @@ DEEIX-Chat/
 │   └── mobile/               Expo / React Native（规划中）
 ├── packages/
 │   ├── api-contract/         后端 Swagger → TypeScript 类型，所有客户端的唯一 API 来源
-│   └── core/                 平台无关的客户端逻辑：鉴权状态机、服务器发现、流解析
+│   └── core/                 平台无关的客户端逻辑：鉴权状态机、服务器地址解析、能力声明解析
 ├── deploy/                   Docker 部署：compose 方案、配置模板、可选服务；可整体拷到服务器
 ├── scripts/sync-version.mjs  根目录 VERSION 驱动所有包与 Go 版本号
 ├── docs/
@@ -23,7 +23,7 @@ DEEIX-Chat/
 
 依赖方向只允许向下：
 
-```
+```text
 apps/*  →  packages/core  →  packages/api-contract  →  backend/docs/swagger.json
 ```
 
@@ -56,7 +56,7 @@ apps/*  →  packages/core  →  packages/api-contract  →  backend/docs/swagge
 
 ### 多标签页（桌面端）
 
-一个窗口、一条 40px 的标签栏 webview、每个标签页一个内容 webview。隔离单位是 **webview** 而不是前端状态：每个标签页都是一份完整的 Web 应用实例，有自己的 DOM、缓存、SSE 连接和内存里的会话，前端代码不需要知道"同时有多个服务器"这件事。约束：
+一个窗口、一条 40px 的标签栏 webview、每个标签页一个内容 webview。隔离单位是 **webview** 而不是前端状态：每个标签页都是一份完整的 Web 应用实例，有自己的 DOM、缓存、流式连接和内存里的会话，前端代码不需要知道"同时有多个服务器"这件事。约束：
 
 - 一个标签页最多绑定一个服务器；两个标签页不会指向同一个服务器（再开一次 = 切到已有的那页）。
 - 会话命令按**调用方 webview 的 label** 找服务器，标签页只能碰自己的凭据。同源 `BroadcastChannel` 在桌面端禁用，避免一个服务器的 token 同步到另一个。
@@ -75,17 +75,17 @@ apps/*  →  packages/core  →  packages/api-contract  →  backend/docs/swagge
 ### UI 不共享，逻辑必须共享
 
 - Web 用 React DOM，移动端用 React Native，两者 UI 层完全独立。
-- 鉴权、token 续期、服务器发现、SSE 解析、消息 reducer 这类逻辑只允许存在于 `packages/core`。
+- 鉴权、token 续期、服务器发现、流式响应（NDJSON）解析、消息 reducer 这类逻辑一旦有第二个客户端需要，只允许存在于 `packages/core`。当前鉴权状态机、服务器地址与能力解析已在 core；流解析与消息 reducer 仍在 `apps/web`，移动端立项时抽取。
 
 ## 4. 客户端与服务端的契约
 
 所有客户端都是"连接用户自己部署的服务器"，因此：
 
-- **API 地址是运行时配置，不是构建期常量。** 优先级为"运行时覆盖 → 构建期变量 → 页面 origin"，由 `packages/core` 的 `resolveApiBaseUrl` 统一实现。桌面端在首次启动时让用户填写服务器地址，写入 localStorage，并通过 `registerPlatformApiBaseURLResolver` 注入到 API 客户端。
+- **API 地址是运行时配置，不是构建期常量。** 优先级为"运行时覆盖 → 构建期变量 → 页面 origin"，由 `packages/core` 的 `resolveApiBaseUrl` 统一实现。桌面端在首次启动时让用户填写服务器地址，由 Rust 侧持久化；`apps/web/shared/platform/desktop-session.ts` 通过 `registerRuntimeApiBaseURLResolver(readServerOrigin)` 把它注入 API 客户端，Web 侧不在 localStorage 保存服务器地址。
 - **凭据投递方式由后端按请求头决定，不由客户端的构建标志决定。** 客户端发送 `X-Client-Platform: desktop|mobile` 时，后端把 refresh token 放进响应体（客户端存入 keychain / SecureStore）；不带该头时使用 HttpOnly cookie。两条路径共用同一套轮换与吊销逻辑。
 - **协议版本协商。** 后端暴露 `serverVersion` 与客户端协议版本；客户端启动时协商，不兼容则明确提示，而不是让功能随机失效。
 - **后端不为单一客户端开特例。** 桌面与移动端复用同一套：服务器发现 → 登录 → refresh 续期 → 深链接回调。
-- **功能显隐来自服务器能力声明。** 客户端启动时读取 `GET /api/v1/capabilities`（失败则视为全部可用），只通过 `useFeature` / `<FeatureGate>` 决定显示什么；`isDesktopApp()` 只允许用于调用原生能力，不允许用于功能显隐（架构守卫检查）。
+- **功能显隐来自服务器声明。** 部署形态差异来自能力声明：客户端启动时读取 `GET /api/v1/capabilities`（失败则视为全部可用），组件通过 `useFeature` / `<FeatureGate>`、页面通过 `useSectionGuard` 决定显示什么；管理员运行时开关（如知识库）通过 `useFeaturePolicy` 读取。`isDesktopApp()` 只允许用于调用原生能力，不允许用于功能显隐（`apps/web/scripts/check-architecture.mjs` 对管理页、设置页和引用能力模块的文件做检查）。
 
 ### 服务器能力声明（capabilities）
 
@@ -145,10 +145,10 @@ apps/*  →  packages/core  →  packages/api-contract  →  backend/docs/swagge
 
 ## 7. CI 门禁
 
-```
+```text
 PR:   pnpm check（所有包 lint + typecheck + 桌面 cargo check）
       pnpm test（所有包）
-      api-contract --check（后端 Swagger 变了必须重新生成）
+      pnpm api:check（后端 Swagger 变了必须重新生成）
 Tag:  上面 + Docker 镜像 + 桌面四目标构建（macOS arm64/x64、Linux、Windows）
 ```
 
@@ -159,7 +159,7 @@ Tag:  上面 + Docker 镜像 + 桌面四目标构建（macOS arm64/x64、Linux�
 每步独立可交付：
 
 1. ✅ 目录重构：`frontend/` → `apps/web/`，建立 `packages/core` 骨架与隔离守卫。
-2. ✅ 鉴权状态机进 core：`createAuthClient(host)` 承载并发去重、revision 守卫、401→续期→重试→终态清理；Web 端只剩 `apps/web/shared/auth/auth-client.ts` 这一个 host 适配文件。API 地址改为 `resolveApiBaseUrl` 三级解析（运行时覆盖 → 构建期变量 → 页面 origin），`setRuntimeApiBaseURL()` 是桌面端的接入点。
+2. ✅ 鉴权状态机进 core：`createAuthClient(host)` 承载并发去重、revision 守卫、401→续期→重试→终态清理；Web 端只剩 `apps/web/shared/auth/auth-client.ts` 这一个 host 适配文件。API 地址改为 `resolveApiBaseUrl` 三级解析（运行时覆盖 → 构建期变量 → 页面 origin），`registerRuntimeApiBaseURLResolver()` 是桌面端的接入点。
 3. ✅ 桌面端落地：`apps/desktop`（Tauri 2）加载 `apps/web/out`；后端按 `X-Client-Platform` 经响应体投递 refresh token；`apps/web` 的平台层负责服务器地址持久化、keychain 适配与首次启动的服务器设置页；`AuthHost.onSessionRefreshed` 统一处理轮换写回；`deploy/` 与后端默认值已加入 Tauri webview Origin。
 4. ✅ CI：PR 阶段 `cargo check`，tag 触发桌面四目标构建 + 签名 + updater manifest（`.github/workflows/desktop-release.yml`）。
 5. 移动端立项时再做第二次抽取与 `apps/mobile`；`X-Client-Platform: mobile` 与 `packages/core` 已为它预留。

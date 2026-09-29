@@ -4,7 +4,7 @@
 // platform concern leaked into shared code, not a style problem.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { join, posix, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // fileURLToPath, not URL.pathname: the latter yields "/E:/..." on Windows.
@@ -15,20 +15,20 @@ const rules = [
     // Only the platform layer may talk to the Tauri shell. Everything else goes
     // through its typed bindings, so the webview's native surface stays auditable.
     name: "Tauri APIs only under shared/platform/",
-    match: (file) => /^import\s.*["']@tauri-apps\//m.test(file.source),
+    match: (file) => file.imports.some((specifier) => specifier.startsWith("@tauri-apps/")),
     allow: (file) => file.path.startsWith("shared/platform/"),
   },
   {
     // The refresh token is write-once from JS. Any read path is a regression of
     // the desktop credential model (docs/ARCHITECTURE.md §5).
     name: "no refresh-token read command",
-    match: (file) => /invoke\(\s*["']read_refresh_token["']/.test(file.source),
+    match: (file) => /invoke\(\s*["']read_refresh_token["']/.test(file.code),
     allow: () => false,
   },
   {
     // Server address is pinned in the shell; the web app must not keep its own copy.
     name: "no localStorage-backed server address",
-    match: (file) => /localStorage\.(get|set)Item\(\s*["'][^"']*api-base-url/.test(file.source),
+    match: (file) => /localStorage\.(get|set)Item\(\s*["'][^"']*api-base-url/.test(file.code),
     allow: () => false,
   },
   {
@@ -38,10 +38,10 @@ const rules = [
     // there can only be doing visibility work.
     name: "feature visibility comes from capabilities, not the platform",
     match: (file) =>
-      /\bisDesktopApp\(\)/.test(file.source) &&
+      /\bisDesktopApp\(\)/.test(file.code) &&
       (file.path.startsWith("features/admin/") ||
         file.path.startsWith("features/settings/") ||
-        /from ["']@\/shared\/capabilities["']/.test(file.source)),
+        file.resolvedImports.includes("shared/capabilities")),
     allow: () => false,
   },
   {
@@ -61,13 +61,14 @@ const rules = [
     // (`@/features/<name>`, i.e. its index.ts), so internals can move freely.
     // Route files under app/ are exempt: they mount feature entry components.
     name: "no deep cross-feature imports",
+    // Relative paths are resolved too, so `../../<other-feature>/...` cannot slip through.
     match: (file) => {
       const own = /^features\/([^/]+)\//.exec(file.path)?.[1];
       if (own === undefined) return false;
-      for (const [, target] of file.source.matchAll(/(?:from\s+|import\s*\(\s*)["']@\/features\/([^/"']+)\/[^"']*["']/g)) {
-        if (target !== own) return true;
-      }
-      return false;
+      return file.resolvedImports.some((target) => {
+        const match = /^features\/([^/]+)\/(.+)$/.exec(target);
+        return match !== null && match[1] !== own && match[2] !== "index";
+      });
     },
     allow: () => false,
   },
@@ -77,7 +78,7 @@ const rules = [
     name: "components/ui has no business dependencies",
     match: (file) =>
       file.path.startsWith("components/ui/") &&
-      /(?:from\s+|import\s*\(\s*)["']@\/(features|entities)(\/|["'])/.test(file.source),
+      file.resolvedImports.some((target) => /^(features|entities)(\/|$)/.test(target)),
     allow: () => false,
   },
   {
@@ -85,24 +86,28 @@ const rules = [
     // not reach back up into any of them.
     name: "entities do not depend on features",
     match: (file) =>
-      file.path.startsWith("entities/") && /(?:from\s+|import\s*\(\s*)["']@\/features(\/|["'])/.test(file.source),
+      file.path.startsWith("entities/") && file.resolvedImports.some((target) => /^features(\/|$)/.test(target)),
     allow: () => false,
   },
   {
     // Route pages and layouts stay server components so the static export keeps
     // client boundaries inside features; interactive logic belongs to a feature
     // entry component. The image-loading preview is a standalone visual playground.
+    // Comments are stripped first: a license or doc comment may precede the directive.
     name: "route pages are server components",
-    match: (file) =>
-      /^app\/(.+\/)?(page|layout)\.tsx$/.test(file.path) && /^\s*["']use client["']/.test(file.source),
+    match: (file) => /^app\/(.+\/)?(page|layout)\.tsx$/.test(file.path) && /^\s*["']use client["']/.test(file.code),
     allow: (file) => file.path === "app/(app)/(project)/preview/image-loading/page.tsx",
   },
   {
     // File names are kebab-case with no extra dot segments (`admin-types.ts`, not
-    // `admin.types.ts`). Framework-mandated names are exempt.
+    // `admin.types.ts`). Tool-recognized suffixes (`*.test.ts`, `*.spec.tsx`,
+    // `*.config.ts`) are the only allowed dot segments.
     name: "kebab-case file name without dot segments",
-    match: (file) => !/^[a-z0-9]+(-[a-z0-9]+)*\.tsx?$/.test(file.path.split("/").at(-1)),
-    allow: (file) => file.path === "next.config.ts",
+    match: (file) =>
+      !/^[a-z0-9]+(-[a-z0-9]+)*(\.(test|spec))?\.tsx?$|^[a-z0-9]+(-[a-z0-9]+)*\.config\.ts$/.test(
+        file.path.split("/").at(-1),
+      ),
+    allow: () => false,
   },
 ];
 
@@ -116,10 +121,77 @@ function walk(dir, out = []) {
   return out;
 }
 
-const files = walk(root).map((full) => ({
-  path: relative(root, full).split(sep).join("/"),
-  source: readFileSync(full, "utf8"),
-}));
+// Removes // and /* */ comments while keeping string and template literals intact, so
+// import-like text inside comments does not trigger rules. Outside strings a backslash only
+// occurs in regex literals, where the escaped character is skipped so `\/*` is not a comment.
+function stripComments(source) {
+  let out = "";
+  let quote = null;
+  for (let i = 0; i < source.length; i++) {
+    const char = source[i];
+    const next = source[i + 1];
+    if (char === "\\") {
+      out += char + (next ?? "");
+      i++;
+      continue;
+    }
+    if (quote) {
+      if (char === quote || (char === "\n" && quote !== "`")) quote = null;
+      out += char;
+      continue;
+    }
+    if (char === '"' || char === "'" || char === "`") {
+      quote = char;
+      out += char;
+      continue;
+    }
+    if (char === "/" && next === "/") {
+      while (i < source.length && source[i] !== "\n") i++;
+      out += "\n";
+      continue;
+    }
+    if (char === "/" && next === "*") {
+      const end = source.indexOf("*/", i + 2);
+      const comment = end === -1 ? source.slice(i) : source.slice(i, end + 2);
+      // Keep line breaks so `^` anchors and line-based checks still line up.
+      out += comment.replace(/[^\n]/g, "");
+      i = end === -1 ? source.length : end + 1;
+      continue;
+    }
+    out += char;
+  }
+  return out;
+}
+
+// Static, side-effect, dynamic and re-export specifiers: `from "x"`, `import "x"`,
+// `import("x")`, `require("x")`.
+function collectImports(code) {
+  const specifiers = [];
+  for (const match of code.matchAll(/(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+|\brequire\s*\(\s*)(["'])([^"'\n]+)\1/g)) {
+    specifiers.push(match[2]);
+  }
+  return specifiers;
+}
+
+// Maps `@/x` and relative specifiers to root-relative paths without extension; bare package
+// specifiers are dropped.
+function resolveImport(filePath, specifier) {
+  let target;
+  if (specifier.startsWith("@/")) target = specifier.slice(2);
+  else if (specifier.startsWith("./") || specifier.startsWith("../")) {
+    target = posix.normalize(posix.join(posix.dirname(filePath), specifier));
+  } else return null;
+  return target.replace(/\/$/, "").replace(/\.(tsx?|mjs|js)$/, "");
+}
+
+const files = walk(root).map((full) => {
+  const path = relative(root, full).split(sep).join("/");
+  const source = readFileSync(full, "utf8");
+  const code = stripComments(source);
+  const imports = collectImports(code);
+  const resolvedImports = imports.map((specifier) => resolveImport(path, specifier)).filter((target) => target !== null);
+  return { path, source, code, imports, resolvedImports };
+});
 
 const violations = [];
 for (const rule of rules) {

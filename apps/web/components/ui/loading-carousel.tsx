@@ -6,20 +6,20 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 import {
   AnimatePresence,
   motion,
-  MotionProps,
-  Variants,
+  type MotionProps,
+  type Variants,
 } from "motion/react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 
-interface Tip {
+type Tip = {
   text: string
   image: string
   url?: string
 }
 
-interface LoadingCarouselProps {
+type LoadingCarouselProps = {
   tips?: Tip[]
   className?: string
   autoplayInterval?: number

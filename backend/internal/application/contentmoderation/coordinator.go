@@ -37,8 +37,7 @@ type BlockInfo struct {
 
 // BarrierResult 是生成后 / 仅输入屏障的结果。
 type BarrierResult struct {
-	// 只要已知命中必须对调用方隐藏，Block 即非 nil。主事务不可用时，
-	// 持久化可能异步收敛。
+	// 只要已知命中必须对调用方隐藏，Block 即非 nil。主事务不可用时，持久化落库可能由异步补偿收敛。
 	Block *BlockInfo
 	// State 是调用方可见的审核目标状态（passed|failed_open|blocked）。
 	State string

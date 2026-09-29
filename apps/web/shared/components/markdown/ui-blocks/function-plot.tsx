@@ -580,7 +580,7 @@ function FunctionPlot({ id, props }: UIBlockRenderProps<FunctionPlotProps>) {
           aria-label={props.title ?? rows.map((row) => row.expr).join(", ")}
         >
           {width > 0 ? (
-            <svg width={width} height={height} className="block">
+            <svg aria-hidden="true" width={width} height={height} className="block">
               <g className="stroke-border" strokeWidth={0.5}>
                 {xTicks.map((x) => (
                   <line key={`gx-${x}`} x1={toPx(x)} x2={toPx(x)} y1={0} y2={height} />

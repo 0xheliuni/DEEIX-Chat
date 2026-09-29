@@ -49,7 +49,7 @@ func (c *Cache) ConsumeProviderAuthTransaction(_ context.Context, id string) (*r
 	return &value, nil
 }
 
-// PutProviderAuthGrant 保存短期有效的 provider 认证授权。
+// PutProviderAuthGrant 保存短期有效的 provider 一次性授权凭证。
 func (c *Cache) PutProviderAuthGrant(_ context.Context, key string, item repository.ProviderAuthGrant, ttl time.Duration) error {
 	if c == nil || key == "" || ttl <= 0 {
 		return repository.ErrInvalidInput
@@ -62,7 +62,7 @@ func (c *Cache) PutProviderAuthGrant(_ context.Context, key string, item reposit
 	return nil
 }
 
-// ConsumeProviderAuthGrant 读取并删除 provider 认证授权。
+// ConsumeProviderAuthGrant 读取并删除 provider 一次性授权凭证。
 func (c *Cache) ConsumeProviderAuthGrant(_ context.Context, key string) (*repository.ProviderAuthGrant, error) {
 	if c == nil || key == "" {
 		return nil, repository.ErrNotFound

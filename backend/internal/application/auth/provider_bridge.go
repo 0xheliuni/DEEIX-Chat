@@ -228,7 +228,7 @@ func (s *Service) CompleteProviderAuthBridgeCallback(
 	return &ProviderAuthBridgeCallbackResult{RedirectURI: redirectURI}, nil
 }
 
-// ExchangeProviderAuthBridgeGrant 将有效的交接授权凭证兑换为应用会话。
+// ExchangeProviderAuthBridgeGrant 将有效的一次性授权凭证兑换为应用会话。
 func (s *Service) ExchangeProviderAuthBridgeGrant(
 	ctx context.Context,
 	slug string,
@@ -250,7 +250,7 @@ func (s *Service) ExchangeProviderAuthBridgeGrant(
 	return s.completeProviderLoginForUser(ctx, userItem, grant.ProviderSlug, grant.Subject, requestID, auditCtx)
 }
 
-// ExchangeProviderAuthBridgeBindGrant 兑换绑定授权码，把回调阶段取回的身份绑到当前登录用户。
+// ExchangeProviderAuthBridgeBindGrant 兑换绑定用的一次性授权凭证，把回调阶段取回的身份绑到当前登录用户。
 func (s *Service) ExchangeProviderAuthBridgeBindGrant(
 	ctx context.Context,
 	userID uint,
@@ -282,7 +282,7 @@ func (s *Service) ExchangeProviderAuthBridgeBindGrant(
 	}, requestID, auditCtx)
 }
 
-// consumeProviderAuthGrant 校验 PKCE 并原子消费一次性授权码；回调阶段记录的错误在这里抛出。
+// consumeProviderAuthGrant 校验 PKCE 并原子消费一次性授权凭证；回调阶段记录的错误在这里抛出。
 func (s *Service) consumeProviderAuthGrant(ctx context.Context, slug string, input ProviderAuthBridgeExchangeInput) (*repository.ProviderAuthGrant, error) {
 	if s == nil || s.providerAuthBridge == nil {
 		return nil, ErrProviderAuthBridgeUnavailable
@@ -312,7 +312,7 @@ func (s *Service) consumeProviderAuthGrant(ctx context.Context, slug string, inp
 	return grant, nil
 }
 
-// resolveProviderAuthGrant 用身份源回调的授权码填充授权码：登录/注册在此解析或创建用户，绑定只保存资料等待已登录用户兑换。
+// resolveProviderAuthGrant 用身份源回调的授权码填充一次性授权凭证：登录/注册在此解析或创建用户，绑定只保存资料等待已登录用户兑换。
 func (s *Service) resolveProviderAuthGrant(
 	ctx context.Context,
 	slug string,

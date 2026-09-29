@@ -3,9 +3,9 @@
 import { useTranslations } from "next-intl";
 
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import {
-  type ChatFontOption,
-  type ChatFontWeightOption,
+import type {
+  ChatFontOption,
+  ChatFontWeightOption,
 } from "@/features/settings/utils/chat-font";
 import type {
   ChatFontPreview,

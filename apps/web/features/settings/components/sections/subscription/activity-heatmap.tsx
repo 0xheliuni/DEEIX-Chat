@@ -230,6 +230,7 @@ export function SubscriptionActivityHeatmap({ accessToken }: { accessToken: stri
                           <Tooltip key={`activity-cell-${day.date}`}>
                             <TooltipTrigger asChild>
                               <span
+                                role="img"
                                 aria-label={formattedDate}
                                 className={`aspect-square w-full cursor-default rounded-[2px] ${HEATMAP_CELL_CLASS[level]}`}
                               />

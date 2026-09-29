@@ -33,7 +33,7 @@ func (r *Repo) ListPromptPresets(ctx context.Context, filter repository.PromptPr
 		limit = pagination.MaxPageSize
 	}
 
-	items := make([]model.PromptPreset, 0, limit)
+	items := make([]model.PromptPreset, 0)
 	var total int64
 	query := r.db.WithContext(ctx).Model(&model.PromptPreset{})
 	query = applyPromptPresetFilter(query, filter)

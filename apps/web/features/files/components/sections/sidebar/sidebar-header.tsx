@@ -19,7 +19,6 @@ import { cn } from "@/lib/utils";
 type SidebarHeaderProps = {
   collapsed: boolean;
   showCollapseButton?: boolean;
-  total: number;
   query: string;
   searchOpen: boolean;
   filterKeys: FileFilterValue[];
@@ -44,7 +43,6 @@ type SidebarHeaderProps = {
 
 export function SidebarHeader({
   collapsed,
-  total,
   query,
   searchOpen,
   filterKeys,

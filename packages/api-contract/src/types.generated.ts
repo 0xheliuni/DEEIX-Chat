@@ -826,6 +826,14 @@ export interface ContentModerationUpdateConfigRequest {
   timeoutSeconds?: number;
 }
 
+export interface ContentmoderationErrorDoc {
+  data: any;
+  details?: any;
+  errorCode?: string;
+  errorMsg: string;
+  requestId?: string;
+}
+
 export interface ContextArtifactResponse {
   content: string;
   createdAt: string;
@@ -4853,9 +4861,9 @@ export namespace Admin {
   export namespace AnnouncementsList {
     export type RequestParams = {};
     export type RequestQuery = {
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 是否置顶 */
       pinned?: boolean;
@@ -4944,9 +4952,9 @@ export namespace Admin {
       created_from?: string;
       /** 创建时间终点(RFC3339) */
       created_to?: string;
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 搜索关键词 */
       query?: string;
@@ -5111,9 +5119,9 @@ export namespace Admin {
   export namespace BillingModelPricesList {
     export type RequestParams = {};
     export type RequestQuery = {
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 搜索关键词 */
       q?: string;
@@ -5192,9 +5200,9 @@ export namespace Admin {
       availability?: string;
       /** 计费模式：usage/period */
       mode?: string;
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 搜索关键词 */
       q?: string;
@@ -5312,9 +5320,9 @@ export namespace Admin {
       created_from?: string;
       /** 创建时间终点(RFC3339) */
       created_to?: string;
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 平台模型名筛选 */
       platform_model_name?: string;
@@ -5331,10 +5339,10 @@ export namespace Admin {
   }
 
   /**
-   * No description
+   * @description 返回当前内容审核配置与可选审核类别目录
    * @tags admin-content-moderation
    * @name ContentModerationConfigList
-   * @summary Get content moderation config
+   * @summary 查询内容审核配置
    * @request GET:/admin/content-moderation/config
    * @secure
    */
@@ -5347,10 +5355,10 @@ export namespace Admin {
   }
 
   /**
-   * No description
+   * @description 保存内容审核服务、策略与队列配置；启用时必须提供审核服务配置与策略
    * @tags admin-content-moderation
    * @name ContentModerationConfigUpdate
-   * @summary Update content moderation config
+   * @summary 更新内容审核配置
    * @request PUT:/admin/content-moderation/config
    * @secure
    */
@@ -5363,38 +5371,38 @@ export namespace Admin {
   }
 
   /**
-   * No description
+   * @description 按结果、方向、模态、类别、用户、运行与时间范围筛选审核事件，按事件 ID 倒序返回
    * @tags admin-content-moderation
    * @name ContentModerationEventsList
-   * @summary List content moderation events
+   * @summary 分页查询内容审核事件
    * @request GET:/admin/content-moderation/events
    * @secure
    */
   export namespace ContentModerationEventsList {
     export type RequestParams = {};
     export type RequestQuery = {
-      /** Category filter */
+      /** 类别筛选 */
       category?: string;
-      /** Direction filter */
+      /** 方向筛选（input/output） */
       direction?: string;
-      /** Start time (RFC3339) */
+      /** 起始时间（RFC3339） */
       from?: string;
-      /** Modality filter */
+      /** 模态筛选（text/image） */
       modality?: string;
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量（最大 1000） */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
-      /** Exact event, user, run, model, result, or summary search */
+      /** 按事件、用户、运行、模型、结果或摘要精确搜索 */
       query?: string;
-      /** Result filter */
+      /** 审核结果筛选（hit/failed_open/passed） */
       result?: string;
-      /** Run ID */
-      runId?: string;
-      /** End time (RFC3339) */
+      /** 运行 ID */
+      run_id?: string;
+      /** 结束时间（RFC3339） */
       to?: string;
-      /** User ID */
-      userId?: number;
+      /** 用户 ID */
+      user_id?: number;
     };
     export type RequestBody = never;
     export type RequestHeaders = {};
@@ -5402,16 +5410,16 @@ export namespace Admin {
   }
 
   /**
-   * No description
+   * @description 返回单个审核事件；文本仍在保留期内时一并返回解密后的文本，并记录审计日志
    * @tags admin-content-moderation
    * @name ContentModerationEventsDetail
-   * @summary Get content moderation event detail
+   * @summary 查询内容审核事件详情
    * @request GET:/admin/content-moderation/events/{eventID}
    * @secure
    */
   export namespace ContentModerationEventsDetail {
     export type RequestParams = {
-      /** Moderation event ID */
+      /** 审核事件 ID */
       eventId: string;
     };
     export type RequestQuery = {};
@@ -5421,18 +5429,18 @@ export namespace Admin {
   }
 
   /**
-   * No description
+   * @description 返回审核事件中按序号指定的隔离图片原始内容，并记录审计日志
    * @tags admin-content-moderation
    * @name ContentModerationEventsImagesDetail
-   * @summary Stream a isolated moderation image
+   * @summary 读取审核事件的隔离图片
    * @request GET:/admin/content-moderation/events/{eventID}/images/{index}
    * @secure
    */
   export namespace ContentModerationEventsImagesDetail {
     export type RequestParams = {
-      /** Moderation event ID */
+      /** 审核事件 ID */
       eventId: string;
-      /** Image index */
+      /** 图片序号（从 0 开始） */
       index: number;
     };
     export type RequestQuery = {};
@@ -5442,10 +5450,10 @@ export namespace Admin {
   }
 
   /**
-   * No description
+   * @description 使用当前配置向审核服务发送探测请求，验证连通性以及文本与图片审核能力
    * @tags admin-content-moderation
    * @name ContentModerationProbeCreate
-   * @summary Probe content moderation service
+   * @summary 探测内容审核服务
    * @request POST:/admin/content-moderation/probe
    * @secure
    */
@@ -5458,19 +5466,19 @@ export namespace Admin {
   }
 
   /**
-   * No description
+   * @description 按天汇总指定时间范围内的内容审核结果
    * @tags admin-content-moderation
    * @name ContentModerationStatsList
-   * @summary Get content moderation daily stats
+   * @summary 查询内容审核每日统计
    * @request GET:/admin/content-moderation/stats
    * @secure
    */
   export namespace ContentModerationStatsList {
     export type RequestParams = {};
     export type RequestQuery = {
-      /** Start time (RFC3339) */
+      /** 起始时间（RFC3339） */
       from?: string;
-      /** End time (RFC3339) */
+      /** 结束时间（RFC3339） */
       to?: string;
     };
     export type RequestBody = never;
@@ -5499,9 +5507,9 @@ export namespace Admin {
       event_scope?: string;
       /** 事件类型 */
       event_type?: string;
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 搜索运行ID、事件、阶段、标题、工具名 */
       query?: string;
@@ -5567,9 +5575,9 @@ export namespace Admin {
       enabled?: boolean;
       /** 知识库ID */
       id?: string[];
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 搜索关键词 */
       q?: string;
@@ -5608,9 +5616,9 @@ export namespace Admin {
   export namespace KnowledgeBasesFilesList {
     export type RequestParams = {};
     export type RequestQuery = {
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 文件名搜索关键词 */
       q?: string;
@@ -5770,9 +5778,9 @@ export namespace Admin {
       id: string;
     };
     export type RequestQuery = {
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 文件名搜索关键词 */
       q?: string;
@@ -5798,9 +5806,9 @@ export namespace Admin {
       id: string;
     };
     export type RequestQuery = {
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
     };
     export type RequestBody = never;
@@ -5924,9 +5932,9 @@ export namespace Admin {
   export namespace LlmIconAssetsList {
     export type RequestParams = {};
     export type RequestQuery = {
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
     };
     export type RequestBody = never;
@@ -5986,9 +5994,9 @@ export namespace Admin {
   export namespace LlmModelDisplayGroupsList {
     export type RequestParams = {};
     export type RequestQuery = {
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 搜索名称 */
       q?: string;
@@ -6063,9 +6071,9 @@ export namespace Admin {
   export namespace LlmModelVendorsList {
     export type RequestParams = {};
     export type RequestQuery = {
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 搜索 key 或名称 */
       q?: string;
@@ -6144,9 +6152,9 @@ export namespace Admin {
       only_active?: boolean;
       /** 仅查询公开且可路由模型 */
       only_available?: boolean;
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 接口协议 */
       protocol?: string;
@@ -6301,9 +6309,9 @@ export namespace Admin {
       id: number;
     };
     export type RequestQuery = {
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
     };
     export type RequestBody = never;
@@ -6437,9 +6445,9 @@ export namespace Admin {
     export type RequestQuery = {
       /** 兼容类型 */
       compatible?: string;
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 搜索关键词 */
       q?: string;
@@ -6575,9 +6583,9 @@ export namespace Admin {
       id: number;
     };
     export type RequestQuery = {
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 接口协议 */
       protocol?: string;
@@ -7057,9 +7065,9 @@ export namespace Admin {
       created_to?: string;
       /** 订单类型(subscription/topup) */
       order_type?: string;
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 支付渠道 */
       provider?: string;
@@ -7236,9 +7244,9 @@ export namespace Admin {
     export type RequestQuery = {
       /** 是否启用 */
       enabled?: boolean;
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 搜索关键词 */
       q?: string;
@@ -7319,9 +7327,9 @@ export namespace Admin {
       created_from?: string;
       /** 兑换时间终点(RFC3339) */
       created_to?: string;
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 搜索兑换流水号、兑换码摘要、兑换码备注 */
       query?: string;
@@ -7628,9 +7636,9 @@ export namespace Admin {
     export type RequestQuery = {
       /** 是否启用 */
       enabled?: boolean;
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 搜索关键词 */
       q?: string;
@@ -7707,9 +7715,9 @@ export namespace Admin {
     export type RequestQuery = {
       /** 是否启用 */
       enabled?: boolean;
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 搜索关键词 */
       q?: string;
@@ -7823,9 +7831,9 @@ export namespace Admin {
     export type RequestQuery = {
       /** 事件类型过滤 */
       event_type?: string;
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 结果过滤(success/failure/blocked) */
       result?: string;
@@ -7850,9 +7858,9 @@ export namespace Admin {
     export type RequestQuery = {
       /** 身份源 slug 过滤 */
       identity_provider?: string;
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 搜索用户名、昵称、邮箱或公开ID */
       q?: string;
@@ -8102,10 +8110,10 @@ export namespace Auth {
   }
 
   /**
-   * @description 仅在服务器以本地 sidecar 模式运行时可用；grant 由启动握手交给桌面壳，只能使用一次
+   * @description 仅在服务器以本地 sidecar 模式运行时可用；一次性授权凭证由启动握手交给桌面壳，只能使用一次
    * @tags auth
    * @name LocalExchangeCreate
-   * @summary 本地模式：一次性 grant 换取会话
+   * @summary 本地模式：用一次性授权凭证换取会话
    * @request POST:/auth/local/exchange
    */
   export namespace LocalExchangeCreate {
@@ -8179,7 +8187,7 @@ export namespace Auth {
   }
 
   /**
-   * @description 校验当前密码及安全验证码后修改密码；成功后吊销会话并清除刷新令牌 Cookie
+   * @description 校验当前密码及安全验证码后修改密码；成功后吊销该用户全部会话并清除刷新令牌 Cookie
    * @tags auth
    * @name PasswordChangeCompleteCreate
    * @summary 修改当前用户密码
@@ -8259,7 +8267,7 @@ export namespace Auth {
   }
 
   /**
-   * @description 外部身份源完成授权后回调当前实例；校验 state 并签发一次性授权码后以 302 重定向回客户端 redirect_uri
+   * @description 外部身份源完成授权后回调当前实例；校验 state 并签发一次性授权凭证后以 302 重定向回客户端 redirect_uri
    * @tags auth
    * @name ProvidersCallbackList
    * @summary 第三方身份源授权回调
@@ -8284,10 +8292,10 @@ export namespace Auth {
   }
 
   /**
-   * @description 使用客户端 PKCE verifier 原子兑换服务端回调签发的一次性授权码，并进入统一 2FA/会话流程
+   * @description 使用客户端 PKCE verifier 原子兑换服务端回调签发的一次性授权凭证，并进入统一 2FA/会话流程
    * @tags auth
    * @name ProvidersExchangeCreate
-   * @summary 兑换第三方登录一次性授权码
+   * @summary 兑换第三方登录一次性授权凭证
    * @request POST:/auth/providers/{slug}/exchange
    */
   export namespace ProvidersExchangeCreate {
@@ -8536,9 +8544,9 @@ export namespace Billing {
   export namespace UsageList {
     export type RequestParams = {};
     export type RequestQuery = {
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 搜索模型 */
       query?: string;
@@ -8775,10 +8783,10 @@ export namespace ConversationRuns {
   }
 
   /**
-   * @description Sends an authoritative snapshot followed by live user-scoped run state events; the snapshot is re-sent periodically for client-side reconciliation
+   * @description 先推送当前用户进行中运行的权威快照，再持续推送该用户范围内的运行状态事件；快照会定期重发，供客户端对账
    * @tags chat
    * @name StreamList
-   * @summary Stream active conversation generations
+   * @summary 订阅进行中的会话生成
    * @request GET:/conversation-runs/stream
    * @secure
    */
@@ -8869,9 +8877,9 @@ export namespace Conversations {
   export namespace ConversationsList {
     export type RequestParams = {};
     export type RequestQuery = {
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 项目筛选: all|unassigned|项目 public_id */
       project?: string;
@@ -8964,9 +8972,9 @@ export namespace Conversations {
   export namespace SearchList {
     export type RequestParams = {};
     export type RequestQuery = {
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 搜索关键词；为空时返回最近会话 */
       q?: string;
@@ -9131,7 +9139,7 @@ export namespace Conversations {
   }
 
   /**
-   * No description
+   * @description 在会话中基于来源视频按提示词扩展视频，并以 NDJSON 流式返回任务状态事件
    * @tags chat
    * @name MediaVideosExtensionsStreamCreate
    * @summary 扩展会话视频
@@ -9140,7 +9148,7 @@ export namespace Conversations {
    */
   export namespace MediaVideosExtensionsStreamCreate {
     export type RequestParams = {
-      /** 会话 Public ID */
+      /** 会话 public_id */
       id: string;
     };
     export type RequestQuery = {};
@@ -9182,9 +9190,9 @@ export namespace Conversations {
       id: string;
     };
     export type RequestQuery = {
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
     };
     export type RequestBody = never;
@@ -9324,9 +9332,9 @@ export namespace Conversations {
       id: string;
     };
     export type RequestQuery = {
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
     };
     export type RequestBody = never;
@@ -9482,9 +9490,9 @@ export namespace Files {
     export type RequestQuery = {
       /** 筛选，支持单值或逗号分隔多值: image,document,spreadsheet,presentation,code,pdf,audio,video */
       kind?: string;
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 搜索关键词 */
       q?: string;
@@ -9662,9 +9670,9 @@ export namespace KnowledgeBases {
     export type RequestQuery = {
       /** 知识库ID */
       id?: string[];
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 搜索关键词 */
       q?: string;
@@ -9691,9 +9699,9 @@ export namespace KnowledgeBases {
       enabled?: boolean;
       /** 知识库ID */
       id?: string[];
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 搜索关键词 */
       q?: string;
@@ -9776,9 +9784,9 @@ export namespace KnowledgeBases {
       id: string;
     };
     export type RequestQuery = {
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 文件名搜索关键词 */
       q?: string;
@@ -9861,9 +9869,9 @@ export namespace KnowledgeBases {
       id: string;
     };
     export type RequestQuery = {
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
     };
     export type RequestBody = never;
@@ -10051,7 +10059,7 @@ export namespace Me {
   }
 
   /**
-   * @description 校验 TOTP 验证码后作废旧恢复码并返回新的一次性恢复码
+   * @description 校验 TOTP 验证码或恢复码（恢复码校验通过即被消耗）后作废旧恢复码，并返回新的一次性恢复码
    * @tags auth
    * @name TwoFactorRecoveryRegenerateCreate
    * @summary 重新生成双因素恢复码
@@ -10278,10 +10286,10 @@ export namespace Me {
   }
 
   /**
-   * @description 使用客户端 PKCE verifier 兑换绑定授权码，将身份绑到当前登录用户
+   * @description 使用客户端 PKCE verifier 兑换绑定用的一次性授权凭证，将身份绑到当前登录用户
    * @tags auth
    * @name IdentitiesProvidersExchangeCreate
-   * @summary 兑换第三方身份绑定一次性授权码
+   * @summary 兑换第三方身份绑定一次性授权凭证
    * @request POST:/me/identities/providers/{slug}/exchange
    * @secure
    */
@@ -10471,9 +10479,9 @@ export namespace PromptPresets {
   export namespace PromptPresetsList {
     export type RequestParams = {};
     export type RequestQuery = {
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 搜索关键词 */
       q?: string;
@@ -10496,9 +10504,9 @@ export namespace PromptPresets {
     export type RequestQuery = {
       /** 是否启用 */
       enabled?: boolean;
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 搜索关键词 */
       q?: string;
@@ -10735,9 +10743,9 @@ export namespace Skills {
     export type RequestQuery = {
       /** 按技能 ID 筛选，可重复传递 */
       id?: number[];
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 搜索关键词 */
       q?: string;
@@ -10760,9 +10768,9 @@ export namespace Skills {
     export type RequestQuery = {
       /** 是否启用 */
       enabled?: boolean;
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 搜索关键词 */
       q?: string;
@@ -10876,9 +10884,9 @@ export namespace UiComponents {
   export namespace UiComponentsList {
     export type RequestParams = {};
     export type RequestQuery = {
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 搜索关键词 */
       q?: string;
@@ -10901,9 +10909,9 @@ export namespace UiComponents {
     export type RequestQuery = {
       /** 是否启用 */
       enabled?: boolean;
-      /** 页码 */
+      /** 页码（从 1 开始，默认 1） */
       page?: number;
-      /** 每页数量 */
+      /** 每页数量（1-1000，默认 20） */
       page_size?: number;
       /** 搜索关键词 */
       q?: string;
@@ -11023,7 +11031,7 @@ export namespace User {
 
 export namespace Users {
   /**
-   * @description 公开读取用户当前上传的头像图片；仅返回 image/* 内容，未上传头像时返回 404
+   * @description 公开读取用户当前上传的头像图片。头像须为已上传的图片文件，实际类型受上传 MIME 白名单约束（默认 PNG/JPEG/WebP/GIF，SVG 等活动内容始终拒绝）；未上传头像时返回 404，错误响应为 JSON
    * @tags user
    * @name AvatarList
    * @summary 获取用户头像
@@ -11037,6 +11045,6 @@ export namespace Users {
     export type RequestQuery = {};
     export type RequestBody = never;
     export type RequestHeaders = {};
-    export type ResponseBody = Blob;
+    export type ResponseBody = File;
   }
 }

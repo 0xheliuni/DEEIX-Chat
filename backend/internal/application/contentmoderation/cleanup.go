@@ -40,8 +40,7 @@ func (s *Service) cleanupLoop(ctx context.Context) {
 	}
 }
 
-// warnErr 记录失败的维护步骤，除非该失败本身就是
-// 关闭：生命周期取消属于预期情况而非故障。
+// warnErr 记录失败的维护步骤；若失败原因是关闭本身则不记录：生命周期取消属于预期情况，不是故障。
 func (s *Service) warnErr(ctx context.Context, msg string, err error, fields ...zap.Field) {
 	if ctx.Err() != nil || errors.Is(err, context.Canceled) {
 		return

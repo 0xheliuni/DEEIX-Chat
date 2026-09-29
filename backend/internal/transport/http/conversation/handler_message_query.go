@@ -147,8 +147,8 @@ func (h *Handler) SetMessageFeedback(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "会话 public_id"
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Success 200 {object} MessageListResponseDoc
 // @Failure 400 {object} ErrorDoc
 // @Failure 404 {object} ErrorDoc
@@ -270,8 +270,8 @@ func (h *Handler) ListConversationPreviewMessages(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "会话 public_id"
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Success 200 {object} ConversationRunListResponseDoc
 // @Failure 400 {object} ErrorDoc
 // @Failure 404 {object} ErrorDoc

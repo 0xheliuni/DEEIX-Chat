@@ -233,8 +233,7 @@ func (p *openRouterModelPricing) UnmarshalJSON(data []byte) error {
 	}
 	sort.Slice(thresholds, func(i, j int) bool { return thresholds[i] < thresholds[j] })
 	effective := make([]openRouterPricingOverride, 0, len(thresholds))
-	// 基于基础价格评估每个区间。匹配项按来源顺序覆盖
-	// 单个键，包括共享同一阈值的条目。
+	// 每个区间都从基础价格重新计算；匹配项按来源顺序逐键覆盖，共享同一阈值的条目也按此处理。
 	for _, threshold := range thresholds {
 		tier := base
 		tier.MinPromptTokens = threshold
@@ -301,15 +300,12 @@ func parseOpenRouterPricingOverride(raw json.RawMessage, index int) (openRouterP
 				continue
 			}
 			if _, conditional := openRouterPricingConditionalFields[key]; conditional {
-				// 已知的计划无法用仅按 token 的阶梯结构表示。
-				// 保留基础模型价格，但跳过此条件覆盖项，
-				// 而不是无条件地应用它。
+				// 已知的条件计价方案无法用仅按 token 的阶梯结构表示：
+				// 保留基础模型价格，跳过此条件覆盖项，而不是无条件地应用它。
 				usable = false
 			}
-			// 当 OpenRouter 增加提供方维度或本计费表单不存储的其他字段时，
-			// 阶梯仍可表示。
-			// 记录该字段供 UI 使用，并仅从规范化覆盖项中省略该字段。
-			// 最小 token 阈值仍然可用。
+			// OpenRouter 增加提供方维度或本计费表单不存储的其他字段时，阶梯仍可表示：
+			// 记录该字段供 UI 展示，仅从规范化覆盖项中省略它，最小 token 阈值仍然可用。
 			unsupported = append(unsupported, path(key))
 		}
 	}

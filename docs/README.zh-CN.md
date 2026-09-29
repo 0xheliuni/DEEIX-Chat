@@ -498,7 +498,7 @@ Web、App 与桌面端的登录、注册和账号身份绑定都走这一个回�
 - [管理指南](https://deeix.com/zh/docs/deeix-chat/admin-accounts)
 - [进阶指南](https://deeix.com/zh/docs/deeix-chat/advanced-capabilities-passthrough-tools)
 - 后端说明：[backend/README.md](../backend/README.md)
-- 后端规范：[backend/docs/README.md](../backend/docs/README.md)
+- API 文档索引：[backend/docs/README.md](../backend/docs/README.md)
 - 前端说明：[apps/web/README.md](../apps/web/README.md)
 - API 契约包：[packages/api-contract/README.md](../packages/api-contract/README.md)
 - 贡献指南：[CONTRIBUTING.md](../.github/CONTRIBUTING.md)

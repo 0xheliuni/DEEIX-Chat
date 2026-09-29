@@ -19,7 +19,7 @@ import {
   ChatInlineAlertCard,
   ChatMessageBot,
 } from "@/features/chat/components/message/message-bot";
-import { type AssistantReaction } from "@/features/chat/components/message/message-meta";
+import type { AssistantReaction } from "@/features/chat/components/message/message-meta";
 import { ChatMessageUser } from "@/features/chat/components/message/message-user";
 import { ChatLabel } from "@/features/chat/components/sections/chat-label";
 import {

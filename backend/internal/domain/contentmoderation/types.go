@@ -115,7 +115,7 @@ type EventListFilter struct {
 	Limit     int
 }
 
-// IsolatedImageMeta 描述一份为审查而保留的加密图片副本。
+// IsolatedImageMeta 描述一份为审核而保留的加密图片副本。
 type IsolatedImageMeta struct {
 	Index        int
 	SHA256       string
@@ -134,7 +134,7 @@ type ContentLocation struct {
 	ChunkCount int
 }
 
-// ProviderConfig 包含审核 provider 所需的运行时参数。
+// ProviderConfig 包含审核提供方所需的运行时参数。
 type ProviderConfig struct {
 	BaseURL string
 	APIKey  string
@@ -142,13 +142,13 @@ type ProviderConfig struct {
 	Timeout time.Duration
 }
 
-// ProviderImage 是提交给审核 provider 的图片。
+// ProviderImage 是提交给审核提供方的图片。
 type ProviderImage struct {
 	Data     []byte
 	MimeType string
 }
 
-// CategoryResult 是与 provider 无关的分类结果。
+// CategoryResult 是与提供方无关的分类结果。
 type CategoryResult struct {
 	Flagged                   bool
 	Categories                map[string]bool
@@ -156,14 +156,14 @@ type CategoryResult struct {
 	CategoryAppliedInputTypes map[string][]string
 }
 
-// ProviderResponse 是与 provider 无关的审核结果。
+// ProviderResponse 是与提供方无关的审核结果。
 type ProviderResponse struct {
 	ID      string
 	Model   string
 	Results []CategoryResult
 }
 
-// HitEvaluation 是针对单个 provider 响应、结合策略得出的判定。
+// HitEvaluation 是针对单个提供方响应、结合策略得出的判定。
 type HitEvaluation struct {
 	Hit        bool
 	Categories []string

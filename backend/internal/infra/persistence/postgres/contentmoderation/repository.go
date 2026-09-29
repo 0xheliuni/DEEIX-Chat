@@ -11,6 +11,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -134,7 +135,11 @@ func (r *Repo) ListEvents(ctx context.Context, filter domaincm.EventListFilter) 
 	}
 	limit := filter.Limit
 	if limit <= 0 {
-		limit = 20
+		limit = pagination.DefaultPageSize
+	}
+	// 仅在 pagination.MaxPageSize 处做防御性截断，与上层分页校验保持一致。
+	if limit > pagination.MaxPageSize {
+		limit = pagination.MaxPageSize
 	}
 	var rows []model.ContentModerationEvent
 	if err := q.Order("id desc").Offset(filter.Offset).Limit(limit).Find(&rows).Error; err != nil {

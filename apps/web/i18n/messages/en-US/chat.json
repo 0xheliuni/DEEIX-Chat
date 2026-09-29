@@ -136,6 +136,7 @@
     "previewImage": "Preview image",
     "editImage": "Edit image",
     "downloadImage": "Download image",
+    "downloadImageFailed": "Could not download image",
     "scrollableTable": "Scrollable data table",
     "scrollableTableHint": "Scroll horizontally to view more columns.",
     "table": {

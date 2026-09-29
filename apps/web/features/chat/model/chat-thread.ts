@@ -432,7 +432,7 @@ export function buildVisibleMessages(
       return item;
     }
     const previous = index > 0 ? withBranchNavigators[index - 1] : null;
-    if (!previous || previous.role !== "user") {
+    if (previous?.role !== "user") {
       return item;
     }
     return {

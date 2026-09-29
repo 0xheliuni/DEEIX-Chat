@@ -857,7 +857,7 @@ func (r *Repo) UpdateConversationStatefulResponse(ctx context.Context, conversat
 		Error)
 }
 
-// UpdateConversationModel 更新会话当前使用模型与提供商。
+// UpdateConversationModel 更新会话当前使用模型与提供方。
 func (r *Repo) UpdateConversationModel(ctx context.Context, conversationID uint, platformModelName string, provider string) error {
 	return dberror.Translate(r.db.WithContext(ctx).
 		Model(&models.Conversation{}).
@@ -1919,7 +1919,7 @@ func (r *Repo) ListConversationMessageTraceEventsByMessageIDs(ctx context.Contex
 	return toConversationMessageTraceEventDomains(items), nil
 }
 
-// CreateConversationToolCalls 批量写入工具调用日志。
+// CreateConversationToolCall 写入单条工具调用日志，并回填 ID 与时间戳。
 func (r *Repo) CreateConversationToolCall(ctx context.Context, item *domainconversation.ToolCall) error {
 	if item == nil {
 		return nil
@@ -1934,6 +1934,7 @@ func (r *Repo) CreateConversationToolCall(ctx context.Context, item *domainconve
 	return nil
 }
 
+// CreateConversationToolCalls 批量写入工具调用日志。
 func (r *Repo) CreateConversationToolCalls(ctx context.Context, items []domainconversation.ToolCall) error {
 	if len(items) == 0 {
 		return nil

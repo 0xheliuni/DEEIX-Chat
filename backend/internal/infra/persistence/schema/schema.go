@@ -288,7 +288,7 @@ func dropColumns(db *gorm.DB, table any, columns []string) error {
 	return nil
 }
 
-// SeedLLMSettings 在默认 LLM 运行时设置不存在时插入。
+// SeedLLMSettings 在默认 LLM 运行时设置不存在时插入它们。
 func SeedLLMSettings(db *gorm.DB) error {
 	breakerDefaultsJSON, err := channelconfig.MarshalBreakerDefaults(domainchannel.DefaultBreakerDefaults())
 	if err != nil {

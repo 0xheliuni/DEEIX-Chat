@@ -33,7 +33,7 @@ type MCPServerOption = {
   name: string;
 };
 
-const MCP_PRICING_PAGE_SIZES = [25, 50, 100] as const;
+const MCP_PRICING_PAGE_SIZE_DEFAULT = 25;
 
 function formatMCPToolPriceInput(priceNanousd: number): string {
   if (!Number.isFinite(priceNanousd) || priceNanousd <= 0) {
@@ -99,7 +99,7 @@ export function BillingMCPToolsSection() {
   const [selectedToolIDs, setSelectedToolIDs] = React.useState<Set<number>>(new Set());
   const [bulkPriceDraft, setBulkPriceDraft] = React.useState("");
   const [page, setPage] = React.useState(1);
-  const [pageSize, setPageSize] = React.useState<number>(MCP_PRICING_PAGE_SIZES[0]);
+  const [pageSize, setPageSize] = React.useState(MCP_PRICING_PAGE_SIZE_DEFAULT);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -445,7 +445,6 @@ export function BillingMCPToolsSection() {
           page={page}
           pageCount={pageCount}
           pageSize={pageSize}
-          pageSizeOptions={MCP_PRICING_PAGE_SIZES}
           onPageChange={setPage}
           onPageSizeChange={setPageSize}
           loading={loading}

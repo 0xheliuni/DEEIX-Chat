@@ -8,7 +8,7 @@ import (
 	domaincm "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/contentmoderation"
 )
 
-// ContentModerationPolicyRequest 配置各检测面启用的分类。
+// ContentModerationPolicyRequest 配置各检查面启用的分类。
 type ContentModerationPolicyRequest struct {
 	InputTextCategories   []string `json:"inputTextCategories"`
 	OutputTextCategories  []string `json:"outputTextCategories"`
@@ -163,7 +163,7 @@ type ContentModerationEventListResponseDoc struct {
 	Data     ContentModerationEventListDataResponse `json:"data"`
 }
 
-// ContentModerationIsolatedImageResponse 暴露审查元数据但不含存储路径。
+// ContentModerationIsolatedImageResponse 暴露审核元数据但不含存储路径。
 type ContentModerationIsolatedImageResponse struct {
 	Index        int    `json:"index"`
 	SHA256       string `json:"sha256"`
@@ -326,4 +326,13 @@ func toEventDetailResponse(
 		ImagesAvailable: detail.ImagesAvailable,
 		Images:          images,
 	}
+}
+
+// ErrorDoc 错误响应。
+type ErrorDoc struct {
+	ErrorMsg  string `json:"errorMsg"`
+	ErrorCode string `json:"errorCode,omitempty"`
+	Details   any    `json:"details,omitempty"`
+	RequestID string `json:"requestId,omitempty"`
+	Data      any    `json:"data"`
 }

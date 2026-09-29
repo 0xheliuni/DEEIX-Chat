@@ -13,6 +13,7 @@ import { CustomBrandAttribution } from "@/shared/components/powered-by-deeix";
 import { isShellSessionError } from "@/shared/platform/desktop-shell";
 import { ensureLocalSession } from "@/shared/platform/desktop-session";
 import { commitLocalServer, commitRemoteServer, validateApiBaseUrl } from "@/shared/platform/server-address";
+import { fetchWithHeaderTimeout, isTimeoutError } from "@/shared/lib/fetch-timeout";
 
 // Desktop first-run screen, styled as a sibling of the login page:
 //   local   the bundled server, data on this machine, no account needed;
@@ -109,13 +110,17 @@ function RemoteForm({
       // Probe before pinning: a wrong address must not survive a restart.
       let response: Response;
       try {
-        response = await fetch(`${candidate}${HEALTH_PATH}`, {
+        response = await fetchWithHeaderTimeout(`${candidate}${HEALTH_PATH}`, {
           method: "GET",
           cache: "no-store",
-          signal: AbortSignal.timeout(HEALTH_PROBE_TIMEOUT_MS),
+          timeoutMs: HEALTH_PROBE_TIMEOUT_MS,
         });
-      } catch {
-        toast.error(labels("toasts.networkError"));
+      } catch (error) {
+        toast.error(
+          isTimeoutError(error)
+            ? labels("toasts.timeout", { seconds: HEALTH_PROBE_TIMEOUT_MS / 1000 })
+            : labels("toasts.networkError"),
+        );
         return;
       }
       if (!response.ok) {

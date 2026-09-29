@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
+	uicomponenthttp "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/transport/http/uicomponent"
 	"github.com/gin-gonic/gin"
 )
 
@@ -167,6 +168,33 @@ func TestSwaggerEnabledByEnvironment(t *testing.T) {
 	for _, tt := range tests {
 		if got := swaggerEnabled(tt.env); got != tt.want {
 			t.Fatalf("swaggerEnabled(%q) = %v, want %v", tt.env, got, tt.want)
+		}
+	}
+}
+
+func TestAdminRoutesRegisteredWhenUIComponentIsOnlyAdminModule(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	modules := Modules{UIComponent: uicomponenthttp.NewModule(uicomponenthttp.NewHandler(nil))}
+	engine, err := NewEngine(config.NewRuntime(config.Config{AppName: "test", JWTSecret: "test-jwt-secret-value"}), nil, modules, nil, nil)
+	if err != nil {
+		t.Fatalf("create engine: %v", err)
+	}
+
+	want := map[string]bool{
+		http.MethodGet + " /api/v1/admin/ui-components":        false,
+		http.MethodPost + " /api/v1/admin/ui-components":       false,
+		http.MethodPatch + " /api/v1/admin/ui-components/:id":  false,
+		http.MethodDelete + " /api/v1/admin/ui-components/:id": false,
+	}
+	for _, route := range engine.Routes() {
+		key := route.Method + " " + route.Path
+		if _, ok := want[key]; ok {
+			want[key] = true
+		}
+	}
+	for key, registered := range want {
+		if !registered {
+			t.Fatalf("expected admin route %s to be registered", key)
 		}
 	}
 }

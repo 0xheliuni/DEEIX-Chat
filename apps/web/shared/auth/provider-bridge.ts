@@ -20,9 +20,12 @@ export type ProviderBridgeRequest = {
   next: string;
 };
 
-// Matches the backend provider auth transaction TTL (providerAuthTransactionTTL):
-// once the server forgets the transaction, the stored verifier is useless.
-const PROVIDER_BRIDGE_REQUEST_TTL_MS = 10 * 60 * 1000;
+// The verifier is needed until the grant exchange, which can happen as late as the end of the
+// backend transaction window (providerAuthTransactionTTL, 10m: the provider may call back at its
+// very end) plus the grant window that callback opens (providerAuthGrantTTL, 90s), both in
+// backend/internal/application/auth/provider_bridge.go. The 30s margin absorbs clock skew and
+// redirect latency; past that the server has forgotten both and the stored verifier is useless.
+const PROVIDER_BRIDGE_REQUEST_TTL_MS = 10 * 60 * 1000 + 90 * 1000 + 30 * 1000;
 
 type StoredProviderBridgeRequest = {
   verifier: string;

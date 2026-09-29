@@ -5,6 +5,7 @@ import { useEffect, useRef, type HTMLAttributes } from "react"
 import { cn } from "@/lib/utils"
 
 declare global {
+  // biome-ignore lint/style/useConsistentTypeDefinitions: augmenting the global Window requires interface declaration merging.
   interface Window {
     webkitAudioContext?: typeof AudioContext
   }

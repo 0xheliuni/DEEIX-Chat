@@ -91,7 +91,11 @@ export function AuthCallbackPage() {
       void exchangeProviderAuthBridgeGrant(provider, exchangeInput)
         .then((result) => {
           if (result.twoFactorRequired) {
-            writeTwoFactorChallenge(result.twoFactorChallengeToken ?? "", result.verificationMethods);
+            if (!writeTwoFactorChallenge(result.twoFactorChallengeToken ?? "", result.verificationMethods)) {
+              // Without the stored challenge the login page could not ask for the code.
+              setError(t("loginFailed"));
+              return;
+            }
             router.replace(`/login?next=${encodeURIComponent(nextPath)}`);
             return;
           }

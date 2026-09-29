@@ -1148,7 +1148,7 @@ func (r *Repo) RotateSessionTokens(ctx context.Context, input repository.RotateS
 
 		switch classifyPresentedRefreshHash(item, input.PresentedRefreshHash, input.Now, input.PreviousTokenGrace) {
 		case refreshHashCurrent, refreshHashPreviousInGrace:
-			// 落入轮换流程
+			// 不做处理，继续执行 switch 之后的轮换逻辑
 		case refreshHashReused:
 			// 已轮换的令牌在宽限期外再次出现：要么是被盗令牌，要么是持有旧令牌的
 			// 客户端与持有新令牌的攻击者并存。无法区分，因此吊销整个会话（OAuth 2.1 §4.3.1）。

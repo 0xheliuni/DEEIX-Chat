@@ -501,7 +501,7 @@ Sign-in, registration, and account identity binding on Web, App, and Desktop all
 - [Admin Guide](https://deeix.com/docs/deeix-chat/admin-accounts)
 - [Advanced Guide](https://deeix.com/docs/deeix-chat/advanced-capabilities-passthrough-tools)
 - Backend guide: [backend/README.md](./backend/README.md)
-- Backend standards: [backend/docs/README.md](./backend/docs/README.md)
+- API documentation index: [backend/docs/README.md](./backend/docs/README.md)
 - Frontend guide: [apps/web/README.md](./apps/web/README.md)
 - API contract package: [packages/api-contract/README.md](./packages/api-contract/README.md)
 - Contributing: [CONTRIBUTING.md](./.github/CONTRIBUTING.md)

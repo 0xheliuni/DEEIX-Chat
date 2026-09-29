@@ -20,10 +20,11 @@ import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import {
   DEFAULT_LOGIN_OPTIONS,
   DEFAULT_LOGIN_SETTINGS,
+  clearTwoFactorChallenge,
   isTwoFactorChallengeExpired,
   normalizeRegisterCode,
   normalizeTwoFactorInput,
-  takeTwoFactorChallenge,
+  readTwoFactorChallenge,
   type LoginMode,
   type ProviderAuthIntent,
 } from "@/features/auth/model/login-page";
@@ -114,7 +115,7 @@ export function useAuthLoginPage({ nextPath }: UseAuthLoginPageInput) {
   }, [resolvedNextPath, router]);
 
   React.useEffect(() => {
-    const challenge = takeTwoFactorChallenge();
+    const challenge = readTwoFactorChallenge();
     if (challenge) {
       setTwoFactorChallengeToken(challenge.token);
       setTwoFactorVerificationMethods(challenge.methods);
@@ -158,6 +159,7 @@ export function useAuthLoginPage({ nextPath }: UseAuthLoginPageInput) {
     (result: LoginData) => {
       // completeNativeSignIn writes the session snapshot and, on desktop, the
       // keychain copy of the rotating refresh token.
+      clearTwoFactorChallenge();
       void completeNativeSignIn(result);
       router.replace(resolvedNextPath);
     },
@@ -193,6 +195,8 @@ export function useAuthLoginPage({ nextPath }: UseAuthLoginPageInput) {
           : await login(submittedUsername, submittedPassword);
         if (result.twoFactorRequired) {
           const methods: SecurityVerificationMethod[] = result.verificationMethods?.length ? result.verificationMethods : ["two_factor"];
+          // A fresh challenge supersedes any stored provider-login challenge.
+          clearTwoFactorChallenge();
           setTwoFactorChallengeToken(result.twoFactorChallengeToken ?? "");
           setTwoFactorVerificationMethods(methods);
           setTwoFactorVerificationMethod(methods[0] ?? "two_factor");
@@ -208,6 +212,7 @@ export function useAuthLoginPage({ nextPath }: UseAuthLoginPageInput) {
         completeAuth(result);
       } catch (error) {
         if (isTwoFactorChallengeExpired(error)) {
+          clearTwoFactorChallenge();
           setTwoFactorChallengeToken("");
           setTwoFactorVerificationMethods(["two_factor"]);
           setTwoFactorVerificationMethod("two_factor");
@@ -399,6 +404,7 @@ export function useAuthLoginPage({ nextPath }: UseAuthLoginPageInput) {
   }, []);
 
   const cancelTwoFactorChallenge = React.useCallback(() => {
+    clearTwoFactorChallenge();
     setTwoFactorChallengeToken("");
     setTwoFactorVerificationMethods(["two_factor"]);
     setTwoFactorVerificationMethod("two_factor");

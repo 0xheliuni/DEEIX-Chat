@@ -26,7 +26,7 @@ const (
 // EventEmitter 为运行发布恢复流事件（可选）。
 type EventEmitter func(ctx context.Context, runID string, eventType string, payload map[string]any)
 
-// CancelRun 取消运行中正在进行的上游生成。
+// CancelRun 取消某次运行尚未完成的上游生成。
 type CancelRun func(ctx context.Context, runID string)
 
 // OnBlocked 在运行被标记为拦截后调用（例如清理恢复流）。
@@ -148,7 +148,7 @@ func (s *Service) SetProvider(provider Provider) {
 	s.provider = provider
 }
 
-// SetAuditWriter 注入用于特权审查读取的操作审计输出端。
+// SetAuditWriter 注入用于特权审核读取的操作审计输出端。
 func (s *Service) SetAuditWriter(writer auditWriter) {
 	if s != nil {
 		s.auditWriter = writer
@@ -234,9 +234,7 @@ func (s *Service) BeginRun(ctx context.Context, meta RunMeta) *RunCoordinator {
 	cfg, err := s.loadRuntimeConfig(ctx)
 	if err != nil {
 		// 配置/存储失败按 fail-open 处理，但必须保持可观测。
-		// 返回协调器，使会话运行被持久地落定为
-		// failed_open，而不会与有意关闭的策略
-		// 无法区分。
+		// 仍返回协调器，使会话运行被持久化为 failed_open，避免与有意关闭审核策略的情况混淆。
 		coord := newRunCoordinator(ctx, s, meta, runtimeConfig{Timeout: defaultTimeoutSeconds * time.Second})
 		coord.failedOpen = true
 		s.coordMu.Lock()
@@ -276,7 +274,7 @@ func (s *Service) BeginRun(ctx context.Context, meta RunMeta) *RunCoordinator {
 	return coord
 }
 
-// GetCoordinator 返回存在的活动协调器。
+// GetCoordinator 返回 runID 对应的活动协调器；不存在时返回 nil。
 func (s *Service) GetCoordinator(runID string) *RunCoordinator {
 	s.coordMu.Lock()
 	defer s.coordMu.Unlock()

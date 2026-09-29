@@ -21,8 +21,8 @@ const (
 	ProtocolJina Protocol = "jina"
 )
 
-// Purpose 告知区分索引与查询的 provider 当前批次属于哪一侧；
-// 不做此区分的 provider 会忽略该字段。
+// Purpose 告知区分索引与查询的提供方当前批次属于哪一侧；
+// 不做此区分的提供方会忽略该字段。
 type Purpose string
 
 const (
@@ -58,7 +58,7 @@ func TextInputs(texts []string) []Input {
 	return inputs
 }
 
-// Request 描述发送给 embedding provider 的单个批次。
+// Request 描述发送给 embedding 提供方的单个批次。
 type Request struct {
 	Protocol   Protocol
 	APIBase    string

@@ -68,8 +68,9 @@ const animations = {
     },
   } satisfies Record<string, Variants>,
   shake: {
-    // The wiggle is attached to the svg root: the whole trash can sways around its center and the lid lifts with it, which is
-    // more noticeable at small sizes than the default 1px lid lift.
+    // The wiggle is attached to the svg root: the whole trash can sways around its center
+    // and the lid lifts with it, which reads better at small sizes than the default 1px
+    // lid lift.
     root: {
       initial: {
         rotate: 0,

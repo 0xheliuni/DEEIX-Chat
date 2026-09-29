@@ -124,8 +124,7 @@ function preserveKnownShareState(
   incoming: ConversationDTO,
 ): ConversationDTO {
   if (
-    !current ||
-    !current.shareID?.trim() ||
+    !current?.shareID?.trim() ||
     current.shareStatus !== "active" ||
     !activeShareFieldsMissing(incoming)
   ) {

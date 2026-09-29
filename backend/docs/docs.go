@@ -60,13 +60,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -274,13 +274,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -744,13 +744,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -977,13 +977,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -1285,13 +1285,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -1367,18 +1367,31 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "返回当前内容审核配置与可选审核类别目录",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "admin-content-moderation"
                 ],
-                "summary": "Get content moderation config",
+                "summary": "查询内容审核配置",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/ContentModerationConfigResponseDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
                         }
                     }
                 }
@@ -1389,6 +1402,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "保存内容审核服务、策略与队列配置；启用时必须提供审核服务配置与策略",
                 "consumes": [
                     "application/json"
                 ],
@@ -1398,10 +1412,10 @@ const docTemplate = `{
                 "tags": [
                     "admin-content-moderation"
                 ],
-                "summary": "Update content moderation config",
+                "summary": "更新内容审核配置",
                 "parameters": [
                     {
-                        "description": "Content moderation configuration",
+                        "description": "内容审核配置",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -1416,6 +1430,24 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/ContentModerationConfigUpdateResponseDoc"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
                     }
                 }
             }
@@ -1427,77 +1459,78 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "按结果、方向、模态、类别、用户、运行与时间范围筛选审核事件，按事件 ID 倒序返回",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "admin-content-moderation"
                 ],
-                "summary": "List content moderation events",
+                "summary": "分页查询内容审核事件",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量（最大 1000）",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Exact event, user, run, model, result, or summary search",
+                        "description": "按事件、用户、运行、模型、结果或摘要精确搜索",
                         "name": "query",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Result filter",
+                        "description": "审核结果筛选（hit/failed_open/passed）",
                         "name": "result",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Direction filter",
+                        "description": "方向筛选（input/output）",
                         "name": "direction",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Modality filter",
+                        "description": "模态筛选（text/image）",
                         "name": "modality",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Category filter",
+                        "description": "类别筛选",
                         "name": "category",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "User ID",
-                        "name": "userId",
+                        "description": "用户 ID",
+                        "name": "user_id",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Run ID",
-                        "name": "runId",
+                        "description": "运行 ID",
+                        "name": "run_id",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Start time (RFC3339)",
+                        "description": "起始时间（RFC3339）",
                         "name": "from",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "End time (RFC3339)",
+                        "description": "结束时间（RFC3339）",
                         "name": "to",
                         "in": "query"
                     }
@@ -1507,6 +1540,24 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/ContentModerationEventListResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
                         }
                     }
                 }
@@ -1519,17 +1570,18 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "返回单个审核事件；文本仍在保留期内时一并返回解密后的文本，并记录审计日志",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "admin-content-moderation"
                 ],
-                "summary": "Get content moderation event detail",
+                "summary": "查询内容审核事件详情",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Moderation event ID",
+                        "description": "审核事件 ID",
                         "name": "eventID",
                         "in": "path",
                         "required": true
@@ -1540,6 +1592,24 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/ContentModerationEventDetailResponseDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
                         }
                     }
                 }
@@ -1552,24 +1622,25 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "返回审核事件中按序号指定的隔离图片原始内容，并记录审计日志",
                 "produces": [
                     "application/octet-stream"
                 ],
                 "tags": [
                     "admin-content-moderation"
                 ],
-                "summary": "Stream a isolated moderation image",
+                "summary": "读取审核事件的隔离图片",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Moderation event ID",
+                        "description": "审核事件 ID",
                         "name": "eventID",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "integer",
-                        "description": "Image index",
+                        "description": "图片序号（从 0 开始）",
                         "name": "index",
                         "in": "path",
                         "required": true
@@ -1580,6 +1651,30 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
                         }
                     }
                 }
@@ -1592,18 +1687,37 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "使用当前配置向审核服务发送探测请求，验证连通性以及文本与图片审核能力",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "admin-content-moderation"
                 ],
-                "summary": "Probe content moderation service",
+                "summary": "探测内容审核服务",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/ContentModerationProbeResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
                         }
                     }
                 }
@@ -1616,23 +1730,24 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "按天汇总指定时间范围内的内容审核结果",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "admin-content-moderation"
                 ],
-                "summary": "Get content moderation daily stats",
+                "summary": "查询内容审核每日统计",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Start time (RFC3339)",
+                        "description": "起始时间（RFC3339）",
                         "name": "from",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "End time (RFC3339)",
+                        "description": "结束时间（RFC3339）",
                         "name": "to",
                         "in": "query"
                     }
@@ -1642,6 +1757,24 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/ContentModerationStatsResponseDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ContentmoderationErrorDoc"
                         }
                     }
                 }
@@ -1668,13 +1801,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -1883,13 +2016,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -1955,13 +2088,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -2334,13 +2467,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -2394,13 +2527,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -2689,13 +2822,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -2833,13 +2966,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -3040,13 +3173,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -3251,13 +3384,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -3749,13 +3882,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -4175,13 +4308,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -4587,13 +4720,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -6002,13 +6135,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -6567,13 +6700,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -6790,13 +6923,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -7338,13 +7471,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -7578,13 +7711,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -7929,13 +8062,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -7983,13 +8116,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -8741,6 +8874,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
                     }
                 }
             }
@@ -8795,6 +8934,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
                     },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -8806,7 +8951,7 @@ const docTemplate = `{
         },
         "/auth/local/exchange": {
             "post": {
-                "description": "仅在服务器以本地 sidecar 模式运行时可用；grant 由启动握手交给桌面壳，只能使用一次",
+                "description": "仅在服务器以本地 sidecar 模式运行时可用；一次性授权凭证由启动握手交给桌面壳，只能使用一次",
                 "consumes": [
                     "application/json"
                 ],
@@ -8816,10 +8961,10 @@ const docTemplate = `{
                 "tags": [
                     "auth"
                 ],
-                "summary": "本地模式：一次性 grant 换取会话",
+                "summary": "本地模式：用一次性授权凭证换取会话",
                 "parameters": [
                     {
-                        "description": "本地登录 grant",
+                        "description": "本地登录一次性授权凭证",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -8919,6 +9064,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/LoginOptionsResponseDoc"
                         }
                     },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -9015,7 +9166,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "校验当前密码及安全验证码后修改密码；成功后吊销会话并清除刷新令牌 Cookie",
+                "description": "校验当前密码及安全验证码后修改密码；成功后吊销该用户全部会话并清除刷新令牌 Cookie",
                 "consumes": [
                     "application/json"
                 ],
@@ -9256,13 +9407,19 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
                     }
                 }
             }
         },
         "/auth/providers/{slug}/callback": {
             "get": {
-                "description": "外部身份源完成授权后回调当前实例；校验 state 并签发一次性授权码后以 302 重定向回客户端 redirect_uri",
+                "description": "外部身份源完成授权后回调当前实例；校验 state 并签发一次性授权凭证后以 302 重定向回客户端 redirect_uri",
                 "produces": [
                     "application/json"
                 ],
@@ -9321,13 +9478,19 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
                     }
                 }
             }
         },
         "/auth/providers/{slug}/exchange": {
             "post": {
-                "description": "使用客户端 PKCE verifier 原子兑换服务端回调签发的一次性授权码，并进入统一 2FA/会话流程",
+                "description": "使用客户端 PKCE verifier 原子兑换服务端回调签发的一次性授权凭证，并进入统一 2FA/会话流程",
                 "consumes": [
                     "application/json"
                 ],
@@ -9337,7 +9500,7 @@ const docTemplate = `{
                 "tags": [
                     "auth"
                 ],
-                "summary": "兑换第三方登录一次性授权码",
+                "summary": "兑换第三方登录一次性授权凭证",
                 "parameters": [
                     {
                         "type": "string",
@@ -9347,7 +9510,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "授权码兑换参数",
+                        "description": "一次性授权凭证兑换参数",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -9377,6 +9540,12 @@ const docTemplate = `{
                     },
                     "423": {
                         "description": "Locked",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
                         "schema": {
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
@@ -9458,6 +9627,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
                     }
                 }
             }
@@ -9495,6 +9670,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/AuthErrorDoc"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
                         "schema": {
                             "$ref": "#/definitions/AuthErrorDoc"
                         }
@@ -9965,13 +10146,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -10545,14 +10726,14 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Sends an authoritative snapshot followed by live user-scoped run state events; the snapshot is re-sent periodically for client-side reconciliation",
+                "description": "先推送当前用户进行中运行的权威快照，再持续推送该用户范围内的运行状态事件；快照会定期重发，供客户端对账",
                 "produces": [
                     "text/event-stream"
                 ],
                 "tags": [
                     "chat"
                 ],
-                "summary": "Stream active conversation generations",
+                "summary": "订阅进行中的会话生成",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -10744,13 +10925,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -10993,13 +11174,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -11441,8 +11622,32 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     },
+                    "402": {
+                        "description": "Payment Required",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
                         "schema": {
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
@@ -11517,8 +11722,32 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     },
+                    "402": {
+                        "description": "Payment Required",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
                         "schema": {
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
@@ -11545,6 +11774,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "在会话中基于来源视频按提示词扩展视频，并以 NDJSON 流式返回任务状态事件",
                 "consumes": [
                     "application/json"
                 ],
@@ -11558,14 +11788,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "会话 Public ID",
+                        "description": "会话 public_id",
                         "name": "id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "视频扩展请求",
-                        "name": "payload",
+                        "description": "视频扩展参数",
+                        "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
@@ -11583,19 +11813,55 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/Envelope"
+                            "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/Envelope"
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/Envelope"
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     }
                 }
@@ -11656,8 +11922,32 @@ const docTemplate = `{
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
                     },
+                    "402": {
+                        "description": "Payment Required",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/ConversationErrorDoc"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
                         "schema": {
                             "$ref": "#/definitions/ConversationErrorDoc"
                         }
@@ -11705,13 +11995,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -12159,13 +12449,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -12634,13 +12924,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     },
@@ -13182,13 +13472,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -13245,13 +13535,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -13397,13 +13687,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -13563,13 +13853,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -14105,7 +14395,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "校验 TOTP 验证码后作废旧恢复码并返回新的一次性恢复码",
+                "description": "校验 TOTP 验证码或恢复码（恢复码校验通过即被消耗）后作废旧恢复码，并返回新的一次性恢复码",
                 "consumes": [
                     "application/json"
                 ],
@@ -14119,7 +14409,7 @@ const docTemplate = `{
                 "operationId": "twoFactorRecoveryRegenerateCreate",
                 "parameters": [
                     {
-                        "description": "TOTP 验证码",
+                        "description": "TOTP 验证码或恢复码",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -14880,7 +15170,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "使用客户端 PKCE verifier 兑换绑定授权码，将身份绑到当前登录用户",
+                "description": "使用客户端 PKCE verifier 兑换绑定用的一次性授权凭证，将身份绑到当前登录用户",
                 "consumes": [
                     "application/json"
                 ],
@@ -14890,7 +15180,7 @@ const docTemplate = `{
                 "tags": [
                     "auth"
                 ],
-                "summary": "兑换第三方身份绑定一次性授权码",
+                "summary": "兑换第三方身份绑定一次性授权凭证",
                 "parameters": [
                     {
                         "type": "string",
@@ -14900,7 +15190,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "授权码兑换参数",
+                        "description": "一次性授权凭证兑换参数",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -15413,13 +15703,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -15473,13 +15763,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -16029,13 +16319,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -16094,13 +16384,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -16430,13 +16720,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -16489,13 +16779,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "页码（从 1 开始，默认 1）",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "每页数量（1-1000，默认 20）",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -16821,12 +17111,13 @@ const docTemplate = `{
         },
         "/users/{public_id}/avatar": {
             "get": {
-                "description": "公开读取用户当前上传的头像图片；仅返回 image/* 内容，未上传头像时返回 404",
+                "description": "公开读取用户当前上传的头像图片。头像须为已上传的图片文件，实际类型受上传 MIME 白名单约束（默认 PNG/JPEG/WebP/GIF，SVG 等活动内容始终拒绝）；未上传头像时返回 404，错误响应为 JSON",
                 "produces": [
                     "image/png",
                     "image/jpeg",
                     "image/webp",
-                    "image/gif"
+                    "image/gif",
+                    "application/json"
                 ],
                 "tags": [
                     "user"
@@ -19668,6 +19959,26 @@ const docTemplate = `{
                 },
                 "timeoutSeconds": {
                     "type": "integer"
+                }
+            }
+        },
+        "ContentmoderationErrorDoc": {
+            "type": "object",
+            "required": [
+                "data",
+                "errorMsg"
+            ],
+            "properties": {
+                "data": {},
+                "details": {},
+                "errorCode": {
+                    "type": "string"
+                },
+                "errorMsg": {
+                    "type": "string"
+                },
+                "requestId": {
+                    "type": "string"
                 }
             }
         },

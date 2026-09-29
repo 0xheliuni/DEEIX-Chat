@@ -45,7 +45,7 @@ find internal/application internal/transport \
 LC_ALL=C sort "$context_background_baseline_file" > "$work_dir/context-background.baseline"
 
 if ! cmp -s "$context_background_baseline_file" "$work_dir/context-background.baseline"; then
-  echo "context.Background baseline must remain sorted: $context_background_baseline_file" >&2
+  echo "context.Background/TODO baseline must remain sorted: $context_background_baseline_file" >&2
   exit 1
 fi
 

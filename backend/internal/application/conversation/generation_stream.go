@@ -9,9 +9,11 @@ import (
 	"time"
 
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/textutil"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/pkg/traceid"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/background"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -60,8 +62,10 @@ type retainedStreamEventsInput struct {
 }
 
 type pendingGenerationCompletion struct {
-	// baseCtx 是入队时从生成上下文分离出的上下文，保留日志/追踪值但不继承取消与截止时间，
-	// 供后台补偿重试使用。
+	// baseCtx 是入队时经 detachGenerationContext 分离出的上下文：保留日志值与 trace_id，
+	// 但不继承取消、截止时间与原请求 span，避免最长 ActiveTTL 的补偿重试挂在已结束的请求 span 上。
+	// 生命周期：条目在完成、超过 expiresAt（ActiveTTL）或注册表关闭时移除；每次使用都另加
+	// generationStreamCleanupTimeout 超时。
 	baseCtx     context.Context
 	lease       repository.GenerationStreamLease
 	nextAttempt time.Time
@@ -204,12 +208,16 @@ type activeGeneration struct {
 	userID         uint
 	conversationID string
 	owner          *generationLifecycleOwner
-	baseCtx        context.Context
-	cancel         context.CancelFunc
-	workerCancel   context.CancelFunc
-	workerStart    chan struct{}
-	workerReady    chan struct{}
-	workerDone     chan struct{}
+	// baseCtx 是注册时经 detachGenerationContext 分离出的上下文，供 worker 与收尾清理使用；
+	// 保留日志值与 trace_id，但不继承取消、截止时间与原请求 span。
+	// 生命周期：以 ActiveTTL 为上限，由 cancel/workerCancel 与注册表 Close 管理关闭，
+	// 收尾清理每次另加 generationStreamCleanupTimeout 超时。
+	baseCtx      context.Context
+	cancel       context.CancelFunc
+	workerCancel context.CancelFunc
+	workerStart  chan struct{}
+	workerReady  chan struct{}
+	workerDone   chan struct{}
 }
 
 func (a *activeGeneration) lease(runID string) repository.GenerationStreamLease {
@@ -439,7 +447,7 @@ func (r *generationStreamRegistry) register(ctx context.Context, runID string, u
 		}
 		return fail(ErrDuplicateMessageGenerationRun)
 	}
-	baseCtx := background.Detach(ctx)
+	baseCtx := detachGenerationContext(ctx)
 	workerCtx, workerCancel := context.WithCancel(baseCtx)
 	active := &activeGeneration{
 		userID:         userID,
@@ -637,9 +645,8 @@ func (r *generationStreamRegistry) subscribeStore(
 	upstreamThinkSnapshot := repository.GenerationStreamUpstreamThinkSnapshot{}
 	hasUpstreamThinkSnapshot := false
 	if includeSnapshots {
-		// 在保留窗口之后读取检查点。期间追加的事件
-		// 会从 cursor 重新读取；已被检查点覆盖的增量
-		// 按其 seq 过滤，而非内容事件仍可重放。
+		// 先读取保留窗口，再读取检查点。两次读取之间追加的事件会从 cursor 起再次读取；
+		// 已被检查点覆盖的增量按其 seq 过滤，非内容事件仍可重放。
 		textSnapshot, hasTextSnapshot, err = store.GetGenerationStreamTextSnapshot(ctx, runID)
 		if err != nil {
 			return nil, nil, nil, false
@@ -808,7 +815,7 @@ func (r *generationStreamRegistry) enqueueCompletion(ctx context.Context, lease 
 	key := generationCompletionKey(lease)
 	if _, exists := r.pendingCompletions[key]; !exists {
 		r.pendingCompletions[key] = pendingGenerationCompletion{
-			baseCtx:     background.Detach(ctx),
+			baseCtx:     detachGenerationContext(ctx),
 			lease:       lease,
 			nextAttempt: time.Now(),
 			retryDelay:  generationStreamCompletionRetryDelay,
@@ -882,9 +889,22 @@ func (r *generationStreamRegistry) runCompletionWorker() {
 		delete(r.pendingCompletions, generationCompletionKey(pending.lease))
 		r.completionMu.Unlock()
 		if completed {
-			r.publishActiveEvent(pending.baseCtx, pending.lease.UserID, "finished", pending.lease.RunID, pending.lease.ConversationPublicID)
+			publishCtx, publishCancel := background.WithTimeout(pending.baseCtx, generationStreamCleanupTimeout)
+			r.publishActiveEvent(publishCtx, pending.lease.UserID, "finished", pending.lease.RunID, pending.lease.ConversationPublicID)
+			publishCancel()
 		}
 	}
+}
+
+// detachGenerationContext 为跨越请求生命周期的生成注册表条目分离上下文：
+// 保留上下文值，不继承取消与截止时间，并移除原请求 span，使后续操作不再挂到已结束的请求 span 上；
+// 原 trace_id 以值形式保留，日志仍可关联到发起请求。
+func detachGenerationContext(ctx context.Context) context.Context {
+	detached := background.Detach(ctx)
+	if spanCtx := trace.SpanContextFromContext(detached); spanCtx.IsValid() {
+		detached = traceid.WithTraceID(detached, spanCtx.TraceID().String())
+	}
+	return trace.ContextWithSpanContext(detached, trace.SpanContext{})
 }
 
 func generationCompletionKey(lease repository.GenerationStreamLease) string {

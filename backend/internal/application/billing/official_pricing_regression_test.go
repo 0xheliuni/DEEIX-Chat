@@ -116,7 +116,7 @@ func TestImportedCacheWritePricingAcrossBillingPaths(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// 在导入价格前先演练持久化的目录表示。
+	// 导入价格前，先让目录经过一次持久化表示的往返。
 	catalog := officialPricingResultFromCache(openRouterPricingCacheFile{Version: openRouterPricingCacheVersion, Items: officialPricingCacheItems(items)}, true, false).Items[0].Pricing
 	pricePerMillion := func(raw string) float64 {
 		value, err := strconv.ParseFloat(raw, 64)

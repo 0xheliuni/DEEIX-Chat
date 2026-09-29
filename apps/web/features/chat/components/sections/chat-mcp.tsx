@@ -496,6 +496,7 @@ export function ChatMCP({
                                     <TooltipTrigger asChild>
                                       <span
                                         className="flex size-4 shrink-0 items-center justify-center rounded text-primary/75"
+                                        role="img"
                                         aria-label={tComposer("mcpImageProcessor")}
                                       >
                                         <ImageIcon className="size-3" strokeWidth={1.8} />

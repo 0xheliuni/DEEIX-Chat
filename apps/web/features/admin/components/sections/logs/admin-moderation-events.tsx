@@ -289,7 +289,7 @@ export function ModerationEventTable() {
   const [items, setItems] = React.useState<ModerationEvent[]>([]);
   const [total, setTotal] = React.useState(0);
   const [page, setPage] = React.useState(1);
-  const [pageSize, setPageSize] = React.useState(20);
+  const [pageSize, setPageSize] = React.useState(25);
   const [query, setQuery] = React.useState("");
   const [resultFilter, setResultFilter] = React.useState("");
   const [directionFilter, setDirectionFilter] = React.useState("");

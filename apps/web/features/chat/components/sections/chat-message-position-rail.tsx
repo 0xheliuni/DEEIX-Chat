@@ -158,7 +158,7 @@ function ChatMessagePositionRailComponent({
   const [previewHeight, setPreviewHeight] = React.useState(PREVIEW_ESTIMATED_HEIGHT_PX);
   const itemRefs = React.useRef(new Map<string, HTMLButtonElement>());
   const previewRef = React.useRef<HTMLDivElement | null>(null);
-  const railViewportRef = React.useRef<HTMLDivElement | null>(null);
+  const railViewportRef = React.useRef<HTMLElement | null>(null);
   const railContentRef = React.useRef<HTMLDivElement | null>(null);
   const centerFrameRef = React.useRef<number | null>(null);
   const [railOverflowing, setRailOverflowing] = React.useState(false);
@@ -324,10 +324,9 @@ function ChatMessagePositionRailComponent({
     ) : null;
 
   const rail = (
-    <div
+    <nav
       ref={railViewportRef}
       className="pointer-events-auto h-full w-6 overflow-y-auto overscroll-contain text-muted-foreground/55 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      role="navigation"
       aria-label={t("positionRail")}
       onScroll={clearPreview}
     >
@@ -372,7 +371,7 @@ function ChatMessagePositionRailComponent({
           );
         })}
       </div>
-    </div>
+    </nav>
   );
 
   return (

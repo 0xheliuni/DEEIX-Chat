@@ -223,9 +223,8 @@ func (s *Service) executeTask(parent context.Context, task *moderationTask) {
 	}
 	cancelProvider()
 	latency := time.Since(started).Milliseconds()
-	// 仅在上游请求结束后才开始新的持久化预算。
-	// 慢速审核请求不得占用为记录其结果与
-	// 统计数据预留的时间。
+	// 上游请求结束后才开始计算新的持久化时间预算：
+	// 慢速审核请求不得占用为记录审核结果与统计数据预留的时间。
 	persistCtx, persistCancel := context.WithTimeout(runCtx, 10*time.Second)
 	defer persistCancel()
 
@@ -430,7 +429,7 @@ func (s *Service) recordPass(ctx context.Context, task *moderationTask, latencyM
 			summary = "output_text_pass"
 		}
 	}
-	// 通过事件仅保留元数据——不保留加密内容载荷。
+	// 审核通过（pass）的事件仅保留元数据——不保留加密内容载荷。
 	event := &domaincm.Event{
 		PublicID:            publicID,
 		UserID:              task.Coord.meta.UserID,

@@ -827,7 +827,7 @@ func toPublicTraceEventResponses(events []model.MessageTraceEvent) []MessageTrac
 	return result
 }
 
-// MessageResponse 消息响应 DTO。
+// MessageKnowledgeSourceResponse 消息引用的知识库来源 DTO。
 type MessageKnowledgeSourceResponse struct {
 	FileName   string  `json:"fileName"`
 	FileID     string  `json:"fileID"`
@@ -837,6 +837,7 @@ type MessageKnowledgeSourceResponse struct {
 	Modality   string  `json:"modality,omitempty"`
 }
 
+// MessageResponse 消息响应 DTO。
 type MessageResponse struct {
 	ID                uint                             `json:"id"`
 	ConversationID    uint                             `json:"conversationID"`

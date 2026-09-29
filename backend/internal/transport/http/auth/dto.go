@@ -317,7 +317,7 @@ type ProviderAuthBridgeStartResponse struct {
 	ExpiresAt        time.Time `json:"expiresAt"`
 }
 
-// ProviderAuthBridgeExchangeRequest 兑换 provider 交接授权。
+// ProviderAuthBridgeExchangeRequest 兑换 provider 交接的一次性授权凭证。
 type ProviderAuthBridgeExchangeRequest struct {
 	ClientID     string `json:"clientID" binding:"required,max=128"`
 	Grant        string `json:"grant" binding:"required,min=43,max=128"`

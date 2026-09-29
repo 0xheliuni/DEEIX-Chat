@@ -124,8 +124,8 @@ func (h *Handler) maxUploadRequestBytes() int64 {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param page query int false "页码"
-// @Param page_size query int false "每页数量"
+// @Param page query int false "页码（从 1 开始，默认 1）"
+// @Param page_size query int false "每页数量（1-1000，默认 20）"
 // @Param q query string false "搜索关键词"
 // @Param kind query string false "筛选，支持单值或逗号分隔多值: image,document,spreadsheet,presentation,code,pdf,audio,video"
 // @Param sort query string false "排序: created|name|size|last_used"

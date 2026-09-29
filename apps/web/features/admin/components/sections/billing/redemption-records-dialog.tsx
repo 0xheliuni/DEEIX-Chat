@@ -31,7 +31,7 @@ import { resolveUserDisplayName } from "@/features/admin/model/log-display";
 import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 
-const RECORDS_PAGE_SIZE = 10;
+const RECORDS_PAGE_SIZE = 25;
 
 function RedemptionRecordsDialogBody({ code }: { code: AdminRedemptionCodeDTO }) {
   const locale = useLocale();
