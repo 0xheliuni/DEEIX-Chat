@@ -36,6 +36,9 @@ type AboutSettingsContentProps = {
   versionBadgeContent?: ReactNode;
   versionBadgeTooltip?: ReactNode;
   versionActions?: ReactNode;
+  // Extra lines under the version (e.g. how the desktop app was distributed).
+  // Supplied by the caller so this panel stays free of platform concerns.
+  versionDetails?: ReactNode;
   // Renders third-party brand marks (GitHub, X) of the official links. Injected by the
   // caller so this product panel stays free of the identity-provider entity.
   brandIcon?: AboutBrandIcon;
@@ -110,6 +113,7 @@ export function AboutSettingsContent({
   versionBadgeContent,
   versionBadgeTooltip,
   versionActions,
+  versionDetails,
   brandIcon,
 }: AboutSettingsContentProps) {
   const tCommon = useTranslations("common.appVersion");
@@ -184,6 +188,7 @@ export function AboutSettingsContent({
               )}
               {versionActions ? <span className="ml-1.5 flex min-w-0 items-center gap-2">{versionActions}</span> : null}
             </div>
+            {versionDetails}
           </div>
 
           <p className="max-w-[760px] text-sm leading-6 text-muted-foreground">

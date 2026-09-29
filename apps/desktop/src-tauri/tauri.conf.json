@@ -20,6 +20,7 @@
       "dmg",
       "app",
       "nsis",
+      "msi",
       "deb",
       "appimage"
     ],
@@ -46,7 +47,19 @@
     },
     "windows": {
       "digestAlgorithm": "sha256",
-      "timestampUrl": "http://timestamp.digicert.com"
+      "timestampUrl": "http://timestamp.digicert.com",
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "English",
+          "SimpChinese"
+        ],
+        "displayLanguageSelector": false
+      },
+      "wix": {
+        "upgradeCode": "416f18c0-1adb-51dc-ba68-b574720eb9bc",
+        "language": "en-US"
+      }
     },
     "externalBin": [
       "binaries/deeix-chat-server"
