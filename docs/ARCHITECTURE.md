@@ -141,6 +141,7 @@ apps/*  →  packages/core  →  packages/api-contract  →  backend/docs/swagge
 - 根目录 `VERSION` 是唯一版本号来源。`scripts/sync-version.mjs` 的 `targets` 表列出所有需要同步的文件；新增客户端只需在表里加一项（如 `tauri.conf.json`、`app.json`）。
 - `node scripts/sync-version.mjs --check` 在 `predev` / `prebuild` 与 CI 中执行，版本不同步即失败。
 - 一次 tag 触发全部构建：Web → Docker 镜像（现有）；桌面 → 三平台矩阵 + 签名 + updater manifest；移动 → EAS Build。
+- Windows 桌面端同一套签名二进制产出三种形态：按用户安装的 NSIS setup（自动更新）、按机器安装的 MSI（企业部署，应用内不更新）、便携版 zip（数据随程序目录，只提示新版本）。形态由 Rust 在启动时判定（`portable` 标记 → bundle 类型），前端只读 `get_distribution`。企业策略（默认服务器、锁定服务器、禁用本地模式、禁用更新）读注册表并由 Rust 强制执行；详见 `apps/desktop/README.md` 与 `deploy/windows/README.md`。每个发布附带 `SHA256SUMS` 与 GitHub 构建来源证明。
 - Docker 镜像内静态产物路径固定为 `/app/frontend/out`，与 `FRONTEND_DIST_DIR` 及现有部署配置兼容；仓库内构建路径为 `apps/web/out`。
 
 ## 7. CI 门禁

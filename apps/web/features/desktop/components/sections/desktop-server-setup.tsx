@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { SpinnerLabel } from "@/components/ui/spinner";
 import { AppLogo } from "@/shared/components/app-logo";
 import { CustomBrandAttribution } from "@/shared/components/powered-by-deeix";
+import { useDesktopDistribution } from "@/features/desktop/hooks/use-desktop-distribution";
+import { type DistributionPolicy, isPolicyError } from "@/shared/platform/desktop-distribution";
 import { isShellSessionError } from "@/shared/platform/desktop-shell";
 import { ensureLocalSession } from "@/shared/platform/desktop-session";
 import { commitLocalServer, commitRemoteServer, validateApiBaseUrl } from "@/shared/platform/server-address";
@@ -18,6 +20,8 @@ import { fetchWithHeaderTimeout, isTimeoutError } from "@/shared/lib/fetch-timeo
 // Desktop first-run screen, styled as a sibling of the login page:
 //   local   the bundled server, data on this machine, no account needed;
 //   remote  a DEEIX Chat server you or your team operate.
+// Enterprise policy (enforced by the shell) can prefill or lock the address and
+// turn local mode off; this screen only reflects it.
 
 const HEALTH_PATH = "/healthz";
 // An unreachable host can leave the probe pending for minutes; fail fast instead.
@@ -27,7 +31,11 @@ type Step = "pick" | "remote";
 
 export function ServerSetup({ onConfigured }: { onConfigured: () => void }) {
   const t = useTranslations("desktopSetup");
-  const [step, setStep] = React.useState<Step>("pick");
+  const { status, distribution } = useDesktopDistribution();
+  const policy = distribution.policy;
+  // Without local mode there is nothing to pick: go straight to the address form.
+  const [pickedStep, setStep] = React.useState<Step>("pick");
+  const step: Step = policy.localModeAllowed ? pickedStep : "remote";
   const [busy, setBusy] = React.useState(false);
 
   const startLocal = React.useCallback(async () => {
@@ -39,6 +47,8 @@ export function ServerSetup({ onConfigured }: { onConfigured: () => void }) {
     } catch (error) {
       if (isAlreadyOpen(error)) {
         toast.error(t("toasts.alreadyOpen"));
+      } else if (isPolicyError(error)) {
+        toast.error(t("toasts.localModeDisabled"));
       } else {
         toast.error(t("toasts.localStartFailed"), { description: describe(error) });
       }
@@ -52,7 +62,10 @@ export function ServerSetup({ onConfigured }: { onConfigured: () => void }) {
         <AppLogo width={32} height={32} priority className="mx-auto h-9 w-auto" />
 
         <HeightTransition className="px-2">
-          {step === "pick" ? (
+          {status === "loading" ? (
+            // Policy decides which options exist; render them only once it is known.
+            <div key="loading" className="pt-7" />
+          ) : step === "pick" ? (
             <div key="pick" className="animate-in pt-7 fade-in-0 slide-in-from-bottom-1 duration-300">
               <div className="space-y-2.5">
                 <Button
@@ -76,7 +89,12 @@ export function ServerSetup({ onConfigured }: { onConfigured: () => void }) {
             </div>
           ) : (
             <div key="remote" className="animate-in pt-7 fade-in-0 slide-in-from-bottom-1 duration-300">
-              <RemoteForm labels={t} onBack={() => setStep("pick")} onConfigured={onConfigured} />
+              <RemoteForm
+                labels={t}
+                policy={policy}
+                onBack={policy.localModeAllowed ? () => setStep("pick") : undefined}
+                onConfigured={onConfigured}
+              />
             </div>
           )}
         </HeightTransition>
@@ -89,14 +107,18 @@ export function ServerSetup({ onConfigured }: { onConfigured: () => void }) {
 
 function RemoteForm({
   labels,
+  policy,
   onBack,
   onConfigured,
 }: {
   labels: ReturnType<typeof useTranslations<"desktopSetup">>;
-  onBack: () => void;
+  policy: DistributionPolicy;
+  /** Absent when there is no other option to go back to. */
+  onBack?: () => void;
   onConfigured: () => void;
 }) {
-  const [value, setValue] = React.useState("");
+  const locked = policy.serverUrlLocked;
+  const [value, setValue] = React.useState(policy.defaultServerUrl ?? "");
   const [busy, setBusy] = React.useState(false);
 
   const submit = React.useCallback(async () => {
@@ -130,9 +152,13 @@ function RemoteForm({
       await commitRemoteServer(candidate);
       onConfigured();
     } catch (error) {
-      toast.error(isAlreadyOpen(error) ? labels("toasts.alreadyOpen") : labels("toasts.invalidUrl"), {
-        description: isAlreadyOpen(error) ? undefined : describe(error),
-      });
+      if (isAlreadyOpen(error)) {
+        toast.error(labels("toasts.alreadyOpen"));
+      } else if (isPolicyError(error)) {
+        toast.error(labels("toasts.serverLocked"));
+      } else {
+        toast.error(labels("toasts.invalidUrl"), { description: describe(error) });
+      }
     } finally {
       setBusy(false);
     }
@@ -153,7 +179,9 @@ function RemoteForm({
         <Input
           id="server-url"
           name="server-url"
-          autoFocus
+          autoFocus={!locked}
+          readOnly={locked}
+          aria-describedby={locked || !policy.localModeAllowed ? "server-url-policy" : undefined}
           inputMode="url"
           autoComplete="url"
           className="h-9 border-input/50"
@@ -162,6 +190,15 @@ function RemoteForm({
           onChange={(event) => setValue(event.target.value)}
           required
         />
+        {locked ? (
+          <p id="server-url-policy" className="text-xs text-muted-foreground">
+            {labels("policy.managed")}
+          </p>
+        ) : !policy.localModeAllowed ? (
+          <p id="server-url-policy" className="text-xs text-muted-foreground">
+            {labels("policy.localModeDisabled")}
+          </p>
+        ) : null}
       </div>
       <Button
         type="submit"
@@ -170,15 +207,17 @@ function RemoteForm({
       >
         {busy ? <SpinnerLabel>{labels("remote.connecting")}</SpinnerLabel> : labels("remote.connect")}
       </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        className="h-9 w-full text-xs text-muted-foreground shadow-none"
-        disabled={busy}
-        onClick={onBack}
-      >
-        {labels("back")}
-      </Button>
+      {onBack ? (
+        <Button
+          type="button"
+          variant="ghost"
+          className="h-9 w-full text-xs text-muted-foreground shadow-none"
+          disabled={busy}
+          onClick={onBack}
+        >
+          {labels("back")}
+        </Button>
+      ) : null}
     </form>
   );
 }

@@ -14,6 +14,7 @@
     "check": "pnpm check:version && pnpm build:sidecar && cargo check --manifest-path src-tauri/Cargo.toml",
     "build:sidecar": "node scripts/build-sidecar.mjs",
     "build:signed": "bash scripts/build-signed.sh",
+    "package:portable": "node scripts/package-portable.mjs",
     "test": "node --test 'scripts/*.test.mjs'"
   },
   "devDependencies": {
