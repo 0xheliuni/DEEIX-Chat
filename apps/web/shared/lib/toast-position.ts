@@ -2,6 +2,8 @@
 
 import * as React from "react";
 
+import { isOneOf } from "@/shared/lib/type-guards";
+
 // Device-level preference: where sonner places toasts. Values match sonner's
 // `position` prop so no mapping is needed at the toaster.
 export const TOAST_POSITION_STORAGE_KEY = "deeix-chat:toast-position";
@@ -14,9 +16,7 @@ export const DEFAULT_TOAST_POSITION: ToastPosition = "top-right";
 let currentToastPosition: ToastPosition = DEFAULT_TOAST_POSITION;
 let toastPositionLoaded = false;
 
-export function isToastPosition(value: unknown): value is ToastPosition {
-  return typeof value === "string" && (TOAST_POSITIONS as readonly string[]).includes(value);
-}
+export const isToastPosition: (value: unknown) => value is ToastPosition = isOneOf(TOAST_POSITIONS);
 
 function getStoredToastPosition(): ToastPosition {
   if (typeof window === "undefined") {

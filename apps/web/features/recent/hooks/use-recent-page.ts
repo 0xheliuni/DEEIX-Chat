@@ -9,6 +9,7 @@ import {
   downloadConversationExport,
   isArchivedConversation,
   mergeUniqueByPublicID,
+  normalizeConversationSearchText,
   removeByPublicID,
   sortByUpdatedAtDesc,
   upsertByPublicID,
@@ -37,7 +38,6 @@ import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { useLoadMoreSentinel } from "@/shared/hooks/use-load-more-sentinel";
 import { runBulkActionInChunks } from "@/shared/lib/bulk-action";
-import { normalizeConversationSearchText } from "@/shared/lib/conversation-search";
 import { downloadBlob, readExportManifest } from "@/shared/lib/export-download";
 
 const RECENT_SEARCH_DEBOUNCE_MS = 250;

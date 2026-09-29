@@ -19,8 +19,19 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AdminLLMAdapter, AdminLLMModelDTO } from "@/features/admin/api/llm-types";
 import { cn } from "@/lib/utils";
-import { MODEL_OPTION_POLICY_PROTOCOL_LABELS, resolveModelOptionPolicyProtocol } from "@/shared/lib/model-option-policy";
-import { parseProtocolsJSON } from "@/shared/lib/model-protocols";
+import {
+  MODEL_OPTION_POLICY_PROTOCOL_LABELS,
+  MODEL_OPTION_POLICY_PROTOCOLS,
+  parseProtocolsJSON,
+  resolveModelOptionPolicyProtocol,
+} from "@/entities/model";
+import { isOneOf } from "@/shared/lib/type-guards";
+
+const isModelOptionPolicyProtocol = isOneOf(MODEL_OPTION_POLICY_PROTOCOLS);
+
+const PRESET_DIALOG_TABS = ["presets", "models"] as const;
+type PresetDialogTab = (typeof PRESET_DIALOG_TABS)[number];
+const isPresetDialogTab = isOneOf(PRESET_DIALOG_TABS);
 
 type CapabilityPreset = {
   id: string;
@@ -737,7 +748,7 @@ function capabilityPresetProtocolLabel(protocol: AdminLLMAdapter): string {
 function capabilityModelProtocolLabel(model: AdminLLMModelDTO): string {
   const protocols = parseProtocolsJSON(model.protocolsJSON);
   return protocols
-    .map((protocol) => MODEL_OPTION_POLICY_PROTOCOL_LABELS[protocol as keyof typeof MODEL_OPTION_POLICY_PROTOCOL_LABELS] ?? protocol)
+    .map((protocol) => (isModelOptionPolicyProtocol(protocol) ? MODEL_OPTION_POLICY_PROTOCOL_LABELS[protocol] : protocol))
     .join(" / ");
 }
 
@@ -760,7 +771,7 @@ export function ModelCapabilitiesPresetDialog({
   commonT: (key: string) => string;
   onApply: (value: string) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<"presets" | "models">("presets");
+  const [activeTab, setActiveTab] = useState<PresetDialogTab>("presets");
   const routeProtocolSet = new Set(routeProtocols.map((protocol) => resolveModelOptionPolicyProtocol(protocol)).filter(Boolean));
   const sortedPresets = [...MODEL_CAPABILITY_PRESETS].sort((left, right) => {
     const leftMatched = capabilityPresetMatched(left, routeProtocolSet);
@@ -849,7 +860,9 @@ export function ModelCapabilitiesPresetDialog({
           <div className="min-h-0 min-w-0 overflow-hidden px-4 py-1">
             <Tabs
               value={activeTab}
-              onValueChange={(nextValue) => setActiveTab(nextValue as "presets" | "models")}
+              onValueChange={(nextValue) => {
+                if (isPresetDialogTab(nextValue)) setActiveTab(nextValue);
+              }}
               className="min-h-0 min-w-0 overflow-hidden"
             >
               <TabsList className="grid h-8 w-full grid-cols-2">

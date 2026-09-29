@@ -17,10 +17,7 @@ import { listPublicModels } from "@/shared/api/model";
 import type { PublicModelDTO } from "@/shared/api/model-types";
 import { getChatContextPolicy } from "@/shared/api/settings";
 import { useAuthSession } from "@/shared/auth/auth-session-context";
-import {
-  updateUserSettings,
-  useUserSettings,
-} from "@/shared/model/user-settings-store";
+import { updateUserSettings, useUserSettings } from "@/entities/user-settings";
 
 type UseSettingsChatResult = {
   settings: ChatSettings;

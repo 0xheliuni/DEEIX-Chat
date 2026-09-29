@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
+import { IdentityProviderIcon } from "@/entities/identity-provider";
 import { AboutSettingsContent } from "@/shared/components/about-settings-content";
 
 export function SettingsAbout() {
@@ -9,6 +10,7 @@ export function SettingsAbout() {
 
   return (
     <AboutSettingsContent
+      brandIcon={IdentityProviderIcon}
       title={t("title")}
       description={t("description")}
       consoleLabel={t("userConsole")}

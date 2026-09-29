@@ -12,11 +12,7 @@ import type {
   ChatFontWeightPreview,
 } from "@/features/settings/types/settings";
 import { cn } from "@/lib/utils";
-import {
-  CHAT_CONTENT_WIDTH_OPTIONS,
-  type ChatContentWidth,
-  type ChatContentWidthOption,
-} from "@/shared/model/chat-content-width";
+import { CHAT_CONTENT_WIDTH_OPTIONS, type ChatContentWidth, type ChatContentWidthOption } from "@/entities/user-settings";
 
 const CHAT_FONT_OPTIONS: ChatFontPreview[] = [
   { label: "Default", value: "default", fontFamily: "var(--font-sans)", sampleText: "Aa" },

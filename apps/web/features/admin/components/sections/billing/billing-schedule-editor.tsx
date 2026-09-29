@@ -9,16 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import {
-  canonicalClock,
-  createSchedulePeriodForm,
-  isOvernightPeriod,
-  normalizeSchedulePeriods,
-  SCHEDULE_PERIOD_LIMITS,
-  type SchedulePeriodForm,
-  type SchedulePeriodIssue,
-  WEEKDAY_ORDER,
-} from "@/shared/model/schedule-pricing";
+import { canonicalClock, createSchedulePeriodForm, isOvernightPeriod, normalizeSchedulePeriods, SCHEDULE_PERIOD_LIMITS, type SchedulePeriodForm, type SchedulePeriodIssue, WEEKDAY_ORDER } from "@/entities/billing";
 
 const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 

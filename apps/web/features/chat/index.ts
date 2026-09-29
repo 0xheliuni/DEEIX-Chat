@@ -20,3 +20,5 @@ export { ChatArtifactWorkspace } from "@/features/chat/components/sections/chat-
 export { useChatArtifactResize } from "@/features/chat/hooks/use-chat-artifact-resize";
 export { useChatArtifacts } from "@/features/chat/hooks/use-chat-artifacts";
 export type { OpenCodeArtifactInput } from "@/features/chat/model/chat-artifacts";
+export { AppChatArea } from "@/features/chat/components/app-chat-area";
+export { AssistantImageGenerationSkeleton } from "@/features/chat/components/message/message-bot";

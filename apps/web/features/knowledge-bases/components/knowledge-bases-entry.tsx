@@ -6,7 +6,7 @@ import * as React from "react";
 import { AppKnowledgeBases } from "@/features/knowledge-bases/components/app-knowledge-bases";
 import { useFeaturePolicy } from "@/shared/hooks/use-feature-policy";
 
-// Route entry for /knowledges: the workspace only mounts while the server
+// Route entry for /knowledge-bases: the workspace only mounts while the server
 // policy enables knowledge bases, otherwise the user is sent home.
 export function KnowledgeBasesEntry() {
   const router = useRouter();

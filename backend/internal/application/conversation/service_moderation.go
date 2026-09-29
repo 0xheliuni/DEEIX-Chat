@@ -16,7 +16,7 @@ import (
 	appstorage "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/objectstorage"
 	domainbilling "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/billing"
 	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/conversation"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/objectstore"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/objectstorage"
 )
 
 const moderationFinalizationTimeout = 65 * time.Second
@@ -451,7 +451,7 @@ func (a *moderationObjectStoreAdapter) Put(ctx context.Context, path string, dat
 	if err != nil {
 		return err
 	}
-	_, err = store.Put(ctx, path, bytes.NewReader(data), objectstore.PutOptions{ContentType: contentType})
+	_, err = store.Put(ctx, path, bytes.NewReader(data), objectstorage.PutOptions{ContentType: contentType})
 	return err
 }
 
@@ -476,7 +476,7 @@ func (a *moderationObjectStoreAdapter) Delete(ctx context.Context, path string) 
 	return store.Delete(ctx, path)
 }
 
-func (a *moderationObjectStoreAdapter) open(ctx context.Context) (objectstore.Store, error) {
+func (a *moderationObjectStoreAdapter) open(ctx context.Context) (objectstorage.Store, error) {
 	if a == nil || a.service == nil || a.service.storeProvider == nil {
 		return nil, appstorage.ErrProviderNotConfigured
 	}

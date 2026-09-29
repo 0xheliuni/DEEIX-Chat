@@ -3,7 +3,6 @@
 import { BookOpen, FolderOpen, HardDrive, MoreHorizontal, PencilLine, Plus, Trash2 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,16 +36,24 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { TableToolbar } from "@/components/ui/table-tools";
-import { listAdminSettingsByNamespace, patchAdminSettings } from "@/features/admin/api";
-import { resolveAdminErrorMessage } from "@/features/admin/utils/admin-error";
-import { AdminPlatformFilesDialog } from "@/features/admin/components/sections/knowledge-bases/admin-platform-files-dialog";
-import { KnowledgeBaseDetail, KnowledgeBasePageDialogs, useKnowledgeBasesPage } from "@/features/knowledge-bases";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
+import { useAdminKnowledgeBasesFeature } from "@/features/admin/hooks/use-admin-knowledge-bases-feature";
+import { AdminPlatformFilesDialog } from "@/features/admin/components/sections/knowledge-bases/knowledge-bases-platform-files-dialog";
+import {
+  KnowledgeBaseDetail,
+  KnowledgeBasePageDialogs,
+  type KnowledgeBasePageModel,
+  useKnowledgeBasePage,
+} from "@/features/knowledge-bases";
 import { SettingsFieldRow, SettingsPage, SettingsSection } from "@/shared/components/settings-layout";
-import { overrideFeaturePolicy } from "@/shared/hooks/use-feature-policy";
+import { isOneOf } from "@/shared/lib/type-guards";
 
-export function AdminKnowledgeBases() {
-  const page = useKnowledgeBasesPage("admin");
+type KnowledgeBaseSortKey = KnowledgeBasePageModel["list"]["sortKey"];
+
+const KNOWLEDGE_BASE_SORT_KEYS = ["default", "updated", "created", "name", "files"] as const satisfies readonly KnowledgeBaseSortKey[];
+const isKnowledgeBaseSortKey = isOneOf(KNOWLEDGE_BASE_SORT_KEYS);
+
+export function AdminKnowledgeBasesPage() {
+  const page = useKnowledgeBasePage("admin");
   const t = useTranslations("knowledgeBases");
   const locale = useLocale();
   const [detailOpen, setDetailOpen] = React.useState(false);
@@ -63,46 +70,7 @@ export function AdminKnowledgeBases() {
     setDetailOpen(true);
   }, [list]);
 
-  const [featureEnabled, setFeatureEnabled] = React.useState<boolean | null>(null);
-  const [featureSaving, setFeatureSaving] = React.useState(false);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const token = await resolveAccessToken();
-        if (!token) return;
-        const settings = await listAdminSettingsByNamespace(token, "knowledgebase");
-        if (cancelled) return;
-        setFeatureEnabled((settings.find((item) => item.key === "enabled")?.value ?? "true") !== "false");
-      } catch {
-        // On read failure stay in the unknown state: the toggle remains disabled to prevent mistaken actions in an error state.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const toggleFeature = React.useCallback(async (next: boolean) => {
-    const previous = featureEnabled;
-    setFeatureSaving(true);
-    setFeatureEnabled(next);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) throw new Error("missing access token");
-      await patchAdminSettings(token, {
-        items: [{ namespace: "knowledgebase", key: "enabled", value: String(next) }],
-      });
-      overrideFeaturePolicy({ knowledgeBaseEnabled: next });
-      toast.success(t(next ? "featureToggle.enabledToast" : "featureToggle.disabledToast"));
-    } catch (error) {
-      setFeatureEnabled(previous);
-      toast.error(resolveAdminErrorMessage(error, t("featureToggle.saveFailed")));
-    } finally {
-      setFeatureSaving(false);
-    }
-  }, [featureEnabled, t]);
+  const { featureEnabled, featureSaving, toggleFeature } = useAdminKnowledgeBasesFeature();
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden">
@@ -129,7 +97,9 @@ export function AdminKnowledgeBases() {
               queryPlaceholder={t("searchPlaceholder")}
               sort={{
                 value: list.sortKey,
-                onValueChange: (value) => list.changeSort(value as typeof list.sortKey),
+                onValueChange: (value) => {
+                  if (isKnowledgeBaseSortKey(value)) list.changeSort(value);
+                },
                 options: [
                   { value: "default", label: t("sort.default") },
                   { value: "updated", label: t("sort.updated") },

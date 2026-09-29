@@ -4,9 +4,12 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
-import { useConversationExport, useSidebarConversationField } from "@/entities/conversation";
+import {
+  parseConversationLabelsJSON,
+  useConversationExport,
+  useSidebarConversationField,
+} from "@/entities/conversation";
 import type { ConversationDTO } from "@/shared/api/conversation-types";
-import { parseConversationLabelsJSON } from "@/shared/lib/conversation-labels";
 
 /**
  * Actions for the current conversation: title (manual/auto rename), star, tags, project, share, export and delete,

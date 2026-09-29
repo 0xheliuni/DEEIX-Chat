@@ -18,9 +18,10 @@ import type {
   UsageLogResponse,
 } from "@deeix/api-contract";
 import type { PagePayload } from "@/shared/api/common-types";
+import type { ADMIN_USER_ROLES, ADMIN_USER_STATUSES } from "@/features/admin/model/admin-unions";
 
-export type AdminUserStatus = "pending_activation" | "active" | "locked" | "suspended" | "deactivated";
-export type AdminUserRole = "user" | "admin" | "superadmin";
+export type AdminUserStatus = (typeof ADMIN_USER_STATUSES)[number];
+export type AdminUserRole = (typeof ADMIN_USER_ROLES)[number];
 
 export type AdminUserDTO = AdminUserResponse;
 

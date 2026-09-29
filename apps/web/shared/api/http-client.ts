@@ -1,6 +1,7 @@
 import { FEATURE_DISABLED_ERROR_CODE, resolveApiBaseUrl } from "@deeix/core";
 import { CLIENT_PLATFORM_HEADER, resolveClientPlatform } from "@/shared/platform";
 import type { ApiEnvelope } from "@/shared/api/common-types";
+import { isRecord, readString } from "@/shared/lib/type-guards";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -167,19 +168,36 @@ function buildRequestInit(options: ApiRequestOptions): RequestInit {
   };
 }
 
+type UntypedEnvelope = Omit<ApiEnvelope<unknown>, "errorMsg"> & { errorMsg?: string };
+
+// readEnvelope keeps only the envelope fields whose runtime type matches the contract, so a
+// malformed body degrades to the status-based fallback message instead of leaking odd values.
+function readEnvelope(payload: unknown): UntypedEnvelope {
+  if (!isRecord(payload)) {
+    return { data: undefined };
+  }
+  return {
+    errorMsg: readString(payload, "errorMsg"),
+    errorCode: readString(payload, "errorCode"),
+    requestId: readString(payload, "requestId"),
+    details: payload.details,
+    data: payload.data,
+  };
+}
+
 // toApiError parses the unified error envelope from a failed response into an ApiError carrying the error code and request ID.
 export async function toApiError(response: Response): Promise<ApiError> {
   const contentType = response.headers.get("content-type") || "";
   const requestId = response.headers.get("x-request-id") || undefined;
   if (contentType.includes("application/json")) {
     try {
-      const payload = (await response.json()) as Partial<ApiEnvelope<unknown>>;
+      const payload = readEnvelope(await response.json());
       return new ApiError(
-        payload?.errorMsg || `request failed: ${response.status}`,
+        payload.errorMsg || `request failed: ${response.status}`,
         response.status,
-        payload?.details,
-        payload?.errorCode,
-        payload?.requestId || requestId,
+        payload.details,
+        payload.errorCode,
+        payload.requestId || requestId,
         parseRetryAfterSeconds(response),
       );
     } catch {
@@ -249,9 +267,9 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   }
   const contentType = response.headers.get("content-type") || "";
   const responseRequestId = response.headers.get("x-request-id") || undefined;
-  const payload = contentType.includes("application/json")
-    ? ((await response.json()) as ApiEnvelope<T>)
-    : ({ errorMsg: response.ok ? "" : await response.text(), requestId: responseRequestId } as ApiEnvelope<T>);
+  const payload: UntypedEnvelope = contentType.includes("application/json")
+    ? readEnvelope(await response.json())
+    : { errorMsg: response.ok ? "" : await response.text(), requestId: responseRequestId, data: undefined };
 
   if (!response.ok) {
     if (payload.errorCode === FEATURE_DISABLED_ERROR_CODE) {
@@ -276,5 +294,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
       parseRetryAfterSeconds(response),
     );
   }
-  return payload.data;
+  // Type assertion: the envelope shape is validated above, but `data` is typed by the endpoint's
+  // server contract (@deeix/api-contract) that callers pick through `T`; it is not re-validated here.
+  return payload.data as T;
 }

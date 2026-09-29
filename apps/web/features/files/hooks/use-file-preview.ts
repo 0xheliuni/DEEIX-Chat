@@ -9,7 +9,7 @@ import { fetchFileContent } from "@/shared/api/file";
 import type { FileObjectDTO } from "@/shared/api/file-types";
 
 import type { FilePreviewKind } from "@/features/files/types/files";
-import { isFileReady, isImageFile, isReadableTextContent, resolveFileExtension, resolveFilePreviewKind } from "@/shared/lib/file-display";
+import { isFileReady, isImageFile, isReadableTextContent, resolveFileExtension, resolveFilePreviewKind } from "@/entities/file";
 
 async function tryReadTextPreview(blob: Blob): Promise<{ textContent: string | null }> {
   const textContent = await blob.text();

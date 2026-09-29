@@ -4,10 +4,7 @@ import * as React from "react";
 
 import { getAdminBillingConfig } from "@/features/admin/api/billing";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import {
-  normalizeBillingDisplayCurrency,
-  type BillingDisplayOptions,
-} from "@/shared/lib/billing-display";
+import { normalizeBillingDisplayCurrency, type BillingDisplayOptions } from "@/entities/billing";
 
 // useAdminBillingDisplayOptions loads admin billing display config (currency and exchange rate), falling back to USD on failure.
 export function useAdminBillingDisplayOptions(): BillingDisplayOptions {

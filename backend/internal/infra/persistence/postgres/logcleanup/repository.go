@@ -27,17 +27,17 @@ func (r *Repo) DeleteBefore(ctx context.Context, logType string, before time.Tim
 
 	switch logType {
 	case repository.LogCleanupTypeAudit:
-		result = query.Where("created_at < ?", before).Delete(&model.AuditLog{})
+		result = query.Where("created_at < ?", before).Delete(&models.AuditLog{})
 	case repository.LogCleanupTypeAuth:
-		result = query.Where("occurred_at < ?", before).Delete(&model.UserAuthEvent{})
+		result = query.Where("occurred_at < ?", before).Delete(&models.UserAuthEvent{})
 	case repository.LogCleanupTypeUsage:
-		result = query.Where("created_at < ?", before).Delete(&model.UsageLedger{})
+		result = query.Where("created_at < ?", before).Delete(&models.UsageLedger{})
 	case repository.LogCleanupTypeOrders:
-		result = query.Where("created_at < ?", before).Delete(&model.PaymentOrder{})
+		result = query.Where("created_at < ?", before).Delete(&models.PaymentOrder{})
 	case repository.LogCleanupTypeConversation:
-		result = query.Where("created_at < ?", before).Delete(&model.ChatRunEvent{})
+		result = query.Where("created_at < ?", before).Delete(&models.ChatRunEvent{})
 	case repository.LogCleanupTypeModeration:
-		result = query.Where("created_at < ?", before).Delete(&model.ContentModerationEvent{})
+		result = query.Where("created_at < ?", before).Delete(&models.ContentModerationEvent{})
 	default:
 		return 0, fmt.Errorf("unsupported log cleanup type: %s", logType)
 	}

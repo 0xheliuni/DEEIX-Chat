@@ -31,14 +31,17 @@ import type {
   AdminLLMModelDisplayGroupDTO,
   AdminLLMModelVendorDTO,
 } from "@/features/admin/api/llm-types";
-import { AdminBulkConfirmDialog } from "@/features/admin/components/bulk-confirm-dialog";
-import { ModelIconField } from "@/features/admin/components/sections/models/model-icon-field";
+import { AdminBulkConfirmDialog } from "@/features/admin/components/shared/bulk-confirm-dialog";
+import { ModelIconField } from "@/features/admin/components/sections/models/models-icon-field";
 import {
   type PresentationTab,
-  useAdminPresentationEditor,
-} from "@/features/admin/hooks/use-admin-presentation-editor";
-import { ModelIcon } from "@/shared/components/model-icon";
-import { resolveModelIconURL } from "@/shared/lib/model-identity";
+  useAdminModelsPresentationEditor,
+} from "@/features/admin/hooks/use-admin-models-presentation-editor";
+import { ModelIcon, resolveModelIconURL } from "@/entities/model";
+import { isOneOf } from "@/shared/lib/type-guards";
+
+const PRESENTATION_TABS = ["vendors", "groups"] as const satisfies readonly PresentationTab[];
+const isPresentationTab = isOneOf(PRESENTATION_TABS);
 
 function InputHelp({ help }: { help: string }) {
   return (
@@ -207,7 +210,7 @@ export function ModelPresentationDialog({
     toggleEditorModel,
     saveEditor,
     confirmDelete,
-  } = useAdminPresentationEditor({ onChanged, onClose });
+  } = useAdminModelsPresentationEditor({ onChanged, onClose });
   const keyInputID = React.useId();
   const nameInputID = React.useId();
   const iconInputID = React.useId();
@@ -408,7 +411,8 @@ export function ModelPresentationDialog({
                 <Tabs
                   value={tab}
                   onValueChange={(value) => {
-                    const nextTab = value as PresentationTab;
+                    if (!isPresentationTab(value)) return;
+                    const nextTab = value;
                     setTab(nextTab);
                     if (nextTab === "groups" && catalogModels === null && !modelsLoading) {
                       void loadCatalogModels();

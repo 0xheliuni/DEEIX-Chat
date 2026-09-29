@@ -543,9 +543,9 @@
     "mcpPaidToolNote": "仅对成功执行的工具调用进行计费，失败不计费。",
     "mcpImageProcessorLimitTitle": "只能选择一个图片处理器",
     "mcpImageProcessorLimitDescription": "一条消息只能由一个 MCP 图片附件处理器接管图片，请先取消当前选择。",
-    "skillLimitTitle": "Skills 数量已达上限",
-    "skillLimitDescription": "单次消息最多加载 {limit} 个 Skills，请移除一个后再继续。",
-    "selectedSkillsLabel": "已加载 Skills",
+    "skillLimitTitle": "技能数量已达上限",
+    "skillLimitDescription": "单次消息最多加载 {limit} 个技能，请移除一个后再继续。",
+    "selectedSkillsLabel": "已加载技能",
     "mcpSetDefaultTool": "新对话默认使用 {tool}",
     "mcpUnsetDefaultTool": "新对话不再默认使用 {tool}",
     "mcpDefaultToolEnabled": "新对话会默认启用",
@@ -593,16 +593,16 @@
         "file": "文件",
         "tool": "MCP",
         "model": "模型",
-        "skill": "Skills",
-        "prompt": "Prompts"
+        "skill": "技能",
+        "prompt": "提示词"
       },
       "tabs": {
         "all": "全部",
         "file": "文件",
         "tool": "MCP",
         "model": "模型",
-        "skill": "Skills",
-        "prompt": "Prompts"
+        "skill": "技能",
+        "prompt": "提示词"
       },
       "recent": "最近使用",
       "groups": {
@@ -818,7 +818,7 @@
       "contentRetrieval": "内容检索",
       "fileContext": "文件上下文",
       "contextCompaction": "上下文压缩",
-      "skillContext": "Skill 上下文",
+      "skillContext": "技能上下文",
       "requestResult": "请求结果",
       "upstreamRequestTriggered": "上游模型请求触发"
     },

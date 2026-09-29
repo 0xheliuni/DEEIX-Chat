@@ -68,8 +68,8 @@ Each override group in `biome.jsonc` applies to the listed files only.
 | `components/animate-ui/utils/get-strict-context.tsx` | `nursery/noComponentHookFactories` | Registry-owned Animate UI utility whose purpose is to return a `Provider` component and a context hook from one factory. |
 | `components/ui/live-waveform.tsx`, `components/ui/virtual-table.tsx` | `a11y/noAriaHiddenOnFocusable` | Decorative `aria-hidden` elements (waveform canvas, virtual-table padding rows) that are not actually focusable. |
 | `features/admin/components/sections/billing/billing-redemption.tsx`, `features/chat/components/message/message-meta.tsx` | `a11y/noNoninteractiveTabindex` | `tabIndex={0}` on a `<span>` tooltip trigger so keyboard users can reach the tooltip. |
-| `features/chat/components/sections/chat-input.tsx`, `features/layouts/components/navigation/sidebar-conversation-item.tsx`, `features/settings/components/sections/chat/settings-chat.tsx` | `a11y/noAutofocus` | `autoFocus` on inputs that appear in response to an explicit user action (inline edit/rename fields). |
-| `shared/components/file-preview/preview-media.tsx` | `a11y/useMediaCaption` | Previews user-uploaded audio/video, for which no caption track exists. |
+| `features/chat/components/sections/chat-input.tsx`, `features/shell/components/navigation/sidebar-conversation-item.tsx`, `features/settings/components/sections/chat/settings-chat.tsx` | `a11y/noAutofocus` | `autoFocus` on inputs that appear in response to an explicit user action (inline edit/rename fields). |
+| `entities/file/components/file-preview/preview-media.tsx` | `a11y/useMediaCaption` | Previews user-uploaded audio/video, for which no caption track exists. |
 | `components/ui/input-group.tsx` | `a11y/useKeyWithClickEvents` | shadcn component: clicking the addon forwards focus to the input, which keyboard users reach directly. |
 
 Vendored registry code (`components/ui`, `components/animate-ui`, `components/reactbits`) follows the same rules as the rest of the app; when a registry update reintroduces a pattern the rules reject (for example `interface` props or decorative SVGs without `aria-hidden`), fix it while importing instead of adding a directory override.
@@ -80,7 +80,7 @@ Vendored registry code (`components/ui`, `components/animate-ui`, `components/re
 | --- | --- | --- |
 | `i18n/app-i18n-provider.tsx` | `suspicious/noDocumentCookie` | Writes the locale cookie; the Cookie Store API is missing in the supported WebKit (macOS 10.15 / Safari 15.6). |
 | `components/ui/sidebar.tsx` | `suspicious/noDocumentCookie` | shadcn sidebar state cookie; same Cookie Store API constraint. |
-| `features/auth/components/turnstile-widget.tsx`, `components/ui/live-waveform.tsx`, `types/tauri-globals.d.ts` | `style/useConsistentTypeDefinitions` | Augmenting the global `Window` requires `interface` declaration merging. |
+| `features/auth/components/shared/turnstile-widget.tsx`, `components/ui/live-waveform.tsx`, `types/tauri-globals.d.ts` | `style/useConsistentTypeDefinitions` | Augmenting the global `Window` requires `interface` declaration merging. |
 | `shared/components/theme-bootstrap-script.tsx` | `security/noDangerouslySetInnerHtml` | Build-time constant inline `<script>` that must run before paint; no user input. |
 | `shared/components/markdown/ui-blocks/function-plot.tsx` | `security/noDangerouslySetInnerHtml` | KaTeX markup rendered from a parsed expression AST. |
 

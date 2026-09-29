@@ -328,14 +328,14 @@ export function ChatMCP({
         onMouseDown={(event) => event.stopPropagation()}
         onClick={(event) => event.stopPropagation()}
         onPointerDownOutside={(event) => {
-          const target = event.target as HTMLElement | null;
-          if (target?.closest("[data-mcp-tools-popover-content]")) {
+          const target = event.target;
+          if (target instanceof Element && target.closest("[data-mcp-tools-popover-content]")) {
             event.preventDefault();
           }
         }}
         onFocusOutside={(event) => {
-          const target = event.target as HTMLElement | null;
-          if (target?.closest("[data-mcp-tools-popover-content]")) {
+          const target = event.target;
+          if (target instanceof Element && target.closest("[data-mcp-tools-popover-content]")) {
             event.preventDefault();
           }
         }}

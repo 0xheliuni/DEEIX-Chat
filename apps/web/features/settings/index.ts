@@ -12,3 +12,9 @@ export {
 } from "@/features/settings/utils/appearance-preferences";
 export { useFontSizePreference } from "@/features/settings/utils/font-size";
 export type { SendShortcut } from "@/features/settings/types/settings";
+export { AppSettingsPanel } from "@/features/settings/components/app-settings-panel";
+export { SettingsAbout } from "@/features/settings/components/sections/about/settings-about";
+export { SettingsAccount } from "@/features/settings/components/sections/account/settings-account";
+export { SettingsChat } from "@/features/settings/components/sections/chat/settings-chat";
+export { SettingsGeneral } from "@/features/settings/components/sections/general/settings-general";
+export { SettingsSubscription } from "@/features/settings/components/sections/subscription/settings-subscription";

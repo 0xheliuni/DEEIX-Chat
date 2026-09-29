@@ -44,37 +44,22 @@ import type {
   UpstreamRemoteModelsResponse,
   UpstreamResponse,
 } from "@deeix/api-contract";
+import type {
+  ADMIN_LLM_ADAPTERS,
+  ADMIN_LLM_CB_LOGICS,
+  ADMIN_LLM_COMPATIBLES,
+  ADMIN_LLM_MODEL_ACCESS_SCOPES,
+  ADMIN_LLM_MODEL_CB_POLICY_MODES,
+  ADMIN_LLM_STATUSES,
+} from "@/features/admin/model/admin-unions";
 
-export type AdminLLMStatus = "active" | "inactive";
-export type AdminLLMModelAccessScope = "public" | "internal";
-export type AdminLLMAdapter =
-  | "openai_responses"
-  | "openrouter_chat_completions"
-  | "openrouter_responses"
-  | "openrouter_images"
-  | "openai_chat_completions"
-  | "openai_image_generations"
-  | "openai_image_edits"
-  | "openai_video_generations"
-  | "anthropic_messages"
-  | "google_generate_content"
-  | "google_image_generation"
-  | "gemini_interactions"
-  | "xai_responses"
-  | "xai_image"
-  | "xai_image_edits"
-  | "xai_video"
-  | "xai_video_extensions";
+export type AdminLLMStatus = (typeof ADMIN_LLM_STATUSES)[number];
+export type AdminLLMModelAccessScope = (typeof ADMIN_LLM_MODEL_ACCESS_SCOPES)[number];
+export type AdminLLMAdapter = (typeof ADMIN_LLM_ADAPTERS)[number];
 export type AdminLLMModelVendor = string;
-export type AdminLLMCompatible =
-  | "openai"
-  | "anthropic"
-  | "google"
-  | "xai"
-  | "openrouter"
-  | "custom";
-export type AdminLLMCbLogic = "or" | "and";
-export type AdminLLMModelCbPolicyMode = "default" | "enforced";
+export type AdminLLMCompatible = (typeof ADMIN_LLM_COMPATIBLES)[number];
+export type AdminLLMCbLogic = (typeof ADMIN_LLM_CB_LOGICS)[number];
+export type AdminLLMModelCbPolicyMode = (typeof ADMIN_LLM_MODEL_CB_POLICY_MODES)[number];
 
 // ---------------------------------------------------------------------------
 // Upstream views

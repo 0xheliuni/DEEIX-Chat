@@ -295,7 +295,7 @@ function SidebarProvider({
                     "--sidebar-width": "17.96875rem",
                     "--sidebar-width-icon": "3rem",
                     ...style,
-                  } as React.CSSProperties
+                  }
                 }
                 className={cn(
                   "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar",
@@ -528,7 +528,7 @@ function Sidebar({
             style={
               {
                 "--sidebar-width": "17.96875rem",
-              } as React.CSSProperties
+              }
             }
             side={side}
             onPointerEnter={onPointerEnter}
@@ -1021,7 +1021,7 @@ function SidebarMenuSkeleton({
         style={
           {
             "--skeleton-width": textWidth,
-          } as React.CSSProperties
+          }
         }
       />
     </div>

@@ -55,7 +55,7 @@ type ToolTraceCall = {
 function parseToolTraceCalls(payloadJson: string | undefined): ToolTraceCall[] {
   if (!payloadJson) return [];
   try {
-    const parsed = JSON.parse(payloadJson) as unknown;
+    const parsed: unknown = JSON.parse(payloadJson);
     if (!isToolPayloadRecord(parsed) || !Array.isArray(parsed.tool_calls)) return [];
 
     return parsed.tool_calls.flatMap((value): ToolTraceCall[] => {

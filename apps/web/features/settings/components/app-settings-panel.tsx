@@ -6,7 +6,7 @@ import { CustomBrandAttribution } from "@/shared/components/powered-by-deeix";
 
 export function AppSettingsPanel({
   children,
-  basePath = "/setting",
+  basePath = "/settings",
 }: {
   children: ReactNode;
   basePath?: string;

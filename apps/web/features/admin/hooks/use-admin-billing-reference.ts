@@ -19,7 +19,7 @@ import {
   type PaymentSettings,
 } from "@/features/admin/model/billing-settings";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import { configuredSettingsMap } from "@/shared/lib/settings-meta";
+import { configuredSettingsMap } from "@/features/admin/utils/settings-meta";
 import { useCapabilities } from "@/shared/capabilities";
 
 type UseAdminBillingReferenceState = {

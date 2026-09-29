@@ -16,11 +16,11 @@ import { ContentPreview } from "@/features/files/components/sections/content/con
 import { SidebarHeader } from "@/features/files/components/sections/sidebar/sidebar-header";
 import { SidebarList } from "@/features/files/components/sections/sidebar/sidebar-list";
 import { StorageQuotaPanel } from "@/features/files/components/sections/storage/storage-quota-panel";
-import { useFilesPage } from "@/features/files/hooks/use-files-page";
+import { useFilePage } from "@/features/files/hooks/use-file-page";
 import { cn } from "@/lib/utils";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
-import { canManuallyVectorizeFile } from "@/shared/lib/file-processing";
+import { canManuallyVectorizeFile } from "@/entities/file";
 
 export function AppFiles() {
   const tCommon = useTranslations("common.actions");
@@ -84,7 +84,7 @@ export function AppFiles() {
     onVectorizeSelected,
     onBackToList,
     onToggleRagOptOut,
-  } = useFilesPage();
+  } = useFilePage();
   const stableDeleteTarget = useDialogSnapshot(deleteTarget);
   const selectedCount = selectedFileIDs.length;
   const selectedFileIDSet = new Set(selectedFileIDs);

@@ -8,7 +8,7 @@ export function parseDefaultMCPToolIDs(raw: string | null | undefined): number[]
     return [];
   }
   try {
-    const parsed = JSON.parse(value) as unknown;
+    const parsed: unknown = JSON.parse(value);
     if (!Array.isArray(parsed)) {
       return [];
     }

@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
-import { toast } from "sonner";
 
 import { Brush } from "@/components/animate-ui/icons/brush";
 import { Check } from "@/components/animate-ui/icons/check";
@@ -40,16 +39,16 @@ import {
   formatDurationMS,
 } from "@/features/chat/model/duration";
 import { useChatElapsedDurationMS } from "@/features/chat/hooks/use-chat-elapsed-duration";
+import { useChatMemoryPin } from "@/features/chat/hooks/use-chat-memory-pin";
 import { type BillingSnapshot, parseBillingSnapshot } from "@/features/chat/model/billing-snapshot";
 import { resolvePersistedPublicID } from "@/features/chat/model/message-submit";
 import type { ChatBillingCost, ChatMessageBranchNavigator } from "@/features/chat/types/messages";
-import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 import { cn } from "@/lib/utils";
-import { upsertUserMemory } from "@/shared/api/memory";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { usePointerInteraction } from "@/shared/hooks/use-pointer-interaction";
-import type { BillingDisplayCurrency, BillingDisplayLabels, BillingDisplayOptions } from "@/shared/lib/billing-display";
 import {
+  type BillingDisplayCurrency,
+  type BillingDisplayLabels,
+  type BillingDisplayOptions,
   billingRateMultiplierNote,
   billingScheduleNote,
   cacheWriteBillingLabel,
@@ -57,7 +56,7 @@ import {
   formatBillingDisplayCompactAmountFromUSD,
   formatBillingDisplayPreciseAmountFromUSD,
   formatBillingDisplayUnitPriceFromUSD,
-} from "@/shared/lib/billing-display";
+} from "@/entities/billing";
 
 const META_ACTION_BUTTON_CLASSNAME =
   "text-muted-foreground [&_svg:not([class*='size-'])]:size-3.5";
@@ -935,34 +934,20 @@ function TieredBillingTable({ line }: { line: Extract<BillingTooltipLine, { type
 
 function QuickMemoryPin({ disabled }: { disabled?: boolean }) {
   const t = useTranslations("chat.messages");
-  const resolveErrorMessage = useLocalizedErrorMessage();
   const [open, setOpen] = React.useState(false);
   const [key, setKey] = React.useState("");
   const [value, setValue] = React.useState("");
-  const [saving, setSaving] = React.useState(false);
+  const { saving, savePreference } = useChatMemoryPin();
 
-  const handleSave = React.useCallback(async () => {
-    const trimmedKey = key.trim();
-    const trimmedValue = value.trim();
-    if (!trimmedKey || !trimmedValue) return;
-    setSaving(true);
-    try {
-      const token = await resolveAccessToken();
-      if (!token) {
-        toast.error(t("authTokenMissing"));
-        return;
-      }
-      await upsertUserMemory(token, trimmedKey, trimmedValue, "preference");
-      toast.success(t("memorySaved"), { description: t("memorySavedDescription") });
-      setKey("");
-      setValue("");
-      setOpen(false);
-    } catch (error) {
-      toast.error(t("memorySaveFailed"), { description: resolveErrorMessage(error) });
-    } finally {
-      setSaving(false);
-    }
-  }, [key, resolveErrorMessage, t, value]);
+  const handleSave = React.useCallback(
+    () =>
+      savePreference(key, value, () => {
+        setKey("");
+        setValue("");
+        setOpen(false);
+      }),
+    [key, savePreference, value],
+  );
 
   const handleKeyDown = React.useCallback(
     (e: React.KeyboardEvent) => {

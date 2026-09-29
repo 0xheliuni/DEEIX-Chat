@@ -9,7 +9,13 @@ import { Ellipsis } from "@/components/animate-ui/icons/ellipsis";
 import { AnimatedText } from "@/components/ui/animated-text";
 import { LoadingReveal } from "@/shared/components/loading-reveal";
 import type { RecentRowState } from "@/features/recent/types/recent";
-import { ConversationLabelsMenuItem, isArchivedConversation } from "@/entities/conversation";
+import {
+  ConversationLabelsMenuItem,
+  ConversationProjectSubmenu,
+  ConversationShareExportSubmenu,
+  isArchivedConversation,
+  parseConversationLabelsJSON,
+} from "@/entities/conversation";
 import {
   formatRelativeUpdatedAt,
   recentEmptyStateTitle,
@@ -26,11 +32,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { CenteredEmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ConversationProjectSubmenu } from "@/shared/components/conversation-project-submenu";
-import { ConversationShareExportSubmenu } from "@/shared/components/conversation-share-export-menu";
 import { cn } from "@/lib/utils";
 import { useAppLocale } from "@/i18n/app-i18n-provider";
-import { parseConversationLabelsJSON } from "@/shared/lib/conversation-labels";
 import type {
   ConversationDTO,
   ConversationProjectDTO,

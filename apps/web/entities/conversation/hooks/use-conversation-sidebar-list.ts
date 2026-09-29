@@ -4,9 +4,9 @@ import * as React from "react";
 
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { readAccessToken } from "@/shared/auth/session";
-import { dispatchFileLibraryInvalidated } from "@/shared/events/file-library-events";
+import { dispatchFileLibraryInvalidated } from "@/entities/file";
 import { runBulkActionInChunks } from "@/shared/lib/bulk-action";
-import { resolveConversationDefaultModel } from "@/shared/model/conversation-default-model";
+import { resolveConversationDefaultModel } from "@/entities/conversation/lib/conversation-default-model";
 import {
   batchSetConversationProject,
   createConversation,
@@ -285,7 +285,7 @@ export function useConversationSidebarList({
   const setProjectList = React.useCallback((updater: React.SetStateAction<ConversationProjectDTO[]>) => {
     setProjects((current) => {
       const next = typeof updater === "function"
-        ? (updater as (value: ConversationProjectDTO[]) => ConversationProjectDTO[])(current)
+        ? updater(current)
         : updater;
       projectsRef.current = next;
       return next;

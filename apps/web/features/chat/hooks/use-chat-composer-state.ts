@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import type { PendingAttachment } from "@/features/chat/types/chat-runtime";
+import { isRecord } from "@/shared/lib/type-guards";
 
 const LEGACY_CHAT_COMPOSER_STORAGE_KEY = "deeix-chat:chat-composer:v1";
 const CHAT_COMPOSER_STORAGE_KEY_PREFIX = "deeix-chat:chat-composer:v2:";
@@ -97,11 +98,11 @@ function restoreAttachments(items: PersistedAttachment[]): PendingAttachment[] {
 }
 
 function isPersistedAttachment(value: unknown): value is PersistedAttachment {
-  if (!value || typeof value !== "object") {
+  if (!isRecord(value)) {
     return false;
   }
 
-  const item = value as Record<string, unknown>;
+  const item = value;
   return (
       typeof item.fileID === "string" &&
       typeof item.fileName === "string" &&
@@ -134,8 +135,8 @@ function readComposerStore(storageKey: string): PersistedComposerStore {
       return emptyStore;
     }
 
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== "object") {
+    const parsed: unknown = JSON.parse(raw);
+    if (!isRecord(parsed)) {
       const emptyStore = {};
       composerStoreCache.set(storageKey, emptyStore);
       return emptyStore;
@@ -143,11 +144,10 @@ function readComposerStore(storageKey: string): PersistedComposerStore {
 
     const entries: Array<[string, PersistedComposerEntry, number]> = [];
     const expiresBefore = Date.now() - COMPOSER_ENTRY_MAX_AGE_MS;
-    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-      if (!value || typeof value !== "object") {
+    for (const [key, entry] of Object.entries(parsed)) {
+      if (!isRecord(entry)) {
         continue;
       }
-      const entry = value as Record<string, unknown>;
       const draft = typeof entry.draft === "string" ? entry.draft : "";
       const attachments = Array.isArray(entry.attachments)
         ? entry.attachments.filter(isPersistedAttachment)

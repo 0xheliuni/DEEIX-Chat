@@ -2,6 +2,7 @@
 
 import { startProviderAuthBridge, startProviderBindBridge } from "@/shared/api/auth";
 import { isDesktopApp } from "@/shared/platform";
+import { isRecord } from "@/shared/lib/type-guards";
 import {
   openInSystemBrowser,
   resolveOAuthClientId,
@@ -36,8 +37,8 @@ type StoredProviderBridgeRequest = {
 };
 
 function isStoredProviderBridgeRequest(value: unknown): value is StoredProviderBridgeRequest {
-  if (typeof value !== "object" || value === null) return false;
-  const record = value as Record<string, unknown>;
+  if (!isRecord(value)) return false;
+  const record = value;
   return (
     typeof record.verifier === "string" &&
     typeof record.state === "string" &&

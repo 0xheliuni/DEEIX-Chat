@@ -24,7 +24,7 @@ import {
 } from "@/shared/api/conversation";
 import type { TemporaryChatRequestAttachment } from "@/shared/api/conversation";
 import type { ConversationOptions, TemporaryChatHistoryMessage } from "@/shared/api/conversation-types";
-import type { FileContentLoader } from "@/shared/components/file-preview/preview-dialog";
+import type { FileContentLoader } from "@/entities/file";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { createSecureUUID } from "@/shared/lib/secure-id";
 

@@ -2,9 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
 
 import {
   buildChildrenIndex,
@@ -20,27 +19,19 @@ import {
   useChatArtifactResize,
   useChatArtifacts,
 } from "@/features/chat";
+import { useSharePublicConversation } from "@/features/share/hooks/use-share-public-conversation";
 import { cn } from "@/lib/utils";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 import { UIBlockRegistryProvider } from "@/shared/components/markdown/ui-blocks";
-import { cloneSharedConversation, getSharedConversation } from "@/shared/api/conversation";
-import type {
-  MessageDTO,
-  PublicSharedConversationDTO,
-  PublicSharedMessageDTO,
-} from "@/shared/api/conversation-types";
-import { fetchSharedFileContent } from "@/shared/api/file";
-import type { FileContentLoader } from "@/shared/components/file-preview/preview-dialog";
+import type { MessageDTO, PublicSharedMessageDTO } from "@/shared/api/conversation-types";
+import type { FileContentLoader } from "@/entities/file";
 import { CenteredEmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AppLogo, DeeixLogo } from "@/shared/components/app-logo";
 import { useBranding } from "@/shared/config/branding-provider";
 import { CustomBrandAttribution } from "@/shared/components/powered-by-deeix";
-import { useOptionalAuthSession } from "@/shared/auth/auth-session-context";
-import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { useAppLocale } from "@/i18n/app-i18n-provider";
-import { useLocalizedErrorMessage } from "@/i18n/use-localized-error";
 
 function formatSharedAt(value: string, locale: string): string {
   const date = new Date(value);
@@ -236,73 +227,18 @@ export function PublicSharePage() {
   const attributionT = useTranslations("common.attribution");
   const branding = useBranding();
   const { locale } = useAppLocale();
-  const resolveErrorMessage = useLocalizedErrorMessage();
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const authSession = useOptionalAuthSession();
   const shareID = searchParams.get("conversation_id")?.trim() || "";
-  const [data, setData] = React.useState<PublicSharedConversationDTO | null>(null);
-  const [loading, setLoading] = React.useState(true);
-  const [errorMsg, setErrorMsg] = React.useState("");
   const [branchSelections, setBranchSelections] = React.useState<Record<string, string>>({});
-  const [resolvedAccessToken, setResolvedAccessToken] = React.useState("");
-  const [cloning, setCloning] = React.useState(false);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    async function loadShare() {
-      setLoading(true);
-      setErrorMsg("");
-      try {
-        const result = await getSharedConversation(shareID);
-        if (!cancelled) {
-          setData(result);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setData(null);
-          setErrorMsg(resolveErrorMessage(error, t("notFoundDescription")));
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-    if (shareID) {
-      void loadShare();
-    } else {
-      setLoading(false);
-      setErrorMsg(t("notFoundDescription"));
-    }
-    return () => {
-      cancelled = true;
-    };
-  }, [resolveErrorMessage, shareID, t]);
-
-  React.useEffect(() => {
-    if (authSession?.accessToken) {
-      setResolvedAccessToken(authSession.accessToken);
-      return;
-    }
-    let cancelled = false;
-    async function checkSession() {
-      try {
-        const token = await resolveAccessToken();
-        if (!cancelled) {
-          setResolvedAccessToken(token);
-        }
-      } catch {
-        if (!cancelled) {
-          setResolvedAccessToken("");
-        }
-      }
-    }
-    void checkSession();
-    return () => {
-      cancelled = true;
-    };
-  }, [authSession?.accessToken]);
+  const {
+    data,
+    loading,
+    errorMsg,
+    accessToken,
+    cloning,
+    loadSharedContent,
+    continueConversation: handleContinueConversation,
+  } = useSharePublicConversation(shareID);
 
   const messages = React.useMemo(
     () => data?.messages.map((message) => mapPublicSharedMessage(
@@ -368,39 +304,6 @@ export function PublicSharePage() {
     },
     [messages],
   );
-
-  const loadSharedContent = React.useCallback<FileContentLoader>(
-    (file, signal) => fetchSharedFileContent(shareID, file.fileID, signal),
-    [shareID],
-  );
-  const accessToken = authSession?.accessToken || resolvedAccessToken;
-  const loginNextPath = React.useMemo(() => {
-    const params = new URLSearchParams();
-    if (shareID) {
-      params.set("conversation_id", shareID);
-    }
-    const nextPath = params.toString() ? `/share?${params.toString()}` : "/share";
-    return `/login?next=${encodeURIComponent(nextPath)}`;
-  }, [shareID]);
-
-  const handleContinueConversation = React.useCallback(async () => {
-    if (!shareID) {
-      return;
-    }
-    if (!accessToken) {
-      router.push(loginNextPath);
-      return;
-    }
-    setCloning(true);
-    try {
-      const conversation = await cloneSharedConversation(accessToken, shareID);
-      router.push(`/chat?conversation_id=${encodeURIComponent(conversation.publicID)}`);
-    } catch (error) {
-      toast.error(t("cloneFailed"), { description: resolveErrorMessage(error, t("cloneFailed")) });
-    } finally {
-      setCloning(false);
-    }
-  }, [accessToken, loginNextPath, resolveErrorMessage, router, shareID, t]);
 
   if (loading) {
     return <PublicShareSkeleton />;

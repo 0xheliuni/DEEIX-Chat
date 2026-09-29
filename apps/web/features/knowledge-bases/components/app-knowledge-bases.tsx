@@ -1,9 +1,9 @@
 "use client";
 
-import { KnowledgeBaseDetail } from "@/features/knowledge-bases/components/knowledge-base-detail";
-import { KnowledgeBasePageDialogs } from "@/features/knowledge-bases/components/knowledge-base-page-dialogs";
-import { KnowledgeBaseSidebar } from "@/features/knowledge-bases/components/knowledge-base-sidebar";
-import { useKnowledgeBasesPage } from "@/features/knowledge-bases/hooks/use-knowledge-bases-page";
+import { KnowledgeBaseDetail } from "@/features/knowledge-bases/components/sections/knowledge-base-detail";
+import { KnowledgeBasePageDialogs } from "@/features/knowledge-bases/components/sections/knowledge-base-page-dialogs";
+import { KnowledgeBaseSidebar } from "@/features/knowledge-bases/components/sections/knowledge-base-sidebar";
+import { useKnowledgeBasePage } from "@/features/knowledge-bases/hooks/use-knowledge-base-page";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
 
 const mode = "user";
@@ -12,7 +12,7 @@ const mode = "user";
 // reuses the page model and dialogs through the feature entry point.
 export function AppKnowledgeBases() {
   const isMobileViewport = useIsMobile();
-  const page = useKnowledgeBasesPage(mode);
+  const page = useKnowledgeBasePage(mode);
   const { list, detail } = page;
   const sidebarCollapsed = !isMobileViewport && list.sidebarCollapsed;
 

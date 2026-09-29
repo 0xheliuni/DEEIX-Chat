@@ -1,6 +1,7 @@
 import { MODERATION_BLOCKED_BILLED_REASON, parseBillingSnapshot } from "@/features/chat/model/billing-snapshot";
 import type { ChatAreaMessage, MessageAttachment } from "@/features/chat/types/messages";
 import type { MessageDTO, UpstreamDebugInfo } from "@/shared/api/conversation-types";
+import { isRecord, parseJSON } from "@/shared/lib/type-guards";
 
 function parseAttachmentDurationSeconds(value: unknown): number | undefined {
   const parsed = Number(value);
@@ -15,7 +16,8 @@ export function parseAttachments(raw: string): MessageAttachment[] {
   try {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return (parsed as Record<string, unknown>[])
+    return parsed
+      .filter(isRecord)
       .map((item) => ({
         fileID: String(item.file_id ?? ""),
         fileName: String(item.file_name ?? ""),
@@ -110,29 +112,20 @@ function parseProcessTrace(item: MessageDTO) {
   };
 }
 
+function isUpstreamDebugInfo(value: unknown): value is UpstreamDebugInfo {
+  return isRecord(value) && (isRecord(value.request) || isRecord(value.response));
+}
+
 function parseUpstreamDebugInfo(value: unknown): UpstreamDebugInfo | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return undefined;
-  }
-  const candidate = value as UpstreamDebugInfo;
-  const hasRequest = Boolean(candidate.request && typeof candidate.request === "object" && !Array.isArray(candidate.request));
-  const hasResponse = Boolean(candidate.response && typeof candidate.response === "object" && !Array.isArray(candidate.response));
-  if (hasRequest || hasResponse) {
-    return candidate;
-  }
-  return undefined;
+  return isUpstreamDebugInfo(value) ? value : undefined;
 }
 
 function parseUpstreamDebugPayload(payloadJSON: string | undefined): UpstreamDebugInfo | undefined {
   if (!payloadJSON) {
     return undefined;
   }
-  try {
-    const parsed = JSON.parse(payloadJSON.trim()) as { upstream_debug?: unknown };
-    return parseUpstreamDebugInfo(parsed.upstream_debug);
-  } catch {
-    return undefined;
-  }
+  const parsed = parseJSON(payloadJSON.trim());
+  return isRecord(parsed) ? parseUpstreamDebugInfo(parsed.upstream_debug) : undefined;
 }
 
 function upstreamDebugScore(value: UpstreamDebugInfo): number {

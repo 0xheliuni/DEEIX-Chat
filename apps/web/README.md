@@ -30,27 +30,36 @@ apps/web/
 │   ├── ui/                    # 通用 UI primitives（shadcn）
 │   ├── animate-ui/            # 第三方动画组件与图标
 │   └── reactbits/             # 第三方视觉效果组件
-├── entities/conversation/     # 跨 feature 复用的会话实体（标签、分享、导出、侧栏列表）
+├── entities/                  # 被多个 feature 复用的业务实体，每个实体只经 index.ts 对外
+│   ├── announcement/          # 公告事件（打开公告、未读状态）
+│   ├── billing/               # 计费展示与分时定价
+│   ├── conversation/          # 会话：标签、分享/导出菜单、项目子菜单、搜索、默认模型、侧栏列表
+│   ├── file/                  # 文件：预览、展示、处理状态与轮询、删除选项、文件库事件
+│   ├── identity-provider/     # 身份源图标
+│   ├── mcp/                   # MCP 工具选择规则
+│   ├── model/                 # 模型：身份与图标、选择器、选项展示与参数策略、原生工具
+│   ├── prompt-preset/         # 提示词预设约束
+│   ├── skill/                 # 技能表单模型
+│   └── user-settings/         # 用户设置存储与对话内容宽度
 ├── features/                  # 按业务域组织页面组件、hooks 和模型
 │   ├── admin/                 # 管理后台
 │   ├── announcements/         # 公告
 │   ├── auth/                  # 登录和会话流程
 │   ├── chat/                  # 对话工作区
+│   ├── desktop/               # 桌面端启动、服务器设置、更新提示、标签栏
 │   ├── files/                 # 文件管理与处理状态
 │   ├── knowledge-bases/       # 知识库
-│   ├── layouts/               # 工作区布局
-│   ├── platform/              # 桌面端启动、服务器设置、更新提示、标签栏
-│   ├── prompts/               # 技能与提示词
+│   ├── library/               # 指令库：技能与提示词
 │   ├── recent/                # 最近会话
 │   ├── settings/              # 用户设置
-│   └── share/                 # 分享页
+│   ├── share/                 # 分享页
+│   └── shell/                 # 应用外壳：导航、Provider、工作区布局
 ├── shared/                    # 跨业务复用、无业务实体语义的基础能力
 │   ├── api/                   # HTTP client、鉴权 client、按资源拆分的请求函数与传输类型
 │   ├── auth/                  # 会话与访问令牌管理
 │   ├── capabilities/          # 服务器能力声明（useFeature、FeatureGate、useSectionGuard）
 │   ├── components/            # 跨业务组件
 │   ├── config/                # 品牌与运行时配置
-│   ├── events/                # 跨模块事件
 │   ├── generated/             # 资源同步生成文件（禁止手改）
 │   ├── hooks/                 # 通用 hooks
 │   ├── lib/                   # 通用工具
@@ -72,7 +81,12 @@ apps/web/
 
 - `app/` 只做路由挂载、布局和边界处理；`page.tsx` 是 Server Component 薄壳，不写 `"use client"`。
 - 业务代码放在 `features/<domain>`；被多个 feature 复用且带业务实体语义的内容放在 `entities/`；无业务语义的复用能力放在 `shared/`。
-- 一个 feature 只能通过另一个 feature 的 `index.ts`（`@/features/<x>`）引用它，不能深入其内部路径；副作用导入（`import "..."`）和相对路径（`../<other-feature>/...`）同样受检。
+- 每个 feature 都有 `index.ts` 公共入口；一个 feature 只能通过另一个 feature 的 `index.ts`（`@/features/<x>`）引用它，不能深入其内部路径；副作用导入（`import "..."`）和相对路径（`../<other-feature>/...`）同样受检。
+- `app/` 路由一律经 `@/features/<x>` 挂载入口组件，不深入 feature 内部路径（`pnpm check:arch` 强制）。`package.json` 声明了 `sideEffects`，未使用的 re-export 会被 tree-shake，每个路由只打包自己挂载的入口。
+- entity 内部结构与 feature 相同（`components/`、`context/`、`events/`、`hooks/`、`lib/`、`model/`、`types/`，按需创建），hook 命名为 `use-<entity>-<purpose>.ts`。每个 entity 都有 `index.ts`，且只有这一个公共入口：entity 之外（`app/`、`features/`、其他 entity）一律经 `@/entities/<x>` 引用，不设 `components` / `lib` 等子路径入口；entity 内部文件按路径互相引用，不经自身 `index.ts`。entity 之间可以相互依赖，但不得成环。
+- 懒加载的 entity 组件由 entity 自己导出已包装好的版本（如 `LazyFilePreviewDialog`）；不要写 `dynamic(() => import("@/entities/<x>"))`，那会把整个 entity 打进懒加载 chunk。
+- `shared/` 不引用 `entities/` 或 `features/`；通用组件需要业务能力时由调用方通过 props 注入（如 `AboutSettingsContent` 的 `brandIcon`）。
+- `package.json` 声明 `"sideEffects": ["*.css", "./instrumentation-client.ts"]`：只有样式表和列出的入口文件有导入副作用，打包器因此能裁剪 `index.ts` 中未被使用的再导出，单一入口不会让路由打包整个 entity / feature。新增有顶层副作用的模块时必须列入该字段；脚本导入不得写成无绑定的 `import "..."`。
 - 文件名使用 kebab-case，除 `*.test.ts(x)`、`*.spec.ts(x)`、`*.config.ts` 外不带额外点号段。
 - `components/ui` 不引用 `features/` 或 `entities/`。
 
@@ -80,9 +94,9 @@ apps/web/
 
 业务域内部按职责拆分，子目录按需创建：
 
-- `components/`：页面外壳、section、表格、弹窗、图表和编辑器等业务组件。多页面 feature（`admin`、`settings`）按 `components/sections/<section>/` 组织。
+- `components/`：页面外壳、section、表格、弹窗、图表和编辑器等业务组件。`components/` 根目录只放 feature 的顶层入口（如 `app-files.tsx`、`admin-shell.tsx`）；其余组件放在 `components/sections/`，被多个 section 复用的放在 `components/shared/`（按职责命名，不加 feature 前缀，如 `sortable-list.tsx`）。多页面 feature（`admin`、`settings`）按 `components/sections/<section>/` 组织：入口为 `<domain>-<section>.tsx`（如 `admin-users.tsx`、`settings-account.tsx`），其余文件以 `<section>-` 为前缀（如 `tools-mcp-order-sheet.tsx`）。
 - `context/`：业务域内部共享的上下文状态。
-- `hooks/`：加载、筛选、提交、乐观更新、轮询和批量操作等状态编排；组件不直接调用 API 函数。
+- `hooks/`：加载、筛选、提交、乐观更新、轮询和批量操作等状态编排；组件不直接调用 API 函数。文件名为 `use-<domain>-<purpose>.ts`，导出的 hook 以 `use<Domain>` 开头；`<domain>` 取 feature 目录名的单数（`files` → `file`、`knowledge-bases` → `knowledge-base`、`announcements` → `announcement`，`library` 为不可数的区域名、保持原样，`settings` 作为产品术语保留复数），`entities/<entity>` 取实体名。管理侧 hook 还需带上 section：`use-admin-<section>-<purpose>.ts`，导出 `useAdmin<Section>...`。映射表见 `scripts/check-architecture.mjs` 的 `FEATURE_DOMAINS`。
 - `model/`：纯业务模型、常量、映射和排序规则，不放 React 副作用和展示文案。
 - `types/`：业务域内部的 UI 状态和表单类型，不重复定义后端传输契约。
 - `utils/`：业务域内部的格式化和展示工具。
@@ -104,22 +118,22 @@ Next.js 的 route group（`(app)`、`(auth)`、`(project)`、`(shell)`）只用�
 | `/chat` | 对话工作区 |
 | `/recent` | 最近会话 |
 | `/files` | 文件管理 |
-| `/knowledges` | 知识库管理 |
-| `/skills-prompt` | 技能与提示词 |
+| `/knowledge-bases` | 知识库管理 |
+| `/library` | 指令库（技能与提示词） |
 | `/share` | 公开分享内容 |
 | `/preview/image-loading` | 开发用图片生成加载态预览 |
-| `/setting/general` | 通用偏好 |
-| `/setting/chat` | 对话偏好 |
-| `/setting/subscription` | 订阅与用量 |
-| `/setting/account` | 账户与身份源 |
-| `/setting/about` | 产品信息 |
+| `/settings/general` | 通用偏好 |
+| `/settings/chat` | 对话偏好 |
+| `/settings/subscription` | 订阅与用量 |
+| `/settings/account` | 账户与身份源 |
+| `/settings/about` | 产品信息 |
 | `/admin` | 管理后台首页 |
 | `/admin/about` | 版本信息和更新检查 |
 | `/admin/announcements` | 公告管理 |
 | `/admin/billing` | 计费与支付 |
-| `/admin/chat-files` | 文件、提取、OCR、RAG 和存储配额 |
 | `/admin/content-moderation` | 内容审核 |
 | `/admin/conversation` | 会话配置与参数策略 |
+| `/admin/files` | 文件、提取、OCR、RAG 和存储配额 |
 | `/admin/groups` | 权限组 |
 | `/admin/knowledge-bases` | 平台知识库 |
 | `/admin/login` | 管理员登录与登录策略 |
@@ -131,7 +145,7 @@ Next.js 的 route group（`(app)`、`(auth)`、`(project)`、`(shell)`）只用�
 | `/admin/users` | 用户与账户 |
 | `/desktop/tabs` | 桌面端壳 UI：标签栏 |
 
-新增管理后台页面时，必须同时在 `features/admin/model/admin-sections.ts` 的 `ADMIN_SECTIONS` 中登记，否则 `pnpm check:arch` 会失败。
+新增管理后台页面时，必须同时在 `features/admin/model/admin-sections.ts` 的 `ADMIN_SECTIONS` 中登记，且路由段、`ADMIN_SECTIONS` 的 `id` 与 `features/admin/components/sections/<section>/` 目录同名，否则 `pnpm check:arch` 会失败。
 
 ## API 契约
 
@@ -235,6 +249,8 @@ pnpm --filter @deeix/web sync:screenshot-worker
 
 - 路由文件保持薄，业务逻辑放在 `features/*` 或 `entities/*` 中。
 - API 访问统一通过 `shared/api`（管理侧专属端点为 `features/admin/api`）完成；需要鉴权的请求一律走 `authedRequest` / `authedFetch`。
+- 组件不直接调用请求函数：请求、加载/提交状态和 toast 放在 hook 中（`pnpm check:arch` 强制）。
+- `unknown` 数据（API 响应、存储、事件、JSON）用 `shared/lib/type-guards.ts` 的守卫或 `instanceof` 收窄，字符串联合用 `as const` 数组 + `isOneOf`；不用 `as` 断言，库类型缺口确需断言时写 `// Type assertion: <原因>`（`pnpm check:arch` 强制，`components/animate-ui`、`components/reactbits` 豁免）。
 - 功能显隐读取服务器能力声明（`useFeature` / `FeatureGate`）或管理员开关（`useFeaturePolicy`），不按 `isDesktopApp()` 判断；Tauri API 只在 `shared/platform/` 调用。
 - 保持静态导出能力，不引入依赖常驻 Next.js Server、Server Action 或服务端 API Route 的实现。
 - 除 API 定位等构建期常量外，不新增必须重新构建才能修改的品牌环境变量。

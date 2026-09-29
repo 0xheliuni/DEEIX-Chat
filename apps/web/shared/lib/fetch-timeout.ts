@@ -4,6 +4,8 @@
 // AbortSignal.timeout and AbortSignal.any. This helper builds the same behavior from
 // AbortController + setTimeout and a manual abort listener instead.
 
+import { isRecord } from "@/shared/lib/type-guards";
+
 const TIMEOUT_ERROR_NAME = "TimeoutError";
 
 // Thrown when response headers did not arrive in time. The name matches the DOMException that
@@ -19,7 +21,7 @@ export class HeaderTimeoutError extends Error {
 }
 
 export function isTimeoutError(error: unknown): boolean {
-  return typeof error === "object" && error !== null && (error as { name?: unknown }).name === TIMEOUT_ERROR_NAME;
+  return isRecord(error) && error.name === TIMEOUT_ERROR_NAME;
 }
 
 export type HeaderTimeoutOptions = {

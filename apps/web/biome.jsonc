@@ -123,7 +123,7 @@
     {
       "includes": [
         "features/chat/components/sections/chat-input.tsx",
-        "features/layouts/components/navigation/sidebar-conversation-item.tsx",
+        "features/shell/components/navigation/sidebar-conversation-item.tsx",
         "features/settings/components/sections/chat/settings-chat.tsx"
       ],
       "linter": {
@@ -135,7 +135,7 @@
       }
     },
     {
-      "includes": ["shared/components/file-preview/preview-media.tsx"],
+      "includes": ["entities/file/components/file-preview/preview-media.tsx"],
       "linter": {
         "rules": {
           "a11y": {

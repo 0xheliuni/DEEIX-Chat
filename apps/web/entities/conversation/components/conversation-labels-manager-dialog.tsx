@@ -2,7 +2,7 @@
 
 import { ConversationLabelsDialog } from "@/entities/conversation/components/conversation-labels-dialog";
 import { useDialogSnapshot } from "@/shared/hooks/use-dialog-snapshot";
-import { parseConversationLabelsJSON } from "@/shared/lib/conversation-labels";
+import { parseConversationLabelsJSON } from "@/entities/conversation/lib/conversation-labels";
 import type { ConversationDTO } from "@/shared/api/conversation-types";
 
 export type ConversationLabelsTarget = Pick<ConversationDTO, "publicID" | "labelsJSON">;

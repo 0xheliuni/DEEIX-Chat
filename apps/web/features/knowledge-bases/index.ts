@@ -2,9 +2,9 @@ export { KnowledgeBasesEntry } from "@/features/knowledge-bases/components/knowl
 
 // The exports below are the knowledge base page contract consumed by the admin section.
 // New cross-feature consumers must go through this entry point, never deep internal paths.
-export { KnowledgeBaseDetail } from "@/features/knowledge-bases/components/knowledge-base-detail";
-export { KnowledgeBasePageDialogs } from "@/features/knowledge-bases/components/knowledge-base-page-dialogs";
+export { KnowledgeBaseDetail } from "@/features/knowledge-bases/components/sections/knowledge-base-detail";
+export { KnowledgeBasePageDialogs } from "@/features/knowledge-bases/components/sections/knowledge-base-page-dialogs";
 export {
-  type KnowledgeBasesPageModel,
-  useKnowledgeBasesPage,
-} from "@/features/knowledge-bases/hooks/use-knowledge-bases-page";
+  type KnowledgeBasePageModel,
+  useKnowledgeBasePage,
+} from "@/features/knowledge-bases/hooks/use-knowledge-base-page";

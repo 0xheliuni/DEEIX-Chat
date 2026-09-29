@@ -1,5 +1,5 @@
 import { authedRequest } from "@/shared/api/authed-client";
-import type { ModelOptionPolicy, NativeToolDefinition } from "@/shared/lib/model-option-policy";
+import type { ModelOptionPolicy, NativeToolDefinition } from "@/shared/api/settings-types";
 
 type ModelOptionPolicyResponse = {
   mode: string;

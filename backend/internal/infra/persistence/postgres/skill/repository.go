@@ -6,7 +6,7 @@ import (
 
 	domainskill "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/skill"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/dberror"
-	model "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/persistence/models"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/repository"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/pagination"
 	"gorm.io/gorm"
@@ -33,9 +33,9 @@ func (r *Repo) ListSkills(ctx context.Context, filter repository.SkillListFilter
 		limit = pagination.MaxPageSize
 	}
 
-	items := make([]model.Skill, 0)
+	items := make([]models.Skill, 0)
 	var total int64
-	query := r.db.WithContext(ctx).Model(&model.Skill{})
+	query := r.db.WithContext(ctx).Model(&models.Skill{})
 	query = applySkillFilter(query, filter)
 
 	if err := query.Count(&total).Error; err != nil {
@@ -61,7 +61,7 @@ func (r *Repo) GetSkill(ctx context.Context, id uint) (*domainskill.Skill, error
 	if id == 0 {
 		return nil, repository.ErrInvalidInput
 	}
-	var record model.Skill
+	var record models.Skill
 	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&record).Error; err != nil {
 		return nil, dberror.Translate(err)
 	}
@@ -74,7 +74,7 @@ func (r *Repo) CreateSkill(ctx context.Context, item *domainskill.Skill) (*domai
 	if item == nil {
 		return nil, repository.ErrInvalidInput
 	}
-	record := model.Skill{
+	record := models.Skill{
 		Scope:           strings.TrimSpace(item.Scope),
 		OwnerUserID:     item.OwnerUserID,
 		Title:           strings.TrimSpace(item.Title),
@@ -90,7 +90,7 @@ func (r *Repo) CreateSkill(ctx context.Context, item *domainskill.Skill) (*domai
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if record.SortOrder <= 0 {
 			var maxSortOrder int
-			if err := tx.Model(&model.Skill{}).
+			if err := tx.Model(&models.Skill{}).
 				Where("scope = ? AND owner_user_id = ?", record.Scope, record.OwnerUserID).
 				Select("COALESCE(MAX(sort_order), 0)").
 				Scan(&maxSortOrder).Error; err != nil {
@@ -117,7 +117,7 @@ func (r *Repo) PatchSkill(ctx context.Context, id uint, patch repository.SkillPa
 	}
 	var result domainskill.Skill
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var record model.Skill
+		var record models.Skill
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("id = ?", id).
 			First(&record).Error; err != nil {
@@ -169,14 +169,14 @@ func (r *Repo) DeleteSkill(ctx context.Context, id uint) error {
 		return repository.ErrInvalidInput
 	}
 	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		result := tx.Delete(&model.Skill{}, id)
+		result := tx.Delete(&models.Skill{}, id)
 		if result.Error != nil {
 			return result.Error
 		}
 		if result.RowsAffected == 0 {
 			return repository.ErrNotFound
 		}
-		return tx.Where("skill_id = ?", id).Delete(&model.ConversationProjectSkill{}).Error
+		return tx.Where("skill_id = ?", id).Delete(&models.ConversationProjectSkill{}).Error
 	}); err != nil {
 		return dberror.Translate(err)
 	}
@@ -237,7 +237,7 @@ func skillOrderClause(filter repository.SkillListFilter) string {
 	return "CASE WHEN enabled THEN 0 ELSE 1 END ASC, sort_order ASC, updated_at DESC, id DESC"
 }
 
-func toDomain(item model.Skill) domainskill.Skill {
+func toDomain(item models.Skill) domainskill.Skill {
 	return domainskill.Skill{
 		ID:              item.ID,
 		Scope:           item.Scope,

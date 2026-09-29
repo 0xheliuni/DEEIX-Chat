@@ -1,5 +1,7 @@
 // Shared admin log display formatting: time, username, JSON, counts and amounts.
 
+import { isRecord, parseJSON } from "@/shared/lib/type-guards";
+
 export function formatDateTime(value: string | null | undefined, locale: string): string {
   if (!value) {
     return "-";
@@ -39,14 +41,8 @@ export function parseJSONRecord(raw: string | null | undefined): Record<string, 
   if (!value) {
     return null;
   }
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
+  const parsed = parseJSON(value);
+  return isRecord(parsed) ? parsed : null;
 }
 
 export function formatCount(value: number | null | undefined, locale: string): string {

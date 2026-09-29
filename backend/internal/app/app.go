@@ -43,15 +43,15 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
 	moderationclient "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/contentmoderation"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/embedding"
-	extractengines "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extract/engines"
-	extractprobe "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extract/probe"
+	extractionengines "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extraction/engines"
+	extractionprobe "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/extraction/probe"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/geoip"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/identityprovider"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/llm"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/mcp"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/mediaartifact"
 	openrouterpricing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/modelpricing/openrouter"
-	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/objectstore"
+	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/objectstorage"
 	platformlogger "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/logger"
 	platformtracing "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/observability/tracing"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/openwebui"
@@ -236,7 +236,7 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	settingsService := settings.NewService(settingsRepo, cfg.DataEncryptionKey)
 	settingsService.SetAuditWriter(auditService)
 	settingsService.SetRuntime(runtimeCfg)
-	runtimeService := appruntime.NewService(runtimeCfg, extractprobe.Prober{})
+	runtimeService := appruntime.NewService(runtimeCfg, extractionprobe.Prober{})
 	runtimeService.SetDockerRunner(platformruntime.NewDockerRunner())
 	settingsCache := cacheBackend.Settings()
 	runtimeSettings := settings.NewRuntimeSettings(settingsRepo, settingsCache, cfg.DataEncryptionKey)
@@ -274,34 +274,34 @@ func NewAppWithOptions(opts Options) (*App, error) {
 	billingHandler := billinghttp.NewHandler(billingService, settingsService, runtimeCfg, officialPricingService, paymentCheckoutService, log)
 	billingModule := billinghttp.NewModule(billingHandler)
 	// 对象存储工厂由组合根显式注入，避免服务实例依赖进程级可变状态。
-	objectStoreProvider := appstorage.NewRuntimeProvider(runtimeCfg, objectstore.New)
+	objectStoreProvider := appstorage.NewRuntimeProvider(runtimeCfg, objectstorage.New)
 	// 抽取引擎工厂由组合根显式注入；具体客户端构造为 nil 时必须返回 nil 接口，避免 typed-nil 绕过判空。
 	extractionFactories := extraction.EngineFactories{
 		NewTika: func(cfg config.Config) extraction.DocumentExtractor {
-			if client := extractengines.NewTika(cfg); client != nil {
+			if client := extractionengines.NewTika(cfg); client != nil {
 				return client
 			}
 			return nil
 		},
 		NewDocling: func(cfg config.Config) extraction.DocumentExtractor {
-			if client := extractengines.NewDocling(cfg); client != nil {
+			if client := extractionengines.NewDocling(cfg); client != nil {
 				return client
 			}
 			return nil
 		},
 		NewMinerU: func(cfg config.Config) extraction.DocumentExtractor {
-			if client := extractengines.NewMinerU(cfg); client != nil {
+			if client := extractionengines.NewMinerU(cfg); client != nil {
 				return client
 			}
 			return nil
 		},
 		NewOCR: func(provider string, cfg config.Config) extraction.OCRExtractor {
-			if client := extractengines.NewOCR(provider, cfg); client != nil {
+			if client := extractionengines.NewOCR(provider, cfg); client != nil {
 				return client
 			}
 			return nil
 		},
-		Builtin: extractengines.Builtin{},
+		Builtin: extractionengines.Builtin{},
 	}
 	geoResolver := geoip.New(runtimeCfg.Snapshot())
 	// GeoIP 关闭时 geoip.New 返回 nil 指针，必须转成 nil 接口再注入，避免 typed-nil 绕过判空。

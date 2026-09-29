@@ -1,4 +1,4 @@
-import type { ChatContentWidth } from "@/shared/model/chat-content-width";
+import type { ChatContentWidth } from "@/entities/user-settings";
 import type { ChatFontOption, ChatFontWeightOption } from "@/features/settings/utils/chat-font";
 import type { FontSizeOption } from "@/features/settings/utils/font-size";
 import type { ThemePreset } from "@/shared/model/theme";

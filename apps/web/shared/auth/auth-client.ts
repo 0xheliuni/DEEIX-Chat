@@ -16,12 +16,6 @@ import { isShellSessionError, refreshSession } from "@/shared/platform/desktop-s
 
 const AUTH_REFRESH_LOCK_NAME = "deeix-chat:auth-refresh";
 
-type NavigatorWithLocks = Navigator & {
-  locks?: {
-    request<T>(name: string, callback: () => Promise<T> | T): Promise<T>;
-  };
-};
-
 const sessionStore: SessionStore = {
   readAccessToken,
   readRevision: readSessionRevision,
@@ -58,7 +52,8 @@ const host: AuthHost = {
   },
   lock: {
     run(fn) {
-      const locks = typeof navigator === "undefined" ? undefined : (navigator as NavigatorWithLocks).locks;
+      // lib.dom types `locks` as always present, but it is missing in insecure contexts and older browsers.
+      const locks: LockManager | undefined = typeof navigator === "undefined" ? undefined : navigator.locks;
       return locks ? locks.request(AUTH_REFRESH_LOCK_NAME, fn) : fn();
     },
   },

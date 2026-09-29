@@ -28,7 +28,8 @@ import {
   formatUsageTrendLatency,
   modelDisplayLabel,
 } from "@/features/settings/model/subscription-format";
-import type { BillingDisplayOptions } from "@/shared/lib/billing-display";
+import type { BillingDisplayOptions } from "@/entities/billing";
+import { isOneOf, isRecord } from "@/shared/lib/type-guards";
 
 type DailyUsageChartModel = BillingUsageDailyDTO["models"][number] & {
   color?: string;
@@ -71,7 +72,9 @@ type UsageTrendStats = {
   avgLatencyMS: number;
 };
 
-export type UsageTrendView = "daily" | "monthly";
+const USAGE_TREND_VIEWS = ["daily", "monthly"] as const;
+export type UsageTrendView = (typeof USAGE_TREND_VIEWS)[number];
+const isUsageTrendView = isOneOf(USAGE_TREND_VIEWS);
 
 const usageTokenChartConfig = {
   totalTokens: {
@@ -96,10 +99,6 @@ const CHART_ANIMATION_DURATION_MS = 240;
 const MAX_DAILY_MODEL_SERIES = 10;
 const OTHER_MODEL_KEY = "__other_models__";
 const OTHER_MODEL_COLOR = "#64748b";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 // Returns the key of the topmost visible model segment in this column with value > 0; it gets the top rounded corners.
 function dailyColumnTopSegmentKey(
@@ -684,7 +683,9 @@ export function SubscriptionTrend({
     <div className="space-y-4 md:space-y-5">
       <div className="flex h-9 items-center justify-between gap-3">
         <h3 className="text-sm font-semibold">{view === "daily" ? t("usageTrend.dailyTitle") : t("usageTrend.monthlyTitle")}</h3>
-        <Tabs value={view} onValueChange={(value) => onViewChange(value as UsageTrendView)}>
+        <Tabs value={view} onValueChange={(value) => {
+          if (isUsageTrendView(value)) onViewChange(value);
+        }}>
           <TabsList>
             <TabsTrigger value="daily">{t("usageTrend.daily")}</TabsTrigger>
             <TabsTrigger value="monthly">{t("usageTrend.monthly")}</TabsTrigger>

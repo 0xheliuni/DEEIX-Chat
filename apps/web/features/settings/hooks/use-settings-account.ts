@@ -592,7 +592,7 @@ export function useSettingsAccount(): UseSettingsAccountResult {
       const callbackPath = await beginProviderAuthorization({
         slug: provider.slug,
         intent: "bind",
-        next: "/setting/account",
+        next: "/settings/account",
         accessToken: token,
       });
       if (callbackPath) {

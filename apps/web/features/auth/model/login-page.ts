@@ -1,6 +1,7 @@
 import type { LoginOptionsData, LoginPageSettings, SecurityVerificationMethod } from "@/shared/api/auth-types";
 import { ApiError } from "@/shared/api/http-client";
 import { DEFAULT_AUTH_NEXT_PATH } from "@/shared/auth/local-path";
+import { isRecord } from "@/shared/lib/type-guards";
 
 export type LoginMode = "login" | "register" | "reset-password";
 export type ProviderAuthIntent = "login" | "register";
@@ -49,11 +50,7 @@ function normalizeVerificationMethods(value: readonly unknown[] | undefined): Se
 }
 
 function isStoredTwoFactorChallenge(value: unknown): value is StoredTwoFactorChallenge {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-  const record = value as Record<string, unknown>;
-  return typeof record.token === "string" && Array.isArray(record.methods) && typeof record.expiresAt === "number";
+  return isRecord(value) && typeof value.token === "string" && Array.isArray(value.methods) && typeof value.expiresAt === "number";
 }
 
 // Hands a provider-login 2FA challenge from the callback page to the login page.

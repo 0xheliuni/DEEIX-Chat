@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { AdminUpdateTooltipContent } from "@/features/admin/components/admin-update-tooltip-content";
+import { AdminUpdateTooltipContent } from "@/features/admin/components/shared/update-tooltip-content";
 import {
   ADMIN_SECTIONS,
   type AdminSection,
@@ -26,18 +26,18 @@ import { isSectionAvailable, useCapabilities } from "@/shared/capabilities";
 
 const ADMIN_SECTION_LABEL_KEYS: Record<AdminSection, string> = {
   statistics: "sections.statistics",
-  accounts: "sections.accounts",
+  users: "sections.accounts",
   upstreams: "sections.upstreams",
   models: "sections.models",
   groups: "sections.groups",
-  "tool-settings": "sections.toolSettings",
+  tools: "sections.toolSettings",
   billing: "sections.billing",
   announcements: "sections.announcements",
   logs: "sections.logs",
   "content-moderation": "sections.contentModeration",
-  "login-settings": "sections.loginSettings",
-  "conversation-settings": "sections.conversationSettings",
-  "chat-files": "sections.chatFiles",
+  login: "sections.loginSettings",
+  conversation: "sections.conversationSettings",
+  files: "sections.chatFiles",
   "knowledge-bases": "sections.knowledgeBases",
   about: "sections.about",
 };

@@ -19,7 +19,7 @@ export function readCachedModelOptions(platformModelName: string): ConversationO
     if (!raw) {
       return null;
     }
-    const parsed = JSON.parse(raw) as unknown;
+    const parsed: unknown = JSON.parse(raw);
     return isConversationOptionsObject(parsed) ? sanitizeConversationOptions(parsed) : null;
   } catch {
     return null;

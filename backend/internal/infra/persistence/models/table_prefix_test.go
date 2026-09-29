@@ -1,4 +1,4 @@
-package model_test
+package models_test
 
 import (
 	"strings"

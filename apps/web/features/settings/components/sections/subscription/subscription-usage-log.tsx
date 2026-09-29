@@ -10,8 +10,15 @@ import { useVirtualTableRows, VirtualTablePaddingRow } from "@/components/ui/vir
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAppLocale } from "@/i18n/app-i18n-provider";
 import type { BillingUsageLedgerDTO } from "@/shared/api/billing-types";
-import { billingRateMultiplierNote, billingScheduleNote, cacheWriteBillingLabel, cacheWriteBillingNote } from "@/shared/lib/billing-display";
-import type { BillingDisplayLabels, BillingDisplayOptions } from "@/shared/lib/billing-display";
+import {
+  type BillingDisplayLabels,
+  type BillingDisplayOptions,
+  billingRateMultiplierNote,
+  billingScheduleNote,
+  cacheWriteBillingLabel,
+  cacheWriteBillingNote,
+} from "@/entities/billing";
+import { isRecord, parseJSON, readFiniteNumber, readString, type UnknownRecord } from "@/shared/lib/type-guards";
 import {
   formatAccountBalance,
   formatFormulaTokenCount,
@@ -82,7 +89,10 @@ function useBillingTooltipLabels(): BillingTooltipLabels {
   );
 }
 
-type BillingPricingSnapshot = {
+// Field contracts of the backend pricing snapshot JSON. They only type the keys
+// the readers below accept; parsed snapshots stay records and every reader
+// re-validates its value, so malformed or legacy snapshots degrade to 0/fallbacks.
+type BillingPricingSnapshotFields = {
   platform_model_name?: string;
   pricing_mode?: "token" | "call" | "duration" | "tiered" | string;
   provider_protocol?: string;
@@ -108,10 +118,10 @@ type BillingPricingSnapshot = {
   base_service_billed_nanousd?: number;
   tiered_from_tokens?: number;
   tiered_up_to_tokens?: number | null;
-  service_items?: BillingServiceItemSnapshot[];
+  service_items?: BillingServiceItemSnapshotFields[];
 };
 
-type BillingServiceItemSnapshot = {
+type BillingServiceItemSnapshotFields = {
   service_code?: string;
   service_name?: string;
   platform_model_name?: string;
@@ -148,19 +158,17 @@ type BillingServiceItemSnapshot = {
   tiered_up_to_tokens?: number | null;
 };
 
+type BillingPricingSnapshot = UnknownRecord;
+type BillingServiceItemSnapshot = UnknownRecord;
+
 function parsePricingSnapshot(value: string): BillingPricingSnapshot {
   if (!value) return {};
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    return parsed && typeof parsed === "object" ? (parsed as BillingPricingSnapshot) : {};
-  } catch {
-    return {};
-  }
+  const parsed = parseJSON(value);
+  return isRecord(parsed) ? parsed : {};
 }
 
-function readSnapshotNumber(snapshot: BillingPricingSnapshot, key: keyof BillingPricingSnapshot): number {
-  const value = snapshot[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+function readSnapshotNumber(snapshot: BillingPricingSnapshot, key: keyof BillingPricingSnapshotFields): number {
+  return readFiniteNumber(snapshot, key) ?? 0;
 }
 
 function calcTokenBilledNanousd(tokens: number, rateNanousd: number): number {
@@ -173,12 +181,12 @@ function normalizePricingMode(value: string | null | undefined): "token" | "call
   return "token";
 }
 
-function resolveTokenBilledNanousd(snapshot: BillingPricingSnapshot, billedKey: keyof BillingPricingSnapshot, tokens: number, rateNanousd: number): number {
+function resolveTokenBilledNanousd(snapshot: BillingPricingSnapshot, billedKey: keyof BillingPricingSnapshotFields, tokens: number, rateNanousd: number): number {
   const billed = readSnapshotNumber(snapshot, billedKey);
   return billed > 0 ? billed : calcTokenBilledNanousd(tokens, rateNanousd);
 }
 
-function resolveCountBilledNanousd(snapshot: BillingPricingSnapshot, billedKey: keyof BillingPricingSnapshot, count: number, rateNanousd: number): number {
+function resolveCountBilledNanousd(snapshot: BillingPricingSnapshot, billedKey: keyof BillingPricingSnapshotFields, count: number, rateNanousd: number): number {
   const billed = readSnapshotNumber(snapshot, billedKey);
   if (billed > 0) return billed;
   if (!Number.isFinite(count) || !Number.isFinite(rateNanousd) || count <= 0 || rateNanousd <= 0) return 0;
@@ -235,9 +243,8 @@ function formatBillingTotalLine(label: string, amount: string): BillingTooltipLi
   return { type: "row", left: label, right: amount };
 }
 
-function readServiceItemNumber(item: BillingServiceItemSnapshot, key: keyof BillingServiceItemSnapshot): number {
-  const value = item[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+function readServiceItemNumber(item: BillingServiceItemSnapshot, key: keyof BillingServiceItemSnapshotFields): number {
+  return readFiniteNumber(item, key) ?? 0;
 }
 
 function serviceItemModelDisplayLabel(item: BillingServiceItemSnapshot): string {
@@ -256,7 +263,7 @@ function readMainBilledNanousd(snapshot: BillingPricingSnapshot): number {
 }
 
 function readServiceItems(snapshot: BillingPricingSnapshot): BillingServiceItemSnapshot[] {
-  return Array.isArray(snapshot.service_items) ? snapshot.service_items : [];
+  return Array.isArray(snapshot.service_items) ? snapshot.service_items.map((item): BillingServiceItemSnapshot => (isRecord(item) ? item : {})) : [];
 }
 
 function readServiceItemsBilledNanousd(items: BillingServiceItemSnapshot[]): number {
@@ -315,7 +322,7 @@ type UsageLogDisplayRow = {
 
 function buildUsageLogDisplayRows(items: BillingUsageLedgerDTO[]): UsageLogDisplayRow[] {
   const chatRows = items.filter((item) => !isBaseServiceLedger(item));
-  const rows = chatRows.map((item) => ({ item, baseServiceItems: [] as BillingServiceItemSnapshot[] }));
+  const rows = chatRows.map((item): UsageLogDisplayRow => ({ item, baseServiceItems: [] }));
   const serviceLedgers = items.filter(isBaseServiceLedger);
   for (const serviceLedger of serviceLedgers) {
     const serviceSnapshot = parsePricingSnapshot(serviceLedger.pricingSnapshotJSON);
@@ -363,7 +370,7 @@ function buildServiceBillingTooltipLines(item: BillingUsageLedgerDTO, labels: Bi
   const mainBilledNanousd = readMainBilledNanousd(snapshot);
   const currentServiceItems = readServiceItems(snapshot);
   const currentServiceBilledNanousd = readServiceItemsBilledNanousd(currentServiceItems);
-  const pricingMode = normalizePricingMode(snapshot.pricing_mode);
+  const pricingMode = normalizePricingMode(readString(snapshot, "pricing_mode"));
   const inputRate = readSnapshotNumber(snapshot, "input_nanousd_per_m_tokens");
   const outputRate = readSnapshotNumber(snapshot, "output_nanousd_per_m_tokens");
   const cacheReadRate = readSnapshotNumber(snapshot, "cache_read_nanousd_per_m_tokens");
@@ -431,7 +438,7 @@ function buildServiceBillingTooltipLines(item: BillingUsageLedgerDTO, labels: Bi
       }
       lines.push({
         type: "tiered-table" as const,
-        rangeLabel: formatTieredRangeLabel(snapshot.tiered_from_tokens, snapshot.tiered_up_to_tokens, labels),
+        rangeLabel: formatTieredRangeLabel(readFiniteNumber(snapshot, "tiered_from_tokens"), readFiniteNumber(snapshot, "tiered_up_to_tokens"), labels),
         rows: tieredRows,
         totalLabel: labels.total,
         totalAmount: freeOfCharge ? `${formatTooltipUsageCost(0, billingDisplay)} (${labels.freeModelNoBilling})` : formatTooltipUsageCost(nanousdToUSD(totalBilledNanousd), billingDisplay),

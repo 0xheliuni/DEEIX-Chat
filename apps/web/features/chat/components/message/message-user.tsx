@@ -20,7 +20,7 @@ import type { ChatModelOption, PendingAttachment } from "@/features/chat/types/c
 import type { MCPToolDTO } from "@/shared/api/mcp-types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { FileContentLoader } from "@/shared/components/file-preview/preview-dialog";
+import type { FileContentLoader } from "@/entities/file";
 import { StreamdownRender } from "@/shared/components/markdown/streamdown-render";
 
 // Long user messages collapse to this many lines (leading-6 → 24px each).

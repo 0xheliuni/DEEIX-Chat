@@ -21,7 +21,7 @@ import { listVisibleSkills } from "@/shared/api/skills";
 import type { SkillSummaryDTO } from "@/shared/api/skills-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
 import { readSessionRevision } from "@/shared/auth/session";
-import { resolveModelPresentationGroup } from "@/shared/lib/model-presentation";
+import { resolveModelPresentationGroup } from "@/entities/model";
 
 const DEFAULT_MENTION_MENU_KINDS: readonly ChatMentionMenuKind[] = ["model", "file", "tool", "skill", "prompt"];
 const MENTION_TRIGGER_KINDS: readonly ChatMentionMenuKind[] = ["model", "file", "tool"];

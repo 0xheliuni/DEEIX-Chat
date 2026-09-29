@@ -318,11 +318,11 @@ func (h *Handler) preparePaymentCheckout(
 			return preparation, appbilling.ErrPaymentProviderUnavailable
 		}
 		var err error
-		preparation.successURL, err = h.paymentReturnURL(c, req.SuccessURL, "/settings?section=account&payment=success")
+		preparation.successURL, err = h.paymentReturnURL(c, req.SuccessURL, "/settings/subscription?payment=success")
 		if err != nil {
 			return preparation, err
 		}
-		preparation.cancelURL, err = h.paymentReturnURL(c, req.CancelURL, "/settings?section=account&payment=cancel")
+		preparation.cancelURL, err = h.paymentReturnURL(c, req.CancelURL, "/settings/subscription?payment=cancel")
 		if err != nil {
 			return preparation, err
 		}
@@ -342,7 +342,7 @@ func (h *Handler) preparePaymentCheckout(
 		if err != nil {
 			return preparation, err
 		}
-		preparation.successURL, err = h.paymentReturnURL(c, req.SuccessURL, "/settings?section=account&payment=success")
+		preparation.successURL, err = h.paymentReturnURL(c, req.SuccessURL, "/settings/subscription?payment=success")
 		if err != nil {
 			return preparation, err
 		}

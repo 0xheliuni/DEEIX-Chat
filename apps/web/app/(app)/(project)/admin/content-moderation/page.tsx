@@ -1,5 +1,5 @@
-import { AdminContentModeration } from "@/features/admin/components/sections/content-moderation/admin-content-moderation";
+import { AdminContentModerationPage } from "@/features/admin";
 
-export default function AdminContentModerationPage() {
-  return <AdminContentModeration />;
+export default function Page() {
+  return <AdminContentModerationPage />;
 }

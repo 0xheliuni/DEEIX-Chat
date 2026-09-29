@@ -28,7 +28,7 @@ import {
   resolvePlanButtonVariant,
   resolvePlanFeatures,
 } from "@/features/settings/model/subscription-format";
-import type { BillingDisplayOptions } from "@/shared/lib/billing-display";
+import type { BillingDisplayOptions } from "@/entities/billing";
 
 type BillingMode = "period" | "usage" | "self";
 type PaymentProvider = "stripe" | "epay";

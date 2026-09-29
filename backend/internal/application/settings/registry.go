@@ -8,7 +8,7 @@ import (
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/application/extraction"
 	domainsettings "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/domain/settings"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/infra/config"
-	extractport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/extract"
+	extractionport "github.com/DEEIX-AI/DEEIX-Chat/backend/internal/ports/extraction"
 	"github.com/DEEIX-AI/DEEIX-Chat/backend/internal/shared/nativetool"
 )
 
@@ -253,7 +253,7 @@ var settingSpecs = []settingSpec{
 	{Namespace: "extract", Key: "aliyun_ocr_timeout_seconds", ValueType: "int", Default: "60", Description: "阿里云 OCR 请求超时(秒)，默认 60s",
 		Validate: intRange(1, 600), Apply: applyField(func(c *config.Config) *int { return &c.ExtractAliyunOCRTimeoutSeconds }, toInt)},
 	{Namespace: "extract", Key: "mineru_source", ValueType: "string", Default: "cloud", Description: "MinerU 服务类型(cloud/self_hosted)",
-		Validate: oneOf(extractport.MinerUSourceCloud, extractport.MinerUSourceSelfHosted), Apply: applyField(func(c *config.Config) *string { return &c.ExtractMinerUSource }, rawText)},
+		Validate: oneOf(extractionport.MinerUSourceCloud, extractionport.MinerUSourceSelfHosted), Apply: applyField(func(c *config.Config) *string { return &c.ExtractMinerUSource }, rawText)},
 	{Namespace: "extract", Key: "mineru_base_url", ValueType: "string", Default: "https://mineru.net/api/v4", Description: "MinerU 服务地址，默认 https://mineru.net/api/v4",
 		Validate: optionalHTTPURL(), Apply: applyField(func(c *config.Config) *string { return &c.ExtractMinerUBaseURL }, rawText)},
 	{Namespace: "extract", Key: "mineru_file_types", ValueType: "string", Default: "pdf,word,presentation", Description: "MinerU 处理的文件类型，逗号分隔：pdf,word,presentation,excel",

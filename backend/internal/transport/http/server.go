@@ -416,7 +416,7 @@ func isVendorIconAsset(requestPath string) bool {
 }
 
 func isNextExportDataAsset(requestPath string) bool {
-	// output: "export" 为每个页面写出同名 .txt（如 /setting/general.txt），并在根目录写出 __next.*.txt。
+	// output: "export" 为每个页面写出同名 .txt（如 /settings/general.txt），并在根目录写出 __next.*.txt。
 	return strings.EqualFold(path.Ext(requestPath), ".txt")
 }
 

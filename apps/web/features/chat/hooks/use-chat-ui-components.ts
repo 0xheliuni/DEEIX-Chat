@@ -22,7 +22,7 @@ function readStoredSelection(): number[] | null {
     if (!raw) {
       return null;
     }
-    const parsed = JSON.parse(raw) as unknown;
+    const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed.filter((id): id is number => Number.isInteger(id) && id > 0) : null;
   } catch {
     return null;

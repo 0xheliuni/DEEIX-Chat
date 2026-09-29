@@ -318,7 +318,7 @@ type TextScrambleProps = {
   duration?: number
   speed?: number
   characterSet?: string
-  as?: React.ElementType
+  as?: keyof JSX.IntrinsicElements
   className?: string
   trigger?: boolean
   onScrambleComplete?: () => void
@@ -338,9 +338,7 @@ function TextScramble({
   onScrambleComplete,
   ...props
 }: TextScrambleProps) {
-  const MotionComponent = motion.create(
-    Component as keyof JSX.IntrinsicElements
-  )
+  const MotionComponent = motion.create(Component)
   const [displayText, setDisplayText] = useState(children)
   const isAnimatingRef = React.useRef(false)
   const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null)

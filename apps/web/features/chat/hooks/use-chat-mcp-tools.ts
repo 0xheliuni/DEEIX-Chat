@@ -12,11 +12,8 @@ import {
 import { listAvailableMCPTools } from "@/shared/api/mcp";
 import type { MCPToolDTO } from "@/shared/api/mcp-types";
 import { resolveAccessToken } from "@/shared/auth/resolve-access-token";
-import {
-  hasMultipleImageAttachmentProcessors,
-  normalizeImageAttachmentProcessorSelection,
-} from "@/shared/lib/mcp-tool-selection";
-import { updateUserSettings, useUserSettings } from "@/shared/model/user-settings-store";
+import { hasMultipleImageAttachmentProcessors, normalizeImageAttachmentProcessorSelection } from "@/entities/mcp";
+import { updateUserSettings, useUserSettings } from "@/entities/user-settings";
 
 /**
  * Available MCP tools and default preferences: loads and normalizes available tools, caps the selection count

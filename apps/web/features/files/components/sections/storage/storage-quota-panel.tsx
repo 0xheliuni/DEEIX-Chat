@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
-import { formatBytes } from "@/shared/lib/file-display";
+import { formatBytes } from "@/entities/file";
 import type { UserStorageQuotaDTO } from "@/shared/api/file-types";
 
 type StorageQuotaPanelProps = {
